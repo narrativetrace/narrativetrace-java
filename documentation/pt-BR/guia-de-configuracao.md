@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 5895e76153ad | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/configuration-guide.md blob afb61c931994 | translated: 2026-09-06 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -642,6 +642,8 @@ Um `Slf4jTraceExporter` padrão é fornecido (marcado `@Secondary`). Forneça se
 Para o guia de integração completo, veja o [Guia de Integração com Micronaut](guia-de-integracao-com-micronaut.md).
 
 ## 7. Configuração do SLF4J
+
+**O NarrativeTrace não é um framework de logging.** Tudo a seguir se conecta *à* sua configuração existente de SLF4J/Logback/Log4j — muda o que é narrado (gerado em vez de escrito manualmente), nunca como, onde ou por meio de quê seus logs são enviados. Veja [Não substitui seu framework de logging](../../LEIAME.md#não-substitui-seu-framework-de-logging) para a versão curta.
 
 A narração de trace através do seu framework de logging existente é automática: quando `narrativetrace-slf4j` está no classpath, `PipelineBootstrap` (a composition root por trás de todo contexto construído por padrão) anexa `Slf4jTraceEventListener` ao caminho síncrono do pipeline de eventos. Sem classe wrapper, sem wiring:
 

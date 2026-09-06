@@ -632,6 +632,8 @@ For the complete integration guide, see [Micronaut Integration Guide](micronaut-
 
 ## 7. SLF4J Configuration
 
+**NarrativeTrace is not a logging framework.** Everything below wires *into* your existing SLF4J/Logback/Log4j setup — it changes what gets narrated (generated instead of hand-written), never how, where, or through what your logs are shipped. See [Not a replacement for your logging framework](../README.md#not-a-replacement-for-your-logging-framework) for the short version.
+
 Trace narration through your existing logging framework is automatic: when `narrativetrace-slf4j` is on the classpath, `PipelineBootstrap` (the composition root behind every default-constructed context) attaches `Slf4jTraceEventListener` to the synchronous path of the event pipeline. No wrapper class, no wiring:
 
 ```java

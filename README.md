@@ -130,6 +130,26 @@ NarrativeTrace does not replace your production alerting or your service
 topology maps. It gives you what neither provides: a human-readable execution
 narrative that doubles as a code-quality diagnostic.
 
+### Not a replacement for your logging framework
+
+NarrativeTrace doesn't touch your logging framework. It ships no appender, no
+encoder, no sink — your Logback or Log4j configuration, formats and
+destinations keep working exactly as they do today.
+
+What it replaces is the narration you write by hand: the
+`log.info("Placing order {} for customer {}", ...)` lines that describe what
+a method is doing. A traced method produces that narrative automatically,
+from the method's own signature and return value.
+
+This isn't a metaphor. The event pipeline's durable, synchronous path *is* an
+SLF4J listener (`narrativetrace-slf4j`) — the generated narrative reaches
+your appenders through the same SLF4J call a hand-written `log.info(...)`
+would use. Manual log statements keep working right alongside it: same
+logger, same streams, before, inside, or after a traced method. Mix the two
+freely while you migrate — see [Coexisting with traditional
+logging](documentation/configuration-guide.md#coexisting-with-traditional-logging)
+for a worked example.
+
 ## Try it in one command
 
 No project, no wiring — the repository ships a demo launcher that runs the

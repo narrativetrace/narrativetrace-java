@@ -1,4 +1,4 @@
-<!-- source: README.md blob 8617466b3280 | translated: 2026-09-04 | reviewed: - -->
+<!-- source: README.md blob 60ae625d4043 | translated: 2026-09-06 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -136,6 +136,28 @@ O NarrativeTrace não substitui seus alertas de produção nem seus mapas de
 topologia de serviços. Ele te dá o que nenhum dos dois oferece: uma narrativa
 de execução legível por humanos que também funciona como diagnóstico de
 qualidade de código.
+
+### Não substitui seu framework de logging
+
+O NarrativeTrace não mexe no seu framework de logging. Ele não inclui nenhum
+appender, nenhum encoder, nenhum sink — sua configuração do Logback ou
+Log4j, seus formatos e destinos, continuam funcionando exatamente como hoje.
+
+O que ele substitui é a narração que você escreve manualmente: as linhas
+`log.info("Placing order {} for customer {}", ...)` que descrevem o que um
+método está fazendo. Um método instrumentado produz essa narrativa
+automaticamente, a partir da própria assinatura do método e do seu valor de
+retorno.
+
+Isso não é uma metáfora. O caminho síncrono e durável do pipeline de eventos
+*é* um listener do SLF4J (`narrativetrace-slf4j`) — a narrativa gerada chega
+aos seus appenders pela mesma chamada SLF4J que um `log.info(...)` escrito
+manualmente usaria. As instruções de log manuais continuam funcionando lado a
+lado: mesmo logger, mesmos streams, antes, durante ou depois de um método
+instrumentado. Misture os dois livremente enquanto você migra — veja
+[Convivendo com logging
+tradicional](documentation/pt-BR/guia-de-configuracao.md#convivendo-com-logging-tradicional)
+para um exemplo completo.
 
 ## Experimente em um único comando
 
