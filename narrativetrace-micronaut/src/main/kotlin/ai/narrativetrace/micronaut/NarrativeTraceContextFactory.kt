@@ -30,8 +30,8 @@ import java.util.function.Consumer
  * throws gives an [ExceptionInInitializerError], and a truncated or incompatible class file gives
  * a [NoClassDefFoundError]. This runs while Micronaut builds a bean, so anything escaping fails
  * application startup — an optional observability jar has no business stopping an application from
- * starting. Core's `PipelineBootstrap` has caught [Throwable] here since the 2026-09-01 bug hunt's
- * finding 5; this factory does the same job by the same mechanism and was missed.
+ * starting. Core's `PipelineBootstrap` has caught [Throwable] here since an earlier bug hunt found
+ * the gap; this factory does the same job by the same mechanism and was missed.
  */
 internal object NarrativeTraceContextFactory {
     private const val SLF4J_LISTENER_CLASS = "ai.narrativetrace.slf4j.Slf4jTraceEventListener"

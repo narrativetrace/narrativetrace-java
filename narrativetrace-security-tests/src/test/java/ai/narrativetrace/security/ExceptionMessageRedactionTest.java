@@ -19,9 +19,9 @@ import org.junit.jupiter.api.Test;
  * The channel the value-shape axis did not reach, held to the same standard as every other.
  *
  * <p>INTENT: {@code TraceOutcome.Threw} carries the live {@code Throwable} rather than text a
- * renderer produced, so an exception message passed no redaction axis at all — the 2026-09-03
- * threat model's §2.2. The oracle here is the suite's usual one: a value that must not appear
- * appears in no byte of any emitter's output, artifacts included.
+ * renderer produced, so an exception message passed no redaction axis at all — an adversarial
+ * review's threat model called this out. The oracle here is the suite's usual one: a value that
+ * must not appear appears in no byte of any emitter's output, artifacts included.
  *
  * <p><b>@edgeCase</b> The claim repaired is <em>parity</em>, not clairvoyance. The value axis
  * matches a whole string — that is what keeps its false-positive budget near zero — so a message

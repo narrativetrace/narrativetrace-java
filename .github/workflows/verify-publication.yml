@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Nightly consumer-truth canary — part of the released source (a product
+# artifact), like ci.yml, whose action-pinning and least-privilege rules this
+# file follows: third-party actions pinned to full commit SHAs, no job granted
+# a token permission it has not asked for by name.
+#
+# What it proves, every night, from a cold environment: the latest released
+# version still resolves from the REAL Maven Central and Gradle Plugin Portal
+# (no mavenLocal, isolated Gradle user home), and the exact one-service-one-
+# test recipe documentation/first-10-minutes.md teaches still builds and
+# writes its trace file. In other words: a first-time adopter's day one still
+# works. scripts/verify-publication.sh holds all the logic; this file only
+# schedules it (the same thin-CI rule ci.yml cites).
+#
+# Nightly rather than release-chained on purpose: Central's sync is documented
+# as "minutes to hours", so a run fired the moment artifacts are submitted
+# spends its life polling. A nightly run is at most one night behind a release
+# and needs only a modest timeout — if Central is mid-sync tonight, tomorrow's
+# run catches it. This is a canary, not a gate: a red run means "investigate"
+# (usually Central or Portal weather), never "the build is broken", and no
+# other job waits on it.
+name: Verify publication
+
+permissions: {}
+
+on:
+  schedule:
+    - cron: "42 3 * * *"
+  # Manual runs for the publish checklist: after a release, trigger this with
+  # the new version instead of running the script from a laptop.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to verify (default: latest v* tag)"
+        required: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # The version under verification defaults to the latest release tag,
+          # and tags need history to be found.
+          fetch-depth: 0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Verify the latest release resolves and the recipe traces
+        # The dispatch input reaches the shell through the environment, never
+        # by template interpolation into the script body — the same reasoning
+        # as the SHA-pinning above: no path where outside text becomes code.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="$INPUT_VERSION"
+          if [ -z "$version" ]; then
+            version="$(git tag --list 'v*' --sort=-version:refname | head -1)"
+            version="${version#v}"
+          fi
+          if [ -z "$version" ]; then
+            echo "No release tag found — nothing to verify."; exit 1
+          fi
+          echo "Verifying $version"
+          bash scripts/verify-publication.sh "$version" --timeout=1800

@@ -28,11 +28,12 @@ data class StructureComparison(val failures: List<String>, val warnings: List<St
  *
  * @llmNote A fenced code block's *content* is deliberately only a [StructureComparison.warnings]
  * signal, not a failure, once its block *count* already matches its source. Real translations in
- * this repository legitimately vary code-block content in three ways `planning/i18n/terminology.md`
- * sanctions or that plain observation of the shipped `es`/`zh-CN` guides confirms: comments are
- * translated, `<placeholder>` labels inside illustrative syntax are localized, and a long comment can
- * rewrap onto a different number of lines in the target language. A demonstration command can even
- * legitimately change a literal argument (`--lang es` vs `--lang zh-CN`) when the block exists to
+ * this repository legitimately vary code-block content in three ways the i18n terminology
+ * conventions sanction or that plain observation of the shipped `es`/`zh-CN` guides confirms:
+ * comments are translated, `<placeholder>` labels inside illustrative syntax are localized, and a
+ * long comment can rewrap onto a different number of lines in the target language. A demonstration
+ * command can even legitimately change a literal argument (`--lang es` vs `--lang zh-CN`) when the
+ * block exists to
  * show the reader that exact command. None of that is machine-distinguishable from a real drift with
  * dependency-free line parsing, so content drift is surfaced for a human to read, never used to fail
  * the build; only the block *count* (a whole example gained or lost) is a hard failure.

@@ -106,7 +106,7 @@ fun moduleKey(project: Project): String = project.path.removePrefix(":")
  * and out of the plugin's build file. Neither has ever held one — the version comes from
  * `gradle.properties` via `providers.gradleProperty("narrativetraceVersion")` — so both greps
  * matched nothing, and a release gate that always answers the empty string is not a gate. Found by
- * the 2026-09-02 adversarial audit (finding 10). A regex over build source can drift from the
+ * an adversarial review. A regex over build source can drift from the
  * build; asking the build cannot.
  *
  * One task serves both checks because there is one version: the libraries and the Gradle plugin
@@ -169,7 +169,7 @@ tasks.register("translationCheck") {
         result.warnings.forEach { println(it) }
         if (result.failures.isNotEmpty()) {
             throw GradleException(
-                "Translation platform check failed (see planning/i18n/terminology.md):\n" +
+                "Translation platform check failed (see the i18n terminology conventions):\n" +
                     result.failures.joinToString("\n")
             )
         }
@@ -348,11 +348,11 @@ tasks.register("pmdReport") {
 }
 
 // gitleaks: a named entry point so CI encodes only this task's name, never the
-// binary's path, flags or version (THIN-CI rule). The pre-commit hook
-// (`.githooks/pre-commit`) covers the staged diff on every commit; this covers
-// the whole git history — for a periodic sweep, and for a machine that never
-// ran the hook. Degrades gracefully: warns and passes when the `gitleaks`
-// binary is absent locally, the same convention the pre-commit hook uses.
+// binary's path, flags or version (THIN-CI rule). The local pre-commit hook
+// covers the staged diff on every commit; this covers the whole git history —
+// for a periodic sweep, and for a machine that never ran the hook. Degrades
+// gracefully: warns and passes when the `gitleaks` binary is absent locally,
+// the same convention the pre-commit hook uses.
 // Deliberately not wired into `check` or a CI job here — see
 // documentation/security-tooling.md for the cadence this repo runs it at.
 fun findExecutableOnPath(name: String): String? {
@@ -396,7 +396,7 @@ tasks.register("gitleaksScan") {
 // (OSS/community-maintained; no custom rules — see documentation/security-tooling.md
 // for why custom rules are out of scope here). Fetching the ruleset needs
 // network, which is why this is not in `check` or a per-push job: wired into
-// `.gitlab-ci.yml` on merge-request and scheduled pipelines only. Degrades
+// private CI on merge-request and scheduled pipelines only. Degrades
 // gracefully when the `semgrep` binary is absent locally.
 tasks.register("semgrepScan") {
     description = "Runs Semgrep's community p/java security ruleset over the source tree (needs network)"
@@ -433,7 +433,7 @@ tasks.register("semgrepScan") {
 // build/ by nested test harnesses (e.g. the Gradle plugin's functionalTest
 // GradleTestKit cache), which describe *their* dependencies, not this
 // project's resolved graph. Querying the OSV database needs network, so this
-// is not in `check`: `.gitlab-ci.yml` runs it on the schedule and on a manual
+// is not in `check`: private CI runs it on the schedule and on a manual
 // web trigger only. Degrades gracefully when the `osv-scanner` binary is absent.
 tasks.register("osvScan") {
     description = "Scans the aggregated dependency SBOM against the OSV database (needs network)"
@@ -642,7 +642,7 @@ subprojects {
         options.compilerArgs.add("-parameters")
     }
 
-    // Micronaut 4.10.26 (the newest patch on the 4.x line — see TODO finding F1) still
+    // Micronaut 4.10.26 (the newest patch on the 4.x line) still
     // resolves the Netty 4.2 family to 4.2.16.Final, which carries GHSA-8c42-7qj2-3j46
     // (netty-codec-http CORS cache-poisoning/info-disclosure). Netty releases its 4.2.x
     // artifacts in lockstep, so forcing the whole family to the next patch is safe within

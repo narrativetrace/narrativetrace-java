@@ -30,7 +30,7 @@ class BaselineFreshnessSupportTest {
         """
         # Benchmark baseline — $date
         # JDK 17, 1 fork, 3 warmup × 1s, 5 iterations × 1s
-        # Commit: bbeec28 (allocation baseline run)
+        # Commit: 1a2b3c4 (allocation baseline run)
         #
         Benchmark  Mode  Cnt  Score  Units
         """.trimIndent()
@@ -50,7 +50,7 @@ class BaselineFreshnessSupportTest {
 
     @Test
     fun readsTheCommitFromTheHeader() {
-        assertEquals("bbeec28", BaselineFreshnessSupport.recordedCommit(dated("2026-02-25").readText()))
+        assertEquals("1a2b3c4", BaselineFreshnessSupport.recordedCommit(dated("2026-02-25").readText()))
     }
 
     @Test
@@ -95,7 +95,7 @@ class BaselineFreshnessSupportTest {
         assertTrue(report.contains("WARNING"))
         assertTrue(report.contains("187 days old"))
         assertTrue(report.contains("2026-02-25"))
-        assertTrue(report.contains("bbeec28"))
+        assertTrue(report.contains("1a2b3c4"))
         assertTrue(report.contains(BaselineFreshnessSupport.REFRESH_COMMAND))
     }
 

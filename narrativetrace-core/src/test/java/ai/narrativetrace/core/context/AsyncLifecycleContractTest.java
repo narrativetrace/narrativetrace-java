@@ -64,7 +64,7 @@ class AsyncLifecycleContractTest {
     pipeline.close();
   }
 
-  // ------------------------------------------------------------------ S3: adoption before reset
+  // --------------------------------------------------------------------- adoption before reset
 
   @Test
   void adoptedWorkerSpansAndTheirEventsDoNotSurviveTheParentReset() throws Exception {
@@ -94,7 +94,7 @@ class AsyncLifecycleContractTest {
     assertThat(pipeline.events()).as("and so do their events").isEmpty();
   }
 
-  // ------------------------------------------------------------- S4: completion after the reset
+  // ------------------------------------------------------------------ completion after the reset
 
   @Test
   void aWorkerThatFinishesAfterTheParentResetIsDiscardedAndCounted() throws Exception {
@@ -145,7 +145,7 @@ class AsyncLifecycleContractTest {
         .isEqualTo(2);
   }
 
-  // ------------------------------------------------------------- S5: the helpers own their copies
+  // ------------------------------------------------------------------ the helpers own their copies
 
   @Test
   void forkedWorkerSpansAreGoneOnceTheirRootsHaveBeenCollected() throws Exception {

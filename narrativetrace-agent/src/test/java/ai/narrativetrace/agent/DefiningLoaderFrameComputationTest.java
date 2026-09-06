@@ -23,12 +23,11 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * COMPUTE_FRAMES must resolve types through the class's DEFINING loader, not the agent's own.
  *
- * <p>Under an app server (WildFly spike, plan §Spike findings) the transformed class references
- * types the agent's loader cannot see — deployment neighbours and container APIs — and any method
- * whose frames merge such types then fails to instrument; the JVM swallows the failure and the
- * class silently loads uninstrumented. This test rebuilds that shape in miniature: classes compiled
- * at test runtime into a temp dir exist only in a child URLClassLoader, never on the test
- * classpath.
+ * <p>Under an app server (WildFly spike) the transformed class references types the agent's loader
+ * cannot see — deployment neighbours and container APIs — and any method whose frames merge such
+ * types then fails to instrument; the JVM swallows the failure and the class silently loads
+ * uninstrumented. This test rebuilds that shape in miniature: classes compiled at test runtime into
+ * a temp dir exist only in a child URLClassLoader, never on the test classpath.
  */
 class DefiningLoaderFrameComputationTest {
 

@@ -25,11 +25,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * Trace <em>metadata</em> reaches the text renderers unescaped, where rendered values do not.
  *
- * <p>INTENT: The 2026-09-02 adversarial audit (finding 4) showed {@code MARKDOWN_HAS_RAW_METADATA_
- * NEWLINE} and {@code INDENTED_HAS_RAW_METADATA_NEWLINE}. Exception <em>messages</em> were already
- * routed through {@link MarkdownEscape} and {@link ControlEscape} — because those were known to
- * echo user input — but the class name, method name and parameter names beside them were not, and
- * {@code MethodSignature} is a public record with no validation on any of them.
+ * <p>INTENT: An adversarial review showed {@code MARKDOWN_HAS_RAW_METADATA_ NEWLINE} and {@code
+ * INDENTED_HAS_RAW_METADATA_NEWLINE}. Exception <em>messages</em> were already routed through
+ * {@link MarkdownEscape} and {@link ControlEscape} — because those were known to echo user input —
+ * but the class name, method name and parameter names beside them were not, and {@code
+ * MethodSignature} is a public record with no validation on any of them.
  *
  * <p><b>@llmNote</b> All three renderers are line-oriented: one node is one line, one sentence or
  * one heading, so a raw newline in a name forges an entry that a reader, a log parser or an AI

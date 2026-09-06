@@ -15,13 +15,13 @@ import java.util.function.Consumer
 /**
  * Loading the optional SLF4J listener must never fail the application it is optional for.
  *
- * INTENT: The 2026-09-02 adversarial audit (finding 5) found this factory catching `Exception`
+ * INTENT: An adversarial review found this factory catching `Exception`
  * where core's `PipelineBootstrap` catches `Throwable`. A shaded or version-mismatched SLF4J, a
  * corrupted optional jar, or a listener whose static initialiser throws raises a `LinkageError` or
  * an `ExceptionInInitializerError` — neither of which is an `Exception` — and the error escaped
  * into Micronaut's bean creation, failing startup.
  *
- * @llmNote This is a MISSED INSTANCE of the 2026-09-01 bug hunt's finding 5, whose contract is
+ * @llmNote This is a MISSED INSTANCE of an earlier bug hunt's finding, whose contract is
  * that every trace boundary running on the application thread must be total, `Error` subclasses
  * included. That finding fixed `PipelineBootstrap`; this factory does the same job by the same
  * mechanism and was not looked at.

@@ -14,10 +14,10 @@ import ai.narrativetrace.core.render.ControlEscape;
  *
  * <p>INTENT: {@code HttpRoute}, {@code ClientIp}, {@code EnduserId}, {@code SessionId} and {@code
  * TenantId} preserve exactly what the request said — deliberately, because capture is supposed to
- * be faithful. The sinks are not so forgiving. The 2026-09-02 adversarial audit (finding 6) showed
- * all three of route, client IP and end-user id carrying raw newlines into MDC, where a layout that
- * prints MDC without JSON escaping forges a log line a SIEM cannot distinguish from a real one
- * (CWE-117), and into OTel attributes, where an unbounded value is unbounded cardinality.
+ * be faithful. The sinks are not so forgiving. An adversarial review showed all three of route,
+ * client IP and end-user id carrying raw newlines into MDC, where a layout that prints MDC without
+ * JSON escaping forges a log line a SIEM cannot distinguish from a real one (CWE-117), and into
+ * OTel attributes, where an unbounded value is unbounded cardinality.
  *
  * <p><b>@llmNote</b> This is an <em>export</em> concern, not a capture one. ADR-002 keeps capture
  * faithful and does its projection last, so the raw value stays in the model and in the JSON export

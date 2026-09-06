@@ -17,8 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * The names and value shapes the default policy missed, per the 2026-09-02 adversarial audit
- * (finding 3).
+ * The names and value shapes the default policy missed, per an adversarial review.
  *
  * <p>INTENT: NarrativeTrace captures parameters and return values by design, so the default
  * renderer is the only thing standing between a payment or session DTO and the log. The audit's

@@ -50,9 +50,10 @@ data class I18nManifest(val sourceLanguage: String, val languages: List<I18nLang
  * documents are in scope for translation. Every other i18n check (completeness, index/menu
  * integrity, the review dashboard) reads this manifest rather than re-deriving the same facts.
  *
- * The manifest lives under `documentation/` (not `planning/`) so it survives the public snapshot —
- * `documentation/i18n/` is already carved out of `TranslationCheckSupport`'s language-directory scan,
- * so adding this file here does not make `translationCheck` mistake it for a translated document.
+ * The manifest lives under `documentation/` (not in a private working-notes directory) so it
+ * survives the public snapshot — `documentation/i18n/` is already carved out of
+ * `TranslationCheckSupport`'s language-directory scan, so adding this file here does not make
+ * `translationCheck` mistake it for a translated document.
  *
  * @llmNote Uses `groovy.json.JsonSlurper` (already on the Gradle/buildSrc classpath) rather than
  * adding a JSON dependency — the same choice already made by `JDependReportSupport` and

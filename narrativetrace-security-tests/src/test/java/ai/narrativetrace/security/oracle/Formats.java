@@ -104,9 +104,9 @@ public final class Formats {
   /**
    * A PlantUML statement: a participant declaration, an arrow with a message, or an in-flight note.
    *
-   * <p><b>@llmNote</b> Added for the 2026-09-02 audit's finding 4. Bracketing alone said nothing
-   * about what was <em>between</em> the markers, so a forged {@code note over} or an injected
-   * {@code !include} preprocessor directive was well-formed by this oracle's standard.
+   * <p><b>@llmNote</b> Added for an adversarial-review finding. Bracketing alone said nothing about
+   * what was <em>between</em> the markers, so a forged {@code note over} or an injected {@code
+   * !include} preprocessor directive was well-formed by this oracle's standard.
    */
   private static final Pattern PLANTUML_STATEMENT =
       Pattern.compile(
@@ -159,11 +159,11 @@ public final class Formats {
    *
    * <p>INTENT: The formats with a parser had an oracle and the line-oriented ones did not, which is
    * exactly why {@code ProseRenderer} interpolating an exception message with no escaping at all
-   * survived a property named "every format" (2026-09-03 threat model §2.1, §5). Prose is a shipped
-   * format whose entire structure is lines, so a raw {@code \n} in any interpolated field forges a
-   * sentence and a raw ESC injects an ANSI sequence into the console it is printed to. Both are
-   * checkable without a parser: the sentence terminator is the grammar, and a control character is
-   * never legitimate inside a line.
+   * survived a property named "every format", per an adversarial review's threat model. Prose is a
+   * shipped format whose entire structure is lines, so a raw {@code \n} in any interpolated field
+   * forges a sentence and a raw ESC injects an ANSI sequence into the console it is printed to.
+   * Both are checkable without a parser: the sentence terminator is the grammar, and a control
+   * character is never legitimate inside a line.
    *
    * <p><b>@llmNote</b> Blank lines are skipped rather than rejected: {@code LossFooter} separates
    * its sentence from the body with one, and that separation is layout, not a statement.

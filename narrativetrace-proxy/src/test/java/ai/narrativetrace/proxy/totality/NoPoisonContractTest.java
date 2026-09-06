@@ -222,7 +222,7 @@ class NoPoisonContractTest {
     assertThat(target.calls()).as("target invocations at %s", level).isOne();
   }
 
-  // ---------------------------------------------------------- S2: exits never replace outcomes
+  // ------------------------------------------------------------- exits never replace outcomes
 
   @ParameterizedTest
   @EnumSource(TracingLevel.class)

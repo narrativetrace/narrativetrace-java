@@ -20,15 +20,14 @@ import org.slf4j.LoggerFactory;
  * Live translated-trace stream: a {@link Flow.Subscriber} that renders every pipeline event into
  * one locale as it arrives.
  *
- * <p>INTENT: The pipeline-subscriber shape of the glossary plan (Phase 7 / TODO item 6 milestone
- * 3). Subscribe it to {@code BufferedEventConsumer}'s publisher seam; each event maps to a
- * canonical entry ({@link CanonicalEntryMapper#fromEvent}) and renders through {@link
- * TraceTranslationView#renderEntry} with per-trace state held in a {@link PerishableMap}. Rendered
- * lines go to the sink one line at a time, without trailing newlines. Two sink shapes ship: a
- * {@link Consumer}-of-lines (default: the {@code narrativetrace.i18n.<locale>} SLF4J logger) and a
- * file-writing variant ({@link Path} constructors) appending each trace's lines live to {@code
- * <outputDir>/<traceId>.md} — the pipeline-shaped replacement for the retired build-time {@code
- * translateTraces} task.
+ * <p>INTENT: The pipeline-subscriber shape of the glossary design (Phase 7). Subscribe it to {@code
+ * BufferedEventConsumer}'s publisher seam; each event maps to a canonical entry ({@link
+ * CanonicalEntryMapper#fromEvent}) and renders through {@link TraceTranslationView#renderEntry}
+ * with per-trace state held in a {@link PerishableMap}. Rendered lines go to the sink one line at a
+ * time, without trailing newlines. Two sink shapes ship: a {@link Consumer}-of-lines (default: the
+ * {@code narrativetrace.i18n.<locale>} SLF4J logger) and a file-writing variant ({@link Path}
+ * constructors) appending each trace's lines live to {@code <outputDir>/<traceId>.md} — the
+ * pipeline-shaped replacement for the retired build-time {@code translateTraces} task.
  *
  * <p>Lifecycle of a trace's state: created on the trace's first event, dropped when its root span
  * exits (the glossary-gaps footer for that trace is emitted at that point), and evicted by capacity

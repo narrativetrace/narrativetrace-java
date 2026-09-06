@@ -131,8 +131,8 @@ final class SpanContextAttributeMapper {
    * different holes: a value set programmatically through {@code setRequestContext} — by a custom
    * integration, a test, or a framework this project does not ship a filter for — never passed
    * through a filter at all, and this is the last point before it reaches a telemetry backend as an
-   * unbounded, high-cardinality, possibly newline-bearing attribute. Found by the 2026-09-02
-   * adversarial audit (finding 6).
+   * unbounded, high-cardinality, possibly newline-bearing attribute. Found by an adversarial
+   * review.
    */
   static void setTraceLevelAttributes(SpanContext sc, Span span) {
     if (sc == null) {

@@ -82,7 +82,7 @@ SpringOverheadBenchmark.spring_noAnnotations                 2088         1976
 # column carefully: it was taken on the earlier 2026-08-31 tree, and four core changes landed between that
 # commit and this run (the ring's seqlock slot protocol, the capture that waits for its own
 # events, the flush-after-close fix, the one-monitor drain). To separate the two causes, the two
-# benchmarks this run touches were measured at 8526a2e9 — the run's starting commit, after those
+# benchmarks this run touches were measured at the run's starting commit, after those
 # four and before either change — with the same jars and settings:
 #
 #   agent_noAnnotations         2648 → 2216   −432 B/op (−16.3 %), THIS RUN
@@ -90,7 +90,7 @@ SpringOverheadBenchmark.spring_noAnnotations                 2088         1976
 #   context_enterExit_DETAIL    3008 → 2984   not this run; ±24 B of drift between runs
 #   context_enterExit_NARRATIVE 3040 → 2984   not this run; same drift
 #   context_enterExit_OFF        392 →  392   unchanged
-#   agent_OFF                     56 →   56   unchanged (the gate landed in 3ad17721)
+#   agent_OFF                     56 →   56   unchanged (the gate landed in an earlier commit)
 #
 # `proxy_*`, `spring_*` and `nesting_*` exercise neither the agent call site nor SUMMARY
 # pruning, so nothing in this run can have moved them; their deltas against the 2026-08-31
@@ -99,7 +99,7 @@ SpringOverheadBenchmark.spring_noAnnotations                 2088         1976
 # SUMMARY NO LONGER COSTS MORE THAN DETAIL, which is the point of the change and the one
 # comparison that carries no run-to-run noise, because both halves are measured in the same run:
 #
-#   before (8526a2e9)   SUMMARY 3096 − DETAIL 3008 = +88 B/op
+#   before (run start)  SUMMARY 3096 − DETAIL 3008 = +88 B/op
 #   after  (2026-08-31)  SUMMARY 2984 − DETAIL 2984 =   0 B/op
 #
 # `TraceTreeBuilder.pruneSummary` used to rebuild every root at capture time whether or not

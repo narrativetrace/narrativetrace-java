@@ -25,11 +25,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * Diagram metadata is attacker-reachable, and the diagram grammars are line-oriented.
  *
- * <p>INTENT: The 2026-09-02 adversarial audit (finding 4) built a {@link MethodSignature} whose
- * class name carried a quote and a newline, and watched both renderers emit a forged participant, a
- * Mermaid {@code click} interaction pointing at an attacker URL, and a forged PlantUML note. The
- * quoting helper only wrapped names containing {@code . - :} or a space, and escaped nothing, so
- * every name was a breakout.
+ * <p>INTENT: An adversarial review built a {@link MethodSignature} whose class name carried a quote
+ * and a newline, and watched both renderers emit a forged participant, a Mermaid {@code click}
+ * interaction pointing at an attacker URL, and a forged PlantUML note. The quoting helper only
+ * wrapped names containing {@code . - :} or a space, and escaped nothing, so every name was a
+ * breakout.
  *
  * <p><b>@llmNote</b> {@code MethodSignature} is a public record with no validation, and trace trees
  * are built by public API, deserialized from JSON, and post-processed by integrations. "The proxy

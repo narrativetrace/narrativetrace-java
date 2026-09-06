@@ -1,12 +1,12 @@
-<!-- source: documentation/developer-experience.md blob 5338d1a9580b | translated: 2026-09-02 | reviewed: 2026-09-03 -->
+<!-- source: documentation/developer-experience.md blob 30383fa1d4f2 | translated: 2026-09-02 | reviewed: 2026-09-03 -->
 # Experiencia de desarrollo
 
 [English](../developer-experience.md) | **Español** | [简体中文](../zh-CN/开发者体验.md)
 
 Lo que hace falta para pasar de un proyecto vacío a leer tu primera
 narrativa, y dónde vive cada pieza de esa experiencia. Esta página describe
-lo que ya está disponible hoy; las mejoras planificadas se rastrean en
-`TODO.md`.
+lo que ya está disponible hoy; las mejoras planificadas se registran en un
+backlog privado.
 
 ## Configuración en una línea
 

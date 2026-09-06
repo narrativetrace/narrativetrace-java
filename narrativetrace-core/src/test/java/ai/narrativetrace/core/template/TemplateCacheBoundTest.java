@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
  * <p>INTENT: {@code TemplateParser.resolve} is public and accepts any string. A framework adapter,
  * plugin or downstream caller that resolves a request-shaped template would otherwise grow a static
  * map for the life of the process — host memory exhaustion reached through instrumentation, before
- * any best-effort discard logic can help, because this is the sync path. Found by the 2026-09-02
- * adversarial audit (finding 2).
+ * any best-effort discard logic can help, because this is the sync path. Found by an adversarial
+ * review.
  *
  * @llmNote These tests deliberately assert a <em>bound</em> and never an exact size. The cache is
  *     static and shared with every other test in this module, so any test that resolves a template

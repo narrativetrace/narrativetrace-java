@@ -151,9 +151,9 @@ final class DiagramText {
    *
    * <p><b>@edgeCase</b> An empty class name emitted the bare line {@code participant }, which is
    * not a Mermaid statement at all — the diagram was malformed rather than merely ugly. Found by
-   * the metadata fuzz route added for the 2026-09-02 audit's finding 4, which is the first thing
-   * ever to put an empty string in that field. Marker-shaped like the renderer's {@code <empty>}
-   * and {@code <pending>}: a reader learns the name was absent, rather than seeing a gap.
+   * the metadata fuzz route added for an adversarial review, which is the first thing ever to put
+   * an empty string in that field. Marker-shaped like the renderer's {@code <empty>} and {@code
+   * <pending>}: a reader learns the name was absent, rather than seeing a gap.
    */
   private static final String UNNAMED = "<unnamed>";
 

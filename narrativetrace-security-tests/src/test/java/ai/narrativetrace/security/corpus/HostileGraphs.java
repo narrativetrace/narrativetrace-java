@@ -40,7 +40,7 @@ public final class HostileGraphs {
   private HostileGraphs() {}
 
   /**
-   * A record with one redacted component — the shape TODO 46's leak was found in.
+   * A record with one redacted component — the shape a container-redaction leak was found in.
    *
    * @param label rendered normally, so an output with no {@code label} is empty rather than
    *     redacted
@@ -301,8 +301,8 @@ public final class HostileGraphs {
    * every fixture above them is an object: each one makes a template name a property path, which is
    * the placeholder production that was already correct. The production that leaked — a bare key
    * naming a value directly — had no fixture to be exercised with at all, which is how {@code
-   * {password}} printing a password survived a suite pointed straight at it (2026-09-03 threat
-   * model, §2.3 and §4.1).
+   * {password}} printing a password survived a suite pointed straight at it, per an adversarial
+   * review's threat model.
    *
    * <p><b>@edgeCase</b> {@code newline-scalar} is the one fixture here carrying no sentinel. Its
    * value is not secret and is meant to be shown; what must not survive is its raw line break, and

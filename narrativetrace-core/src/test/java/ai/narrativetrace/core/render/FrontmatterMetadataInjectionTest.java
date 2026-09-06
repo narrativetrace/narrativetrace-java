@@ -23,11 +23,11 @@ import org.junit.jupiter.params.provider.ValueSource;
  * Frontmatter is the machine-readable half of a trace document, and its {@code entry_point} came
  * straight from unvalidated metadata.
  *
- * <p>INTENT: Found by the metadata fuzz route added for the 2026-09-02 audit's finding 4, not by
- * the report itself. {@code entry_point} was the one frontmatter value that bypassed {@code
- * yamlSafe} entirely, so a class name could inject sibling YAML keys — the fuzzer produced a
- * document carrying {@code Human:} and {@code Assistant:} keys, which is a prompt injection against
- * anything reading the trace as a conversation — or simply make the file unparseable.
+ * <p>INTENT: Found by the metadata fuzz route added for an adversarial review, not by the report
+ * itself. {@code entry_point} was the one frontmatter value that bypassed {@code yamlSafe}
+ * entirely, so a class name could inject sibling YAML keys — the fuzzer produced a document
+ * carrying {@code Human:} and {@code Assistant:} keys, which is a prompt injection against anything
+ * reading the trace as a conversation — or simply make the file unparseable.
  *
  * <p><b>@llmNote</b> {@code yamlSafe} itself was a deny-list ({@code : # " \ \n}) and let through
  * everything else YAML treats specially. It is now an allow-list plus a real double-quoted escaper,

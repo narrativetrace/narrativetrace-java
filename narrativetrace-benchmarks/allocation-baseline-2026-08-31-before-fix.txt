@@ -45,9 +45,9 @@ AgentOverheadBenchmark.agent_OFF                              392         400
 # `context.enterMethod`, which returns immediately at OFF. The proxy path asks
 # `context.isActive()` first and builds nothing, which is why `proxy_OFF` costs
 # 24 B and `agent_OFF` costs 392. Not fixed here: this run's scope is the ruled
-# remedy set of `planning/perf-regression-2026-08-31.md`, and this is a new
+# remedy set of the 2026-08-31 performance-regression analysis (private), and this is a new
 # finding. It is why the README FAQ can no longer say the agent "adds nothing
-# measurable". Recorded as open work under TODO 20.
+# measurable". Recorded as open work, tracked privately.
 #
 # ── Pipeline fast path (new in this run, recorded not gated) ────────────────────
 # The publish path allocates nothing measurable: the ring is preallocated, and

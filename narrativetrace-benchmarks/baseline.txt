@@ -24,7 +24,7 @@
 # caught a 7,260 ns reading on a benchmark whose quiet value is 25 ns. A 25 % band cannot hold
 # against a 2× spread, so **the throughput half of `benchmarkCompare` is advisory on this
 # machine**; the gate that means something here is the allocation one, which reproduces to the
-# byte on every unbatched row. Recorded as open work under TODO 20.
+# byte on every unbatched row. Recorded as open work, tracked privately.
 #
 # VALIDATION, 2026-09-01. A fourth full-suite run of the same jar, on a quiet machine (load
 # average 2.7), passed `benchmarkCompare` 30/30 with every single row FASTER than the ceiling
@@ -47,7 +47,7 @@
 #
 # The predecessor is kept as `baseline-2026-08-31-before-fix.txt`. Do not diff the two row by
 # row: part of every difference is the fixture leaving, and part is the fix. The attribution
-# report (`planning/perf-regression-2026-08-31.md`, §9) separates them, remedy by remedy.
+# report (the 2026-08-31 performance-regression analysis (private)) separates them, remedy by remedy.
 #
 # THE TWO TIME FACTS THIS RUN DOES CLAIM, because they were measured with error bars that
 # support them (2 forks × 5 iterations, quiet machine, like-for-like fixture):
@@ -92,5 +92,5 @@ SpringOverheadBenchmark.spring_narrated_interpolated    avgt   15     1288.073 �
 SpringOverheadBenchmark.spring_noAnnotations            avgt   15     1202.637 ±   349.230  ns/op
 #
 # JDK 21 column: not measured. This container carries only Temurin 17.0.20 and the Gradle
-# toolchain cannot provision another. The scheduled JDK-21 CI job (.gitlab-ci.yml) produces it.
+# toolchain cannot provision another. The scheduled JDK-21 CI job produces it.
 #

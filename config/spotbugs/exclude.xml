@@ -20,13 +20,13 @@
   MALICIOUS_CODE is excluded for this phase too, not because it is noise:
   EI_EXPOSE_REP/EI_EXPOSE_REP2 found ~130 real instances across 21 fields in
   8 modules (mutable List/Map fields returned or stored without a defensive
-  copy — see the sites listed in the CanonicalEntry.ntParameters-shaped TODO
-  ledger item). Fixing that properly means auditing each field's mutation
-  semantics and adding List.copyOf/Map.copyOf at each constructor, which is
-  real, valuable, security-relevant work — but it is a properly-sized
-  follow-up, not a same-session tack-on to wiring the tool. Landing it half
-  done (either rushed edits or a silent suppression) would be worse than
-  ledgering it honestly. See TODO.md.
+  copy — the exact sites are tracked in the private backlog). Fixing that
+  properly means auditing each field's mutation semantics and adding
+  List.copyOf/Map.copyOf at each constructor, which is real, valuable,
+  security-relevant work — but it is a properly-sized follow-up, not a
+  same-session tack-on to wiring the tool. Landing it half done (either
+  rushed edits or a silent suppression) would be worse than ledgering it
+  honestly, tracked privately for follow-up.
 -->
 <FindBugsFilter>
   <Match>

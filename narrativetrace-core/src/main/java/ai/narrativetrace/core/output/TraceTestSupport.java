@@ -53,10 +53,10 @@ public final class TraceTestSupport {
   }
 
   /**
-   * Failure report that localizes change instead of dumping the trace (TODO item 14b): when the
-   * failing scenario's structure CHANGED since last green, the report is the delta — summary plus
-   * readable diff — because assertion output already covers detection and the trace's job here is
-   * saying <em>where</em> behavior moved.
+   * Failure report that localizes change instead of dumping the trace: when the failing scenario's
+   * structure CHANGED since last green, the report is the delta — summary plus readable diff —
+   * because assertion output already covers detection and the trace's job here is saying
+   * <em>where</em> behavior moved.
    */
   public static String buildFailureReport(String scenario, String trace, ScenarioDelta delta) {
     if (delta.kind() == ScenarioDelta.Kind.CHANGED) {
@@ -340,9 +340,9 @@ public final class TraceTestSupport {
 
   /**
    * Prints the console summary followed by the structural delta line — the suite's one-line answer
-   * to "did behavior change since the last green run?" (TODO item 14's loop surface). The delta
-   * line is last so it is the first thing read bottom-up in a terminal; it is omitted entirely when
-   * no scenario produced a structural artifact.
+   * to "did behavior change since the last green run?". The delta line is last so it is the first
+   * thing read bottom-up in a terminal; it is omitted entirely when no scenario produced a
+   * structural artifact.
    */
   public static void printConsoleSummary(
       List<Map.Entry<String, TraceTree>> traces,

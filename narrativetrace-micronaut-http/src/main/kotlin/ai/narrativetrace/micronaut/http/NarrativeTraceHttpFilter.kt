@@ -131,7 +131,7 @@ class NarrativeTraceHttpFilter(
      * INTENT: `/orders/{id}` is one route; `/orders/1`, `/orders/2`, … are as many routes as there
      * are orders. Exported as an OTel attribute and an MDC field, the raw path is unbounded
      * cardinality in the telemetry backend, and it carries whatever identifiers the path segments
-     * happen to be. The 2026-09-02 audit (finding 6) asked for the template where one is available.
+     * happen to be. An adversarial review asked for the template where one is available.
      *
      * @llmNote Falls back to `request.path` rather than to nothing: route resolution and filter
      * order are not something this filter controls, and a raw path is a worse label than a template

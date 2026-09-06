@@ -41,7 +41,8 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * <p><b>@edgeCase</b> Comparability with baselines taken before 2026-08-31 is broken by design.
  * Those rows measured a call <em>plus</em> two resets; these measure a call. The history is
- * preserved in `planning/perf-regression-2026-08-31.md` and in the dated baseline files.
+ * preserved in the 2026-08-31 performance-regression analysis (private) and in the dated baseline
+ * files.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)

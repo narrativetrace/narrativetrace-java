@@ -18,9 +18,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Approval-testing over the structural narrative (ADR-002, TODO item 14): committed {@code
- * *.approved.nt} baselines are the behavioral contract, and a run whose structure differs fails
- * with a readable diff.
+ * Approval-testing over the structural narrative (ADR-002): committed {@code *.approved.nt}
+ * baselines are the behavioral contract, and a run whose structure differs fails with a readable
+ * diff.
  *
  * <p>INTENT: The ApprovalTests convention applied to the value-free {@code .nt} artifact — a
  * mismatch writes the current render as {@code *.received.nt} beside the baseline for review, and

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The audit's regression spec for finding 3, over every container shape the renderer supports.
+ * An adversarial review's regression spec, over every container shape the renderer supports.
  *
  * <p>INTENT: `RedactionDefaultsGapTest` pins the policy; this pins the product. A name pattern that
  * the policy knows but a render path never asks about is not protection. Both parallel paths —

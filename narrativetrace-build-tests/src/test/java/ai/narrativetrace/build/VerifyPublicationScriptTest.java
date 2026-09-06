@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  * What is deliberately NOT here: a real poll against Maven Central / the Gradle Plugin Portal, and
  * a real consumer-smoke-test build — both make network calls and belong to a human running the
  * script itself against an actual release, never a per-commit gate (see the script's own header
- * comment and planning/PUBLISHING.md).
+ * comment and the publish checklist).
  */
 class VerifyPublicationScriptTest {
 

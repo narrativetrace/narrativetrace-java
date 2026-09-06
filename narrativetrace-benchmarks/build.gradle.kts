@@ -52,7 +52,7 @@ jmh {
 // shadow jar and the agent shadow jar built, neither of which `check` otherwise produces —
 // against a gate that is already minutes long, on every commit, for a regression that only
 // happens when the hot path is touched. Tier 0 (`PipelineFootprintTest`, milliseconds) is the
-// per-commit layer; this is the scheduled-job layer. See `.gitlab-ci.yml`.
+// per-commit layer; this is the scheduled-job layer, run by private CI.
 
 /** The OFF / noop / direct-call set: the paths whose allocation must not move. */
 val allocationBenchmarkPattern = "(context_enterExit_NOOP|directCall|proxy_noopContext|proxy_OFF|agent_OFF)"

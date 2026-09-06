@@ -92,7 +92,7 @@ public final class Emitters {
    * type — is the hostile input, rather than a rendered value.
    *
    * <p>INTENT: Every other builder here puts hostile text where a <em>value</em> goes, and values
-   * reach the renderers already escaped by {@code ValueRenderer}. The 2026-09-02 audit's finding 4
+   * reach the renderers already escaped by {@code ValueRenderer}. An adversarial review's finding
    * was that metadata does not: {@code MethodSignature} is a public record with no validation, and
    * a trace tree built by public API, deserialized from JSON, or post-processed by an integration
    * can carry anything in those fields. Fuzzing only the value channel could never have found it.

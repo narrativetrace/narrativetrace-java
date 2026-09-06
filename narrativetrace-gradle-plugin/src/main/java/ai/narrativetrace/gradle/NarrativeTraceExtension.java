@@ -50,9 +50,9 @@ public abstract class NarrativeTraceExtension {
   public abstract Property<Boolean> getGlossary();
 
   /**
-   * Approval mode for structural narratives (TODO item 14): when {@code true}, a test whose traced
-   * structure differs from its committed {@code *.approved.nt} baseline fails with a readable diff,
-   * and a {@code *.received.nt} file is left beside the baseline for review. Off by default; accept
+   * Approval mode for structural narratives: when {@code true}, a test whose traced structure
+   * differs from its committed {@code *.approved.nt} baseline fails with a readable diff, and a
+   * {@code *.received.nt} file is left beside the baseline for review. Off by default; accept
    * changes with the {@code approveNarratives} task.
    */
   public abstract Property<Boolean> getApproval();

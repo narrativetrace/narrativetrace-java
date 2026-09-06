@@ -20,10 +20,10 @@ import org.slf4j.LoggerFactory;
  * value-free canonical JSON line.
  *
  * <p>INTENT: The production emission path of the Level-1 structural artifact (ADR-002 "Structure
- * Only"; TODO item 6 milestone 4). Subscribe it to {@code BufferedEventConsumer}'s publisher seam;
- * each event maps to a canonical entry ({@link CanonicalEntryMapper#fromEvent}), passes through
- * {@link StructuralProjection#project} — parameter values become {@code [ELIDED]}, return values
- * and exception messages are dropped — and serializes to one JSON line on the sink (default: the
+ * Only"). Subscribe it to {@code BufferedEventConsumer}'s publisher seam; each event maps to a
+ * canonical entry ({@link CanonicalEntryMapper#fromEvent}), passes through {@link
+ * StructuralProjection#project} — parameter values become {@code [ELIDED]}, return values and
+ * exception messages are dropped — and serializes to one JSON line on the sink (default: the
  * {@value #LOGGER_NAME} SLF4J logger at {@code INFO}, so ordinary appender configuration routes the
  * AI stream wherever it should go).
  *

@@ -518,10 +518,10 @@ class BufferedEventConsumerTest {
   // ------------------------------------------------------ removing a span that is still in flight
 
   /**
-   * The supplemental bug hunt's S4 residue, deterministically: a drain stops at the first slot a
-   * producer has claimed but not written, so a request ending under concurrent publishing removes
-   * spans whose events are still in the ring. Draining them afterwards used to put them in the
-   * store, where nothing would ever clear them again — 62 events survived 2,000 discarded workers.
+   * An earlier bug hunt's residue, deterministically: a drain stops at the first slot a producer
+   * has claimed but not written, so a request ending under concurrent publishing removes spans
+   * whose events are still in the ring. Draining them afterwards used to put them in the store,
+   * where nothing would ever clear them again — 62 events survived 2,000 discarded workers.
    */
   @Test
   void aSpanRemovedWhileItsEventsAreStillInTheRingNeverReachesTheStore() {

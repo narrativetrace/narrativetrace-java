@@ -31,11 +31,11 @@ import org.junit.jupiter.params.provider.EnumSource;
 /**
  * The proxy never lets tracing decide what a call returns or throws.
  *
- * <p>INTENT: Encodes the 2026-09-01 bug hunt's proxy P0 and its supplemental S1/S2 — a hostile
- * parameter that stopped the target from running, a hostile return value that replaced a successful
- * result at every active level, and context hooks whose failure replaced both the result and the
- * business exception. Written from a package other than the proxy's own, so the cross-package
- * reflection path is the one under test.
+ * <p>INTENT: Encodes an earlier bug hunt's proxy findings — a hostile parameter that stopped the
+ * target from running, a hostile return value that replaced a successful result at every active
+ * level, and context hooks whose failure replaced both the result and the business exception.
+ * Written from a package other than the proxy's own, so the cross-package reflection path is the
+ * one under test.
  */
 class ProxyTotalityTest {
 

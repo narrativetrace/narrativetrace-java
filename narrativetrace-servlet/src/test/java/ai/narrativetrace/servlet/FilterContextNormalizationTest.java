@@ -26,10 +26,10 @@ import org.slf4j.MDC;
 /**
  * Request-derived values reach MDC, and MDC is printed by whatever layout the host configured.
  *
- * <p>INTENT: The 2026-09-02 adversarial audit (finding 6) showed route, client IP and end-user id
- * all preserving raw newlines all the way into MDC. A layout that prints MDC without JSON escaping
- * then forges a log line that a line-based parser or SIEM cannot distinguish from a real one
- * (CWE-117), and an unbounded value is unbounded cardinality once it reaches telemetry.
+ * <p>INTENT: An adversarial review showed route, client IP and end-user id all preserving raw
+ * newlines all the way into MDC. A layout that prints MDC without JSON escaping then forges a log
+ * line that a line-based parser or SIEM cannot distinguish from a real one (CWE-117), and an
+ * unbounded value is unbounded cardinality once it reaches telemetry.
  *
  * <p><b>@llmNote</b> The values here are attacker-supplied in the ordinary case, not the exotic
  * one: the URI is whatever was requested, the client IP is commonly derived from {@code

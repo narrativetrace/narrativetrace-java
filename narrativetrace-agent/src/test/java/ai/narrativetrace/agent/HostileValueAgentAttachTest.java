@@ -21,8 +21,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Regression for the pre-publish bug hunt's first P0: with the real agent attached, a hostile
- * parameter or return value must not change what the instrumented method does.
+ * Regression for an earlier bug hunt's most severe, release-blocking finding: with the real agent
+ * attached, a hostile parameter or return value must not change what the instrumented method does.
  *
  * <p>INTENT: {@link AgentRuntimeTest} calls the hooks directly, which cannot see the one thing that
  * made this finding release-blocking — the injected call sequence. {@code enterMethod} is emitted

@@ -25,7 +25,7 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 
 /**
- * The Micronaut half of the 2026-09-02 audit's finding 6.
+ * The Micronaut half of an adversarial-review finding on raw context values reaching MDC.
  *
  * INTENT: Route, client address and user-context values are request-derived and reach MDC, which
  * is printed by whatever layout the host configured. A raw newline there forges a log line a

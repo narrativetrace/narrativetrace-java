@@ -2,7 +2,7 @@
 
 What it takes to go from an empty project to reading your first narrative,
 and where each piece of the experience lives. This page describes what ships
-today; planned improvements are tracked in `TODO.md`.
+today; planned improvements are tracked in the private backlog.
 
 ## One-line setup
 

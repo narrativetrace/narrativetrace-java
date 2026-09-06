@@ -19,8 +19,8 @@ import java.util.function.Function;
  * string. An unbounded map there is a host-memory-exhaustion vector reachable from the
  * <em>synchronous</em> path — the one path where nothing is droppable and no best-effort discard
  * can help — as soon as any adapter, plugin or downstream caller resolves a template built from
- * request data. Found by the 2026-09-02 adversarial audit (finding 2), which grew the map to 50,000
- * entries with a scratch probe and watched fuzz RSS reach 1,384 MB.
+ * request data. Found by an adversarial review, which grew the map to 50,000 entries with a scratch
+ * probe and watched fuzz RSS reach 1,384 MB.
  *
  * <p><b>@pattern</b> Generational (two-space) cache, the eviction policy that fits the access shape
  * here. Templates are overwhelmingly annotation constants: a handful of strings resolved on every

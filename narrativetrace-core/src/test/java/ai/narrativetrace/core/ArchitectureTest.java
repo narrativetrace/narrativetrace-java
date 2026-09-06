@@ -106,10 +106,10 @@ class ArchitectureTest {
    *
    * <p>Redaction and scalar sanitizing are both cross-cutting security invariants rather than
    * rendering details, so the resolver must apply them. The alternative was a second implementation
-   * of each rule inside this package — the defect class TODO 46 exists to close, and the same class
-   * a Number subclass's unsanitized {@code toString()} belongs to. Every exception here is a named
-   * leaf class, and none of the four depends on {@code template}, so nothing here can become a
-   * cycle.
+   * of each rule inside this package — the defect class a past redaction-bypass fix exists to
+   * close, and the same class a Number subclass's unsanitized {@code toString()} belongs to. Every
+   * exception here is a named leaf class, and none of the four depends on {@code template}, so
+   * nothing here can become a cycle.
    */
   @ArchTest
   static final ArchRule template_package_is_self_contained =

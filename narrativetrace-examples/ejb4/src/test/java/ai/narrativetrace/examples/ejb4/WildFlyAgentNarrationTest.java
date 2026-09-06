@@ -21,17 +21,16 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * The zero-code legacy story, end to end (plan Phase 2 milestones 3–4): the unmodified WAR is
- * deployed to WildFly in Docker with only {@code -javaagent} attached, one HTTP request runs the
- * servlet → EJB-proxy → bean → service chain, and the narration for that chain is asserted from the
- * container log. The WAR has no NarrativeTrace dependency of any kind.
+ * The zero-code legacy story, end to end: the unmodified WAR is deployed to WildFly in Docker with
+ * only {@code -javaagent} attached, one HTTP request runs the servlet → EJB-proxy → bean → service
+ * chain, and the narration for that chain is asserted from the container log. The WAR has no
+ * NarrativeTrace dependency of any kind.
  *
- * <p>Spike gotchas baked in (plan §Spike findings): the image silently ignores {@code
- * JAVA_OPTS_APPEND}, so the full {@code JAVA_OPTS} is passed; instrumented deployment classes
- * resolve {@code AgentRuntime} only with {@code
- * -Djboss.modules.system.pkgs=…,ai.narrativetrace.agent} (exactly that package — see the JAVA_OPTS
- * comment); agent attachment is asserted from the boot log — never inferred from a healthy app;
- * narration logs at SLF4J TRACE, so the slf4j-simple level is forced to trace.
+ * <p>Spike gotchas baked in: the image silently ignores {@code JAVA_OPTS_APPEND}, so the full
+ * {@code JAVA_OPTS} is passed; instrumented deployment classes resolve {@code AgentRuntime} only
+ * with {@code -Djboss.modules.system.pkgs=…,ai.narrativetrace.agent} (exactly that package — see
+ * the JAVA_OPTS comment); agent attachment is asserted from the boot log — never inferred from a
+ * healthy app; narration logs at SLF4J TRACE, so the slf4j-simple level is forced to trace.
  */
 @Tag("docker")
 class WildFlyAgentNarrationTest {

@@ -2,7 +2,7 @@
 # that evening (R1-R5, R8) and before the benchmark fixture change. Its rows include the
 # `@Setup(Level.Invocation)` reset fixture described inside; `baseline.txt` no longer does, so
 # the two are not row-for-row comparable. Kept because it is the "after the regression, before
-# the fix" column, and `planning/perf-regression-2026-08-31.md` reasons about it.
+# the fix" column, and the 2026-08-31 performance-regression analysis (private) reasons about it.
 #
 # Benchmark baseline — 2026-08-31
 # JDK 17.0.20, 1 fork, 3 warmup × 1s, 5 iterations × 1s, -Xms256m -Xmx256m, -prof gc
@@ -68,7 +68,7 @@ SpringOverheadBenchmark.spring_noAnnotations             avgt    5   1274.255 ±
 #
 # JDK 21 column: not measured. This container carries only Temurin 17.0.20 and
 # the Gradle toolchain cannot provision another. The scheduled JDK-21 CI job
-# (.gitlab-ci.yml) produces it.
+# produces it.
 #
 # The context_enterExit_FLOW rows of previous baselines are context_enterExit_SUMMARY
 # here — the source was renamed and the baseline had not followed.

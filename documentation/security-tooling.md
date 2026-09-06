@@ -9,9 +9,9 @@ fuzz suite that predates it and follows the same shape.
 
 | Tool | What it catches | Entry point | Runs |
 |---|---|---|---|
-| [gitleaks](#gitleaks--secrets) | Secrets landing in a commit | `gitleaksScan` (Gradle) + `.githooks/pre-commit` | Pre-commit hook on every commit (staged diff); `gitleaksScan` on demand — offline, but no cadence was specified, so none was invented |
-| [Semgrep](#semgrep--static-analysis-security-rules) | Static security anti-patterns (community rules) | `semgrepScan` (Gradle) | GitLab CI, merge requests + weekly schedule — never a plain push |
-| [OSV-Scanner](#osv-scanner--dependency-vulnerabilities) | Known vulnerabilities in resolved dependencies | `osvScan` (Gradle) | GitLab CI, weekly schedule + manual web trigger — never a merge request or a push |
+| [gitleaks](#gitleaks--secrets) | Secrets landing in a commit | `gitleaksScan` (Gradle) + a local pre-commit hook | Pre-commit hook on every commit (staged diff); `gitleaksScan` on demand — offline, but no cadence was specified, so none was invented |
+| [Semgrep](#semgrep--static-analysis-security-rules) | Static security anti-patterns (community rules) | `semgrepScan` (Gradle) | Private CI, merge requests + weekly schedule — never a plain push |
+| [OSV-Scanner](#osv-scanner--dependency-vulnerabilities) | Known vulnerabilities in resolved dependencies | `osvScan` (Gradle) | Private CI, weekly schedule + manual web trigger — never a merge request or a push |
 | [FindSecBugs](#findsecbugs--bytecode-security-analysis) | Security bug patterns in compiled bytecode | `spotbugsMain` (Gradle, via the SpotBugs plugin) | Every `./gradlew check` — offline-capable, like PMD |
 
 Also in this document: [dependency-verification metadata](#dependency-verification-metadata)
@@ -21,7 +21,7 @@ Also in this document: [dependency-verification metadata](#dependency-verificati
 
 Two entry points, same tool:
 
-- **`.githooks/pre-commit`** runs `gitleaks protect --staged` over the whole
+- **A local pre-commit hook** runs `gitleaks protect --staged` over the whole
   staged diff before every commit — not just `.java`/`.kts` files, since a
   secret can land in any file type. Blocks the commit on a finding; warns and
   passes when the `gitleaks` binary is absent from `PATH`, the same
@@ -48,7 +48,7 @@ the tracked source tree, JSON report under `build/reports/semgrep/`. Warns
 and passes when the `semgrep` binary is absent.
 
 Fetching the registry ruleset needs network, so this is not in `check`:
-`.gitlab-ci.yml` runs it on merge requests and the weekly schedule only, never
+private CI runs it on merge requests and the weekly schedule only, never
 a plain push.
 
 A run against both `p/java` and the broader `p/security-audit` pack
@@ -75,7 +75,7 @@ dependency cache under a functional-test module's `build/`) as if they were
 this project's own resolved graph.
 
 Querying the OSV database needs network, so this is not in `check`:
-`.gitlab-ci.yml` runs it on the weekly schedule and a manual web trigger only
+private CI runs it on the weekly schedule and a manual web trigger only
 — never a merge request, never a push.
 
 This automates the manual OSV pass from an earlier adversarial security audit

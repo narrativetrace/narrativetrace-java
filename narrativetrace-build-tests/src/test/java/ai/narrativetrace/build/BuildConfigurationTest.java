@@ -34,8 +34,8 @@ class BuildConfigurationTest {
    * from `gradle.properties` through `providers.gradleProperty("narrativetraceVersion")` — so both
    * greps matched nothing: the tag-vs-version assertion compared `"v"` against the tag and failed
    * every release, and the plugin check built a URL with an empty version and fell through to
-   * publishing. Found by the 2026-09-02 adversarial audit (finding 10). A task the build itself
-   * answers cannot drift from the build the way a regex over its source can.
+   * publishing. Found by an adversarial review. A task the build itself answers cannot drift from
+   * the build the way a regex over its source can.
    */
   @Test
   void printVersionReportsExactlyTheDeclaredProjectVersion() throws Exception {
@@ -239,8 +239,8 @@ class BuildConfigurationTest {
   /**
    * A bare {@code pitest} would not prove isolation: Gradle's CLI matches a task name across every
    * subproject, and the agent module now has its own same-named {@code pitest} task, so a bare
-   * invocation runs it too. CI therefore calls the fully-qualified {@code :pitest} (see {@code
-   * .gitlab-ci.yml}'s {@code mutation} job) — that is what this test must pin.
+   * invocation runs it too. CI therefore calls the fully-qualified {@code :pitest} (see the private
+   * CI's {@code mutation} job) — that is what this test must pin.
    */
   @Test
   void sharedPitestAggregateDoesNotPullInTheAgentModule() {
@@ -253,8 +253,8 @@ class BuildConfigurationTest {
    * Documents the pitfall {@code sharedPitestAggregateDoesNotPullInTheAgentModule} guards against:
    * a <em>bare</em> {@code pitest} is not scoped to the root project, so it still matches and runs
    * the agent module's same-named task. If this assertion ever fails, Gradle's name-matching
-   * behavior changed, not this repo's wiring — the fully-qualified {@code :pitest} in {@code
-   * .gitlab-ci.yml} is what actually keeps the two isolated, not this task's own name.
+   * behavior changed, not this repo's wiring — the fully-qualified {@code :pitest} in the private
+   * CI configuration is what actually keeps the two isolated, not this task's own name.
    */
   @Test
   void bareTaskNameMatchingIsWhyCiUsesTheFullyQualifiedPath() {

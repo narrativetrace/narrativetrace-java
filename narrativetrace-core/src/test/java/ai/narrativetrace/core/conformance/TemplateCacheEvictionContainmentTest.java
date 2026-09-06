@@ -20,9 +20,9 @@ import org.junit.jupiter.api.Test;
  * Bounding the template cache must not change a single answer it gives — least of all a redacted
  * one.
  *
- * <p>INTENT: The 2026-09-02 audit's finding 2 made the cache evict; finding 9, fixed a day earlier,
- * was a template resolution printing a secret verbatim. Eviction is a new way to reach the parse
- * path a second time, so this asserts the combination the two findings create: a template that has
+ * <p>INTENT: An adversarial review found that making the cache evict surfaced a second issue, fixed
+ * a day earlier: a template resolution printing a secret verbatim. Eviction is a new way to reach
+ * the parse path a second time, so this asserts the combination the two create: a template that has
  * been evicted and re-parsed hides exactly what it hid the first time.
  *
  * <p><b>@llmNote</b> Deliberately outside {@code core.template}: it may use only the public {@code

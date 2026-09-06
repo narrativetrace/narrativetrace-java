@@ -33,7 +33,7 @@ object BaselineFreshnessSupport {
     /** `# Benchmark baseline — 2026-02-25`, with either dash spelling. */
     private val DATE_HEADER = Regex("""^#.*?[-—]\s*(\d{4}-\d{2}-\d{2})\s*$""", RegexOption.MULTILINE)
 
-    /** `# Commit: bbeec28 (allocation baseline run)`. */
+    /** `# Commit: 1a2b3c4 (allocation baseline run)`. */
     private val COMMIT_HEADER = Regex("""^#\s*Commit:\s*(\S+)""", RegexOption.MULTILINE)
 
     /** The date the baseline's own header states, or `null` when it states none. */

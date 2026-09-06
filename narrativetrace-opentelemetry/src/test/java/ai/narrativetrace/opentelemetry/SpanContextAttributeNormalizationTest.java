@@ -27,9 +27,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>INTENT: The HTTP filters normalise what they read off a request, but a value set
  * programmatically through {@code setRequestContext} — by a custom integration, a test, or a
- * framework this project ships no filter for — never passed through one. The 2026-09-02 audit
- * (finding 6) called out raw values reaching OTel attributes, where they are unbounded cardinality
- * and, in a backend that renders attributes into a log line, a forgery.
+ * framework this project ships no filter for — never passed through one. An adversarial review
+ * called out raw values reaching OTel attributes, where they are unbounded cardinality and, in a
+ * backend that renders attributes into a log line, a forgery.
  */
 @SuppressWarnings("PMD.AvoidUsingHardCodedIP") // a client IP is the subject; a literal is the point
 class SpanContextAttributeNormalizationTest {

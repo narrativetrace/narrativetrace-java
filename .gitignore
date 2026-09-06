@@ -38,8 +38,7 @@ narrativetrace-examples/*/\?/
 # Dogfooding sandbox (out-of-tree evaluation app, deliberately unversioned)
 /dogfood/
 
-# Local run-progress scratch files (never tracked)
-.agent-progress-*.md
+
 # Gradle output directories anywhere — but never SOURCE dirs that happen to
 # be named `build` (the ai.narrativetrace.build package lives under src/;
 # the bare build/ pattern above silently swallowed a test file once).

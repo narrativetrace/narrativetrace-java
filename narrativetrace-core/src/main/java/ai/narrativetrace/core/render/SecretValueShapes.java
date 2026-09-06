@@ -14,10 +14,10 @@ import java.util.regex.Pattern;
 /**
  * Recognises the few value shapes that identify a secret whatever the field holding it is called.
  *
- * <p>INTENT: {@link RedactionPolicy}'s deny-list only sees <em>names</em>, and the 2026-09-02
- * adversarial audit's point in finding 3 was that not all secrets sit in clearly-named fields — a
- * bearer token arrives as {@code value}, {@code header}, {@code data}, or the third element of a
- * list that has no name at all. This is the complementary axis: what the bytes themselves say.
+ * <p>INTENT: {@link RedactionPolicy}'s deny-list only sees <em>names</em>, and an adversarial
+ * review's point was that not all secrets sit in clearly-named fields — a bearer token arrives as
+ * {@code value}, {@code header}, {@code data}, or the third element of a list that has no name at
+ * all. This is the complementary axis: what the bytes themselves say.
  *
  * <p><b>@llmNote</b> Deliberately, aggressively narrow. Every matcher here answers "this string is
  * a credential" and nothing weaker; there is no entropy heuristic, no "looks random" test, no

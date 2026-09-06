@@ -20,7 +20,7 @@
 #      functional tests exercise. Built with an isolated Gradle user home and no mavenLocal:
 #      resolution must come from the real remote repositories, or the test is theater.
 #
-# This is a manual publish-checklist step (planning/PUBLISHING.md), never a per-commit or
+# This is a manual publish-checklist step, never a per-commit or
 # nightly gate: it makes real network calls, and a passing run this minute can legitimately
 # fail the next if Central has not synced yet. See documentation/security-tooling.md's
 # THIN-CI rule for the same reasoning applied to the scanners that also stay out of gates.

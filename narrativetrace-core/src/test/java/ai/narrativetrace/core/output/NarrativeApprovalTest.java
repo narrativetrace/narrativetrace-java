@@ -22,10 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Approval mode for the structural narrative (TODO item 14, ApprovalTests-style): a committed
- * {@code *.approved.nt} baseline is the contract, a run whose structure differs fails with a
- * readable diff and leaves a {@code *.received.nt} for review, and approving is promoting the
- * received file. Free-tier mechanism only — no semantics beyond byte comparison.
+ * Approval mode for the structural narrative (ApprovalTests-style): a committed {@code
+ * *.approved.nt} baseline is the contract, a run whose structure differs fails with a readable diff
+ * and leaves a {@code *.received.nt} for review, and approving is promoting the received file.
+ * Free-tier mechanism only — no semantics beyond byte comparison.
  */
 class NarrativeApprovalTest {
 

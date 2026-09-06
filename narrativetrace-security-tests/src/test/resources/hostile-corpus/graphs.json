@@ -2,7 +2,7 @@
   "$comment": "Object-graph shapes, declared rather than serialised: a builder in each port turns a case into a live object graph. `layers` stacks wrappers outward around `payload` (index 0 is innermost); `kind` names a shape that cannot be expressed as a stack. See README.md.",
   "cases": [
     { "id": "scalar", "description": "the degenerate graph", "payload": "secret-record", "layers": [] },
-    { "id": "optional", "description": "the container that leaked in TODO 46", "payload": "secret-record", "layers": ["optional"] },
+    { "id": "optional", "description": "the container that leaked", "payload": "secret-record", "layers": ["optional"] },
     { "id": "optional-in-optional", "description": "two wrappers of the same kind", "payload": "secret-record", "layers": ["optional", "optional"] },
     { "id": "atomic-reference", "description": "the other single-payload holder that leaked", "payload": "secret-record", "layers": ["atomicReference"] },
     { "id": "atomic-reference-array", "description": "the indexed holder that leaked through Arrays.toString", "payload": "secret-record", "layers": ["atomicReferenceArray"] },
