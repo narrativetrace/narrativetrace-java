@@ -1,0 +1,96 @@
+# Benchmark baseline, measured the evening after the fix run — 2026-08-31
+# JDK 17.0.20, 3 warmup × 1s + 5 measurement × 1s per fork, -Xms256m -Xmx256m, -prof gc
+# Tree: 2026-08-31 (the remedy set R1–R5, R8, plus the benchmark fixture change)
+# Machine: Linux 6.12.76 container, 8 cores, calibration factor 2.10 (see perf-calibration/)
+#
+# HOW THIS FILE WAS PRODUCED, AND WHY IT IS NOT ONE RUN.
+#
+# Every ns/op row is the **worst (slowest) reading of three full-suite runs** of the same jar,
+# taken within an hour of each other on this container. This file is the ceiling
+# `benchmarkCompare` judges against, and a ceiling taken from a lucky run is a gate that fails
+# on the next ordinary one. Allocation rows are the maximum of the same runs, for the same
+# reason — see `allocation-baseline.txt`.
+#
+# **The ns/op column is an order of magnitude, not a measurement.** The same jar, measured
+# three times, with nothing changing but the machine:
+#
+#   proxy_noAnnotations           963  /   816  /  1427 ns/op
+#   proxy_notTraced               726  /   714  /  1045
+#   context_enterExit_DETAIL     1290  /  1937  /  1406
+#   context_enterExit_SUMMARY    1502  /  2313  /  1327
+#   proxy_noopContext             20.3 /  21.2  /  35.6
+#
+# The container is shared, its load average reached 20 during this session, and one probe
+# caught a 7,260 ns reading on a benchmark whose quiet value is 25 ns. A 25 % band cannot hold
+# against a 2× spread, so **the throughput half of `benchmarkCompare` is advisory on this
+# machine**; the gate that means something here is the allocation one, which reproduces to the
+# byte on every unbatched row. Recorded as open work under TODO 20.
+#
+# VALIDATION, 2026-09-01. A fourth full-suite run of the same jar, on a quiet machine (load
+# average 2.7), passed `benchmarkCompare` 30/30 with every single row FASTER than the ceiling
+# recorded below — by 13 % (`spring_narrated_interpolated`) to 49 % (`proxy_narrativeSummary`).
+# That is what a worst-of-three ceiling is supposed to look like on an ordinary day, and it is
+# the reason no row below was re-recorded downward: a baseline set from a quiet run is a gate
+# that fails the next time the container is busy.
+#
+# READ THIS BEFORE COMPARING WITH ANY EARLIER BASELINE.
+#
+# **These rows measure something different from every baseline before them.** The
+# `@Setup(Level.Invocation)` fixture that reset two-to-five contexts per invocation is gone
+# (owner ruling 4 of 2026-08-31). `ProxyOverheadBenchmark` now batches 1,000 calls per
+# invocation and resets once, inside the measured method; `ContextOverheadBenchmark` resets
+# its own context per operation, inside the measured method. One operation is therefore:
+#
+#   * ProxyOverheadBenchmark   — one call, plus 1/1000 of a `reset()` on the rows that trace
+#   * ContextOverheadBenchmark — enter + exit + capture + reset of a ONE-node trace
+#   * everything else          — unchanged, and still carries its per-invocation fixture
+#
+# The predecessor is kept as `baseline-2026-08-31-before-fix.txt`. Do not diff the two row by
+# row: part of every difference is the fixture leaving, and part is the fix. The attribution
+# report (`planning/perf-regression-2026-08-31.md`, §9) separates them, remedy by remedy.
+#
+# THE TWO TIME FACTS THIS RUN DOES CLAIM, because they were measured with error bars that
+# support them (2 forks × 5 iterations, quiet machine, like-for-like fixture):
+#
+#   * hoisting `setAccessible` out of the invocation handler took the inactive proxy path
+#     from 92.0 ± 1.2 to 52.3 ± 0.9 ns per call (`proxy_noopContext`), ~−40 ns;
+#   * removing the per-invocation fixture took `directCall` from ~33 to ~7–12 ns, which is
+#     JMH's per-invocation timestamping going away. It was never the call.
+#
+# Allocation is the trustworthy half, and it fell by 34–87 % on every active path.
+#
+Benchmark                                               Mode  Cnt        Score       Error   Units
+AgentOverheadBenchmark.agent_OFF                        avgt   15      100.443 ±    26.230  ns/op
+AgentOverheadBenchmark.agent_noAnnotations              avgt   15     1883.234 ±   637.211  ns/op
+ContextOverheadBenchmark.context_enterExit_DETAIL       avgt   15     1937.144 ±   659.397  ns/op
+ContextOverheadBenchmark.context_enterExit_ERRORS       avgt   15     2016.379 ±  2137.635  ns/op
+ContextOverheadBenchmark.context_enterExit_NARRATIVE    avgt   15     1917.018 ±   428.012  ns/op
+ContextOverheadBenchmark.context_enterExit_NOOP         avgt   15        3.212 ±     1.440  ns/op
+ContextOverheadBenchmark.context_enterExit_OFF          avgt   15      123.438 ±    33.409  ns/op
+ContextOverheadBenchmark.context_enterExit_SUMMARY      avgt   15     2313.443 ±  1327.527  ns/op
+NestingDepthBenchmark.nesting_depth_1                   avgt   15     1484.811 ±   746.355  ns/op
+NestingDepthBenchmark.nesting_depth_10                  avgt   15     7860.230 ±  2865.659  ns/op
+NestingDepthBenchmark.nesting_depth_50                  avgt   15    46756.766 ±  9171.718  ns/op
+PipelineOverheadBenchmark.bufferOffer_16threads         avgt   15      896.287 ±   214.809  ns/op
+PipelineOverheadBenchmark.bufferOffer_1thread           avgt   15        9.369 ±     2.334  ns/op
+PipelineOverheadBenchmark.bufferOffer_4threads          avgt   15      238.590 ±    38.333  ns/op
+PipelineOverheadBenchmark.bufferOffer_shedding          avgt   15        8.892 ±     0.729  ns/op
+PipelineOverheadBenchmark.publish_capturing             avgt   15       11.413 ±    14.520  ns/op
+PipelineOverheadBenchmark.publish_narratingAndCapturing avgt   15        9.878 ±     2.409  ns/op
+PipelineOverheadBenchmark.publish_narrationOnly         avgt   15        2.394 ±     0.937  ns/op
+PipelineOverheadBenchmark.publish_noConsumers           avgt   15        1.419 ±     0.847  ns/op
+ProxyOverheadBenchmark.directCall                       avgt   15       11.567 ±     3.995  ns/op
+ProxyOverheadBenchmark.proxy_OFF                        avgt   15       37.644 ±   100.336  ns/op
+ProxyOverheadBenchmark.proxy_narrated_interpolated      avgt   15     1549.346 ±  4382.346  ns/op
+ProxyOverheadBenchmark.proxy_narrated_static            avgt   15     1712.340 ±  1378.199  ns/op
+ProxyOverheadBenchmark.proxy_narrativeSummary           avgt   15     1536.999 ±  1487.707  ns/op
+ProxyOverheadBenchmark.proxy_noAnnotations              avgt   15     1426.895 ±   646.726  ns/op
+ProxyOverheadBenchmark.proxy_noopContext                avgt   15       35.591 ±     4.070  ns/op
+ProxyOverheadBenchmark.proxy_notTraced                  avgt   15     1044.651 ±   556.360  ns/op
+ProxyOverheadBenchmark.proxy_onError                    avgt   15      991.570 ±   278.736  ns/op
+SpringOverheadBenchmark.spring_narrated_interpolated    avgt   15     1288.073 ±   169.791  ns/op
+SpringOverheadBenchmark.spring_noAnnotations            avgt   15     1202.637 ±   349.230  ns/op
+#
+# JDK 21 column: not measured. This container carries only Temurin 17.0.20 and the Gradle
+# toolchain cannot provision another. The scheduled JDK-21 CI job (.gitlab-ci.yml) produces it.
+#

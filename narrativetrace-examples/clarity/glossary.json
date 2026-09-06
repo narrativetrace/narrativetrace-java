@@ -1,0 +1,507 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "_unassigned": {
+      "packages": [],
+      "description": "Harvested terms not yet mapped to a context"
+    },
+    "hotel": {
+      "packages": ["ai.narrativetrace.examples.clarity"],
+      "description": "Domain vocabulary of the clarity example"
+    }
+  },
+  "terms": [
+    {
+      "term": "amount",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "importe",
+        "zh-CN": "金额"
+      },
+      "sources": ["DefaultPaymentGateway.authorizePayment", "PaymentGateway.authorizePayment"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "arg",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["ClarityDemoExample.main"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "authorize payment",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "autorizar pago",
+        "zh-CN": "授权支付"
+      },
+      "sources": ["DefaultPaymentGateway.authorizePayment", "PaymentGateway.authorizePayment"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "availability checker",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "verificador de disponibilidad",
+        "zh-CN": "可用性检查器"
+      },
+      "sources": ["AvailabilityChecker"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "available room",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "habitación disponible",
+        "zh-CN": "可用房间"
+      },
+      "sources": ["AvailabilityChecker.findAvailableRooms", "DefaultAvailabilityChecker.findAvailableRooms"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "booking",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["BookingManager", "BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "category",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "categoría",
+        "zh-CN": "类别"
+      },
+      "sources": ["Room.category"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "check in",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "entrada",
+        "zh-CN": "入住"
+      },
+      "sources": ["Reservation.checkIn"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "check in date",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "fecha de entrada",
+        "zh-CN": "入住日期"
+      },
+      "sources": ["DefaultReservationService.confirmReservation", "ReservationService.confirmReservation"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "check out",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "salida",
+        "zh-CN": "退房"
+      },
+      "sources": ["Reservation.checkOut"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "check out date",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "fecha de salida",
+        "zh-CN": "退房日期"
+      },
+      "sources": ["DefaultReservationService.confirmReservation", "ReservationService.confirmReservation"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "clarity demo example",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["ClarityDemoExample"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "confirm reservation",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "confirmar reserva",
+        "zh-CN": "确认预订"
+      },
+      "sources": ["DefaultReservationService.confirmReservation", "ReservationService.confirmReservation"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "d 1",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "d 2",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "data",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DataProcessor", "DataProcessor.execute", "DefaultDataProcessor.execute"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "date range",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "rango de fechas",
+        "zh-CN": "日期范围"
+      },
+      "sources": ["AvailabilityChecker.findAvailableRooms", "DateRange", "DefaultAvailabilityChecker.findAvailableRooms"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default availability checker",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultAvailabilityChecker"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default booking",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultBookingManager"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default data",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultDataProcessor"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default guest",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default payment",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultPaymentGateway"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default reservation",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultReservationService"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "dispatch email",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.dispatchEmail", "GuestRepository.dispatchEmail"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "email",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.dispatchEmail", "Guest.email", "GuestRepository.dispatchEmail"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "end",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DateRange.end"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "execute",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DataProcessor.execute", "DefaultDataProcessor.execute"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "find available room",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "buscar habitación disponible",
+        "zh-CN": "查找可用房间"
+      },
+      "sources": ["AvailabilityChecker.findAvailableRooms", "DefaultAvailabilityChecker.findAvailableRooms"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "find guest by id",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.findGuestById", "GuestRepository.findGuestById"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "full name",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["Guest.fullName"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "guest",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "huésped",
+        "zh-CN": "宾客"
+      },
+      "sources": ["DefaultGuestRepository.dispatchEmail", "DefaultGuestRepository.findGuestById", "DefaultReservationService.confirmReservation"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "guest by id",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.findGuestById", "GuestRepository.findGuestById"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "guest id",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "id de huésped",
+        "zh-CN": "宾客编号"
+      },
+      "sources": ["Guest.guestId", "Reservation.guestId"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "handle booking",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "main",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["ClarityDemoExample.main"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "message",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.dispatchEmail", "GuestRepository.dispatchEmail"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "name",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "out",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Reservation.checkOut"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "payment",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "pago",
+        "zh-CN": "支付"
+      },
+      "sources": ["DefaultPaymentGateway.authorizePayment", "PaymentGateway", "PaymentGateway.authorizePayment"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "per night",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["Room.pricePerNight"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "price per night",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "precio por noche",
+        "zh-CN": "每晚价格"
+      },
+      "sources": ["Room.pricePerNight"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "render report",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.renderReport", "GuestRepository.renderReport"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "report",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultGuestRepository.renderReport", "GuestRepository.renderReport"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "reservation",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "reserva",
+        "zh-CN": "预订"
+      },
+      "sources": ["DefaultPaymentGateway.authorizePayment", "DefaultReservationService.confirmReservation", "PaymentGateway.authorizePayment"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "reservation id",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "id de reserva",
+        "zh-CN": "预订编号"
+      },
+      "sources": ["Reservation.reservationId"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "room",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "habitación",
+        "zh-CN": "房间"
+      },
+      "sources": ["Room"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "room category",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "categoría de habitación",
+        "zh-CN": "房型"
+      },
+      "sources": ["AvailabilityChecker.findAvailableRooms", "DefaultAvailabilityChecker.findAvailableRooms", "DefaultReservationService.confirmReservation"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "room number",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "número de habitación",
+        "zh-CN": "房间号"
+      },
+      "sources": ["Reservation.roomNumber", "Room.roomNumber"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "start",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DateRange.start"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "type",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["BookingManager.handleBooking", "DefaultBookingManager.handleBooking"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "val",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DataProcessor.execute", "DefaultDataProcessor.execute"],
+      "firstSeen": "2026-08-15"
+    }
+  ]
+}

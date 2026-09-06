@@ -1,0 +1,47 @@
+NarrativeTrace — Copyright 2026 Empower Agile
+
+NarrativeTrace is a trademark of Empower Agile.
+
+This product includes software developed at Empower Agile
+(https://www.empoweragile.com).
+
+NarrativeTrace's API and output format are open standards (Apache 2.0). Its
+runtime is free and source-available (BSL 1.1, converting to Apache 2.0 four
+years after each release), because code that runs in your process should be
+auditable. Its intelligence is commercial.
+
+Which licence applies to what
+-----------------------------
+
+  ai.narrativetrace:narrativetrace-api
+      Apache License, Version 2.0 — see LICENSE-APACHE.
+      The annotations, the event model, the trace tree and the SPIs: what
+      third-party code compiles against. Every source file in this artifact
+      carries "SPDX-License-Identifier: Apache-2.0".
+
+  every other ai.narrativetrace artifact in this repository
+      Business Source License 1.1 — see LICENSE.
+      The runtime and its integrations. Free to use in production, including
+      in products and services you provide to your own customers; the one
+      exclusion is offering NarrativeTrace itself — or a product or service
+      whose value derives substantially from it — to third parties as a
+      logging, tracing or code-narrative product or service. Each released
+      version converts to the Apache License, Version 2.0 four years after it
+      is published. Every source file in these artifacts carries
+      "SPDX-License-Identifier: BUSL-1.1".
+
+  documentation/ (prose)
+      Creative Commons Attribution 4.0 International (CC BY 4.0) —
+      https://creativecommons.org/licenses/by/4.0/
+      The prose guides and the feature guide.
+      Documentation is not the moat.
+
+  the JSON schema files (*.schema.json)
+      Apache License, Version 2.0.
+      The canonical trace format is a standard other implementations are meant
+      to target, so it is licensed as one — whatever module they sit in.
+
+The category each module ships under is declared in licensing.properties at
+the repository root, and the build refuses a dependency graph the licences
+cannot support: an Apache-licensed module may depend on nothing, so the open
+contract can never hand a consumer a BSL jar they did not agree to.

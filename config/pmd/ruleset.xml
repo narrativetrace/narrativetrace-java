@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<ruleset name="NarrativeTrace"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>NarrativeTrace PMD rules</description>
+
+    <!-- Hard gate: no method may exceed 20 NCSS (non-commenting source statements) -->
+    <rule ref="category/java/design.xml/NcssCount">
+        <properties>
+            <property name="methodReportLevel" value="21"/>
+            <property name="classReportLevel" value="10000"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/bestpractices.xml">
+        <!-- try-with-resources scope variable is not "unused" -->
+        <exclude name="UnusedLocalVariable"/>
+        <!-- Reassigning to narrow/transform a parameter is a valid pattern -->
+        <exclude name="AvoidReassigningParameters"/>
+        <!-- ConcurrentHashMap is used intentionally for thread safety -->
+        <exclude name="LooseCoupling"/>
+        <!-- Index-based for loops are sometimes clearer -->
+        <exclude name="ForLoopCanBeForeach"/>
+        <!-- System.out is used intentionally in JUnit extension console output -->
+        <exclude name="SystemPrintln"/>
+        <!-- Array params are part of JDK proxy/agent APIs -->
+        <exclude name="UseVarargs"/>
+        <!-- Yoda conditions are not required -->
+        <exclude name="LiteralsFirstInComparisons"/>
+        <!-- SLF4J parameterized messages already guard efficiently -->
+        <exclude name="GuardLogStatement"/>
+        <!-- Multiple assertions per test is fine with AssertJ fluent style -->
+        <exclude name="UnitTestContainsTooManyAsserts"/>
+        <!-- AssertJ uses assertThat, not JUnit assert/fail -->
+        <exclude name="UnitTestShouldIncludeAssert"/>
+        <!-- Multiple declarations on one line is fine for simple locals -->
+        <exclude name="OneDeclarationPerLine"/>
+        <!-- Storing arrays directly is fine for internal APIs -->
+        <exclude name="ArrayIsStoredDirectly"/>
+    </rule>
+
+    <rule ref="category/java/errorprone.xml">
+        <!-- Records have fields matching accessor methods by design -->
+        <exclude name="AvoidFieldNameMatchingMethodName"/>
+        <!-- Checking == 0, == 1 in conditionals is normal -->
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <!-- Duplicate string literals in JSON builder are unavoidable -->
+        <exclude name="AvoidDuplicateLiterals"/>
+        <!-- We intentionally use setAccessible for proxy and template reflection -->
+        <exclude name="AvoidAccessibilityAlteration"/>
+        <!-- Empty catch blocks are used deliberately for best-effort fallbacks -->
+        <exclude name="EmptyCatchBlock"/>
+        <!-- Exception classes don't need serialVersionUID -->
+        <exclude name="MissingSerialVersionUID"/>
+        <!-- Locale-less toLowerCase/toUpperCase is fine for ASCII identifiers -->
+        <exclude name="UseLocaleWithCaseConversions"/>
+        <!-- ContextScope lifecycle is managed by the snapshot/scope pattern -->
+        <exclude name="CloseResource"/>
+        <!-- We use interface classloader for proxy creation -->
+        <exclude name="UseProperClassLoader"/>
+        <!-- Null return from ClassFileTransformer means "no transform", per the API contract -->
+        <exclude name="ReturnEmptyCollectionRatherThanNull"/>
+        <!-- instanceof in catch is needed to unwrap InvocationTargetException -->
+        <exclude name="AvoidInstanceofChecksInCatchClause"/>
+        <!-- Spring @Configuration inner classes in test files are not test classes -->
+        <exclude name="TestClassWithoutTestCases"/>
+    </rule>
+</ruleset>

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Pre-commit hook: auto-format staged Java/Kotlin files with Spotless
+# Install: cp config/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -euo pipefail
+
+# Only run if there are staged Java or Kotlin files
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(java|kt)$' || true)
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+# Run spotlessApply on the whole project (Spotless doesn't support per-file)
+./gradlew spotlessApply -q 2>/dev/null
+
+# Re-stage any files that were reformatted
+for file in $STAGED; do
+    if [ -f "$file" ]; then
+        git add -f "$file"
+    fi
+done

@@ -1,0 +1,32 @@
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<!-- Demo-launcher logging. Shared by every example via demo.sh
+     (-Dlogback.configurationFile=<this file>).
+
+     The pattern is the FULL classic format on purpose: the stream carries complete
+     fidelity (date, level, thread, MDC traceId, logger), and demo.sh's colorizer
+     decides presentation per scenario — stripping the prefix and styling most
+     scenarios, passing one scenario through verbatim as proof of the traditional
+     format. Real timestamps, nothing fabricated, nothing runs twice.
+
+     Deliberately color-free: demo.sh colorizes by line shape (entry/return/exception/
+     header), which a logback pattern cannot express - and %cyan(...)%n provably
+     mis-parses here (literal %n in output). Keep color out of this file. -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{traceId}] [%logger] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="narrativetrace" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>

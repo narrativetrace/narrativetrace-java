@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<!--
+  FindSecBugs/SpotBugs filter — see documentation/security-tooling.md for the
+  cadence and rollout this file implements.
+
+  Phase 1 (this file, as landed): enforce only the SECURITY category — the
+  detectors FindSecBugs actually adds beyond vanilla SpotBugs (injection,
+  SSRF, predictable randomness, weak crypto, ...). PMD (bestpractices +
+  errorprone) already gates STYLE/BAD_PRACTICE territory; MT_CORRECTNESS and
+  PERFORMANCE are vanilla-SpotBugs categories unrelated to FindSecBugs's
+  purpose here.
+
+  MALICIOUS_CODE is excluded for this phase too, not because it is noise:
+  EI_EXPOSE_REP/EI_EXPOSE_REP2 found ~130 real instances across 21 fields in
+  8 modules (mutable List/Map fields returned or stored without a defensive
+  copy — see the sites listed in the CanonicalEntry.ntParameters-shaped TODO
+  ledger item). Fixing that properly means auditing each field's mutation
+  semantics and adding List.copyOf/Map.copyOf at each constructor, which is
+  real, valuable, security-relevant work — but it is a properly-sized
+  follow-up, not a same-session tack-on to wiring the tool. Landing it half
+  done (either rushed edits or a silent suppression) would be worse than
+  ledgering it honestly. See TODO.md.
+-->
+<FindBugsFilter>
+  <Match>
+    <Bug category="STYLE,BAD_PRACTICE,MT_CORRECTNESS,PERFORMANCE,MALICIOUS_CODE"/>
+  </Match>
+
+  <!-- Per-site SECURITY findings triaged as false positives / non-issues in context. -->
+
+  <!--
+    SpanIdGenerator generates W3C trace/span IDs, not secrets — see the class
+    JavaDoc. ThreadLocalRandom's speed on this hot path is the point, not a
+    gap; a CSPRNG buys no real protection for an identifier that is meant to
+    travel in logs, headers and exported traces.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.api.event.SpanIdGenerator"/>
+    <Method name="randomHex"/>
+    <Bug pattern="PREDICTABLE_RANDOM"/>
+  </Match>
+
+  <!--
+    ConfigResolver.loadFromClasspath opens a URL that findAllLocations
+    resolved from a hardcoded classpath resource name
+    ("narrativetrace.properties") via ClassLoader.getResources — a classpath
+    lookup, not a URL built from any attacker-reachable input, so SSRF does
+    not apply.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.core.config.ConfigResolver"/>
+    <Method name="loadFromClasspath"/>
+    <Bug pattern="URLCONNECTION_SSRF_FD"/>
+  </Match>
+
+  <!--
+    ClaimsServlet.doGet writes the response with
+    response.setContentType("text/plain") before println — compliant
+    browsers do not execute script served as text/plain, so reflected XSS
+    does not apply to this demo endpoint.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.examples.ejb4.ClaimsServlet"/>
+    <Method name="doGet"/>
+    <Bug pattern="XSS_SERVLET"/>
+  </Match>
+</FindBugsFilter>

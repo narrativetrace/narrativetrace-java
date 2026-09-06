@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Public release — part of the released source, like ci.yml. Fires on the
+# annotated v<version> tag a release pushes;
+# the `release` environment (required reviewer, v* tags only) gates the job, so
+# credentials are exposed only after a human approves this exact run.
+#
+# Third-party actions are pinned to full commit SHAs (see ci.yml for why). It
+# matters more here than anywhere else in the repository: this job holds the
+# Maven Central credentials, the GPG signing key and the Plugin Portal secrets,
+# so any action that runs in it runs next to everything needed to publish a
+# malicious artifact under our name.
+#
+# The `release` environment must exist with its protection rules (required
+# reviewer, v*-tag deployment rule, environment-scoped secrets) before the
+# first tag — verify in Settings → Environments → release.
+name: Release
+
+# Least privilege by default; the publish job re-states the one scope it needs.
+permissions: {}
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    # Read the checkout, nothing else. Publishing goes to Maven Central and the
+    # Plugin Portal with their own credentials, so this job never needs write
+    # access to the repository, its packages, or its id-token.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      # Ask the build what it is about to publish, rather than pattern-matching its
+      # source. The previous `sed` looked for a `version = "..."` literal in
+      # build.gradle.kts; there has never been one (the version comes from
+      # gradle.properties through providers.gradleProperty), so it always produced the
+      # empty string. Every branch below now fails closed on an empty or unexpected
+      # value — a release gate that cannot determine the version must stop, not guess.
+      - name: Resolve the version being released
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(./gradlew -q --console=plain printVersion | tail -n 1 | tr -d '[:space:]')"
+          [ -n "$version" ] || { echo "could not determine the project version"; exit 1; }
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Assert tag matches the library version
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          [ -n "${VERSION}" ] || { echo "empty version reached the tag check"; exit 1; }
+          [ "v${VERSION}" = "${GITHUB_REF_NAME}" ] || {
+            echo "tag ${GITHUB_REF_NAME} does not match build version ${VERSION}"; exit 1; }
+          case "${VERSION}" in *-SNAPSHOT*|*-dev*) echo "refusing to release ${VERSION}"; exit 1 ;; esac
+
+      - name: Verify
+        run: ./gradlew check
+
+      - name: Publish libraries to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: ./gradlew publishAggregationToCentralPortal
+
+      # The Gradle plugin is versioned independently of the libraries and the
+      # Plugin Portal refuses re-uploads, so publish only a version it lacks.
+      # The plugin shares the libraries' version by design (see gradle.properties), so
+      # it uses the same resolved value. The old `sed` here matched nothing either,
+      # which built a URL with an empty version, got a 404 for it, and concluded the
+      # plugin was new — so the "skip if already published" guard never once skipped.
+      - name: Publish Gradle plugin (if this version is new)
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          [ -n "${VERSION}" ] || { echo "empty version reached the plugin publish step"; exit 1; }
+          url="https://plugins.gradle.org/m2/ai/narrativetrace/ai.narrativetrace.gradle.plugin/${VERSION}/ai.narrativetrace.gradle.plugin-${VERSION}.pom"
+          if curl -sfI "$url" >/dev/null; then
+            echo "plugin ${VERSION} already on the Plugin Portal — skipping"
+          else
+            ./gradlew :narrativetrace-gradle-plugin:publishPlugins
+          fi

@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "_unassigned": {
+      "packages": [],
+      "description": "Harvested terms not yet mapped to a context"
+    },
+    "game": {
+      "packages": ["ai.narrativetrace.examples.minecraft"],
+      "description": "Domain vocabulary of the minecraft example"
+    }
+  },
+  "terms": [
+    {
+      "term": "a",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DataProcessor.process", "DataResult.a", "DefaultDataProcessor.process"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "add item",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "añadir objeto",
+        "zh-CN": "添加物品"
+      },
+      "sources": ["DefaultPlayerInventory.addItem", "PlayerInventory.addItem"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "arg",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["MinecraftExample.main"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "b",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DataProcessor.process", "DataResult.b", "DefaultDataProcessor.process"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "biome",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "bioma",
+        "zh-CN": "生物群系"
+      },
+      "sources": ["Chunk.biome"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "c",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultEntityHandler.execute", "Entity.c", "EntityHandler.execute"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "chunk",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "chunk",
+        "zh-CN": "区块"
+      },
+      "sources": ["Chunk", "DefaultWorldGenerator.generateChunk", "WorldGenerator.generateChunk"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "count",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultStateManager.update", "StateManager.update"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "craft",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "fabricar",
+        "zh-CN": "合成"
+      },
+      "sources": ["CraftingTable.craft", "DefaultCraftingTable.craft"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "crafting table",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "mesa de trabajo",
+        "zh-CN": "工作台"
+      },
+      "sources": ["CraftingTable"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "create",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultThingFactory.create", "ThingFactory.create"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "creature",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "criatura",
+        "zh-CN": "生物"
+      },
+      "sources": ["Creature"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "creature spawner",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generador de criaturas",
+        "zh-CN": "生物生成器"
+      },
+      "sources": ["CreatureSpawner"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "creature type",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "tipo de criatura",
+        "zh-CN": "生物类型"
+      },
+      "sources": ["CreatureType"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "data",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DataProcessor"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "data result",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DataResult"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default crafting table",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultCraftingTable"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default creature spawner",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultCreatureSpawner"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default data",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultDataProcessor"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default entity",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultEntityHandler"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default game",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGameManager"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default player inventory",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultPlayerInventory"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default state",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultStateManager"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default thing",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultThingFactory"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default world",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultWorldGenerator"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "default world server",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["DefaultWorldServer"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "entity",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Entity", "EntityHandler"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "execute",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultEntityHandler.execute", "EntityHandler.execute"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "game",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["GameManager"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "generate chunk",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generar chunk",
+        "zh-CN": "生成区块"
+      },
+      "sources": ["DefaultWorldGenerator.generateChunk", "WorldGenerator.generateChunk"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "handle",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultGameManager.handle", "GameManager.handle"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "hostile",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "hostil",
+        "zh-CN": "敌对"
+      },
+      "sources": ["CreatureSpawner.spawnHostile", "DefaultCreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "input",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultGameManager.handle", "GameManager.handle"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "item",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "objeto",
+        "zh-CN": "物品"
+      },
+      "sources": ["DefaultPlayerInventory.addItem", "Item", "PlayerInventory.addItem"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "kind",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["DefaultEntityHandler.execute", "Entity.kind", "EntityHandler.execute"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "main",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["MinecraftExample.main"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "minecraft example",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "harvested",
+      "sources": ["MinecraftExample"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "name",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["CreatureType.valueOf", "Item.valueOf", "Recipe.valueOf"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "player inventory",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "inventario del jugador",
+        "zh-CN": "玩家背包"
+      },
+      "sources": ["PlayerInventory"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "player joined",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "jugador se unió",
+        "zh-CN": "玩家加入"
+      },
+      "sources": ["DefaultWorldServer.playerJoined", "WorldServer.playerJoined"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "player name",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "nombre del jugador",
+        "zh-CN": "玩家名"
+      },
+      "sources": ["DefaultWorldServer.playerJoined", "WorldServer.playerJoined"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "process",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DataProcessor.process", "DefaultDataProcessor.process"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "quantity",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "cantidad",
+        "zh-CN": "数量"
+      },
+      "sources": ["DefaultPlayerInventory.addItem", "PlayerInventory.addItem"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "recipe",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "receta",
+        "zh-CN": "配方"
+      },
+      "sources": ["CraftingTable.craft", "DefaultCraftingTable.craft", "Recipe"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "result",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Recipe.result"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "spawn hostile",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generar hostil",
+        "zh-CN": "生成敌对生物"
+      },
+      "sources": ["CreatureSpawner.spawnHostile", "DefaultCreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "state",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["StateManager"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "tag",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DataResult.tag"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "thing",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["ThingFactory"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "type",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Creature.type", "CreatureSpawner.spawnHostile", "DefaultCreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "update",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["DefaultStateManager.update", "StateManager.update"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "value",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["CreatureType.values", "Item.values", "Recipe.values"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "value of",
+      "context": "game",
+      "kind": "verb-phrase",
+      "status": "harvested",
+      "sources": ["CreatureType.valueOf", "Item.valueOf", "Recipe.valueOf"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "world",
+      "context": "game",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "mundo",
+        "zh-CN": "世界"
+      },
+      "sources": ["WorldGenerator"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "world server",
+      "context": "game",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "servidor del mundo",
+        "zh-CN": "世界服务器"
+      },
+      "sources": ["WorldServer"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "x",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Chunk.x", "Creature.x", "CreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "y",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Creature.y", "CreatureSpawner.spawnHostile", "DefaultCreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    },
+    {
+      "term": "z",
+      "context": "game",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Chunk.z", "Creature.z", "CreatureSpawner.spawnHostile"],
+      "firstSeen": "2026-08-15"
+    }
+  ]
+}

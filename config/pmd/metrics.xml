@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<ruleset name="NarrativeTrace Metrics"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>Reports NCSS (non-commenting source statements) per method and class for size ranking</description>
+
+    <rule ref="category/java/design.xml/NcssCount">
+        <properties>
+            <property name="methodReportLevel" value="1"/>
+            <property name="classReportLevel" value="1"/>
+        </properties>
+    </rule>
+</ruleset>

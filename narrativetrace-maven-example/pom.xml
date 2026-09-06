@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Deliberately its own groupId, not ai.narrativetrace: this module is never published (like
+       narrativetrace-junit4-example and narrativetrace-agent-example), and giving it the real
+       library's groupId would risk it being mistaken for an official artifact in a local .m2 or a
+       corporate mirror search. -->
+  <groupId>ai.narrativetrace.examples</groupId>
+  <artifactId>narrativetrace-maven-example</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>NarrativeTrace Maven Example</name>
+  <description>
+    Minimal proof that the NarrativeTrace runtime jars work from a plain Maven build, not just
+    Gradle: one traced service, one JUnit 5 test, wired the Maven way. See
+    documentation/maven-guide.md at the repository root for the full walkthrough. Not published —
+    exists to be read and run, not depended on.
+  </description>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Matches gradle.properties' narrativetraceVersion at the repository root as of the day this
+         example was written. Nothing is published to Maven Central yet: run
+         `./gradlew publishToMavenLocal` from the repository root first (with a matching version,
+         should it have moved on since) so these coordinates resolve out of ~/.m2 — see
+         documentation/maven-guide.md. -->
+    <narrativetrace.version>0.2.0</narrativetrace.version>
+    <junit.version>5.11.4</junit.version>
+    <junit-platform.version>1.11.4</junit-platform.version>
+    <assertj.version>3.27.7</assertj.version>
+    <logback.version>1.5.38</logback.version>
+  </properties>
+
+  <!-- Every NarrativeTrace dependency is test-scoped: GreetingService and DefaultGreetingService
+       (src/main) are plain POJOs with no NarrativeTrace reference of any kind — tracing is added
+       at the test boundary via NarrativeTraceProxy.trace(...), so nothing in the shipped jar's
+       compile classpath needs to know NarrativeTrace exists. -->
+  <dependencies>
+    <!-- The JUnit 5 extension: brings narrativetrace-core, narrativetrace-proxy and
+         junit-jupiter-api transitively, exactly as it does under Gradle. -->
+    <dependency>
+      <groupId>ai.narrativetrace</groupId>
+      <artifactId>narrativetrace-junit5</artifactId>
+      <version>${narrativetrace.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Declared directly too, even though narrativetrace-junit5 already brings it transitively:
+         NarrativeTraceProxy is called by name in GreetingServiceTest, and a class a test imports
+         directly should be a direct dependency, not an implicit one riding along. -->
+    <dependency>
+      <groupId>ai.narrativetrace</groupId>
+      <artifactId>narrativetrace-proxy</artifactId>
+      <version>${narrativetrace.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Optional: the durable synchronous narration path (see the architecture brief's dual-path
+         pipeline). PipelineBootstrap discovers this reflectively by classname when it is on the
+         classpath; without it the example still captures and writes trace files, it just does not
+         additionally narrate through SLF4J. -->
+    <dependency>
+      <groupId>ai.narrativetrace</groupId>
+      <artifactId>narrativetrace-slf4j</artifactId>
+      <version>${narrativetrace.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Surefire's JUnit Platform provider needs this on the test classpath since Surefire 3.x —
+         see documentation/maven-guide.md. -->
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <version>${junit-platform.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <!-- Without this, NarrativeTrace renders parameter names as arg0, arg1, ... instead of
+               their real names (documentation/troubleshooting.md, "Parameters show as arg0, arg1").
+               The Gradle plugin wires this flag for every consumer automatically; a plain Maven
+               build has to set it itself — there is no NarrativeTrace Maven plugin. -->
+          <parameters>true</parameters>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <systemPropertyVariables>
+            <narrativetrace.output>true</narrativetrace.output>
+            <!-- Maven's build directory is target/, not Gradle's build/ — the extension's default
+                 (build/narrativetrace) is a Gradle-ism, so a Maven build must say so itself. -->
+            <narrativetrace.outputDir>${project.build.directory}/narrativetrace</narrativetrace.outputDir>
+            <narrativetrace.format>markdown</narrativetrace.format>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,92 @@
+# ── 2026-08-31: the invariants below are now ENFORCED ───────────────────────────
+# `./gradlew :narrativetrace-benchmarks:allocationCheck` runs the five fast-path
+# benchmarks with `-prof gc` and fails above the thresholds in
+# `allocation-thresholds.properties` — the one file the task reads. Edit a
+# threshold there and explain it here, in the same change.
+#
+# Re-measured 2026-08-31 (JDK 17.0.20, 2 forks × (3 warmup + 5 measurement) × 1s,
+# -Xms256m -Xmx256m). Every reading was stable to ±0.001 B/op:
+#
+#   ContextOverheadBenchmark.context_enterExit_NOOP   1680 B/op   (max 1780)
+#   ProxyOverheadBenchmark.directCall                  728 B/op   (max  780)
+#   ProxyOverheadBenchmark.proxy_noopContext           752 B/op   (max  800)
+#   ProxyOverheadBenchmark.proxy_OFF                   752 B/op   (max  800)
+#   AgentOverheadBenchmark.agent_OFF                   728 B/op   (max  780)
+#
+# WHY THESE DIFFER SO MUCH FROM THE FEBRUARY FIGURES BELOW, and why that is not
+# a regression: the GC profiler measures allocation over the whole measurement
+# iteration, fixtures included, and every one of these benchmarks now carries an
+# `@Setup(Level.Invocation)` fixture that calls `context.reset()` — five of them
+# in ContextOverheadBenchmark, two in ProxyOverheadBenchmark — at ~317 B each.
+# That fixture, not the code under test, is the bulk of the number. What is
+# still evidence about the library is the DELTA between benchmarks sharing a
+# fixture, and every documented delta still holds exactly:
+#
+#   proxy_OFF        − directCall = 24 B/op   (one Object[] for args) ✔ unchanged
+#   proxy_noopContext − directCall = 24 B/op  (one Object[] for args) ✔ unchanged
+#   agent_OFF        − directCall =  0 B/op   (bytecode-level, no boxing) ✔ unchanged
+#
+# `spring_*` is deliberately NOT in the enforced set any more. The claim below —
+# "Spring BPP with inactive context — delegates directly" — is no longer true of
+# the benchmark: `SpringOverheadBenchmark` builds `new ThreadLocalNarrativeContext()`,
+# which is DETAIL and active, so it measures an active tracing path (3,568 and
+# 3,408 B/op) and belongs with the active-path footprints, not the invariants.
+#
+# ════════════════════════════════════════════════════════════════════════════════
+# Everything below this line is the 2026-02-25 run, kept for comparison. The
+# throughput re-baseline refreshes it.
+# ════════════════════════════════════════════════════════════════════════════════
+
+# Allocation baseline (gc.alloc.rate.norm) — 2026-02-25
+# JDK 17, 1 fork, 3 warmup × 1s, 5 iterations × 1s, -Xms256m -Xmx256m, -prof gc
+# Tree: 2026-02-25 (isActive fast-path gate + method metadata cache + GC profiler)
+#
+# ── Zero-allocation invariants ──────────────────────────────────────────────────
+# These benchmarks must stay at or near their current B/op.
+# Any increase signals an accidental allocation in the fast path.
+#
+# context_enterExit_NOOP: NoopNarrativeContext — pure no-op, no allocations.
+# proxy_noopContext:      Proxy with NoopNarrativeContext — only JDK proxy boxing overhead.
+# proxy_OFF:              Proxy with TracingLevel.OFF — isActive() gate skips all work.
+# agent_OFF:              ASM agent with TracingLevel.OFF — isActive() gate skips all work.
+# directCall:             Direct method call (no proxy) — benchmark harness overhead only.
+# spring_*:               Spring BPP with inactive context — delegates directly.
+#
+Benchmark                                                                    B/op
+ContextOverheadBenchmark.context_enterExit_NOOP                             ≈ 0
+ProxyOverheadBenchmark.directCall                                          56
+ProxyOverheadBenchmark.proxy_noopContext                                   80
+ProxyOverheadBenchmark.proxy_OFF                                           80
+AgentOverheadBenchmark.agent_OFF                                           56
+SpringOverheadBenchmark.spring_narrated_interpolated                       56
+SpringOverheadBenchmark.spring_noAnnotations                               56
+#
+# proxy_noopContext delta vs directCall: 24 B/op (one Object[] for args)
+# proxy_OFF delta vs directCall: 24 B/op (one Object[] for args)
+# agent_OFF matches directCall: 0 B/op delta (bytecode-level, no boxing)
+#
+# ── Active-path footprints ──────────────────────────────────────────────────────
+# These allocate by design (TraceNode, ParameterCapture, String rendering, etc.)
+# Track for unexpected jumps (>2× indicates a regression).
+#
+Benchmark                                                                    B/op
+ContextOverheadBenchmark.context_enterExit_OFF                             224
+ContextOverheadBenchmark.context_enterExit_DETAIL                          432
+ContextOverheadBenchmark.context_enterExit_ERRORS                          528
+ContextOverheadBenchmark.context_enterExit_NARRATIVE                       528
+ContextOverheadBenchmark.context_enterExit_FLOW                            680
+ProxyOverheadBenchmark.proxy_notTraced                                     632
+ProxyOverheadBenchmark.proxy_noAnnotations                                 680
+ProxyOverheadBenchmark.proxy_onError                                       680
+ProxyOverheadBenchmark.proxy_narrated_interpolated                         968
+ProxyOverheadBenchmark.proxy_narrativeSummary                              992
+ProxyOverheadBenchmark.proxy_narrated_static                              1008
+AgentOverheadBenchmark.agent_noAnnotations                                 656
+#
+# ── Nesting depth scaling ───────────────────────────────────────────────────────
+# Allocation scales linearly with call depth (~472 B/op per level).
+#
+Benchmark                                                                    B/op
+NestingDepthBenchmark.nesting_depth_1                                      616
+NestingDepthBenchmark.nesting_depth_10                                    4720
+NestingDepthBenchmark.nesting_depth_50                                   23432

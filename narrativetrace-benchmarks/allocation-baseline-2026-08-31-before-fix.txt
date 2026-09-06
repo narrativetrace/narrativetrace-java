@@ -1,0 +1,98 @@
+# PRESERVED PREDECESSOR. The allocation baseline as it stood on 2026-08-31 BEFORE the fix run
+# of that evening. Every figure here includes the benchmarks' own `@Setup(Level.Invocation)`
+# reset fixture (two to five `reset()` calls, ~336 B each at the time); `allocation-baseline.txt`
+# no longer does. Kept as the "after the regression, before the fix" column.
+#
+# Allocation baseline (gc.alloc.rate.norm) — 2026-08-31
+# JDK 17.0.20, 1 fork, 3 warmup × 1s, 5 iterations × 1s, -Xms256m -Xmx256m, -prof gc
+# Tree: 2026-08-31 (Tier 2 re-baseline, first run since 2026-02-25)
+#
+# ENFORCED, in part. `./gradlew :narrativetrace-benchmarks:allocationCheck` runs the
+# five fast-path benchmarks and fails above the thresholds in
+# `allocation-thresholds.properties` — the one file the task reads. Everything
+# else in this file is recorded, not gated. Editing a threshold there means
+# explaining it here, in the same change.
+#
+# READ THIS BEFORE COMPARING WITH allocation-baseline-2026-02-25.txt.
+# The February tree (2026-02-25) was checked out and run on this same machine with
+# the same settings, so the differences below are code, not hardware. Active
+# paths allocate 4–12× more than they did; the run record carries
+# the full controlled table.
+#
+# ── Fast-path benchmarks (ENFORCED by allocationCheck) ──────────────────────────
+# These are the paths that must not grow. Re-measured 2026-08-31 (evening) after
+# the R2 fix — `reset()` no longer materialises a `TraceStack` on a thread that
+# never traced — which is what the `@Setup(Level.Invocation)` fixture was paying
+# two to five times per invocation. The fixture is unchanged; the ~336 B per
+# reset it used to cost is gone, so these rows measure the library again.
+#
+Benchmark                                                    B/op   threshold
+ContextOverheadBenchmark.context_enterExit_NOOP                 0           8
+ProxyOverheadBenchmark.directCall                              56          64
+ProxyOverheadBenchmark.proxy_noopContext                       80          88
+ProxyOverheadBenchmark.proxy_OFF                               80          88
+AgentOverheadBenchmark.agent_OFF                              392         400
+#
+# The deltas, and the one that is no longer what February recorded:
+#   proxy_OFF        − directCall =  24 B/op   one Object[] for args
+#   proxy_noopContext − directCall = 24 B/op   one Object[] for args
+#   agent_OFF        − directCall = 336 B/op   was 0 in February
+#
+# THE AGENT'S INACTIVE PATH IS NOT FREE, and this run is the first measurement
+# that could say so about allocation. `AgentRuntime.enterMethod` builds a whole
+# `MethodSignature` — two substrings off the qualified class name, a descriptor
+# parse for the declared return type, the record itself — and only then calls
+# `context.enterMethod`, which returns immediately at OFF. The proxy path asks
+# `context.isActive()` first and builds nothing, which is why `proxy_OFF` costs
+# 24 B and `agent_OFF` costs 392. Not fixed here: this run's scope is the ruled
+# remedy set of `planning/perf-regression-2026-08-31.md`, and this is a new
+# finding. It is why the README FAQ can no longer say the agent "adds nothing
+# measurable". Recorded as open work under TODO 20.
+#
+# ── Pipeline fast path (new in this run, recorded not gated) ────────────────────
+# The publish path allocates nothing measurable: the ring is preallocated, and
+# put() writes into a slot that already exists.
+#
+Benchmark                                                    B/op
+PipelineOverheadBenchmark.publish_noConsumers                ≈ 0
+PipelineOverheadBenchmark.publish_narrationOnly              ≈ 0
+PipelineOverheadBenchmark.publish_capturing                  ≈ 0
+PipelineOverheadBenchmark.publish_narratingAndCapturing      ≈ 0
+PipelineOverheadBenchmark.bufferOffer_1thread                ≈ 0
+PipelineOverheadBenchmark.bufferOffer_4threads               ≈ 0
+PipelineOverheadBenchmark.bufferOffer_16threads              ≈ 0
+PipelineOverheadBenchmark.bufferOffer_shedding               ≈ 0
+#
+# ── Active-path footprints (recorded, not gated) ────────────────────────────────
+# These allocate by design (TraceNode, ParameterCapture, String rendering, span
+# context, resource identity). Track for unexpected jumps.
+#
+Benchmark                                                    B/op    2026-02-25
+ContextOverheadBenchmark.context_enterExit_OFF               2688           224
+ContextOverheadBenchmark.context_enterExit_DETAIL            4976           432
+ContextOverheadBenchmark.context_enterExit_ERRORS            5176           528
+ContextOverheadBenchmark.context_enterExit_NARRATIVE         5224           528
+ContextOverheadBenchmark.context_enterExit_SUMMARY           5360           680
+ProxyOverheadBenchmark.proxy_notTraced                       2904           632
+ProxyOverheadBenchmark.proxy_noAnnotations                   3680           680
+ProxyOverheadBenchmark.proxy_onError                         3680           680
+ProxyOverheadBenchmark.proxy_narrativeSummary                3720           992
+ProxyOverheadBenchmark.proxy_narrated_static                 4016          1008
+ProxyOverheadBenchmark.proxy_narrated_interpolated           4080           968
+AgentOverheadBenchmark.agent_noAnnotations                   4336           656
+SpringOverheadBenchmark.spring_narrated_interpolated         3568            56
+SpringOverheadBenchmark.spring_noAnnotations                 3408            56
+#
+# spring_* is not a like-for-like comparison: in February those two matched
+# directCall exactly, i.e. the BeanPostProcessor was not wrapping the beans at
+# all. They now trace, so the column moved from "a plain call" to "an active
+# DETAIL capture".
+#
+# ── Nesting depth scaling ───────────────────────────────────────────────────────
+# Allocation still scales linearly with call depth, at ~2,378 B per level
+# (was ~472 B).
+#
+Benchmark                                                    B/op    2026-02-25
+NestingDepthBenchmark.nesting_depth_1                        3192           616
+NestingDepthBenchmark.nesting_depth_10                      23664          4720
+NestingDepthBenchmark.nesting_depth_50                     118378         23432

@@ -1,0 +1,17 @@
+# gitleaks config — extends the default rule set; nothing is disabled globally.
+# https://github.com/gitleaks/gitleaks#configuration
+#
+# One targeted allowlist entry, added after the 2026-09-02 full-history sweep
+# (documentation/security-tooling.md): git-secret's own mapping file stores a
+# SHA-256 lookup hash per encrypted path, not a credential — git-secret is
+# designed for this file to be committed in the clear, but its hex digest trips
+# the entropy-based generic-api-key rule. Scoped to the one path, not a
+# blanket allow.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "git-secret mapping.cfg holds a SHA-256 lookup hash, not a credential"
+targetRules = ["generic-api-key"]
+paths = ['''\.gitsecret/paths/mapping\.cfg''']

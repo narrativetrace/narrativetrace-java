@@ -1,0 +1,46 @@
+.gradle/
+build/
+!buildSrc/src/**
+!buildSrc/*.kts
+!*-build-tests/
+!gradle/wrapper/gradle-wrapper.jar
+
+*.class
+*.jar
+!gradle/wrapper/*.jar
+
+target/
+
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.gitsecret/keys/random_seed
+!*.secret
+secret.properties
+
+.jqwik-database
+# Jazzer writes its generated corpus here during `./gradlew fuzz`; only inputs
+# that reproduce a finding are committed, by hand, into the seed corpus.
+.cifuzz-corpus/
+.next-run-progress.md
+buildSrc/.kotlin/
+
+# JVM fontconfig caches created when example runs see an unset HOME (dir literally named "?")
+narrativetrace-examples/*/\?/
+/\?/
+
+# Machine-specific performance calibration results
+/perf-calibration/
+
+# Dogfooding sandbox (out-of-tree evaluation app, deliberately unversioned)
+/dogfood/
+
+# Local run-progress scratch files (never tracked)
+.agent-progress-*.md
+# Gradle output directories anywhere — but never SOURCE dirs that happen to
+# be named `build` (the ai.narrativetrace.build package lives under src/;
+# the bare build/ pattern above silently swallowed a test file once).
+!**/src/**/build/

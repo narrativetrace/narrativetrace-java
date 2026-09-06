@@ -1,0 +1,46 @@
+# NarrativeTrace
+
+> Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
+
+NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
+
+## Docs
+
+- [Complete Reference](https://narrativetrace.ai/llms-full.txt): Full API reference, module map, configuration, integration guides, architecture decisions, and troubleshooting
+- [Javadoc](https://javadoc.io/doc/ai.narrativetrace): API documentation for all published modules
+- [GitHub](https://github.com/narrativetrace/narrativetrace-java): Source code repository
+
+## For AI Agents: Rich Javadoc in Source JARs
+
+All published modules include source JARs with Javadoc written for LLM consumption.
+To access detailed API context, resolve the sources classifier from Maven Central:
+
+Gradle (sources auto-downloaded by IDEs):
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.0") }
+
+Maven:
+  mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
+
+Direct download (any module):
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.0/narrativetrace-core-0.2.0-sources.jar
+
+Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
+narrativetrace-junit4, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,
+narrativetrace-slf4j, narrativetrace-agent, narrativetrace-spring, narrativetrace-spring-web,
+narrativetrace-servlet, narrativetrace-micronaut, narrativetrace-micronaut-http,
+narrativetrace-micrometer, narrativetrace-opentelemetry
+
+## Sections in Complete Reference
+
+- Overview and philosophy
+- Quick start (Gradle plugin and manual setup)
+- Module map with dependency graph (18 modules)
+- Core API: NarrativeContext, ThreadLocalNarrativeContext, TracingLevel, NarrativeTraceProxy
+- Data model: TraceTree, TraceNode, MethodSignature, ParameterCapture, TraceOutcome
+- Annotations: @Narrated, @OnError, @NotTraced, @NarrativeSummary
+- Configuration: system properties, junit-platform.properties, Gradle plugin DSL, Spring, agent
+- Integration guides: JDK proxy, JUnit 5, JUnit 4, Spring, servlet filter, SLF4J, Micrometer, Java agent
+- Clarity scoring: five-dimension analysis, NLP components, standalone scanning
+- Architecture decisions: eager serialization, ThreadLocal context, sealed types
+- Troubleshooting: pointer to troubleshooting.md, the dedicated symptom → cause → fix page
+- FAQ: short skeptical questions (why not OTel/AOP/structured logging, secrets, production safety, async load, free vs Pro, bad names) with pointers to the fuller treatment

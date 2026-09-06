@@ -1,0 +1,132 @@
+# Allocation baseline (gc.alloc.rate.norm), measured on the agent call-site and SUMMARY prune run — 2026-09-01
+# JDK 17.0.20, 1 fork, 3 warmup × 1s, 5 iterations × 1s, -Xms256m -Xmx256m, -prof gc
+# Tree: 2026-08-31 (the agent module's gate + per-method constants, and the SUMMARY prune's sharing)
+#
+# HOW THIS FILE WAS PRODUCED. Two full-suite runs of the same jars, minutes apart, on this
+# container; every row here is the MAXIMUM of the two, never the lucky one. Where a third
+# (narrower) run disagreed, the disagreement is named on the row. The previous edition's figures
+# are preserved in `allocation-baseline-2026-08-31-before-fix.txt` and February's in
+# `allocation-baseline-2026-02-25.txt`; the 2026-08-31 evening edition this replaces is in the
+# git history of this file.
+#
+# ENFORCED, in part. `./gradlew :narrativetrace-benchmarks:allocationCheck` runs the five
+# fast-path benchmarks and fails above the thresholds in
+# `allocation-thresholds.properties` — the one file the task reads. Everything else in this
+# file is recorded, not gated. Editing a threshold there means explaining it here, in the
+# same change.
+#
+# ── Fast-path benchmarks (ENFORCED by allocationCheck) ──────────────────────────
+# These are the paths that must not grow. All five read the same figure in both runs.
+#
+Benchmark                                                    B/op   threshold
+ContextOverheadBenchmark.context_enterExit_NOOP                 0           8
+ProxyOverheadBenchmark.directCall                              56          64
+ProxyOverheadBenchmark.proxy_noopContext                       80          88
+ProxyOverheadBenchmark.proxy_OFF                               80          88
+AgentOverheadBenchmark.agent_OFF                               56          64
+#
+# The deltas that speak about the library:
+#   proxy_OFF         − directCall =  24 B/op   one Object[] for args
+#   proxy_noopContext − directCall =  24 B/op   one Object[] for args
+#   agent_OFF         − directCall =   0 B/op   was 336 on 2026-08-31
+#
+# THE AGENT'S INACTIVE PATH IS NOW FREE, and the threshold moved 400 → 64 to say so. Until
+# 2026-09-01 the injected sequence built `String[] paramNames`, `Object[] paramValues` (with
+# boxing) and `boolean[] redacted` on every invocation, then called `enterMethod`, which built a
+# whole `MethodSignature` before asking whether tracing was on; the exits then materialised a
+# `TraceStack` for a trace nobody kept. `AgentRuntime.isActive()` is now the first instruction of
+# every instrumented method and every injected call sits behind it, so at OFF the method
+# allocates nothing over its own work — 56 B/op, `directCall` exactly.
+#
+#   ARITHMETIC FOR THE NEW THRESHOLD. 56 measured + the 8-byte band this suite has used since
+#   2026-08-31 = 64, which is `directCall`'s threshold, which is the right answer: an inactive
+#   instrumented method and an uninstrumented one allocate the same thing, so they are gated the
+#   same way. The band is 8 because the smallest regression that can exist here is one object —
+#   16 bytes of header before a single field — and these rows reproduce to ±0.001 B/op.
+#
+# ── Pipeline fast path (recorded, not gated) ────────────────────────────────────
+# The publish path allocates nothing measurable: the ring is preallocated, and put() writes
+# into a slot that already exists.
+#
+Benchmark                                                    B/op
+PipelineOverheadBenchmark.publish_noConsumers                ≈ 0
+PipelineOverheadBenchmark.publish_narrationOnly              ≈ 0
+PipelineOverheadBenchmark.publish_capturing                  ≈ 0
+PipelineOverheadBenchmark.publish_narratingAndCapturing      ≈ 0
+PipelineOverheadBenchmark.bufferOffer_1thread                ≈ 0
+PipelineOverheadBenchmark.bufferOffer_4threads               ≈ 0
+PipelineOverheadBenchmark.bufferOffer_16threads              ≈ 0
+PipelineOverheadBenchmark.bufferOffer_shedding               ≈ 0
+#
+# ── Active-path footprints (recorded, not gated) ────────────────────────────────
+# These allocate by design (TraceNode, ParameterCapture, String rendering, span context).
+# Track for unexpected jumps. "2026-08-31" is the previous edition's committed figure.
+#
+Benchmark                                                    B/op   2026-08-31
+ContextOverheadBenchmark.context_enterExit_OFF                392          360
+ContextOverheadBenchmark.context_enterExit_DETAIL            2984         2888
+ContextOverheadBenchmark.context_enterExit_ERRORS            2960         2840
+ContextOverheadBenchmark.context_enterExit_NARRATIVE         2984         2888
+ContextOverheadBenchmark.context_enterExit_SUMMARY           2984         3056
+ProxyOverheadBenchmark.proxy_notTraced                     1034.1         1046
+ProxyOverheadBenchmark.proxy_noAnnotations                 1074.1         1126
+ProxyOverheadBenchmark.proxy_onError                       1074.1         1086
+ProxyOverheadBenchmark.proxy_narrativeSummary              1050.1         1086
+ProxyOverheadBenchmark.proxy_narrated_static               1426.1         1438
+ProxyOverheadBenchmark.proxy_narrated_interpolated         1338.1         1446
+AgentOverheadBenchmark.agent_noAnnotations                   2216         2664
+SpringOverheadBenchmark.spring_narrated_interpolated         2368         2256
+SpringOverheadBenchmark.spring_noAnnotations                 2088         1976
+#
+# TWO ROWS MOVED BECAUSE OF THIS RUN, AND THE REST MOVED BEFORE IT. Read the "2026-08-31"
+# column carefully: it was taken on the earlier 2026-08-31 tree, and four core changes landed between that
+# commit and this run (the ring's seqlock slot protocol, the capture that waits for its own
+# events, the flush-after-close fix, the one-monitor drain). To separate the two causes, the two
+# benchmarks this run touches were measured at 8526a2e9 — the run's starting commit, after those
+# four and before either change — with the same jars and settings:
+#
+#   agent_noAnnotations         2648 → 2216   −432 B/op (−16.3 %), THIS RUN
+#   context_enterExit_SUMMARY   3096 → 2984   and, more to the point, the arithmetic below
+#   context_enterExit_DETAIL    3008 → 2984   not this run; ±24 B of drift between runs
+#   context_enterExit_NARRATIVE 3040 → 2984   not this run; same drift
+#   context_enterExit_OFF        392 →  392   unchanged
+#   agent_OFF                     56 →   56   unchanged (the gate landed in 3ad17721)
+#
+# `proxy_*`, `spring_*` and `nesting_*` exercise neither the agent call site nor SUMMARY
+# pruning, so nothing in this run can have moved them; their deltas against the 2026-08-31
+# column belong to the four core commits, and are recorded here rather than attributed.
+#
+# SUMMARY NO LONGER COSTS MORE THAN DETAIL, which is the point of the change and the one
+# comparison that carries no run-to-run noise, because both halves are measured in the same run:
+#
+#   before (8526a2e9)   SUMMARY 3096 − DETAIL 3008 = +88 B/op
+#   after  (2026-08-31)  SUMMARY 2984 − DETAIL 2984 =   0 B/op
+#
+# `TraceTreeBuilder.pruneSummary` used to rebuild every root at capture time whether or not
+# pruning had anything to do there — two `ArrayList`s and a `TraceNode` to arrive at a tree
+# identical to the one it was handed. It now returns a root whose children are already what
+# SUMMARY keeps as the same instance, and the list holding it too. Nothing gates this
+# relationally — `allocationCheck` compares absolute bytes per row, and SUMMARY is an active
+# path — so the per-commit guard is `SummaryPruningSharingTest` in narrativetrace-core, which
+# pins the sharing itself rather than its price.
+#
+# WHAT REPRODUCES AND WHAT DOES NOT. Both full runs agreed to the byte on every `context_*`,
+# `agent_*`, `spring_*` and fast-path row; a third, narrower run of the same jars read
+# `context_enterExit_ERRORS` at 2960 where the two full runs read 2936, which is why 2960 is
+# recorded. The `proxy_*` rows batch 1,000 calls per invocation, so the JIT sometimes
+# scalar-replaces allocations inside the loop: across the two runs `proxy_notTraced` read
+# 1034.1 / 938.1 and `proxy_narrated_static` 1426.1 / 1402.1. Every figure above is the maximum.
+#
+# THE TIME CEILINGS IN `baseline.txt` ARE NOW CONSERVATIVE FOR THE AGENT and were deliberately
+# not tightened here. `agent_OFF` reads 36.8 / 37.8 ns against a 100.4 ns ceiling, but that
+# ceiling is the worst of three runs on a container that has produced ±93 % error bars on this
+# very row, and two samples are not three. Tightening a time gate from a smaller sample than the
+# one that set it is how a gate becomes flaky. Recorded, not done.
+#
+# ── Nesting depth scaling ───────────────────────────────────────────────────────
+# Allocation still scales linearly with call depth, at ~955 B per level.
+#
+Benchmark                                                    B/op   2026-08-31
+NestingDepthBenchmark.nesting_depth_1                        1944         1832
+NestingDepthBenchmark.nesting_depth_10                      10992        10064
+NestingDepthBenchmark.nesting_depth_50                    48665.9      49178.5

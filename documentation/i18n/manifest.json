@@ -1,0 +1,163 @@
+{
+  "sourceLanguage": "en",
+  "languages": [
+    {
+      "code": "es",
+      "displayName": "Español",
+      "directory": "documentation/es",
+      "index": "documentation/LEAME.md",
+      "rootReadme": "LEAME.md",
+      "status": "in-progress"
+    },
+    {
+      "code": "pt-BR",
+      "displayName": "Português",
+      "directory": "documentation/pt-BR",
+      "index": "documentation/LEIAME.md",
+      "rootReadme": "LEIAME.md",
+      "status": "in-progress"
+    },
+    {
+      "code": "zh-CN",
+      "displayName": "简体中文",
+      "directory": "documentation/zh-CN",
+      "index": "documentation/自述文件.md",
+      "rootReadme": "自述文件.md",
+      "status": "in-progress"
+    }
+  ],
+  "documents": [
+    {
+      "source": "documentation/first-10-minutes.md",
+      "translations": {
+        "es": "primeros-10-minutos.md",
+        "zh-CN": "前10分钟.md",
+        "pt-BR": "primeiros-10-minutos.md"
+      }
+    },
+    {
+      "source": "documentation/developer-experience.md",
+      "translations": {
+        "es": "experiencia-de-desarrollo.md",
+        "zh-CN": "开发者体验.md",
+        "pt-BR": "experiencia-de-desenvolvimento.md"
+      }
+    },
+    {
+      "source": "documentation/installation-guide.md",
+      "translations": {
+        "es": "guia-de-instalacion.md",
+        "zh-CN": "安装指南.md",
+        "pt-BR": "guia-de-instalacao.md"
+      }
+    },
+    {
+      "source": "documentation/choosing-an-integration.md",
+      "translations": {
+        "es": "eligiendo-una-integracion.md",
+        "zh-CN": "选择集成方式.md",
+        "pt-BR": "escolhendo-uma-integracao.md"
+      }
+    },
+    {
+      "source": "documentation/lifecycle-guide.md",
+      "translations": {
+        "es": "guia-del-ciclo-de-vida.md",
+        "zh-CN": "生命周期指南.md",
+        "pt-BR": "guia-do-ciclo-de-vida.md"
+      }
+    },
+    {
+      "source": "documentation/configuration-guide.md",
+      "translations": {
+        "es": "guia-de-configuracion.md",
+        "zh-CN": "配置指南.md",
+        "pt-BR": "guia-de-configuracao.md"
+      }
+    },
+    {
+      "source": "documentation/annotations-guide.md",
+      "translations": {
+        "es": "guia-de-anotaciones.md",
+        "zh-CN": "注解指南.md",
+        "pt-BR": "guia-de-anotacoes.md"
+      }
+    },
+    {
+      "source": "documentation/privacy-and-redaction.md",
+      "translations": {
+        "es": "privacidad-y-ocultacion.md",
+        "zh-CN": "隐私与脱敏.md",
+        "pt-BR": "privacidade-e-ocultacao.md"
+      }
+    },
+    {
+      "source": "documentation/what-to-commit.md",
+      "translations": {
+        "es": "que-commitear.md",
+        "zh-CN": "应提交的内容.md",
+        "pt-BR": "o-que-commitar.md"
+      }
+    },
+    {
+      "source": "documentation/troubleshooting.md",
+      "translations": {
+        "es": "solucion-de-problemas.md",
+        "zh-CN": "故障排查.md",
+        "pt-BR": "solucao-de-problemas.md"
+      }
+    },
+    {
+      "source": "documentation/spring-integration-guide.md",
+      "translations": {
+        "es": "guia-de-integracion-con-spring.md",
+        "zh-CN": "Spring集成指南.md",
+        "pt-BR": "guia-de-integracao-com-spring.md"
+      }
+    },
+    {
+      "source": "documentation/micronaut-integration-guide.md",
+      "translations": {
+        "es": "guia-de-integracion-con-micronaut.md",
+        "zh-CN": "Micronaut集成指南.md",
+        "pt-BR": "guia-de-integracao-com-micronaut.md"
+      }
+    },
+    {
+      "source": "documentation/gradle-plugin-guide.md",
+      "translations": {
+        "es": "guia-del-plugin-de-gradle.md",
+        "zh-CN": "Gradle插件指南.md",
+        "pt-BR": "guia-do-plugin-de-gradle.md"
+      }
+    },
+    {
+      "source": "documentation/clarity-guide.md",
+      "translations": {
+        "es": "guia-de-claridad.md",
+        "zh-CN": "清晰度指南.md",
+        "pt-BR": "guia-de-clareza.md"
+      }
+    },
+    {
+      "source": "documentation/feature-guide.md",
+      "translations": {
+        "es": "guia-de-funcionalidades.md",
+        "zh-CN": "功能指南.md",
+        "pt-BR": "guia-de-funcionalidades.md"
+      }
+    },
+    {
+      "source": "documentation/structural-trace-format.md",
+      "translations": {
+        "es": "formato-de-traza-estructural.md",
+        "zh-CN": "结构化追踪格式.md",
+        "pt-BR": "formato-de-trace-estrutural.md"
+      }
+    },
+    {
+      "source": "documentation/maven-guide.md",
+      "translations": {}
+    }
+  ]
+}

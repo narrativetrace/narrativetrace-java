@@ -1,0 +1,27 @@
+# Benchmark baseline — 2026-02-25
+# JDK 17, 1 fork, 3 warmup × 1s, 5 iterations × 1s, -Xms256m -Xmx256m
+# Tree: 2026-02-25 (allocation baseline run)
+#
+Benchmark                                             Mode  Cnt     Score     Error  Units
+AgentOverheadBenchmark.agent_OFF                      avgt    5    30.836 ±   0.915  ns/op
+AgentOverheadBenchmark.agent_noAnnotations            avgt    5   162.935 ±  13.827  ns/op
+ContextOverheadBenchmark.context_enterExit_DETAIL     avgt    5   145.866 ±   6.741  ns/op
+ContextOverheadBenchmark.context_enterExit_ERRORS     avgt    5   132.297 ±   2.720  ns/op
+ContextOverheadBenchmark.context_enterExit_FLOW       avgt    5   182.169 ±   4.821  ns/op
+ContextOverheadBenchmark.context_enterExit_NARRATIVE  avgt    5   135.987 ±   4.297  ns/op
+ContextOverheadBenchmark.context_enterExit_NOOP       avgt    5    16.198 ±   0.238  ns/op
+ContextOverheadBenchmark.context_enterExit_OFF        avgt    5    60.925 ±   1.317  ns/op
+NestingDepthBenchmark.nesting_depth_1                 avgt    5   187.486 ±   9.217  ns/op
+NestingDepthBenchmark.nesting_depth_10                avgt    5  1632.928 ±  70.616  ns/op
+NestingDepthBenchmark.nesting_depth_50                avgt    5  8360.583 ± 207.912  ns/op
+ProxyOverheadBenchmark.directCall                     avgt    5    20.723 ±   0.404  ns/op
+ProxyOverheadBenchmark.proxy_OFF                      avgt    5    36.772 ±  16.055  ns/op
+ProxyOverheadBenchmark.proxy_narrated_interpolated    avgt    5   296.953 ±   9.413  ns/op
+ProxyOverheadBenchmark.proxy_narrated_static          avgt    5   290.208 ±  11.741  ns/op
+ProxyOverheadBenchmark.proxy_narrativeSummary         avgt    5   234.968 ±   4.233  ns/op
+ProxyOverheadBenchmark.proxy_noAnnotations            avgt    5   208.127 ±   8.605  ns/op
+ProxyOverheadBenchmark.proxy_noopContext              avgt    5    33.910 ±   1.603  ns/op
+ProxyOverheadBenchmark.proxy_notTraced                avgt    5   200.049 ±   7.128  ns/op
+ProxyOverheadBenchmark.proxy_onError                  avgt    5   211.474 ±   6.092  ns/op
+SpringOverheadBenchmark.spring_narrated_interpolated  avgt    5    22.262 ±   7.476  ns/op
+SpringOverheadBenchmark.spring_noAnnotations          avgt    5    21.137 ±   1.277  ns/op
