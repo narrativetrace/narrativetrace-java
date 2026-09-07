@@ -1,4 +1,4 @@
-<!-- source: documentation/developer-experience.md blob 30383fa1d4f2 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/developer-experience.md blob 34a39401d4b9 | translated: 2026-09-07 | reviewed: - -->
 # Experiência de desenvolvimento
 
 [English](../developer-experience.md) | [Español](../es/experiencia-de-desarrollo.md) | **Português** | [简体中文](../zh-CN/开发者体验.md)
@@ -21,8 +21,8 @@ instalação para o trecho exato de acordo com o seu estilo de build.
 O módulo `narrativetrace-junit5` escreve uma narrativa para cada teste
 conforme ele é executado. Os artefatos ficam ao lado da saída do build nos
 formatos canônicos (texto de narrativa `.nt`, JSON estrutural e canônico,
-documentos de capítulo) — os mesmos formatos que todo port do NarrativeTrace
-emite, validados pelos esquemas incluídos neste repositório.
+documentos de capítulo) — os mesmos formatos que toda implementação do
+NarrativeTrace emite, validados pelos esquemas incluídos neste repositório.
 
 ## Experimentando sem um projeto
 

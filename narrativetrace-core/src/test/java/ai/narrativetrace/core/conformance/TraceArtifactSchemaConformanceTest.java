@@ -41,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>INTENT: Close the gap between "a conforming document can exist" and "the document we ship
  * conforms". Every case here routes through {@link TraceTestSupport#writeTraceFile} and reads the
  * bytes back off the filesystem, so any divergence between what production writes and what the
- * cross-port schema permits fails the build.
+ * cross-runtime schema permits fails the build.
  *
  * <p><b>@llmNote</b> Deliberately not a unit test of {@code JsonExporter}. {@code
  * SchemaValidationTest} constructs its own {@link ai.narrativetrace.core.render.TraceMetadata} and

@@ -1,6 +1,6 @@
 # NarrativeTrace Java Annotations Guide
 
-This guide lists all annotations available in the NarrativeTrace Java project and explains when and how to use each one.
+This guide lists all annotations available in NarrativeTrace for Java and explains when and how to use each one.
 
 NarrativeTrace follows a **Code is the Log** philosophy: method names, parameter names, and return values should already communicate the runtime story. Keep business logic clean and expressive first, then use annotations exceptionally, not by default. Add annotations only when they provide concrete additional value, such as targeted narration, error-specific context, or sensitive-data redaction.
 

@@ -32,10 +32,10 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!-- Matches gradle.properties' narrativetraceVersion at the repository root as of the day this
-         example was written. Nothing is published to Maven Central yet: run
-         `./gradlew publishToMavenLocal` from the repository root first (with a matching version,
-         should it have moved on since) so these coordinates resolve out of ~/.m2 — see
-         documentation/maven-guide.md. -->
+         example was written. Released versions resolve straight from Maven Central; for one that is
+         not released yet, run `./gradlew publishToMavenLocal` from the repository root first (with a
+         matching version, should it have moved on since) so these coordinates resolve out of ~/.m2 —
+         see documentation/maven-guide.md. -->
     <narrativetrace.version>0.2.0</narrativetrace.version>
     <junit.version>5.11.4</junit.version>
     <junit-platform.version>1.11.4</junit-platform.version>

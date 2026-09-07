@@ -157,9 +157,9 @@ class RedactedValueContainmentTest {
   }
 
   /**
-   * A class that prints its own secret. The sibling TypeScript port leaked exactly here: {@code
-   * toString()} short-circuits the introspection that honors {@code @NotTraced}, so the annotation
-   * silently did nothing for any class that had one.
+   * A class that prints its own secret. This is a defect class pinned in every NarrativeTrace
+   * runtime: {@code toString()} short-circuits the introspection that honors {@code @NotTraced}, so
+   * the annotation silently does nothing for any class that has one.
    */
   static class ChattyCard {
     final String number;

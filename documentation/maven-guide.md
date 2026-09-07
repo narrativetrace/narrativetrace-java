@@ -16,7 +16,7 @@ this guide describes is exercised there for real, not just written down.
 
 ## Table of Contents
 
-- [Before you start: nothing is on Maven Central yet](#before-you-start-nothing-is-on-maven-central-yet)
+- [Before you start: where the artifacts come from](#before-you-start-where-the-artifacts-come-from)
 - [Dependencies](#dependencies)
 - [The `-parameters` compiler flag](#the--parameters-compiler-flag)
 - [Surefire: wiring trace output](#surefire-wiring-trace-output)
@@ -25,24 +25,26 @@ this guide describes is exercised there for real, not just written down.
 - [What the Gradle plugin does that Maven has to do by hand](#what-the-gradle-plugin-does-that-maven-has-to-do-by-hand)
 - [See Also](#see-also)
 
-## Before you start: nothing is on Maven Central yet
+## Before you start: where the artifacts come from
 
-`ai.narrativetrace:narrativetrace-core` and its siblings are not published to
-Maven Central (or any other public repository) at the time of writing. From
-the repository root:
+`ai.narrativetrace:narrativetrace-core` and its siblings are published to
+Maven Central, so a `pom.xml` that names a released `<version>` resolves them
+like any other dependency — no repository configuration needed.
+
+To build against a version that is not released yet — a local change, or a
+`narrativetraceVersion` newer than the last release — install the modules into
+your own `~/.m2/repository` first. From the repository root:
 
 ```bash
 ./gradlew publishToMavenLocal
 ```
 
-This installs every publishable module into your local `~/.m2/repository`
-under the version declared in `gradle.properties`
-(`narrativetraceVersion`). A `pom.xml` that names
-that same `<version>` resolves those coordinates like any other dependency —
-no repository configuration needed, since `mavenLocal()`-published artifacts
-land in Maven's own default local repository. Re-run the command after
-pulling changes that bump the version, or your `pom.xml` will ask for a
-version that was never installed.
+This installs every publishable module under the version declared in
+`gradle.properties` (`narrativetraceVersion`); `mavenLocal()`-published
+artifacts land in Maven's own default local repository, so a `pom.xml` naming
+that same `<version>` picks them up. Re-run the command after pulling changes
+that bump the version, or your `pom.xml` will ask for a version that was never
+installed.
 
 ## Dependencies
 

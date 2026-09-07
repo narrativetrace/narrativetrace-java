@@ -21,9 +21,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * Turns a declarative {@link GraphCase} into a live object graph.
  *
- * <p>INTENT: The corpus stays data — the ports copy {@code graphs.json} verbatim and write their
- * own builder. Only this class knows what an {@code Optional} or an {@code AtomicReferenceArray}
- * is.
+ * <p>INTENT: The corpus stays data — every runtime copies {@code graphs.json} verbatim and writes
+ * its own builder. Only this class knows what an {@code Optional} or an {@code
+ * AtomicReferenceArray} is.
  *
  * <p><b>@llmNote</b> {@code layers} is applied innermost-first, so {@code ["optional","map"]} is a
  * map holding an {@code Optional}. Every shape whose case says {@code payload: "secret-record"}

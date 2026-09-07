@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob fb8b542c5a97 | translated: 2026-09-02 | reviewed: 2026-09-03 -->
+<!-- source: documentation/structural-trace-format.md blob be6ccb00efc4 | translated: 2026-09-07 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -6,8 +6,8 @@
 El artefacto de traza estructural seguro para IA (ADR-002): un fichero por
 escenario de prueba que contiene solo la *forma* del comportamiento
 redactada por el desarrollador — cero valores en tiempo de ejecución. Este
-formato es **multiplataforma**: cada port de NarrativeTrace emite el
-formato idéntico, lo que permite que las líneas base de aprobación y los
+formato es **multiplataforma**: cada implementación de NarrativeTrace emite
+el formato idéntico, lo que permite que las líneas base de aprobación y los
 fixtures de conformidad viajen entre plataformas.
 
 ## Ficheros y nomenclatura (decisiones multiplataforma, 2026-08-24)
@@ -111,8 +111,8 @@ Por lo tanto, dos ejecuciones del mismo comportamiento producen ficheros
 `.nt` idénticos y `trace_id` *distintos*. Esa es la división pretendida:
 los campos cuyo trabajo es agrupar o describir son derivados y estables;
 los campos cuyo trabajo es ser únicos se generan (ADR-014). Una
-comparación de conformidad entre ejecuciones o entre ports normaliza los
-campos únicos antes de comparar.
+comparación de conformidad entre ejecuciones o entre implementaciones
+normaliza los campos únicos antes de comparar.
 
 ## Garantías
 
@@ -128,5 +128,5 @@ campos únicos antes de comparar.
    las aserciones de la prueba. Un cambio que solo altera un valor de
    retorno con estructura idéntica no cambia el artefacto — por diseño.
 
-Implementación de referencia: `core: StructuralTraceRenderer`, emitido
+Implementado en este repositorio por `core: StructuralTraceRenderer`, emitido
 por `TraceTestSupport` junto a los acompañantes `.md`/`.json`/`.mmd`.

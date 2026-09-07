@@ -53,8 +53,8 @@ import java.util.function.Supplier;
  * Default {@link NarrativeContext} backed by a shared event pipeline and per-thread stack state.
  *
  * <p>INTENT: Use this in almost all applications unless you are replacing the capture backend
- * entirely. It is the reference implementation for span parenting, snapshot activation, detached
- * frames, request metadata stamping, and trace-tree capture.
+ * entirely. It is the implementation behind span parenting, snapshot activation, detached frames,
+ * request metadata stamping, and trace-tree capture.
  *
  * <p>All events flow through one {@link EventPipeline}. Parent resolution happens from the current
  * thread's {@link TraceStack}, while tree capture later filters the shared event stream down to the

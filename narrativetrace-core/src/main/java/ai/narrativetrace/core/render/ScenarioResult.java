@@ -18,9 +18,9 @@ import java.util.Locale;
  * out-of-contract value unrepresentable rather than merely untested.
  *
  * <p><b>@llmNote</b> Never write {@link #name()} into an artifact. {@link #wireName()} is the only
- * spelling the cross-port schema accepts; {@link #displayName()} is for human-facing prose. Ports
- * mirror this split; as of the 2026-08-27 parity audit no port ships the equivalent type, so this
- * enum is the contract they derive from.
+ * spelling the cross-runtime schema accepts; {@link #displayName()} is for human-facing prose. The
+ * other runtimes mirror this split; as of the 2026-08-27 audit none ships the equivalent type, so
+ * this enum is where the contract is written down.
  */
 public enum ScenarioResult {
 

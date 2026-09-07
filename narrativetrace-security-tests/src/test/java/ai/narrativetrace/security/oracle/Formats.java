@@ -36,7 +36,7 @@ import org.yaml.snakeyaml.Yaml;
  *
  * <p><b>@llmNote</b> The canonical schema is read from where it lives — {@code
  * narrativetrace-core/src/test/resources/schema/} — rather than copied here. A copy would drift,
- * and the whole point of the schema is that one document defines the artifact for every port.
+ * and the whole point of the schema is that one document defines the artifact for every runtime.
  * {@code projectDir} is supplied by the build, the same way {@code narrativetrace-build-tests}
  * reaches the source tree.
  */

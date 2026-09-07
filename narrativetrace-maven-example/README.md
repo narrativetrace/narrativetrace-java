@@ -18,8 +18,10 @@ Gradle never touches.
 
 ## Running it
 
-Nothing is published to Maven Central yet, so the artifacts this `pom.xml`
-depends on first need installing locally. From the **repository root**:
+The artifacts this `pom.xml` depends on are published to Maven Central, so
+`mvn test` resolves them on its own. To run against a version that is not
+released yet, install the modules locally first — from the **repository
+root**:
 
 ```bash
 ./gradlew publishToMavenLocal

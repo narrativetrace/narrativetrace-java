@@ -139,14 +139,14 @@ Each fix landed with a deterministic regression test in the per-commit gate as
 well as the scenario that found it, because the scenarios themselves do not run
 on every commit.
 
-## Porting these invariants
+## The same invariants on the other runtimes
 
 jcstress is a JVM tool, and the other NarrativeTrace implementations cannot use
-it. **What ports mirror is the invariant table above, not the tool.** Each
+it. **What they mirror is the invariant table above, not the tool.** Each
 platform expresses the same contracts with whatever it has — a .NET buffer
 stress harness, `asyncio` race tests in Python, actor stress in Swift — and the
-rows are the specification. A port that cannot yet run a scenario still owes the
-invariant.
+rows are the specification. A runtime that cannot yet run a scenario still owes
+the invariant.
 
 ## What this suite does not do
 

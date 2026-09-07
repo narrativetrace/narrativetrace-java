@@ -1,10 +1,10 @@
-<!-- source: documentation/annotations-guide.md blob ce5452ed9e3a | translated: 2026-09-02 | reviewed: 2026-09-03 -->
+<!-- source: documentation/annotations-guide.md blob 6b6882d5c812 | translated: 2026-09-07 | reviewed: - -->
 
 # Guía de anotaciones de NarrativeTrace para Java
 
 [English](../annotations-guide.md) | **Español** | [简体中文](../zh-CN/注解指南.md)
 
-Esta guía enumera todas las anotaciones disponibles en el proyecto NarrativeTrace Java y explica cuándo y cómo usar cada una.
+Esta guía enumera todas las anotaciones disponibles en NarrativeTrace para Java y explica cuándo y cómo usar cada una.
 
 NarrativeTrace sigue la filosofía de **El código es el log**: los nombres de métodos, los nombres de parámetros y los valores de retorno ya deberían comunicar por sí mismos la historia de la ejecución. Mantén primero la lógica de negocio limpia y expresiva, y usa las anotaciones de forma excepcional, no por defecto. Añade anotaciones solo cuando aporten un valor adicional concreto, como una narración dirigida, contexto específico de un error o la ocultación de datos sensibles.
 

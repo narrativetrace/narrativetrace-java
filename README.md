@@ -246,8 +246,7 @@ output directory and the JUnit 5 extension registered the Maven way — the
 [Maven Guide](documentation/maven-guide.md) walks through it end to end,
 including the one difference that matters: no plugin, so no automatic
 compiler flag and no `approveNarratives` task, and what to do instead of
-each. Nothing is published to Maven Central yet, so both start from
-`./gradlew publishToMavenLocal`.
+each. Both resolve the same released artifacts from Maven Central.
 
 ## Choose your integration
 
@@ -483,8 +482,7 @@ Going deeper:
 
 NarrativeTrace's API and output format are open standards (Apache 2.0). Its
 runtime is free and source-available (BSL 1.1, converting to Apache 2.0 four
-years after each release), because code that runs in your process should be
-auditable. Its intelligence is commercial.
+years after each release). Pro is commercial.
 
 | Artifact | Licence | What that means |
 |---|---|---|

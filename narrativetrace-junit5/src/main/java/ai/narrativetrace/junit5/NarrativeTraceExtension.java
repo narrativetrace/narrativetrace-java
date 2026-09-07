@@ -87,7 +87,7 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *       directory; the Gradle plugin sets it to the repository root)
  *   <li>{@code narrativetrace.canonicalJson} — additionally write a {@code <test>.canonical.json}
  *       schema-1.1 entry array beside each trace file (default: {@code false}); a machine artifact
- *       for canonical-schema consumers such as ports and conformance fixtures
+ *       for canonical-schema consumers such as the other runtimes and conformance fixtures
  *   <li>{@code narrativetrace.structuralJson} — additionally write a {@code <test>.structural.json}
  *       AI-safe artifact beside each trace file (default: {@code false}): the same schema-1.1 entry
  *       array with every runtime-value field elided (ADR-002 Level 1, "Structure Only")

@@ -1,9 +1,10 @@
 # Canonical JSON schemas
 
-The cross-platform output contract, and the **golden source** the ports copy
-byte-identically (`narrative-trace-python` and `narrative-trace-ts` each keep a
-`schema/` mirror of this directory). Change the contract here and re-copy; a
-port that edits its own copy stops being a port.
+The cross-platform output contract. It has one home — this directory — and
+every NarrativeTrace runtime keeps a byte-identical mirror of it
+(`narrative-trace-python` and `narrative-trace-ts` each keep a `schema/` copy).
+Change the contract here and re-copy; a runtime that edits its own copy has
+left the contract.
 
 | File | Validates |
 |---|---|

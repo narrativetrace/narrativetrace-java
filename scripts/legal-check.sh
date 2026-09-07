@@ -15,11 +15,11 @@
 #
 # The marker LINES are always in English (they are anchors, not content); the
 # text between them is English in README.md and translated in LEAME.md /
-# LEIAME.md / 自述文件.md. Every sibling NarrativeTrace port mirrors these
-# regions byte-exact per language; this script never talks to a port, it only
-# proves this repo's own copy is internally consistent, and it prints one
-# named region's content on request so a port's own check can pull the text
-# it must mirror out of a sibling checkout of this repository.
+# LEIAME.md / 自述文件.md. Every NarrativeTrace runtime mirrors these regions
+# byte-exact per language; this script never talks to another repository, it
+# only proves this repo's own copy is internally consistent, and it prints one
+# named region's content on request so a sibling repository's own check can
+# pull the text it must mirror out of a checkout of this one.
 #
 # Checks (default mode, no arguments):
 #   (a) every `legal:<name>:begin` has a matching `legal:<name>:end`, in

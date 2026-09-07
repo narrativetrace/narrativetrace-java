@@ -1,4 +1,4 @@
-<!-- source: documentation/lifecycle-guide.md blob 520f943cb403 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/lifecycle-guide.md blob 9fe7a7e9213d | translated: 2026-09-07 | reviewed: - -->
 # NarrativeTrace ao longo do ciclo de desenvolvimento
 
 [English](../lifecycle-guide.md) | [Español](../es/guia-del-ciclo-de-vida.md) | **Português** | [简体中文](../zh-CN/生命周期指南.md)
@@ -73,8 +73,9 @@ IA e testers observando um ambiente implantado.
   pipelines que separam as duas coisas.
 - **Exportações legíveis por máquina.** Duas flags opt-in ampliam a
   audiência: `narrativetrace.canonicalJson=true` escreve, por teste,
-  arrays de entradas do schema 1.2 (o contrato que os ports e os
-  fixtures de conformidade consomem); `narrativetrace.structuralJson=true`
+  arrays de entradas do schema 1.2 (o contrato que as demais
+  implementações e os fixtures de conformidade consomem);
+  `narrativetrace.structuralJson=true`
   escreve o artefato estrutural sem valores (ADR-002 Nível 1) que pode
   ser entregue a ferramentas de revisão com IA com exposição zero de
   dados.

@@ -2,23 +2,16 @@
 
 **Scope: Product.** This guide is the canonical catalog of
 NarrativeTrace features for every platform (Java, TypeScript, Python,
-.NET). The flow of truth is:
+.NET).
 
-> **Java code** (reference implementation — the golden source)
-> → **this guide** (canonical catalog: what the product is, with
-> status and tier) → **platform ports** (built from this guide plus
-> the referenced Java code).
-
-This file's single home is the Java repository; platform ports must
-not fork it. Ports keep only platform-mechanism notes in their own
-repos: a decision that holds on every platform is recorded once, here;
-a mechanism specific to one platform's implementation stays in that
-port's own notes. Every shipped row cites its concrete Java
-implementation (`module: main classes`) so
-a port author goes straight from a row to the reference code. A row
-describes *what* the feature is; the cited Java code is the reference
-for *how* it behaves — behavior-level parity belongs to conformance
-fixtures over the canonical JSON schema, not to prose here.
+The catalog has one home so it cannot drift into per-platform copies: a
+decision that holds on every platform is recorded once, here; a mechanism
+specific to one platform's implementation stays in that platform's own
+documentation. Every shipped row cites the Java classes that implement it
+(`module: main classes`) so a reader goes straight from a row to the code
+in this repository. A row describes *what* the feature is; agreement
+between platforms on *how* it behaves belongs to conformance fixtures over
+the canonical JSON schema, not to prose here.
 
 Organized by what you want to accomplish, not by module.
 
@@ -45,7 +38,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Capture the story of your code (core tracing)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | Automatic narrative capture — method, class, parameter names, return values, timing, errors; zero log statements | Free | `proxy: NarrativeTraceProxy` · `agent: NarrativeClassFileTransformer` · `core: NarrativeContext, TraceEvent` | Tier 1: no annotations, no config. Parameter names require `-parameters` (the Gradle plugin adds it) |
 | Enrichment annotations — `@Narrated`, `@OnError`/`@OnErrors` with `{param}` templates, `@NarrativeSummary` | Free | `core: Narrated, OnError, NarrativeSummary, TemplateParser` | Unresolved placeholders are reported at test time (`TemplateWarningCollector`); narration renders on every traced call, including leaf calls. [annotations-guide.md](annotations-guide.md) |
@@ -61,7 +54,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Attach it to your stack (integrations)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | JDK dynamic proxy wrapping | Free | `proxy: NarrativeTraceProxy` | `NarrativeTraceProxy.trace(...)`, single- and multi-interface overloads |
 | Java agent — bytecode instrumentation, zero code changes, package filtering | Free | `agent: NarrativeTraceAgent, AgentConfig` | Filter via agent args or `narrativetrace.properties`. The `-standalone` classifier jar bundles core + SLF4J bridge for `-javaagent` attach on hosts with no build tool (app servers); `loggingJars=` agent arg injects an SLF4J provider via `appendToSystemClassLoaderSearch` |
@@ -79,7 +72,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Read the story (outputs)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | Indented text and Markdown renderers (wired to test output); prose renderer (library API) | Free | `core: IndentedTextRenderer, MarkdownRenderer, ProseRenderer` | Prose is not a `narrativetrace.format` option yet — API + examples only. Markdown renders parent returns inline on the entry line (no closing repeat) |
 | Trace value references — content-addressed dedup of repeated captured values with readable labels (`‹Hotel›=full` on first emission, `‹Hotel›` after) | Free | `core: ValueReferenceIndex` (via `MarkdownRenderer`) | Labels from the structured value's identity field (name/id/description/…), never a redacted field; byte equality certifies sameness — any difference renders in full; containment inside other captured values counts and is replaced |
@@ -100,7 +93,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Keep your logging stack (logging + observability)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | SLF4J bridge — narrative events through your existing appenders, per-event-type log levels, crash-safe synchronous stream | Free | `slf4j: Slf4jTraceEventListener` · `core: DualPathPipeline` | Logger `narrativetrace`; defaults ENTRY/RETURN=TRACE, EXCEPTION=WARN |
 | MDC enrichment — three-tier attribute model (resource / trace / span), persistent request-scoped fields | Free | `core: AttributeTier, SpanContext` · `servlet: NarrativeTraceFilter` | ADR-009 |
@@ -114,7 +107,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Improve the code (clarity diagnostics)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | Clarity scoring — method / class / parameter naming quality from real execution | Free | `clarity: ClarityAnalyzer` + `MethodNameScorer, ClassNameScorer, ParameterNameScorer, CohesionScorer` | [clarity-guide.md](clarity-guide.md); experimental |
 | Suite-level clarity report with renaming targets + per-element notes + machine-readable results | Free | `clarity: ClarityReportRenderer, ClarityJsonExporter, ElementNoteComposer` | `clarity-report.md` + `clarity-results.json` (the contract `clarityCheck` and CI tooling consume). An **Elements** table / `elements` array gives one teaching note per element at every score (clarity is a teacher, not a judge), separate from threshold-gated issues. Results schema 1.2 adds per-scenario `elements` (1.1 added `suiteIssues`); consumers must keep accepting 1.0/1.1 files |
@@ -128,12 +121,12 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Speak the domain language (glossary & translation)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | Domain glossary — single per-repo ubiquitous-language file (canonical JSON + Markdown view), additively harvested from test-time traces | Free | `glossary: Glossary, GlossaryJsonWriter, GlossaryJsonReader, GlossaryMarkdownRenderer, GlossaryHarvester, GlossaryMerger, GlossarySuiteHarvest` · `junit5: NarrativeTraceExtension` | Opt-in: `narrativetrace.glossary=true` (`narrativeTrace { glossary.set(true) }`), since it writes outside the build directory |
 | Glossary harvesting from compiled classes — `glossaryScan`, the only mode that harvests `@Narrated`/`@OnError` templates | Free | `glossary: GlossaryStaticScanner, GlossaryScannerMain` · `gradle-plugin: NarrativeTracePlugin` | Static-only by design: a captured trace carries narration with runtime values already interpolated |
 | Canonical terms + deprecated synonyms — non-canonical usage flagged in run output and suppressed from harvest | Free | `glossary: AliasIndex, VocabularyViolations, RenameSuggester, VocabularySummaryFormatter, NonCanonicalTermIssues, GlossaryUsageReport` | One term per concept. Violations reach the console, `glossary-usage.json`, and `clarity-report.md` ("Suite Issues") / `clarity-results.json` (`suiteIssues`, schema 1.1); the `clarityCheck` gate is advisory by default, hard-fail via `clarity.maxSuiteIssues`. The vocabulary check fires only when a committed `glossary.json` exists before the run |
-| Bounded contexts — vocabulary scoped by package-mapped contexts | Free | `glossary: BoundedContext, ContextResolver, TermNormalizer` | Same term may differ per context; delimiter-aware longest-prefix package mapping, `_unassigned` fallback. `TermNormalizer` rules (s-final keep-list, stable-stem, idempotence) are term identity in persisted glossaries — every port must adopt them verbatim |
+| Bounded contexts — vocabulary scoped by package-mapped contexts | Free | `glossary: BoundedContext, ContextResolver, TermNormalizer` | Same term may differ per context; delimiter-aware longest-prefix package mapping, `_unassigned` fallback. `TermNormalizer` rules (s-final keep-list, stable-stem, idempotence) are term identity in persisted glossaries — every NarrativeTrace runtime adopts them verbatim |
 | Trace translation views — per-trace Markdown files rendered live from the event pipeline + glossary | Free | `glossary: TraceTranslationView, TranslationSubscriber, GlossaryTranslator, GlossaryLoader` | Values never translated; one `<traceId>.md` per trace, footer lists glossary gaps |
 | Live translated stream — locale-suffixed SLF4J loggers, appender-routable to same or separate destination | Free | `glossary: TranslationSubscriber` | Best-effort path; canonical stream untouched |
 | AI-assisted glossary translation & definition generation | Planned (Pro) | — | Glossary terms only; explicit opt-in |
@@ -141,7 +134,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Let AI agents see runtime truth (AI integration)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | AI-safe structural traces — no runtime values, zero injection surface | Free | `core: StructuralTraceRenderer, StructuralProjection` | Shipped: the distinct `.nt` artifact (ADR-002 complete) plus the flagged `.structural.json` projection, its safety pinned by a property test; SUMMARY/NARRATIVE value suppression additionally exists in the human-facing output |
 | LLM-oriented docs (`llms.txt`, `llms-full.md`) | Free | `documentation/llms.txt, llms-full.md` | |
@@ -153,7 +146,7 @@ Last full audit of this guide against the Java code: **2026-08-18**.
 
 ## Prove what happened (audit & compliance — Pro)
 
-| Feature | Status | Java reference | Notes |
+| Feature | Status | Java implementation | Notes |
 |---|---|---|---|
 | Audit & SecOps annotations — `@AuditEvent`, `@SecurityEvent`, `@AuditActor`, `@AuditEntityId`, `@AuditField` | Pro | Pro repo | |
 | Deterministic inference — action, actor, entity, outcome resolution | Pro | Pro repo | |
@@ -185,13 +178,12 @@ vision documents — and so nothing reads as shipped when it isn't. Rules:
    is scheduled; "Planned" means specified only.
 3. Changes that add or promote a feature must update this file in the
    same commit.
-4. **Java code is the golden source.** Every shipped Free row cites its
-   reference implementation (`module: main classes`). When the guide
-   and the code disagree, the code is right and the guide is the bug —
-   fix the row, and record the audit date in the header.
-5. **Ports derive, never fork.** Platform ports (TypeScript, Python,
-   .NET) implement from this guide plus the referenced Java code, and
-   record only their per-platform mechanisms in their own repos.
-   Per-platform shipped/pending status belongs in the maintainers'
-   parity matrix, a private working record — not in copies of this
-   catalog.
+4. **The code decides.** Every shipped Free row cites the Java classes
+   that implement it (`module: main classes`). When the guide and the
+   code disagree, the code is right and the guide is the bug — fix the
+   row, and record the audit date in the header.
+5. **One catalog, never a per-platform copy.** This guide says what the
+   product is; each platform records its own mechanisms in its own
+   repository. Per-platform shipped/pending status belongs in the
+   maintainers' status matrix, a private working record — not in copies
+   of this catalog.

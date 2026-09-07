@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * One row of {@code redaction.json}: a sensitive field name, or a sensitive value shape.
  *
- * <p>INTENT: The two redaction axes are one corpus, because a port that implements the name
+ * <p>INTENT: The two redaction axes are one corpus, because a runtime that implements the name
  * deny-list and forgets the value shapes has half a control and no way to notice. A row names
  * either a field ({@link #name} plus the {@link #canary} planted behind it) or a value ({@link
  * #value}, which is its own canary because the shape <em>is</em> the secret), and {@link #expect}

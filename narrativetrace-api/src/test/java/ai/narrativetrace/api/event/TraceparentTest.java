@@ -31,9 +31,9 @@ class TraceparentTest {
   private static final String HEADER = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
 
   /**
-   * Cross-port pin: the W3C specification's own worked example, the header every NarrativeTrace
-   * port's traceparent suite is built on. If this ever needs changing, the wire format diverged and
-   * the ports no longer interoperate.
+   * Cross-runtime pin: the W3C specification's own worked example, the header every NarrativeTrace
+   * runtime's traceparent suite is built on. If this ever needs changing, the wire format diverged
+   * and the runtimes no longer interoperate.
    */
   @Test
   void parsesTheW3cSpecificationsWorkedExample() {

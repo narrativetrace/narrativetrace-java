@@ -24,8 +24,8 @@ import org.junit.jupiter.api.Test;
 class ConcurrencyInfoTest {
 
   /**
-   * The set is a cross-port contract: {@code concurrency.kind} is enumerated in {@code
-   * chapter-tree.schema.json} and every port mirrors it, so growing it is a deliberate, additive
+   * The set is a cross-runtime contract: {@code concurrency.kind} is enumerated in {@code
+   * chapter-tree.schema.json} and every runtime mirrors it, so growing it is a deliberate, additive
    * act — never a side effect. ASYNC was added 2026-08-28 for work adopted from a propagated
    * snapshot.
    */

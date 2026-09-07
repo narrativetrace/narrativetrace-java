@@ -1,4 +1,4 @@
-<!-- source: README.md blob 60ae625d4043 | translated: 2026-09-06 | reviewed: - -->
+<!-- source: README.md blob a4e519f1b340 | translated: 2026-09-07 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -263,9 +263,8 @@ cableado para el directorio de salida y la extensión de JUnit 5 registrada a
 la manera de Maven — la [Guía de Maven](documentation/maven-guide.md) (en
 inglés) lo recorre de principio a fin, incluida la única diferencia que
 importa: sin plugin no hay flag del compilador automático ni tarea
-`approveNarratives`, y qué hacer en su lugar en cada caso. Nada está
-publicado todavía en Maven Central, así que ambos arrancan con `./gradlew
-publishToMavenLocal`.
+`approveNarratives`, y qué hacer en su lugar en cada caso. Ambos
+resuelven los mismos artefactos publicados en Maven Central.
 
 ## Elige tu integración
 
@@ -515,8 +514,7 @@ Para profundizar:
 
 La API y el formato de salida de NarrativeTrace son estándares abiertos
 (Apache 2.0). Su runtime es gratuito y de código disponible (BSL 1.1, que
-pasa a Apache 2.0 cuatro años después de cada publicación), porque el código
-que se ejecuta en tu proceso debe poder auditarse. Su inteligencia es
+pasa a Apache 2.0 cuatro años después de cada publicación). Pro es
 comercial.
 
 | Artefacto | Licencia | Qué significa |

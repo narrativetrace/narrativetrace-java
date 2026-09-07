@@ -21,9 +21,9 @@ package ai.narrativetrace.core.render;
  * in it is given away for good. Every caller is a renderer or an exporter, all of which are in the
  * runtime already; the type was package-private, so nothing outside this repository could name it.
  *
- * <p><b>@llmNote</b> The bit layout and the three tables are cross-platform: every port derives the
- * same three words from the same trace id, and {@code nt.traceName} is compared across them. Edit a
- * table here and every port's fixtures move with it.
+ * <p><b>@llmNote</b> The bit layout and the three tables are cross-platform: every NarrativeTrace
+ * runtime derives the same three words from the same trace id, and {@code nt.traceName} is compared
+ * across them. Edit a table here and every runtime's fixtures move with it.
  *
  * <p>Bit layout from the first 7 hex chars (28 bits):
  *

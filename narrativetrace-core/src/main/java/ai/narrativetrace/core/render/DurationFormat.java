@@ -21,7 +21,7 @@ import java.math.RoundingMode;
  * kept, and whole values still print whole so existing artifacts do not churn.
  *
  * <p><b>@llmNote</b> Never format a duration anywhere else. Three surfaces each deriving their own
- * is exactly how the scenario duration came to mean four different things across the ports.
+ * is exactly how the scenario duration came to mean four different things across the runtimes.
  */
 public final class DurationFormat {
 

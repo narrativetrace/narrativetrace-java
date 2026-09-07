@@ -210,8 +210,8 @@ the built-in dictionaries alone.
 
 `narrativetrace.canonicalJson` additionally writes a
 `<test>.canonical.json` schema-1.1 entry array beside each trace file —
-a machine artifact for canonical-schema consumers such as ports and
-conformance fixtures.
+a machine artifact for canonical-schema consumers such as the other
+NarrativeTrace runtimes and conformance fixtures.
 
 `narrativetrace.structuralJson` additionally writes a
 `<test>.structural.json` beside each trace file: the same schema-1.1

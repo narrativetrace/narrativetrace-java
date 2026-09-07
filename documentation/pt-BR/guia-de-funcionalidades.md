@@ -1,29 +1,22 @@
-<!-- source: documentation/feature-guide.md blob f65d7cf53d54 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/feature-guide.md blob d91db0adb13c | translated: 2026-09-07 | reviewed: - -->
 # Guia de funcionalidades do NarrativeTrace
 
 [English](../feature-guide.md) | [Español](../es/guia-de-funcionalidades.md) | **Português** | [简体中文](../zh-CN/功能指南.md)
 
 **Escopo: Produto.** Este guia é o catálogo canônico das
 funcionalidades do NarrativeTrace para todas as plataformas (Java,
-TypeScript, Python, .NET). O fluxo da verdade é:
+TypeScript, Python, .NET).
 
-> **Código Java** (implementação de referência — a fonte de
-> referência (golden source)) → **este guia** (catálogo canônico: o
-> que é o produto, com status e tier) → **ports de plataforma**
-> (construídos a partir deste guia mais o código Java referenciado).
-
-O único lar deste arquivo é o repositório Java; os ports de
-plataforma não devem bifurcá-lo. Os ports mantêm apenas notas sobre os
-mecanismos próprios de cada plataforma em seus próprios repositórios:
-uma decisão que vale em todas as plataformas é registrada uma única
-vez, aqui; um mecanismo específico da implementação de uma plataforma
-fica nas notas próprias daquele port. Cada linha
-publicada cita sua implementação Java concreta (`module: main classes`)
-para que quem porta vá direto da linha ao código de referência. Uma
-linha descreve *o que* é a funcionalidade; o código Java citado é a
-referência de *como* ela se comporta — a paridade em nível de
-comportamento pertence aos fixtures de conformidade sobre o schema
-JSON canônico, não à prosa deste documento.
+O catálogo tem um único lar para que não se espalhe em cópias por
+plataforma: uma decisão que vale em todas as plataformas é registrada
+uma única vez, aqui; um mecanismo específico da implementação de uma
+plataforma fica na documentação própria daquela plataforma. Cada linha
+publicada cita as classes Java que a implementam (`module: main
+classes`), para que quem lê vá direto da linha ao código deste
+repositório. Uma linha descreve *o que* é a funcionalidade; o acordo
+entre plataformas sobre *como* ela se comporta pertence aos fixtures de
+conformidade sobre o schema JSON canônico, não à prosa deste
+documento.
 
 Organizado pelo que você quer realizar, não por módulo.
 
@@ -51,7 +44,7 @@ licenças não conseguem sustentar.
 
 ## Capture a história do seu código (tracing essencial)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Captura automática de narrativa — nomes de método, classe e parâmetros, valores de retorno, tempos, erros; zero instruções de log | Gratuito | `proxy: NarrativeTraceProxy` · `agent: NarrativeClassFileTransformer` · `core: NarrativeContext, TraceEvent` | Tier 1: sem anotações, sem configuração. Nomes de parâmetros exigem `-parameters` (o plugin do Gradle o adiciona) |
 | Anotações de enriquecimento — `@Narrated`, `@OnError`/`@OnErrors` com templates `{param}`, `@NarrativeSummary` | Gratuito | `core: Narrated, OnError, NarrativeSummary, TemplateParser` | Placeholders não resolvidos são reportados em tempo de teste (`TemplateWarningCollector`); a narração é renderizada em toda chamada traçada, inclusive chamadas folha. [annotations-guide.md](guia-de-anotacoes.md) |
@@ -67,7 +60,7 @@ licenças não conseguem sustentar.
 
 ## Conecte ao seu stack (integrações)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Encapsulamento com proxy dinâmico do JDK | Gratuito | `proxy: NarrativeTraceProxy` | `NarrativeTraceProxy.trace(...)`, sobrecargas para uma ou várias interfaces |
 | Agente Java — instrumentação de bytecode, zero mudanças de código, filtragem por pacote | Gratuito | `agent: NarrativeTraceAgent, AgentConfig` | Filtre via argumentos do agente ou `narrativetrace.properties`. O jar com classificador `-standalone` empacota o core + a ponte SLF4J para anexar via `-javaagent` em hosts sem ferramenta de build (servidores de aplicação); o argumento de agente `loggingJars=` injeta um provedor SLF4J via `appendToSystemClassLoaderSearch` |
@@ -85,7 +78,7 @@ licenças não conseguem sustentar.
 
 ## Leia a história (saídas)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Renderers de texto indentado e Markdown (conectados à saída de testes); renderer de prosa (API de biblioteca) | Gratuito | `core: IndentedTextRenderer, MarkdownRenderer, ProseRenderer` | Prosa ainda não é uma opção de `narrativetrace.format` — apenas API + exemplos. Markdown renderiza os retornos do pai inline na linha de entrada (sem repetição de fechamento) |
 | Referências de valor no trace — deduplicação endereçada por conteúdo de valores capturados repetidos com rótulos legíveis (`‹Hotel›=full` na primeira emissão, `‹Hotel›` depois) | Gratuito | `core: ValueReferenceIndex` (via `MarkdownRenderer`) | Rótulos a partir do campo de identidade do valor estruturado (name/id/description/…), nunca um campo ocultado; a igualdade de bytes certifica a mesmidade — qualquer diferença é renderizada por completo; a contenção dentro de outros valores capturados conta e é substituída |
@@ -106,7 +99,7 @@ licenças não conseguem sustentar.
 
 ## Mantenha seu stack de logging (logging + observabilidade)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Ponte SLF4J — eventos de narrativa através dos seus appenders existentes, níveis de log por tipo de evento, stream síncrono à prova de falhas | Gratuito | `slf4j: Slf4jTraceEventListener` · `core: DualPathPipeline` | Logger `narrativetrace`; padrões ENTRY/RETURN=TRACE, EXCEPTION=WARN |
 | Enriquecimento de MDC — modelo de atributos de três níveis (resource / trace / span), campos persistentes com escopo de requisição | Gratuito | `core: AttributeTier, SpanContext` · `servlet: NarrativeTraceFilter` | ADR-009 |
@@ -120,7 +113,7 @@ licenças não conseguem sustentar.
 
 ## Melhore o código (diagnósticos de clareza)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Pontuação de clareza — qualidade dos nomes de método / classe / parâmetro a partir da execução real | Gratuito | `clarity: ClarityAnalyzer` + `MethodNameScorer, ClassNameScorer, ParameterNameScorer, CohesionScorer` | [clarity-guide.md](guia-de-clareza.md); experimental |
 | Relatório de clareza no nível da suíte com alvos de renomeação + notas por elemento + resultados legíveis por máquina | Gratuito | `clarity: ClarityReportRenderer, ClarityJsonExporter, ElementNoteComposer` | `clarity-report.md` + `clarity-results.json` (o contrato que `clarityCheck` e o ferramental de CI consomem). Uma tabela **Elements** / array `elements` dá uma nota didática por elemento em cada pontuação (a clareza é uma professora, não uma juíza), separada dos problemas controlados por limiar. O schema 1.2 de resultados adiciona `elements` por cenário (o 1.1 adicionou `suiteIssues`); os consumidores devem continuar aceitando arquivos 1.0/1.1 |
@@ -134,12 +127,12 @@ licenças não conseguem sustentar.
 
 ## Fale a linguagem do domínio (glossário e tradução)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Glossário de domínio — um único arquivo de linguagem ubíqua por repositório (JSON canônico + visualização Markdown), coletado de forma aditiva a partir dos traces em tempo de teste | Gratuito | `glossary: Glossary, GlossaryJsonWriter, GlossaryJsonReader, GlossaryMarkdownRenderer, GlossaryHarvester, GlossaryMerger, GlossarySuiteHarvest` · `junit5: NarrativeTraceExtension` | Opt-in: `narrativetrace.glossary=true` (`narrativeTrace { glossary.set(true) }`), já que escreve fora do diretório de build |
 | Coleta do glossário a partir de classes compiladas — `glossaryScan`, o único modo que coleta templates `@Narrated`/`@OnError` | Gratuito | `glossary: GlossaryStaticScanner, GlossaryScannerMain` · `gradle-plugin: NarrativeTracePlugin` | Somente estático por design: um trace capturado carrega a narração com os valores de runtime já interpolados |
 | Termos canônicos + sinônimos obsoletos — o uso não canônico é sinalizado na saída da execução e suprimido da coleta | Gratuito | `glossary: AliasIndex, VocabularyViolations, RenameSuggester, VocabularySummaryFormatter, NonCanonicalTermIssues, GlossaryUsageReport` | Um termo por conceito. As violações chegam ao console, ao `glossary-usage.json` e ao `clarity-report.md` ("Suite Issues") / `clarity-results.json` (`suiteIssues`, schema 1.1); o gate `clarityCheck` é somente aviso por padrão, falhando de forma definitiva via `clarity.maxSuiteIssues`. A verificação de vocabulário só dispara quando já existe um `glossary.json` commitado antes da execução |
-| Contextos delimitados — vocabulário com escopo definido por contextos mapeados a pacotes | Gratuito | `glossary: BoundedContext, ContextResolver, TermNormalizer` | O mesmo termo pode diferir por contexto; mapeamento de pacotes por prefixo mais longo, consciente de delimitadores, com fallback `_unassigned`. As regras do `TermNormalizer` (lista de manutenção de terminações em s, radical estável, idempotência) são a identidade dos termos nos glossários persistidos — todo port deve adotá-las ao pé da letra |
+| Contextos delimitados — vocabulário com escopo definido por contextos mapeados a pacotes | Gratuito | `glossary: BoundedContext, ContextResolver, TermNormalizer` | O mesmo termo pode diferir por contexto; mapeamento de pacotes por prefixo mais longo, consciente de delimitadores, com fallback `_unassigned`. As regras do `TermNormalizer` (lista de manutenção de terminações em s, radical estável, idempotência) são a identidade dos termos nos glossários persistidos — toda implementação do NarrativeTrace as adota ao pé da letra |
 | Visualizações de tradução de trace — arquivos Markdown por trace renderizados ao vivo a partir do pipeline de eventos + glossário | Gratuito | `glossary: TraceTranslationView, TranslationSubscriber, GlossaryTranslator, GlossaryLoader` | Os valores nunca são traduzidos; um `<traceId>.md` por trace, o rodapé lista as lacunas do glossário |
 | Stream traduzido ao vivo — loggers SLF4J com sufixo de locale, roteáveis por appender para o mesmo destino ou um separado | Gratuito | `glossary: TranslationSubscriber` | Caminho de melhor esforço; o stream canônico permanece intocado |
 | Tradução do glossário e geração de definições assistidas por IA | Planejado (Pro) | — | Apenas termos do glossário; opt-in explícito |
@@ -147,7 +140,7 @@ licenças não conseguem sustentar.
 
 ## Deixe os agentes de IA verem a verdade do runtime (integração com IA)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Traces estruturais seguros para IA — sem valores de runtime, zero superfície de injeção | Gratuito | `core: StructuralTraceRenderer, StructuralProjection` | Lançado: o artefato `.nt` distinto (ADR-002 completo) mais a projeção `.structural.json` sob flag, com sua segurança fixada por um teste de propriedade; a supressão de valores SUMMARY/NARRATIVE também existe na saída voltada para humanos |
 | Documentação orientada a LLM (`llms.txt`, `llms-full.md`) | Gratuito | `documentation/llms.txt, llms-full.md` | |
@@ -159,7 +152,7 @@ licenças não conseguem sustentar.
 
 ## Prove o que aconteceu (auditoria e conformidade — Pro)
 
-| Funcionalidade | Status | Referência Java | Notas |
+| Funcionalidade | Status | Implementação Java | Notas |
 |---|---|---|---|
 | Anotações de auditoria e SecOps — `@AuditEvent`, `@SecurityEvent`, `@AuditActor`, `@AuditEntityId`, `@AuditField` | Pro | Repositório Pro | |
 | Inferência determinística — resolução de ação, ator, entidade e resultado | Pro | Repositório Pro | |
@@ -194,14 +187,12 @@ lançado quando não está. Regras:
    significa apenas especificado.
 3. Mudanças que adicionam ou promovem uma funcionalidade devem
    atualizar este arquivo no mesmo commit.
-4. **O código Java é a fonte de referência (golden source).** Toda
-   linha Gratuita lançada cita sua implementação de referência
-   (`module: main classes`). Quando o guia e o código discordam, o
-   código está certo e o guia é o bug — corrija a linha e registre a
-   data de auditoria no cabeçalho.
-5. **Os ports derivam, nunca bifurcam.** Os ports de plataforma
-   (TypeScript, Python, .NET) implementam a partir deste guia mais o
-   código Java referenciado, e registram apenas seus mecanismos por
-   plataforma em seus próprios repositórios. O status lançado/pendente
-   por plataforma pertence à matriz de paridade dos mantenedores, um
-   registro de trabalho privado — não a cópias deste catálogo.
+4. **O código decide.** Toda linha Gratuita lançada cita as classes
+   Java que a implementam (`module: main classes`). Quando o guia e o
+   código discordam, o código está certo e o guia é o bug — corrija a
+   linha e registre a data de auditoria no cabeçalho.
+5. **Um único catálogo, nunca uma cópia por plataforma.** Este guia diz
+   o que é o produto; cada plataforma registra seus próprios mecanismos
+   em seu próprio repositório. O status lançado/pendente por plataforma
+   pertence à matriz de status dos mantenedores, um registro de
+   trabalho privado — não a cópias deste catálogo.

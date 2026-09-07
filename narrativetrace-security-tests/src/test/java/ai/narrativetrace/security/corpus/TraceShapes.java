@@ -21,7 +21,7 @@ import java.util.List;
  * <p>INTENT: {@link HostileGraphs} builds arbitrary object graphs for the value renderer; this
  * builds {@code TraceNode} call trees specifically, for the separate walker ({@code
  * ai.narrativetrace.core.tree.TreeWalk}) every recursive renderer and exporter shares. The corpus
- * stays data — the ports copy {@code trace-shapes.json} verbatim and write their own builder.
+ * stays data — every runtime copies {@code trace-shapes.json} verbatim and writes its own builder.
  */
 public final class TraceShapes {
 

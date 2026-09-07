@@ -32,7 +32,7 @@ public final class NarrativeTraceConfig {
 
   // Capture-width flags (owner decision 2026-08-15: the client decides, via the ConfigResolver
   // chain). Flags gate CAPTURE only, never schema shape: gated fields stay nullable and are
-  // simply absent when disabled, so ports and fixtures never branch on configuration.
+  // simply absent when disabled, so consumers and fixtures never branch on configuration.
   private volatile boolean captureResource = true;
   private volatile boolean captureSourceLocation;
   private volatile boolean captureInstanceIds;

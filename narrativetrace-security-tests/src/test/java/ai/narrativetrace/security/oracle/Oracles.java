@@ -17,9 +17,9 @@ import java.util.function.Supplier;
 /**
  * The assertions every fuzz target shares. A crash alone is not an oracle.
  *
- * <p>INTENT: The parity document lists six oracles plus the AI-consumer one, and every port
- * implements the same list. Keeping them here — rather than inline in each property — is what makes
- * "the ports mirror the targets and corpus" checkable: a reader can count them.
+ * <p>INTENT: Six oracles plus the AI-consumer one, and every NarrativeTrace runtime implements the
+ * same list. Keeping them here — rather than inline in each property — is what makes "the runtimes
+ * mirror the targets and corpus" checkable: a reader can count them.
  *
  * <p><b>@llmNote</b> The redaction oracle looks for a fresh random token per case, not a fixed
  * string. A fixed secret is findable by a renderer that special-cases it and, worse, is findable by

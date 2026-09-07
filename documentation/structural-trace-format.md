@@ -3,7 +3,7 @@
 The AI-safe structural trace artifact (ADR-002): one file per test
 scenario containing only the developer-authored *shape* of the
 behavior — zero runtime values. This format is **cross-platform**: every
-NarrativeTrace port emits the identical format, which is what lets
+NarrativeTrace runtime emits the identical format, which is what lets
 approval baselines and conformance fixtures travel between platforms.
 
 ## Files and naming (cross-platform decisions, 2026-08-24)
@@ -101,7 +101,7 @@ Two runs of the same behaviour therefore produce identical `.nt` files
 and *different* `trace_id`s. That is the intended division: fields whose
 job is to group or describe are derived and stable, fields whose job is
 to be unique are generated (ADR-014). A conformance comparison across
-runs or across ports normalizes the unique ones before comparing.
+runs or across runtimes normalizes the unique ones before comparing.
 
 ## Guarantees
 
@@ -116,5 +116,5 @@ runs or across ports normalizes the unique ones before comparing.
    that only alters a return value with identical structure does not
    change the artifact — by design.
 
-Reference implementation: `core: StructuralTraceRenderer`, emitted by
+Implemented in this repository by `core: StructuralTraceRenderer`, emitted by
 `TraceTestSupport` beside the `.md`/`.json`/`.mmd` companions.

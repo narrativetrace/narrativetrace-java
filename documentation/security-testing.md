@@ -18,7 +18,7 @@ Two tiers, both real gates:
 | **A — structured fuzz** | jqwik properties fed by a shared hostile corpus | every `./gradlew check` | seconds |
 | **B — coverage-guided fuzz** | Jazzer `@FuzzTest` targets whose inputs the code's own coverage steers | seeds replayed in every `check`; time-budgeted on the weekly JDK-21 job | seconds / minutes |
 
-**Every NarrativeTrace port mirrors these targets and this corpus.** The
+**Every NarrativeTrace runtime mirrors these targets and this corpus.** The
 corpus is data, copied between repositories verbatim the way the conformance
 schemas are, so the same hostile case hits all five renderers; only the corpus
 reader and the object-graph builder are written per language.
@@ -46,7 +46,7 @@ To fuzz one target:
 ## The oracles
 
 A crash is not the only defect, and "it did not throw" is not an oracle. Every
-target asserts from this list; a port implements the same seven.
+target asserts from this list; every runtime implements the same seven.
 
 1. **No uncaught exception.** A hostile input degrades — it never propagates.
    This is the pipeline contract in one line: an observability failure must
@@ -96,7 +96,7 @@ mean something.
 
 ## The targets
 
-In priority order, which is the order every port implements them in.
+In priority order, which is the order every runtime implements them in.
 
 | # | Target | The oracle that matters most |
 |---|---|---|
@@ -147,7 +147,7 @@ than by agreement:
    inside it.
 4. Run `./gradlew :narrativetrace-security-tests:test`. The new case is picked
    up by every property that reads that fixture; nothing needs registering.
-5. Copy the fixture file to the other ports.
+5. Copy the fixture file to the other runtimes.
 
 ### Adding a target
 
@@ -170,7 +170,7 @@ before it becomes a file:
    Running the suite now replays it in every `check`, so it is a regression
    test from the moment it lands.
 2. **Understand it before fixing it.** The bytes are one instance; the defect
-   is a class. Add a corpus case describing the *shape*, so every port inherits
+   is a class. Add a corpus case describing the *shape*, so every runtime inherits
    it and the generated half of Tier A explores around it.
 3. **Fix it in the module that owns it**, with a named unit test there. The
    security suite proves the property across modules; the owning module's test

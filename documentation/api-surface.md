@@ -96,5 +96,5 @@ left in it is given away for good — so it moved to
 The type was package-private, so nothing outside this repository could name it;
 `humanName()` was not, and the callers that used it now ask
 `TraceNamer.name(traceId.value())` directly. The words a trace id maps to are
-unchanged, which matters because every port derives the same three from the same
-id.
+unchanged, which matters because every NarrativeTrace runtime derives the same
+three from the same id.

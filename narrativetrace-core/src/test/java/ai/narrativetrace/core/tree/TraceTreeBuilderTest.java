@@ -413,7 +413,8 @@ class TraceTreeBuilderTest {
     assertThat(tree.isEmpty()).isTrue();
   }
 
-  // --- Cross-port residual recursion: construction itself must be bounded and cycle-safe, the
+  // --- Cross-runtime residual recursion: construction itself must be bounded and cycle-safe,
+  // the
   // same way every renderer's own walk already is (TreeWalk). buildNodeRecursive runs before any
   // renderer sees the tree, for every tracing level except OFF, so a crash here happens earlier
   // and more broadly than a renderer crash ever could. ---

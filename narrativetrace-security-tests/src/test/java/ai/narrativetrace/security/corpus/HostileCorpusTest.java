@@ -19,7 +19,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * The corpus is data the ports copy, so its shape is a contract in its own right.
+ * The corpus is data every NarrativeTrace runtime copies, so its shape is a contract in its own
+ * right.
  *
  * <p>INTENT: A fixture that silently stopped loading would turn every property below it green
  * without testing anything — the failure mode of every data-driven suite. These assertions are what

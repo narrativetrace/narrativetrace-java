@@ -143,7 +143,7 @@ class ValueRendererTest {
 
   @Test
   void aCustomToStringDoesNotBypassAnAnnotatedFieldsRedaction() {
-    // The seam a sibling port leaked through: a class that prints its own secret. toString() is
+    // The seam this defect class hides in: a class that prints its own secret. toString() is
     // written for humans and debuggers, not for a trace, so a declared @NotTraced field outranks
     // it — the renderer introspects instead of trusting the class.
     var result = renderer.render(new ChattyProfile());

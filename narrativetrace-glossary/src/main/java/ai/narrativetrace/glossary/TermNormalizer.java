@@ -29,7 +29,7 @@ import java.util.Set;
  * never coin non-words from real ones ({@code alias} must not become {@code alia}) and must be
  * idempotent — every emitted token is a fixpoint of {@link #singularize}, so re-normalizing a
  * phrase is the identity (property-tested). Changing these rules re-keys existing glossaries and
- * must stay in lockstep across all ports.
+ * must stay in lockstep across all NarrativeTrace runtimes.
  */
 public final class TermNormalizer {
 

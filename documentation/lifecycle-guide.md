@@ -67,7 +67,8 @@ a deployed environment.
   classes without running tests, for pipelines that split the two.
 - **Machine-readable exports.** Two opt-in flags widen the audience:
   `narrativetrace.canonicalJson=true` writes per-test schema-1.2 entry
-  arrays (the contract ports and conformance fixtures consume);
+  arrays (the contract the other runtimes and conformance fixtures
+  consume);
   `narrativetrace.structuralJson=true` writes the value-free structural
   artifact (ADR-002 Level 1) that can be handed to AI review tooling
   with zero data exposure.

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob afb61c931994 | translated: 2026-09-06 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob eda4f553fb10 | translated: 2026-09-07 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -216,7 +216,8 @@ archivo se puntúa solo con los diccionarios integrados.
 `narrativetrace.canonicalJson` escribe además un archivo
 `<test>.canonical.json` (array de entradas del esquema 1.1) junto a cada
 archivo de traza — un artefacto de máquina para consumidores del esquema
-canónico, como los ports y los fixtures de conformidad.
+canónico, como las demás implementaciones de NarrativeTrace y los fixtures
+de conformidad.
 
 `narrativetrace.structuralJson` escribe además un
 `<test>.structural.json` junto a cada archivo de traza: el mismo array

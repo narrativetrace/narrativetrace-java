@@ -38,7 +38,7 @@ above — each language's index lists that language's translated guides.
 | Document | What it covers |
 |---|---|
 | [Clarity Guide](clarity-guide.md) | The five-dimension scoring model, the NLP components behind it, JUnit integration and the `clarityCheck` gate |
-| [Feature Guide](feature-guide.md) | The canonical catalog: every feature, its tier, its reference implementation, its status |
+| [Feature Guide](feature-guide.md) | The canonical catalog: every feature, its tier, its implementation, its status |
 | [Structural Trace Format](structural-trace-format.md) | The value-free `.nt` artifact behind delta reporting and approval testing — the cross-platform format spec |
 
 ## Design and rationale
@@ -48,7 +48,7 @@ above — each language's index lists that language's translated guides.
 | [API Surface](api-surface.md) | What is in `narrativetrace-api` and why: the admission rule, one row per admitted type, and the types deliberately kept out |
 | [Security Testing](security-testing.md) | The two-tier fuzz suite: the shared hostile corpus, the seven oracles every target asserts, how to add a case, and how a crash becomes a regression test |
 | [Security Tooling](security-tooling.md) | Secrets scanning, SAST, dependency-vulnerability scanning and bytecode security analysis: what runs when, each tool's entry point, and the dependency-verification-metadata update workflow |
-| [Concurrency Testing](concurrency-testing.md) | The jcstress suite over the dual-path pipeline: the invariant table every port mirrors, the result taxonomy, how to run it, and the two defects it found |
+| [Concurrency Testing](concurrency-testing.md) | The jcstress suite over the dual-path pipeline: the invariant table every NarrativeTrace runtime mirrors, the result taxonomy, how to run it, and the two defects it found |
 
 ## For AI agents and tools
 

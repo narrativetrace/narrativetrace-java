@@ -249,7 +249,7 @@ class GlossaryHarvesterTest {
     assertThat(harvester.harvest(List.of(tree(node))).candidates()).isEmpty();
   }
 
-  // --- Cross-port residual recursion: harvesting walked TraceNode.children() by ordinary
+  // --- Cross-runtime residual recursion: harvesting walked TraceNode.children() by ordinary
   // call-stack recursion, the same crash risk every core/clarity/diagrams renderer already closed
   // via ai.narrativetrace.core.tree.TreeWalk. ---
 

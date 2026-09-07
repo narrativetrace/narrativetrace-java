@@ -17,7 +17,7 @@ style.
 The `narrativetrace-junit5` module writes a narrative for every test as it
 runs. Artifacts land beside the build output in the canonical formats
 (`.nt` narrative text, structural and canonical JSON, chapter documents) —
-the same formats every NarrativeTrace port emits, validated by the schemas
+the same formats every NarrativeTrace runtime emits, validated by the schemas
 shipped in this repository.
 
 ## Trying it without a project

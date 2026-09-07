@@ -37,7 +37,7 @@ páginas sem arquivo correspondente aqui — está em
 | Documento | O que cobre |
 |---|---|
 | [Guia de Clareza](pt-BR/guia-de-clareza.md) | O modelo de pontuação de cinco dimensões, os componentes de NLP por trás dele, integração com JUnit e o gate `clarityCheck` |
-| [Guia de Funcionalidades](pt-BR/guia-de-funcionalidades.md) | O catálogo canônico: cada funcionalidade, seu nível, sua implementação de referência, seu status |
+| [Guia de Funcionalidades](pt-BR/guia-de-funcionalidades.md) | O catálogo canônico: cada funcionalidade, seu nível, sua implementação, seu status |
 | [Formato de Trace Estrutural](pt-BR/formato-de-trace-estrutural.md) | O artefato `.nt` livre de valores por trás do relatório de deltas e dos testes de aprovação — a especificação do formato multiplataforma |
 
 ## Mantendo este índice honesto

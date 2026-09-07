@@ -18,8 +18,8 @@ import java.util.List;
  * Reader for the shared hostile corpus in {@code src/test/resources/hostile-corpus/}.
  *
  * <p>INTENT: One loader, so every property and every Jazzer seed writer reads the same fixtures the
- * same way. The corpus is the cross-port artifact — the ports copy the JSON verbatim and
- * reimplement only this reader and {@link HostileGraphs} — so nothing Java-specific may leak into
+ * same way. The corpus is the cross-runtime artifact — every runtime copies the JSON verbatim and
+ * reimplements only this reader and {@link HostileGraphs} — so nothing Java-specific may leak into
  * the files.
  *
  * <p><b>@llmNote</b> The fixtures are ASCII: every hostile character is a {@code \\uXXXX} escape
