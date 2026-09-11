@@ -42,27 +42,32 @@ application {
 An interface and an implementation — the proxy wraps the interface, so
 `OrderService` needs one:
 
+<!-- snippet: sixty-seconds/src/main/java/com/example/orders/OrderService.java -->
 ```java
 // src/main/java/com/example/orders/OrderService.java
 package com.example.orders;
 
 public interface OrderService {
-    String placeOrder(String customerId, String productId, int quantity);
+  String placeOrder(String customerId, String productId, int quantity);
 }
 ```
+<!-- /snippet -->
 
+<!-- snippet: sixty-seconds/src/main/java/com/example/orders/DefaultOrderService.java -->
 ```java
 // src/main/java/com/example/orders/DefaultOrderService.java
 package com.example.orders;
 
 public class DefaultOrderService implements OrderService {
-    @Override
-    public String placeOrder(String customerId, String productId, int quantity) {
-        return "ORD-" + customerId + "-" + productId + "-" + quantity;
-    }
+  @Override
+  public String placeOrder(String customerId, String productId, int quantity) {
+    return "ORD-" + customerId + "-" + productId + "-" + quantity;
+  }
 }
 ```
+<!-- /snippet -->
 
+<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->
 ```java
 // src/main/java/com/example/orders/Main.java
 package com.example.orders;
@@ -72,18 +77,19 @@ import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
-    public static void main(String[] args) {
-        var context = new ThreadLocalNarrativeContext();
-        OrderService service = NarrativeTraceProxy.trace(
-            new DefaultOrderService(), OrderService.class, context);
+  public static void main(String[] args) {
+    var context = new ThreadLocalNarrativeContext();
+    OrderService service =
+        NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
-        service.placeOrder("C-1234", "SKU-KB", 2);
+    service.placeOrder("C-1234", "SKU-KB", 2);
 
-        System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
-        context.reset();
-    }
+    System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
+    context.reset();
+  }
 }
 ```
+<!-- /snippet -->
 
 `ThreadLocalNarrativeContext` is where a trace accumulates.
 `NarrativeTraceProxy.trace(...)` wraps the real implementation behind the
@@ -103,11 +109,13 @@ gradle wrapper
 ./gradlew run
 ```
 
+<!-- snippet: sixty-seconds/build/narrativetrace/sixty-seconds/see-a-trace.txt mask=duration -->
 ```text
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 3ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
 ```
+<!-- /snippet -->
 
-That is the actual, unedited output of the run above. The duration (`3ms`)
+That is the actual, unedited output of the run above. The duration (`23ms`)
 is the one thing that will vary on your machine and between runs.
 
 You did not write a single log statement. The narrative came from the
@@ -143,6 +151,7 @@ moment it is on the classpath, so this is the whole diff:
  }
 ```
 
+<!-- snippet: sixty-seconds/src/main/resources/logback.xml -->
 ```xml
 <!-- src/main/resources/logback.xml -->
 <configuration>
@@ -159,6 +168,7 @@ moment it is on the classpath, so this is the whole diff:
     </root>
 </configuration>
 ```
+<!-- /snippet -->
 
 ```bash
 ./gradlew run

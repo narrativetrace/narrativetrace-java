@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<configuration>
+    <!-- Realistic SLF4J wiring, not a snippet: narrativetrace-slf4j auto-attaches once it is
+         on the classpath (see the testRuntimeOnly comment in build.gradle.kts); this file only
+         decides where the resulting TRACE events go. documentation/configuration-guide.md §7. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="narrativetrace" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>

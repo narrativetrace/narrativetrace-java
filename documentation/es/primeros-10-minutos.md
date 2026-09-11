@@ -1,4 +1,4 @@
-<!-- source: documentation/first-10-minutes.md blob d65efd810272 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/first-10-minutes.md blob eceafda0660b | translated: 2026-09-12 | reviewed: - -->
 # Ve una traza en 60 segundos
 
 [English](../first-10-minutes.md) | **Español** | [Português](../pt-BR/primeiros-10-minutos.md) | [简体中文](../zh-CN/前10分钟.md)
@@ -48,7 +48,7 @@ Una interfaz y una implementación — el proxy envuelve la interfaz, así que
 package com.example.orders;
 
 public interface OrderService {
-    String placeOrder(String customerId, String productId, int quantity);
+  String placeOrder(String customerId, String productId, int quantity);
 }
 ```
 
@@ -57,10 +57,10 @@ public interface OrderService {
 package com.example.orders;
 
 public class DefaultOrderService implements OrderService {
-    @Override
-    public String placeOrder(String customerId, String productId, int quantity) {
-        return "ORD-" + customerId + "-" + productId + "-" + quantity;
-    }
+  @Override
+  public String placeOrder(String customerId, String productId, int quantity) {
+    return "ORD-" + customerId + "-" + productId + "-" + quantity;
+  }
 }
 ```
 
@@ -73,16 +73,16 @@ import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
-    public static void main(String[] args) {
-        var context = new ThreadLocalNarrativeContext();
-        OrderService service = NarrativeTraceProxy.trace(
-            new DefaultOrderService(), OrderService.class, context);
+  public static void main(String[] args) {
+    var context = new ThreadLocalNarrativeContext();
+    OrderService service =
+        NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
-        service.placeOrder("C-1234", "SKU-KB", 2);
+    service.placeOrder("C-1234", "SKU-KB", 2);
 
-        System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
-        context.reset();
-    }
+    System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
+    context.reset();
+  }
 }
 ```
 
@@ -106,11 +106,11 @@ gradle wrapper
 ```
 
 ```text
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 3ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
 ```
 
 Esa es la salida real, sin editar, de la ejecución de arriba. La duración
-(`3ms`) es lo único que variará en tu máquina y entre ejecuciones.
+(`23ms`) es lo único que variará en tu máquina y entre ejecuciones.
 
 No escribiste ni una sola sentencia de log. La narrativa vino del nombre del
 método (`placeOrder`), de los nombres de los parámetros (`customerId`,

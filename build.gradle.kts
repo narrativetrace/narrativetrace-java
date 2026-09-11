@@ -24,7 +24,8 @@ val publishedModules = subprojects.filter { sub ->
         "narrativetrace-junit4-example",
         "narrativetrace-agent-example",
         "narrativetrace-jcstress",
-        "narrativetrace-security-tests"
+        "narrativetrace-security-tests",
+        "sixty-seconds"
     )
 }
 
@@ -177,6 +178,47 @@ tasks.register("translationCheck") {
     }
 }
 
+// Rule 8 (docs as tests), layer 1: a quickstart's code and output are embedded from a project the
+// build compiles, tests and runs — never typed into the page. `sixty-seconds` IS
+// documentation/first-10-minutes.md; its one test writes the byte-stable artifact the page's
+// output block embeds. Depending on that test (rather than only reading whatever happens to be on
+// disk) is what makes `snippetCheck` a docs-as-tests gate instead of a docs-as-whatever-was-left-
+// in-build check.
+tasks.register("snippetCheck") {
+    description = "Verifies embedded doc code/output blocks match their source files (docs as tests, rule 8)"
+    group = "verification"
+    dependsOn(":sixty-seconds:test")
+    doLast {
+        val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir)
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "Snippet check failed — an embedded doc block drifted from its source; " +
+                    "run snippetSync (rule 8, docs as tests):\n" +
+                    problems.joinToString("\n")
+            )
+        }
+        val pages = ai.narrativetrace.build.SnippetSupport.englishMarkdownFiles(rootDir).size
+        println("snippetCheck: $pages page(s) match their embedded sources")
+    }
+}
+
+// English pages only — translated mirrors never carry markers (see SnippetSupport); a translator
+// restamps a mirror's own header after running this on the English source, same as translationCheck
+// already expects for every other kind of code-block drift.
+tasks.register("snippetSync") {
+    description = "Rewrites embedded doc code/output blocks to match their source files (English pages only)"
+    group = "verification"
+    dependsOn(":sixty-seconds:test")
+    doLast {
+        val changed = ai.narrativetrace.build.SnippetSupport.sync(rootDir)
+        if (changed.isEmpty()) {
+            println("snippetSync: already in sync")
+        } else {
+            changed.forEach { println(it) }
+        }
+    }
+}
+
 // Human dashboard, not a gate: the full coverage/review matrix across every declared language.
 // Deliberately not wired into `check` — publish-gating on review status is a later owner decision.
 tasks.register("translationStatus") {
@@ -283,6 +325,9 @@ val mutationExemptModules: Map<String, String> = mapOf(
         "demo/consumer code for narrativetrace-agent — proven by being executed, not by mutants",
     "narrativetrace-junit4-example" to
         "demo/consumer code for narrativetrace-junit4 — proven by being executed, not by mutants",
+    "sixty-seconds" to
+        "the 60-second tutorial embedded into documentation/first-10-minutes.md — proven by " +
+            "being executed (its own test, snippetCheck), not by mutants",
     "narrativetrace-benchmarks" to
         "JMH harness — source lives in src/jmh, not src/main; no assertable invariants to mutate",
     "narrativetrace-jcstress" to
@@ -692,7 +737,8 @@ val jdependExcludedModules = setOf(
 
 val jdependCrossModuleExcludedModules = jdependExcludedModules + setOf(
     "narrativetrace-junit4-example",
-    "narrativetrace-gradle-plugin"
+    "narrativetrace-gradle-plugin",
+    "sixty-seconds"
 )
 
 // Per-module JDepend measures nothing on narrativetrace-api. Every one of its packages is a
@@ -917,7 +963,7 @@ subprojects {
         }
     }
 
-    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress")) {
+    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds")) {
         tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
             dependsOn(tasks.named("test"))
             val threshold = if (project.name == "narrativetrace-agent") "0.97" else "0.98"
@@ -952,6 +998,7 @@ subprojects {
             dependsOn(":licensingCheck")
             dependsOn(":baselineFreshnessCheck")
             dependsOn(":mutationAccounting")
+            dependsOn(":snippetCheck")
         }
     }
 

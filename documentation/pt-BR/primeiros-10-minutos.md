@@ -1,4 +1,4 @@
-<!-- source: documentation/first-10-minutes.md blob d65efd810272 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/first-10-minutes.md blob eceafda0660b | translated: 2026-09-12 | reviewed: - -->
 # Veja um trace em 60 segundos
 
 [English](../first-10-minutes.md) | Español | **Português** | [简体中文](../zh-CN/前10分钟.md)
@@ -48,7 +48,7 @@ Uma interface e uma implementação — o proxy encapsula a interface, então
 package com.example.orders;
 
 public interface OrderService {
-    String placeOrder(String customerId, String productId, int quantity);
+  String placeOrder(String customerId, String productId, int quantity);
 }
 ```
 
@@ -57,10 +57,10 @@ public interface OrderService {
 package com.example.orders;
 
 public class DefaultOrderService implements OrderService {
-    @Override
-    public String placeOrder(String customerId, String productId, int quantity) {
-        return "ORD-" + customerId + "-" + productId + "-" + quantity;
-    }
+  @Override
+  public String placeOrder(String customerId, String productId, int quantity) {
+    return "ORD-" + customerId + "-" + productId + "-" + quantity;
+  }
 }
 ```
 
@@ -73,16 +73,16 @@ import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
-    public static void main(String[] args) {
-        var context = new ThreadLocalNarrativeContext();
-        OrderService service = NarrativeTraceProxy.trace(
-            new DefaultOrderService(), OrderService.class, context);
+  public static void main(String[] args) {
+    var context = new ThreadLocalNarrativeContext();
+    OrderService service =
+        NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
-        service.placeOrder("C-1234", "SKU-KB", 2);
+    service.placeOrder("C-1234", "SKU-KB", 2);
 
-        System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
-        context.reset();
-    }
+    System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
+    context.reset();
+  }
 }
 ```
 
@@ -106,10 +106,10 @@ gradle wrapper
 ```
 
 ```text
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 3ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
 ```
 
-Essa é a saída real, sem edição, da execução acima. A duração (`3ms`) é a
+Essa é a saída real, sem edição, da execução acima. A duração (`23ms`) é a
 única coisa que vai variar na sua máquina e entre execuções.
 
 Você não escreveu uma única instrução de log. A narrativa veio do nome do
