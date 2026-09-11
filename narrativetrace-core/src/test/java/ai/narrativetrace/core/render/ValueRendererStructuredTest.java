@@ -523,7 +523,7 @@ class ValueRendererStructuredTest {
     var result = renderer.renderStructured(new BrokenRecord("test"));
 
     var obj = (ObjectVal) result;
-    assertThat(obj.fields()).containsEntry("name", new StringVal("<error>"));
+    assertThat(obj.fields()).containsEntry("name", new StringVal("<error: RuntimeException>"));
   }
 
   record SummarizedOrder(String id) {

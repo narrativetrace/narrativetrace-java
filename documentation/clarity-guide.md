@@ -12,7 +12,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-With JUnit 5, clarity reports are generated automatically when `narrativetrace.output=true` — no code needed.
+With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed. `narrativetrace.output=false` turns it off along with every other trace artifact.
 
 ## What gets scored
 
@@ -226,7 +226,7 @@ Produces a ranked summary of all scenarios. Scenarios scoring below 0.7 get a de
 
 ## JUnit 5 integration
 
-When `narrativetrace.output=true` in `junit-platform.properties`, the JUnit extension automatically:
+By default (unless `narrativetrace.output=false` is set in `junit-platform.properties`), the JUnit extension automatically:
 
 1. Runs `ClarityAnalyzer.analyze()` on each test's trace
 2. Writes `clarity-report.md` to the output directory after all tests complete

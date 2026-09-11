@@ -268,19 +268,51 @@ class NarrativeTraceRuleTest {
   }
 
   @Test
-  void finishedDoesNotWriteWhenOutputDisabled() {
+  void finishedWritesTraceFileByDefaultWithNoConfiguration(@TempDir Path tempDir) throws Exception {
     System.clearProperty("narrativetrace.output");
-    var rule = new NarrativeTraceRule();
-    var out = new ByteArrayOutputStream();
-    rule.setOut(new PrintStream(out));
-    var desc = Description.createTestDescription("com.example.OrderTest", "test");
-    rule.starting(desc);
-    rule.context().enterMethod(new MethodSignature("Service", "doWork", List.of()));
-    rule.context().exitMethodWithReturn("ok");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var rule = new NarrativeTraceRule();
+      var out = new ByteArrayOutputStream();
+      rule.setOut(new PrintStream(out));
+      rule.setMermaidRenderer(tree -> "sequenceDiagram");
+      rule.setPlantumlRenderer(tree -> "@startuml\n@enduml");
+      var desc = Description.createTestDescription("com.example.OrderTest", "customerPlacesOrder");
+      rule.starting(desc);
+      rule.context().enterMethod(new MethodSignature("Service", "doWork", List.of()));
+      rule.context().exitMethodWithReturn("ok");
 
-    rule.finished(desc);
+      rule.finished(desc);
 
-    assertThat(out.toString()).isEmpty();
+      var file = tempDir.resolve("traces/OrderTest/customer_places_order.md");
+      assertThat(file).exists();
+      assertThat(Files.readString(file)).contains("Service.doWork");
+    } finally {
+      System.clearProperty("narrativetrace.outputDir");
+    }
+  }
+
+  @Test
+  void finishedDoesNotWriteWhenOutputExplicitlyDisabled(@TempDir Path tempDir) {
+    System.setProperty("narrativetrace.output", "false");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var rule = new NarrativeTraceRule();
+      var out = new ByteArrayOutputStream();
+      rule.setOut(new PrintStream(out));
+      var desc = Description.createTestDescription("com.example.OrderTest", "test");
+      rule.starting(desc);
+      rule.context().enterMethod(new MethodSignature("Service", "doWork", List.of()));
+      rule.context().exitMethodWithReturn("ok");
+
+      rule.finished(desc);
+
+      assertThat(out.toString()).isEmpty();
+      assertThat(tempDir.resolve("traces")).doesNotExist();
+    } finally {
+      System.clearProperty("narrativetrace.output");
+      System.clearProperty("narrativetrace.outputDir");
+    }
   }
 
   @Test
@@ -341,30 +373,44 @@ class NarrativeTraceRuleTest {
 
   @Test
   void finishedNoWarningsForCleanTrace() {
-    var rule = new NarrativeTraceRule();
-    var out = new ByteArrayOutputStream();
-    rule.setOut(new PrintStream(out));
-    var desc = Description.createTestDescription(getClass(), "placeOrder");
-    rule.starting(desc);
-    rule.context()
-        .enterMethod(
-            new MethodSignature(
-                "OrderService", "placeOrder", List.of(), "Placing order for C-123", null));
-    rule.context().exitMethodWithReturn("ok");
+    System.setProperty("narrativetrace.output", "false");
+    try {
+      var rule = new NarrativeTraceRule();
+      var out = new ByteArrayOutputStream();
+      rule.setOut(new PrintStream(out));
+      var desc = Description.createTestDescription(getClass(), "placeOrder");
+      rule.starting(desc);
+      rule.context()
+          .enterMethod(
+              new MethodSignature(
+                  "OrderService", "placeOrder", List.of(), "Placing order for C-123", null));
+      rule.context().exitMethodWithReturn("ok");
 
-    rule.finished(desc);
+      rule.finished(desc);
 
-    assertThat(out.toString()).isEmpty();
+      assertThat(out.toString()).isEmpty();
+    } finally {
+      System.clearProperty("narrativetrace.output");
+    }
   }
 
   @Test
   void isOutputEnabledReadsSysProp() {
+    System.clearProperty("narrativetrace.output");
+    assertThat(NarrativeTraceRule.isOutputEnabled()).isTrue();
+
     System.setProperty("narrativetrace.output", "true");
     try {
       assertThat(NarrativeTraceRule.isOutputEnabled()).isTrue();
     } finally {
       System.clearProperty("narrativetrace.output");
     }
-    assertThat(NarrativeTraceRule.isOutputEnabled()).isFalse();
+
+    System.setProperty("narrativetrace.output", "false");
+    try {
+      assertThat(NarrativeTraceRule.isOutputEnabled()).isFalse();
+    } finally {
+      System.clearProperty("narrativetrace.output");
+    }
   }
 }

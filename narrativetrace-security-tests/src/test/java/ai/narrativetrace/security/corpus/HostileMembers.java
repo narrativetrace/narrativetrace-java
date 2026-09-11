@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.security.corpus;
 
+import ai.narrativetrace.api.annotation.NarrativeSummary;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -234,6 +235,109 @@ public final class HostileMembers {
 
     ManyFields(HostileGraphs.Secret held) {
       this.secret = held;
+    }
+  }
+
+  /**
+   * A plain class carrying a deny-listed field and a hand-written {@code toString} that prints it —
+   * the shape the 2026-09-11 five-runtime investigation found leaking at depth zero.
+   *
+   * <p>INTENT: No nesting, no annotation, no wrapper. Just a class an application author wrote a
+   * pleasant {@code toString} for years before anyone traced it. Every runtime except .NET trusted
+   * that {@code toString} once the type declared one, and the trust check never consulted the name
+   * deny-list, so {@code password=hunter2} reached every output.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection
+  public static final class CuratedToString {
+
+    private final String username = "ada";
+    private final String password;
+
+    CuratedToString(String password) {
+      this.password = password;
+    }
+
+    @Override
+    public String toString() {
+      return "Login{username=" + username + ", password=" + password + "}";
+    }
+  }
+
+  /**
+   * A class with no sensitive field of its own whose hand-written {@code toString} interpolates a
+   * nested holder that has one.
+   *
+   * <p><b>@llmNote</b> The held record's own generated {@code toString} prints its
+   * {@code @NotTraced} component in full — which is exactly why the outer curated {@code toString}
+   * is the leak: one interpolation carries a value the annotation promised no output would show.
+   * The outer class is innocent by every name-based test there is.
+   *
+   * <p><b>@edgeCase</b> A plain class, deliberately not a record. Java dispatches a record to its
+   * component walk <em>before</em> it ever asks whether the type stringifies itself, so a record
+   * realisation of this shape would exercise the record branch and prove nothing about native
+   * stringification — the thing the row exists for.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection
+  public static final class CuratedToStringNested {
+
+    private final String sessionId = "session-7";
+    private final HostileGraphs.Secret holder;
+
+    CuratedToStringNested(HostileGraphs.Secret holder) {
+      this.holder = holder;
+    }
+
+    @Override
+    public String toString() {
+      return "Session{id=" + sessionId + ", holder=" + holder + "}";
+    }
+  }
+
+  /**
+   * A composite carrying a deny-listed field, built to be used as a {@code Map} KEY.
+   *
+   * <p><b>@llmNote</b> A key has to become text before it can be printed, which is the one place
+   * native stringification is hardest to avoid — so this shape carries a curated {@code toString}
+   * too. A renderer that reaches for it on the key path leaks there even when the value path is
+   * already safe.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection
+  public static final class SensitiveKey {
+
+    private final String username = "ada";
+    private final String password;
+
+    SensitiveKey(String password) {
+      this.password = password;
+    }
+
+    @Override
+    public String toString() {
+      return "Key{username=" + username + ", password=" + password + "}";
+    }
+  }
+
+  /**
+   * A holder whose {@code @NarrativeSummary} throws, with the payload in the exception message.
+   *
+   * <p>INTENT: The summary marker is the ONLY opt-in to curated rendering left, so its failure mode
+   * is now part of the contract: the traced call succeeds, the failed part renders the typed marker
+   * {@code <error: IllegalStateException>}, and the message — which carries the very value that
+   * failed to format — reaches no output.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by the summary method and by introspection
+  public static final class ThrowingSummary {
+
+    private final HostileGraphs.Secret held;
+
+    ThrowingSummary(HostileGraphs.Secret held) {
+      this.held = held;
+    }
+
+    /** Never returns; the renderer must degrade to a typed, value-free marker. */
+    @NarrativeSummary
+    public String describe() {
+      throw new IllegalStateException("cannot summarise " + held.secret());
     }
   }
 

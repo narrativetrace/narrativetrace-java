@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob f536b6e80b05 | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob f6d93be29ca8 | translated: 2026-09-11 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -168,7 +168,7 @@ La extensión de JUnit usa `ExtensionContext.getConfigurationParameter()`, que r
 
 | Propiedad | Valores | Predeterminado |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `false` |
+| `narrativetrace.output` | `true` / `false` | `true` |
 | `narrativetrace.outputDir` | Cualquier ruta con permiso de escritura | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -263,11 +263,12 @@ desde su DSL `approval` / `approvedDir`.
 
 ### Configuración basada en archivo (recomendada)
 
-Coloca un archivo en `src/test/resources/junit-platform.properties`:
+La salida se escribe por defecto — no hace falta ningún archivo para
+activarla. Coloca un archivo en `src/test/resources/junit-platform.properties`
+solo para cambiar el formato o para desactivarla:
 
 ```properties
-narrativetrace.output=true
-narrativetrace.format=markdown
+narrativetrace.output=false
 ```
 
 No hace falta cablear `systemProperty()` en Gradle. El archivo es solo de pruebas y nunca toca producción.
@@ -277,7 +278,7 @@ No hace falta cablear `systemProperty()` en Gradle. El archivo es solo de prueba
 Las propiedades del sistema siguen funcionando como overrides:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Dnarrativetrace.format=text
 ./gradlew test -Dnarrativetrace.outputDir=out/narrative
 ```
@@ -591,10 +592,11 @@ Para proyectos Gradle, `gradle.properties` ofrece un único lugar donde definir 
 
 ### Definir propiedades
 
-Añade a `gradle.properties` en la raíz del proyecto:
+La salida se escribe por defecto; `gradle.properties` es donde cambiarías
+el formato o la desactivarías. Añade a `gradle.properties` en la raíz del proyecto:
 
 ```properties
-narrativetrace.output=true
+narrativetrace.output=false
 narrativetrace.format=markdown
 ```
 
@@ -630,7 +632,7 @@ Gradle también ofrece una vía específica de JUnit para pasar parámetros de c
 ```kotlin
 tasks.withType<Test> {
     useJUnitPlatform {
-        configurationParameter("narrativetrace.output", "true")
+        configurationParameter("narrativetrace.output", "false") // desactiva; por defecto está activado
         configurationParameter("narrativetrace.format", "markdown")
     }
 }
@@ -912,8 +914,8 @@ llamada al método → filtro TracingLevel → tubería de eventos
 
 | Entorno | Nivel sugerido | Salida sugerida |
 |---|---|---|
-| Trabajo local en features | `DETAIL` | `narrativetrace.output=true`, `format=markdown` |
-| Ejecuciones de test en CI | `NARRATIVE` o `SUMMARY` | `output=true`, `format=markdown` |
+| Trabajo local en features | `DETAIL` | activado por defecto, `format=markdown` |
+| Ejecuciones de test en CI | `NARRATIVE` o `SUMMARY` | activado por defecto, `format=markdown` |
 | Producción sensible al rendimiento | `ERRORS` (u `OFF`) | sin salida de archivos de test |
 
 ## 10. Configuración de OpenTelemetry
@@ -1016,9 +1018,12 @@ duradera siempre que el módulo `narrativetrace-slf4j` esté presente. Usa
 ## 12. Ocultación
 
 La introspección reflexiva trata los datos como sensibles de forma
-predeterminada: sin un `toString()` cuidado, un DTO lleva el valor de cada
-campo a las trazas, los registros y las exportaciones. NarrativeTrace oculta
-valores en dos ejes independientes, ambos activos de forma predeterminada.
+predeterminada: un DTO llega al renderizador como una bolsa de valores de
+campos rumbo a las trazas, los registros y las exportaciones — y un
+`toString()` escrito a mano no lo exime, porque la propia representación en
+texto de un tipo nunca es de fiar mientras el tipo tenga campos.
+NarrativeTrace oculta valores en dos ejes independientes, ambos activos de
+forma predeterminada.
 
 ### Eje 1 — el nombre del campo
 

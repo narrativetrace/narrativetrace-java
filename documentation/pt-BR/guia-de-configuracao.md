@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob f536b6e80b05 | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob f6d93be29ca8 | translated: 2026-09-11 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -168,7 +168,7 @@ A extensão do JUnit usa `ExtensionContext.getConfigurationParameter()`, que res
 
 | Propriedade | Valores | Padrão |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `false` |
+| `narrativetrace.output` | `true` / `false` | `true` |
 | `narrativetrace.outputDir` | Qualquer caminho com permissão de escrita | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -257,11 +257,12 @@ plugin do Gradle define as duas propriedades a partir do seu DSL `approval` /
 
 ### Configuração baseada em arquivo (recomendado)
 
-Coloque um arquivo em `src/test/resources/junit-platform.properties`:
+A saída é escrita por padrão — não é preciso nenhum arquivo para ativá-la.
+Coloque um arquivo em `src/test/resources/junit-platform.properties` apenas
+para mudar o formato ou desativá-la:
 
 ```properties
-narrativetrace.output=true
-narrativetrace.format=markdown
+narrativetrace.output=false
 ```
 
 Não é necessário nenhum wiring de `systemProperty()` no Gradle. O arquivo é exclusivo de teste e nunca chega à produção.
@@ -271,7 +272,7 @@ Não é necessário nenhum wiring de `systemProperty()` no Gradle. O arquivo é 
 Propriedades do sistema continuam funcionando como overrides:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Dnarrativetrace.format=text
 ./gradlew test -Dnarrativetrace.outputDir=out/narrative
 ```
@@ -579,10 +580,11 @@ Para projetos Gradle, `gradle.properties` oferece um único lugar para definir a
 
 ### Definir propriedades
 
-Adicione ao `gradle.properties` na raiz do projeto:
+A saída é escrita por padrão; o `gradle.properties` é onde você mudaria o
+formato ou a desativaria. Adicione ao `gradle.properties` na raiz do projeto:
 
 ```properties
-narrativetrace.output=true
+narrativetrace.output=false
 narrativetrace.format=markdown
 ```
 
@@ -618,7 +620,7 @@ O Gradle também oferece uma forma específica do JUnit para passar parâmetros 
 ```kotlin
 tasks.withType<Test> {
     useJUnitPlatform {
-        configurationParameter("narrativetrace.output", "true")
+        configurationParameter("narrativetrace.output", "false") // desativa; ativado por padrão
         configurationParameter("narrativetrace.format", "markdown")
     }
 }
@@ -900,8 +902,8 @@ chamada de método → filtro TracingLevel → pipeline de eventos
 
 | Ambiente | Nível sugerido | Saída sugerida |
 |---|---|---|
-| Trabalho local em features | `DETAIL` | `narrativetrace.output=true`, `format=markdown` |
-| Execuções de teste em CI | `NARRATIVE` ou `SUMMARY` | `output=true`, `format=markdown` |
+| Trabalho local em features | `DETAIL` | ativado por padrão, `format=markdown` |
+| Execuções de teste em CI | `NARRATIVE` ou `SUMMARY` | ativado por padrão, `format=markdown` |
 | Produção sensível a performance | `ERRORS` (ou `OFF`) | sem saída de arquivo de teste |
 
 ## 10. Configuração do OpenTelemetry
@@ -1005,10 +1007,12 @@ sempre que o módulo `narrativetrace-slf4j` está presente. Defina
 
 ## 12. Ocultação
 
-A introspecção reflexiva trata dados como sensíveis por padrão: um DTO sem
-um `toString()` cuidado, de outra forma, coloca o valor de todo campo em
-traces, logs e exportações. O NarrativeTrace oculta valores em dois eixos
-independentes, ambos ativados por padrão.
+A introspecção reflexiva trata dados como sensíveis por padrão: um DTO chega
+ao renderizador como uma sacola de valores de campos destinada a traces,
+logs e exportações — e um `toString()` escrito à mão não o isenta, porque a
+própria representação em texto de um tipo nunca é confiável enquanto o tipo
+tiver campos. O NarrativeTrace oculta valores em dois eixos independentes,
+ambos ativados por padrão.
 
 ### Eixo 1 — o nome do campo
 

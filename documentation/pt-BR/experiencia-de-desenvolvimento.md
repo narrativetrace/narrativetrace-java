@@ -1,4 +1,4 @@
-<!-- source: documentation/developer-experience.md blob 34a39401d4b9 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/developer-experience.md blob 70a5b233295a | translated: 2026-09-11 | reviewed: - -->
 # Experiência de desenvolvimento
 
 [English](../developer-experience.md) | [Español](../es/experiencia-de-desarrollo.md) | **Português** | [简体中文](../zh-CN/开发者体验.md)
@@ -45,6 +45,8 @@ receita completa do `settings.gradle.kts`.
 A ocultação é parte da experiência de desenvolvimento, não um acréscimo
 tardio: um componente `@NotTraced` nunca aparece em nenhuma saída
 renderizada — nem através do `toString()` de um wrapper, nem através de uma
-coleção, nem através de um template de narração que nomeie seu caminho. Se
+coleção, nem através do `toString()` próprio, escrito à mão, de uma classe
+que a contenha, nem através de um template de narração que nomeie seu
+caminho. Se
 uma narrativa precisar de um valor, o ato deliberado e revisável é remover a
 anotação, nunca contorná-la.

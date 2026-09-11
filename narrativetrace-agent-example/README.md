@@ -25,6 +25,25 @@ within a framework's own wiring rather than the whole JVM. `narrativetrace-examp
 carries the same agent story into a real deployed app server (WildFly, over HTTP, read back
 from the container log) if you want to see it outside a Gradle test JVM.
 
+## Where the logger is configured
+
+`AgentRuntime` builds its pipeline through the same `PipelineBootstrap` as
+every other integration (proxy, Spring, JUnit 5) — agent mode is not a
+separate narration path. `build.gradle.kts` adds `narrativetrace-slf4j` and
+`logback-classic` as `testRuntimeOnly` so `Slf4jTraceEventListener`
+auto-attaches reflectively (see
+[Configuration Guide §7](../documentation/configuration-guide.md#7-slf4j-configuration)),
+and [`src/test/resources/logback-test.xml`](src/test/resources/logback-test.xml)
+sets the `narrativetrace` logger to `TRACE`. This is a separate, durable
+narration path from the best-effort console print `AgentNarrationExtension`
+does via `captureTrace()` — both fire from the same `agentTest` run.
+
+This module's `-javaagent` weaves the whole `ai.narrativetrace.examples.agent`
+package (see `packages=` in `build.gradle.kts`), so the SLF4J trace also
+narrates `AgentNarrationExtension`'s and `GreetingServiceAgentTest`'s own
+methods, not only `GreetingService.greet` — expected, since the filter is a
+package, not a class.
+
 ## Running it
 
 ```bash

@@ -1,4 +1,4 @@
-<!-- source: narrativetrace-examples/README.md blob 67791bf552ec | translated: 2026-08-28 | reviewed: 2026-09-03 -->
+<!-- source: narrativetrace-examples/README.md blob 209193ba9ac9 | translated: 2026-09-11 | reviewed: - -->
 # Ejemplos de NarrativeTrace
 
 [English](README.md) | **Español** | [简体中文](自述文件.md)
@@ -258,3 +258,13 @@ se excluyen del denominador de cobertura.
 - Cada ejemplo lleva su propia configuración de logback (`logback-<nombre>.xml`) cableada
   mediante los argumentos de JVM de la tarea `run`, para que la salida de consola siga
   siendo legible por ejemplo.
+- **Dónde se configura el logger.** Cada módulo `run` depende de `narrativetrace-slf4j`
+  (`build.gradle.kts`), así que `PipelineBootstrap` conecta automáticamente
+  `Slf4jTraceEventListener` sin código de cableado (Guía de Configuración,
+  [§7](../documentation/es/guia-de-configuracion.md#7-configuración-de-slf4j)); cada
+  `logback-<nombre>.xml` pone el logger `narrativetrace` en `TRACE`, que es lo que
+  hace que las líneas `→ ← !!` que ves en la demo sean eventos SLF4J reales, no
+  formato exclusivo de la demo. `ecommerce/src/main/resources/logback-ecommerce.xml`,
+  `clarity/src/main/resources/logback-clarity.xml`,
+  `minecraft/src/main/resources/logback-minecraft.xml` y
+  `library/src/main/resources/logback-library.xml` son los cuatro archivos.

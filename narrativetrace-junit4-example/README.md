@@ -21,8 +21,22 @@ If a suite can drop rule wiring of any kind, `narrativetrace-agent-example` show
 end of the spectrum: a `-javaagent` traces a plain class with no NarrativeTrace code
 anywhere in it, no rule and no `NarrativeTraceProxy.trace(...)` call either.
 
+## Where the logger is configured
+
+`build.gradle.kts` adds `narrativetrace-slf4j` and `logback-classic` as
+`testRuntimeOnly` — `PipelineBootstrap` auto-attaches `Slf4jTraceEventListener`
+reflectively once the former is on the classpath (no code change, see
+[Configuration Guide §7](../documentation/configuration-guide.md#7-slf4j-configuration)).
+[`src/test/resources/logback-test.xml`](src/test/resources/logback-test.xml)
+sets the `narrativetrace` logger to `TRACE` so those events are actually
+visible instead of swallowed by logback's default `DEBUG` root level.
+
 ## Running it
 
 ```bash
 ./gradlew :narrativetrace-junit4-example:test
 ```
+
+Both tests narrate through the `narrativetrace` SLF4J logger (visible with
+`--info` or in `build/test-results/test/*.xml`'s `<system-out>`) in addition
+to their own assertions.

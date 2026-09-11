@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob babcde8e6e9d | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob 8d2a8c6da217 | translated: 2026-09-11 | reviewed: - -->
 # Guia de anotações do NarrativeTrace para Java
 
 [English](../annotations-guide.md) | [Español](../es/guia-de-anotaciones.md) | **Português** | [简体中文](../zh-CN/注解指南.md)
@@ -85,13 +85,15 @@ Como funciona:
 - Em um campo ou componente de record, a ocultação acontece durante a introspecção reflexiva, de modo que um segredo aninhado dentro de um DTO traceado fica oculto sem apagar o objeto inteiro.
 - Casos de uso típicos: senhas, tokens, segredos, dados de cartão.
 
-**A introspecção reflexiva oculta por padrão, não vaza por padrão.** Quando um objeto traceado não tem um `toString()` curado, o NarrativeTrace faz reflexão sobre seus campos — mas uma lista de negação integrada baseada em nomes (`RedactionPolicy`) oculta automaticamente os nomes sensíveis comuns (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), e os valores de um `Map` cuja chave corresponda, antes de qualquer valor ser renderizado. As chaves de um `Map` são renderizadas pelo mesmo caminho protegido que qualquer outro valor: os objetos usados como chave respeitam `@NotTraced` e a lista de negação em seus próprios campos (nunca seu `toString()` bruto), e as chaves do tipo string são sanitizadas e limitadas em comprimento. `@NotTraced` cobre campos sensíveis que a lista de negação não reconheceria pelo nome. Um `toString()` curado é preferido em relação à introspecção — com uma exceção que a supera: uma classe que declara um campo `@NotTraced` é introspeccionada de qualquer forma, de modo que a anotação é respeitada em vez do que aquele `toString()` teria impresso. A lista de negação baseada em nomes não sobrepõe um `toString()`; só a anotação o faz. Sobrescreva os padrões com `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` ou desative com `RedactionPolicy.DISABLED`.
+**A introspecção reflexiva oculta por padrão, não vaza por padrão.** O NarrativeTrace faz reflexão sobre os campos de um objeto traceado — mas uma lista de negação integrada baseada em nomes (`RedactionPolicy`) oculta automaticamente os nomes sensíveis comuns (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), e os valores de um `Map` cuja chave corresponda, antes de qualquer valor ser renderizado. As chaves de um `Map` são renderizadas pelo mesmo caminho protegido que qualquer outro valor: os objetos usados como chave respeitam `@NotTraced` e a lista de negação em seus próprios campos (nunca seu `toString()` bruto), e as chaves do tipo string são sanitizadas e limitadas em comprimento. `@NotTraced` cobre campos sensíveis que a lista de negação não reconheceria pelo nome. Sobrescreva os padrões com `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` ou desative com `RedactionPolicy.DISABLED`.
 
 **Dois segredos são ocultados pelo que são, não apenas pelo nome que têm.** A lista de negação baseada em nomes não consegue ver um bearer token passado como `value`, retornado como um `String` isolado, ou presente sem nome dentro de uma lista, então uma segunda regra, independente, observa os bytes. Exatamente três formatos são reconhecidos: um JWT (três segmentos base64url cujo primeiro começa com `eyJ`), um número de cartão (13–19 dígitos, separadores permitidos, que passa na verificação de Luhn), e uma string `Set-Cookie` (`nome=valor` seguido por um atributo de cookie como `Path`, `Max-Age` ou `HttpOnly`). Tudo o mais é renderizado normalmente — esta é uma lista curta de assinaturas estruturais, não uma heurística de entropia, porque um valor apagado por suposição é um buraco na sua narrativa que você não consegue ver. Um falso positivo é aceito deliberadamente: um identificador do comprimento de um número de cartão que por acaso satisfaz Luhn. Um número de pedido que não o satisfaz permanece visível. `RedactionPolicy.DISABLED` desativa essa regra junto com a lista de negação por nomes; `RedactionPolicy.ofPatterns(...)` substitui apenas os nomes e a mantém ativa.
 
-**A ocultação sobrevive a um nível de contêiner.** Um invólucro como `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` ou um `Map.Entry` isolado imprime o `toString()` bruto do seu conteúdo se for tratado como um valor, então o NarrativeTrace o abre em vez disso e renderiza o que ele contém seguindo exatamente estas regras. Um `AtomicReferenceArray` é renderizado exatamente como o `Object[]` que contém os mesmos elementos, e um `Map.Entry` isolado é renderizado como `key=value`, exatamente como seria dentro de um `Map`. `Optional<Card>` é renderizado como `Card(number: "4111", cvv: [REDACTED])`, nunca como `Optional[Card[number=4111, cvv=123]]`; um invólucro vazio é renderizado como `<empty>`. Isso importa porque `Optional<T>` é o tipo de retorno idiomático de uma busca, que é exatamente por onde os dados ocultados trafegam.
+**O `toString()` próprio de um tipo nunca é confiável enquanto o tipo tiver estado.** Uma classe ou `record` que declara campos de instância — próprios ou herdados — é percorrida campo a campo, em qualquer profundidade, consultando os dois mecanismos de ocultação por campo, seja lá o que seu `toString()` teria impresso. Exatamente dois tipos de valor mantêm seu próprio texto: uma classe sem nenhum campo de instância (nada a ocultar, nada a percorrer), e uma classe definida pela plataforma (`LocalDate`, `Duration`, `UUID`, `URI` e afins), cujo `toString()` é o formato do JDK, não código de aplicação. Uma classe que seu próprio código declara é código de aplicação, seja lá o que ela estenda. A única opção explícita para voltar a uma renderização cuidadosamente escrita é `@NarrativeSummary`, mais abaixo — e mesmo seu texto passa pela checagem de forma do valor, o escape de caracteres de controle e o limite de comprimento. Até 2026-09-11 a regra funcionava ao contrário, e isso deixava um simples `Login { username, password }` com um `toString()` escrito à mão imprimir a senha na profundidade zero, e qualquer `toString()` cuidadosamente escrito imprimir valores `@NotTraced` aninhados diretamente através da serialização em texto comum do Java. O custo é real e foi aceito: uma classe de valor com um `toString()` agradável e sem `@NarrativeSummary` agora é renderizada como um despejo de campos — `Amount{currency: "EUR", units: 10}` em vez de `EUR 10.00`. Adicione `@NarrativeSummary` aos tipos em que a leitura importa.
 
-**A ocultação vence um template que a nomeia.** `@Narrated` e `@OnError` resolvem caminhos `{param.propriedade}` sobre os argumentos brutos, e um caminho que chega a um membro oculto se resolve como `[REDACTED]` — em qualquer profundidade, de modo que um membro oculto no meio de um caminho também oculta tudo o que é nomeado abaixo dele. O mesmo vale quando um marcador nomeia o objeto inteiro em vez de um caminho dentro dele: `{card}` é renderizado como `Card(number: "4111", cvv: [REDACTED])`, nunca com o `toString()` próprio do objeto, que não sabe nada sobre `@NotTraced`. Um marcador que nomeia um objeto sempre o renderiza através do mesmo renderizador que o captura, de modo que um template e um argumento capturado concordam sobre a aparência do valor: um record é narrado estruturalmente, como `Money(currency: "EUR", amount: 10)`, em ambos os casos. Uma classe que define seu próprio `toString()` e não oculta nada continua sendo narrada com ele. Para escolher a narração você mesmo — para um record ou para qualquer outra coisa — dê ao tipo um método `@NarrativeSummary`, que é respeitado aqui exatamente como em qualquer outro lugar. Nomear um caminho, ou um objeto, nunca enfraquece as regras que se aplicam diretamente ao valor. A terceira forma de marcador obedece a essas mesmas duas regras: um `{nome}` isolado que nomeia um valor diretamente é respondido pela lista de negação lendo essa chave exatamente como lê um nome de campo, e pelo formato do próprio valor, de modo que `@Narrated("login {password}")` e um JWT que chega como `{value}` são ambos renderizados como `[REDACTED]`. Se você precisar do valor em uma narrativa, remova `@NotTraced` do componente; essa remoção é a decisão deliberada e revisável, e ela aparece no diff.
+**A ocultação sobrevive a qualquer invólucro, em qualquer profundidade.** Um invólucro como `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` ou um `Map.Entry` isolado imprime o `toString()` bruto do seu conteúdo se for tratado como um valor, então o NarrativeTrace o abre em vez disso e renderiza o que ele contém seguindo exatamente estas regras — que se aplicam de novo a tudo o que *isso* contiver. Um `AtomicReferenceArray` é renderizado exatamente como o `Object[]` que contém os mesmos elementos, e um `Map.Entry` isolado é renderizado como `key=value`, exatamente como seria dentro de um `Map`. `Optional<Card>` é renderizado como `Card(number: "4111", cvv: [REDACTED])`, nunca como `Optional[Card[number=4111, cvv=123]]`; um invólucro vazio é renderizado como `<empty>`. Isso importa porque `Optional<T>` é o tipo de retorno idiomático de uma busca, que é exatamente por onde os dados ocultados trafegam.
+
+**A ocultação vence um template que a nomeia.** `@Narrated` e `@OnError` resolvem caminhos `{param.propriedade}` sobre os argumentos brutos, e um caminho que chega a um membro oculto se resolve como `[REDACTED]` — em qualquer profundidade, de modo que um membro oculto no meio de um caminho também oculta tudo o que é nomeado abaixo dele. O mesmo vale quando um marcador nomeia o objeto inteiro em vez de um caminho dentro dele: `{card}` é renderizado como `Card(number: "4111", cvv: [REDACTED])`, nunca com o `toString()` próprio do objeto, que não sabe nada sobre `@NotTraced`. Um marcador que nomeia um objeto sempre o renderiza através do mesmo renderizador que o captura, de modo que um template e um argumento capturado concordam sobre a aparência do valor: um record é narrado estruturalmente, como `Money(currency: "EUR", amount: 10)`, em ambos os casos. Uma classe comum também é narrada de forma estrutural, como `Amount{currency: "EUR", units: 10}`: «não oculta nada» nunca foi um fato que o renderizador pudesse comprovar, apenas «nenhum membro `@NotTraced` *aqui*». Para escolher a narração você mesmo — para um record ou para qualquer outra coisa — dê ao tipo um método `@NarrativeSummary`, que é respeitado aqui exatamente como em qualquer outro lugar. Nomear um caminho, ou um objeto, nunca enfraquece as regras que se aplicam diretamente ao valor. A terceira forma de marcador obedece a essas mesmas duas regras: um `{nome}` isolado que nomeia um valor diretamente é respondido pela lista de negação lendo essa chave exatamente como lê um nome de campo, e pelo formato do próprio valor, de modo que `@Narrated("login {password}")` e um JWT que chega como `{value}` são ambos renderizados como `[REDACTED]`. Se você precisar do valor em uma narrativa, remova `@NotTraced` do componente; essa remoção é a decisão deliberada e revisável, e ela aparece no diff.
 
 ### `@NarrativeSummary`
 
@@ -109,8 +111,15 @@ public record Customer(String id, String name, CustomerTier tier) {
 Como funciona:
 
 - `ValueRenderer` procura um método público anotado com `@NarrativeSummary` e sem parâmetros.
-- Se encontrado, a saída desse método é usada nos traces.
-- Se não for encontrado, a renderização recorre ao comportamento de record/toString.
+- Se encontrado, a saída desse método é usada nos traces — depois de passar pela checagem de
+  forma do valor, o escape de caracteres de controle e o limite de comprimento, então um resumo
+  que interpola um bearer token ainda é renderizado como `[REDACTED]`. Sua intenção escolhe o
+  texto; ela não isenta os bytes.
+- Se o método lançar uma exceção, o valor é renderizado como `<error: IllegalStateException>`
+  — o nome do tipo da exceção e nada mais. A mensagem é excluída de propósito: ela costuma
+  interpolar o próprio valor que falhou ao formatar.
+- Se não for encontrado, a renderização percorre os campos do objeto. Um tipo sem campos de
+  instância, ou um definido pela plataforma, mantém em vez disso seu próprio `toString()`.
 
 ## O contrato de pureza — efeitos colaterais durante o tracing
 
@@ -120,26 +129,32 @@ de acesso, preenchimento de cache ou E/S — exatamente como você faria para um
 
 O que é invocado, e o que não é:
 
-- **A introspecção de campos nunca chama seu código.** Quando um objeto traceado não tem um
-  `toString()` curado, o `ValueRenderer` lê seus *campos* por reflexão — uma leitura pura de memória. Um
-  getter que incrementa um contador ou carrega dados de forma preguiçosa não é tocado pela introspecção.
-- **O que o NarrativeTrace realmente invoca:** um `toString()` personalizado, um método `@NarrativeSummary`,
-  os acessores de componentes de record e qualquer caminho de propriedade que você nomear em um template
-  `@Narrated`/`@OnError` (`{order.total}` se resolve chamando primeiro o método acessor direto `total()`
-  e depois o getter JavaBean `getTotal()`). Esses são os únicos lugares onde código do usuário é
-  executado durante a renderização.
+- **A introspecção de campos nunca chama seu código.** Para qualquer objeto que tenha estado,
+  o `ValueRenderer` lê seus *campos* por reflexão — uma leitura pura de memória. Um getter que
+  incrementa um contador ou carrega dados de forma preguiçosa não é tocado pela introspecção.
+  Este é agora o caminho padrão, não o retorno alternativo: desde 2026-09-11 um `toString()`
+  personalizado não substitui mais a introspecção em um tipo que tem campos, então *menos* dos
+  seus membros são executados durante a renderização do que antes, não mais.
+- **O que o NarrativeTrace realmente invoca:** um método `@NarrativeSummary`, o `toString()` de
+  um tipo sem campos de instância, os acessores de componentes de record e qualquer caminho de
+  propriedade que você nomear em um template `@Narrated`/`@OnError` (`{order.total}` se resolve
+  chamando primeiro o método acessor direto `total()` e depois o getter JavaBean `getTotal()`).
+  Esses são os únicos lugares onde código do usuário é executado durante a renderização.
 - **A invocação é limitada e isolada.** A saída tem limites (comprimento de string, itens de
-  coleção, profundidade de introspecção), um getter ou `toString()` que lança uma exceção nunca pode
-  fazer a chamada de negócio traceada falhar (os templates recorrem ao literal `{placeholder}`; a
-  renderização recorre a um marcador com o nome do tipo), e os valores são renderizados de forma eager no
+  coleção, profundidade de introspecção), um getter, resumo ou `toString()` que lança uma exceção
+  nunca pode fazer a chamada de negócio traceada falhar (os templates recorrem ao literal
+  `{placeholder}`; a parte que falhou de uma renderização recorre a `<error: TypeName>`, nomeando
+  o tipo da exceção e nunca sua mensagem), e os valores são renderizados de forma eager no
   ponto de chamada — qualquer efeito colateral acontece uma única vez, em um ponto determinístico, na thread chamadora.
 - **A renderização nunca força uma computação adiada.** Um `Future` só é desembrulhado quando está
   `isDone()`; nada é bloqueado ou disparado.
 
 Se um membro não puder ser puro, anote-o com `@NotTraced` — o valor de um membro oculto nunca é
-lido — ou dê ao tipo um `toString()`/`@NarrativeSummary` curado para que você controle
-exatamente o que é acessado. Em `TracingLevel.OFF` (e para valores de parâmetros em `SUMMARY`),
-nenhuma renderização de argumento acontece, então nenhum código do usuário é tocado no caminho crítico.
+lido — ou dê ao tipo um `@NarrativeSummary` para que você controle exatamente o que é acessado.
+Um `toString()` curado não cumpre mais esse propósito em um tipo que tem campos: ele não chega
+a ser chamado, justamente para que não possa imprimir além de uma ocultação. Em `TracingLevel.OFF`
+(e para valores de parâmetros em `SUMMARY`), nenhuma renderização de argumento acontece, então
+nenhum código do usuário é tocado no caminho crítico.
 
 ## Anotações do Spring
 

@@ -119,7 +119,7 @@ JSON fixtures with a `README.md` beside them describing every case shape:
 | `strings.json` | hostile scalar values: control characters, bidi and zero-width, combining sequences, unpaired surrogates, template lookalikes, JSON/Mermaid/Markdown/YAML metacharacters, values up to 1 MiB |
 | `headers.json` | `traceparent` and `tracestate` values: wrong lengths, non-hex, all-zero ids, forbidden versions, trailing garbage, embedded CRLF |
 | `templates.json` | `@Narrated`/`@OnError` templates: nesting, unterminated braces, paths into redacted members at every depth, unicode identifiers |
-| `graphs.json` | declarative object-graph *shapes*: depth, width, cycles, self-reference, wrapper chains, throwing/blocking/recursive `toString`, huge collections |
+| `graphs.json` | declarative object-graph *shapes*: depth, width, cycles, self-reference, wrapper chains, throwing/blocking/recursive `toString`, a curated `toString` that interpolates a sensitive field (directly and one level down), a composite map key, a throwing `@NarrativeSummary`, huge collections |
 | `injection.json` | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, link exfiltration, fence and frontmatter terminators, homoglyph variants |
 | `names.json` | test class and method names as the writers receive them: separators and parent traversal, control characters, lone surrogates, noncharacters, and names past the filesystem's per-element limit in characters *and* in bytes |
 

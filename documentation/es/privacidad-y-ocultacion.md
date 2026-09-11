@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 1b80647f6c96 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 270717ac0aff | translated: 2026-09-11 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -8,6 +8,18 @@ va a compartir — artefactos de CI, baselines commiteadas, líneas de log de
 producción. Esta página es la versión fila por fila de ese contrato: qué se
 oculta, hasta dónde llega y hasta dónde no, y qué garantiza NarrativeTrace
 frente a lo que no promete en absoluto.
+
+**La salida de trazas en tiempo de prueba se escribe por defecto** — la
+extensión de JUnit 5 y la integración de JUnit 4 escriben los artefactos
+`.md`/`.json`/`.mmd` de cada prueba en el directorio efímero
+`build/narrativetrace` (ignorado por git, regenerado en cada ejecución) sin
+necesidad de configuración; `narrativetrace.output=false` lo desactiva. Ese
+valor por defecto no cambia qué se oculta ni cómo — cada artefacto pasa por
+el mismo `ValueRenderer` y la misma lista de denegación descrita más abajo,
+tanto si la escritura se activó por defecto como si se activó
+explícitamente. Consulta la [Guía de Configuración](guia-de-configuracion.md)
+para cada propiedad, y [Qué hacer commit](que-commitear.md) para entender
+por qué nada de esto pertenece al control de versiones.
 
 ## Ocultación, superficie por superficie
 
@@ -70,33 +82,84 @@ renderizado por reflexión:
    renderiza y luego se sustituye — un secreto formateado y descartado
    igual existió como string.
 
-Un **`toString()` cuidado** normalmente se prefiere a la introspección
-reflexiva — pero una clase que declara un campo `@NotTraced` se introspecta
-de todos modos, así que se respeta la anotación en lugar de lo que ese
-`toString()` habría impreso. Para un **campo o componente de record**, la
-lista de denegación basada en nombre *no* tiene ese mismo poder de
-anulación: solo se aplica cuando NarrativeTrace ya está introspeccionando
-campos, así que una clase con su propio `toString()` y sin ningún miembro
-`@NotTraced` se confía tal como está escrita. Solo la anotación explícita
-supera a un `toString()` cuidado.
+### El `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga estado
 
-Un **parámetro** es distinto, y la diferencia se debe a en qué momento se
-toma la decisión. Un parámetro cuyo *nombre* deniega la lista se resuelve
-en el momento de captura, antes de que el argumento llegue a ningún
-renderer — así que nunca se llama a ningún `toString()`, cuidado o no,
-sobre él. La distinción no es una inconsistencia: un nombre de campo se
-descubre *mediante* la introspección, mientras que un nombre de parámetro
-se conoce a partir de la firma del método antes de que el valor sea
-tocado en absoluto.
+Este es el invariante sobre el que descansa el resto de esta página, y
+merece la pena decirlo con claridad:
 
-La ocultación también **sobrevive un nivel de contenedor** — `Optional`,
-`Future`, `AtomicReference`, `AtomicReferenceArray` y un `Map.Entry`
-independiente se abren en lugar de renderizarse mediante su propio
-`toString()`, así que un valor oculto dentro de uno de ellos sigue oculto
-en vez de filtrarse a través del envoltorio. Y **gana sobre una plantilla
-de narración que lo nombra**: `{param.property}` en `@Narrated`/`@OnError`
-resuelve una ruta hacia un miembro oculto como `[REDACTED]`, en cada nivel
-de la ruta, nunca con el valor literal.
+> **Una clase o `record` que declara campos de instancia se recorre campo a
+> campo, a cualquier profundidad, consultando ambos mecanismos de ocultación
+> por cada campo — sea lo que sea que su propio `toString()` hubiera
+> impreso.**
+
+Exactamente dos tipos de valor conservan su propio texto. Uno es una clase
+**sin ningún campo de instancia**: no hay nada que ocultar ni nada que
+recorrer. El otro es una clase **que define la plataforma** — `LocalDate`,
+`Duration`, `UUID`, `URI` y similares — cuyo `toString()` es el formato del
+JDK y no código de la aplicación, y que no puede declarar uno de tus campos
+en primer lugar. Una clase declarada por *tu* propio código es código
+de aplicación, extienda lo que extienda.
+
+La única opción explícita para volver a un renderizado cuidadosamente
+escrito es **`@NarrativeSummary`**: un método sin argumentos que escribes
+*para* la traza, así que su salida es tu elección. Ni siquiera esa se
+confía tal cual — su texto pasa por la comprobación de la forma del valor,
+el escape de caracteres de control y el límite de longitud, exactamente
+igual que un parámetro `String`, de modo que un resumen que interpola un
+token bearer se sigue renderizando como `[REDACTED]`.
+
+Hasta el 2026-09-11 la regla funcionaba al revés: cualquier `toString()` se
+prefería sobre la introspección a menos que la clase declarara un campo
+`@NotTraced`. Esa comprobación no consultaba ni la lista de denegación por
+nombre ni los tipos de los campos, lo que dejaba dos vías abiertas. Un
+simple `Login { username, password }` con un `toString()` escrito a mano
+imprimía la contraseña **a profundidad cero** — sin anidamiento, sin
+envoltorio, sin ninguna anotación de por medio. Y un `toString()`
+cuidadosamente escrito en cualquier clase externa imprimía valores
+`@NotTraced` anidados directamente a través de la serialización a texto
+ordinaria de Java, porque la propia clase externa no declaraba nada
+sensible. Recorrer los campos también vuelve a poner el límite de
+profundidad y la protección contra ciclos delante de cada valor: tu
+`toString()` solía ejecutarse fuera de ambos.
+
+**El coste es real y se aceptó.** Una clase de valor con un `toString()`
+agradable y sin `@NarrativeSummary` ahora se renderiza como un volcado de
+campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00`. Más
+feo, y correcto. Añade `@NarrativeSummary` a los tipos donde la lectura
+importe.
+
+Un **parámetro** se resuelve todavía antes, y la diferencia se debe a en
+qué momento se toma la decisión. Un parámetro cuyo *nombre* deniega la
+lista se decide en el momento de captura, antes de que el argumento llegue
+a ningún renderer — así que nunca se llama a nada sobre el valor. La
+distinción no es una inconsistencia: un nombre de campo se descubre
+*mediante* la introspección, mientras que un nombre de parámetro se conoce
+a partir de la firma del método antes de que el valor sea tocado en
+absoluto.
+
+La ocultación sobrevive a **cualquier envoltorio, a cualquier
+profundidad** — `Optional`, `Future`, `AtomicReference`,
+`AtomicReferenceArray` y un `Map.Entry` independiente se abren en lugar de
+renderizarse mediante su propio `toString()`, y lo que contienen se
+renderiza siguiendo exactamente estas reglas, que se vuelven a aplicar a lo
+que sea que *eso* contenga. Una **clave** de `Map` se recorre de la misma
+manera, de modo que una clave compuesta no puede sacar un campo por el
+único lugar donde la serialización a texto es más difícil de evitar. Y la
+ocultación **gana sobre una plantilla de narración que la nombra**:
+`{param.property}` en `@Narrated`/`@OnError` resuelve una ruta hacia un
+miembro oculto como `[REDACTED]`, en cada nivel de la ruta, nunca con el
+valor literal.
+
+### Cuando falla el renderizado de una parte
+
+Un valor cuyo `toString()`, `@NarrativeSummary`, getter o accesor lanza una
+excepción solo cuesta su propio hueco: esa parte se renderiza como
+`<error: IllegalStateException>` — el **nombre del tipo de la excepción y
+nada más** — y el resto del valor se renderiza completo. El mensaje se
+excluye deliberadamente. Un mensaje de excepción suele interpolar el propio
+valor que no se pudo formatear (`"cannot render " + password`), así que un
+marcador que lo llevara convertiría la propia ruta de fallo del
+renderizador en una fuga.
 
 Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotaciones.md).
 

@@ -404,16 +404,19 @@ class TemplateParserTest {
   }
 
   /**
-   * The other half of the ruling: a narration that was not leaking keeps the exact bytes it had. An
-   * author's own {@code toString()} is still the narration for a class with nothing to hide —
-   * {@code ValueRenderer} hands the class its own string, and the template shows exactly that.
+   * Superseded by the 2026-09-11 family invariant: a plain class that has state narrates
+   * structurally too, because "nothing to hide" was never a fact the renderer could establish — it
+   * only ever meant "no {@code @NotTraced} member here", which says nothing about a deny-listed
+   * name or a nested holder the author's {@code toString()} interpolates. {@code @NarrativeSummary}
+   * is how an author chooses the bytes, on a class exactly as on a record — see {@link
+   * #aNarrativeSummaryChoosesTheBytesForARecord}.
    */
   @Test
-  void aClassWithNothingHiddenStillNarratesWithItsOwnToString() {
+  void aPlainClassNarratesStructurallyRatherThanThroughItsOwnToString() {
     var resolved =
         TemplateParser.resolve("transfer {amount}", Map.of("amount", new Amount("EUR", 10)));
 
-    assertThat(resolved).isEqualTo("transfer EUR 10.00");
+    assertThat(resolved).isEqualTo("transfer Amount{currency: \"EUR\", units: 10}");
   }
 
   /**

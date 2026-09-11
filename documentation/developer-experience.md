@@ -39,6 +39,7 @@ complete `settings.gradle.kts` recipe.
 
 Redaction is part of the development experience, not an afterthought: a
 `@NotTraced` component never appears in any rendered output — not through a
-wrapper's `toString()`, not through a collection, and not through a narration
-template that names its path. If a narrative needs a value, the deliberate,
+wrapper's `toString()`, not through a collection, not through an enclosing
+class's own hand-written `toString()`, and not through a narration template
+that names its path. If a narrative needs a value, the deliberate,
 reviewable act is removing the annotation, never working around it.

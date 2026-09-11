@@ -13,7 +13,7 @@ above — each language's index lists that language's translated guides.
 
 | Document | What it covers |
 |---|---|
-| [First 10 Minutes](first-10-minutes.md) | One tiny service, one JUnit test, eight steps to a real trace — every command and every piece of output run for real against this repository |
+| [See a trace in 60 seconds](first-10-minutes.md) | A plain `main`, one call, a trace in your terminal — no log statements, no test framework, run for real against the published artifacts |
 | [Developer Experience](developer-experience.md) | From empty project to first narrative: one-line setup, per-test artifacts, the demo launcher, local composite builds, redaction as part of the workflow |
 | [Installation Guide](installation-guide.md) | Dependencies, the five integration paths (JDK proxy, Spring, Micronaut, JUnit 5/4, java agent), trace output setup, compatibility matrix |
 | [Choosing an Integration](choosing-an-integration.md) | Which module you actually need: a decision diagram plus the caveats each of the five attachment paths has |

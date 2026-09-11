@@ -381,6 +381,26 @@ class NarrativeTraceExtensionTest {
   }
 
   @Test
+  void outputWritesByDefaultWithNoOutputConfiguration(@TempDir Path tempDir) {
+    System.clearProperty("narrativetrace.output");
+    runSuite(Map.of("narrativetrace.outputDir", tempDir.toString()), MultiTestFixture.class);
+
+    assertThat(tempDir.resolve("traces/MultiTestFixture/customer_places_order.md")).exists();
+    assertThat(tempDir.resolve("clarity-report.md")).exists();
+  }
+
+  @Test
+  void outputWritesNothingWhenExplicitlyDisabled(@TempDir Path tempDir) {
+    System.clearProperty("narrativetrace.output");
+    runSuite(
+        Map.of("narrativetrace.output", "false", "narrativetrace.outputDir", tempDir.toString()),
+        MultiTestFixture.class);
+
+    assertThat(tempDir.resolve("traces")).doesNotExist();
+    assertThat(tempDir.resolve("clarity-report.md")).doesNotExist();
+  }
+
+  @Test
   void printsConsoleSummaryAfterAllTests(@TempDir Path tempDir) {
     System.setProperty("narrativetrace.output", "true");
     System.setProperty("narrativetrace.outputDir", tempDir.toString());

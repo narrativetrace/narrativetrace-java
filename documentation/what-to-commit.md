@@ -4,6 +4,13 @@ NarrativeTrace writes two kinds of file: generated artifacts that describe
 one run, and reviewed baselines that describe an intended contract. Commit
 the second kind, not the first.
 
+Every test-time artifact writes to the ephemeral `build/narrativetrace` by
+default — no configuration needed, `narrativetrace.output=false` opts out
+(see the [Configuration Guide](configuration-guide.md)). Ephemeral is the
+point: it lives under `build/`, so it never needs the discipline this page
+is about — it is already excluded, regenerated every run, and safe to
+delete at any time.
+
 | Artifact | Commit? | Why |
 |---|---|---|
 | `build/narrativetrace/traces/*.md` | No | Regenerated every run; usually a CI artifact, not source |

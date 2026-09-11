@@ -28,8 +28,8 @@ long-lived infrastructure exists.
 
 - **Zero-config test integration.** With the JUnit 5 extension on the
   classpath (ServiceLoader-discovered; JUnit 4 rules are declared
-  explicitly) and `narrativetrace.output=true`, every test writes its
-  trace as a reviewable artifact:
+  explicitly), every test writes its trace as a reviewable artifact by
+  default — no configuration needed, `narrativetrace.output=false` opts out:
   `build/narrativetrace/traces/<TestClass>/<test>.md` plus a canonical
   `.json` and a per-scenario Mermaid diagram. The [Gradle
   plugin](gradle-plugin-guide.md) wires the dependencies, the

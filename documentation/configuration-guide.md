@@ -165,7 +165,7 @@ The JUnit extension uses `ExtensionContext.getConfigurationParameter()`, which r
 
 | Property | Values | Default |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `false` |
+| `narrativetrace.output` | `true` / `false` | `true` |
 | `narrativetrace.outputDir` | Any writable path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -254,11 +254,12 @@ received files. The Gradle plugin sets both properties from its
 
 ### File-based configuration (recommended)
 
-Drop a file in `src/test/resources/junit-platform.properties`:
+Output writes by default — no file needed to turn it on. Drop a file in
+`src/test/resources/junit-platform.properties` only to change the format or
+opt out:
 
 ```properties
-narrativetrace.output=true
-narrativetrace.format=markdown
+narrativetrace.output=false
 ```
 
 No Gradle `systemProperty()` wiring needed. The file is test-only and never touches production.
@@ -268,7 +269,7 @@ No Gradle `systemProperty()` wiring needed. The file is test-only and never touc
 System properties still work as overrides:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Dnarrativetrace.format=text
 ./gradlew test -Dnarrativetrace.outputDir=out/narrative
 ```
@@ -565,10 +566,11 @@ For Gradle projects, `gradle.properties` provides a single place to define Narra
 
 ### Define properties
 
-Add to `gradle.properties` in the project root:
+Output writes by default; `gradle.properties` is where you'd change the
+format or opt out. Add to `gradle.properties` in the project root:
 
 ```properties
-narrativetrace.output=true
+narrativetrace.output=false
 narrativetrace.format=markdown
 ```
 
@@ -604,7 +606,7 @@ Gradle also offers a JUnit-specific way to pass configuration parameters directl
 ```kotlin
 tasks.withType<Test> {
     useJUnitPlatform {
-        configurationParameter("narrativetrace.output", "true")
+        configurationParameter("narrativetrace.output", "false") // opt out; on by default
         configurationParameter("narrativetrace.format", "markdown")
     }
 }
@@ -885,8 +887,8 @@ method call → TracingLevel filter → event pipeline
 
 | Environment | Suggested level | Suggested output |
 |---|---|---|
-| Local feature work | `DETAIL` | `narrativetrace.output=true`, `format=markdown` |
-| CI test runs | `NARRATIVE` or `SUMMARY` | `output=true`, `format=markdown` |
+| Local feature work | `DETAIL` | on by default, `format=markdown` |
+| CI test runs | `NARRATIVE` or `SUMMARY` | on by default, `format=markdown` |
 | Performance-sensitive prod | `ERRORS` (or `OFF`) | no test file output |
 
 ## 10. OpenTelemetry Configuration
@@ -987,8 +989,10 @@ to keep capture without narration.
 
 ## 12. Redaction
 
-Reflective introspection is sensitive-data-by-default: a DTO without a curated
-`toString()` otherwise puts every field value into traces, logs and exports.
+Reflective introspection is sensitive-data-by-default: a DTO reaches the
+renderer as a bag of field values bound for traces, logs and exports — and a
+hand-written `toString()` does not exempt it, because a type's own
+stringification is never trusted while the type has fields.
 NarrativeTrace hides values on two independent axes, both on by default.
 
 ### Axis 1 — the field name

@@ -80,6 +80,10 @@ public final class HostileGraphs {
       case "emptyContainers" -> emptyContainers();
       case "future" -> future(graphCase.state(), sentinel);
       case "throwable" -> throwable(graphCase.state(), graphCase.n());
+      case "curatedToString" -> new HostileMembers.CuratedToString(sentinel);
+      case "curatedToStringNested" -> new HostileMembers.CuratedToStringNested(secret(sentinel));
+      case "mapKey" -> sensitiveMapKey(sentinel);
+      case "throwingSummary" -> new HostileMembers.ThrowingSummary(secret(sentinel));
       default -> throw new IllegalArgumentException("unknown graph kind: " + graphCase.kind());
     };
   }
@@ -246,6 +250,19 @@ public final class HostileGraphs {
       case "hostileKeyNames" -> HostileMembers.hostileKeyNames(held);
       default -> throw new IllegalArgumentException("unknown hostile member: " + member);
     };
+  }
+
+  /**
+   * A map whose KEY is a composite carrying a deny-listed field.
+   *
+   * <p><b>@llmNote</b> The value beside it is ordinary text, so an output that shows the value but
+   * not the key proves the key path was walked rather than skipped — absence alone would also be
+   * satisfied by a renderer that dropped the entry entirely.
+   */
+  private static Object sensitiveMapKey(String sentinel) {
+    var map = new LinkedHashMap<Object, Object>();
+    map.put(new HostileMembers.SensitiveKey(sentinel), "visible-value");
+    return map;
   }
 
   private static Object emptyContainers() {

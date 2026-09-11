@@ -12,6 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -20,14 +22,27 @@ import org.junit.jupiter.api.Test;
  */
 class ProxyLevelRenderingTest {
 
+  /**
+   * Counts its own stringification.
+   *
+   * <p><b>@llmNote</b> The counter is {@code static} deliberately. Since 2026-09-11 a class that
+   * declares instance fields is walked field by field rather than stringified, so an instance
+   * counter would read zero in every case — a green test measuring nothing. A field-less class
+   * keeps its own text, which is precisely the invocation this probe exists to observe.
+   */
   static final class RenderProbe {
-    int renderCount;
+    static final AtomicInteger RENDER_COUNT = new AtomicInteger();
 
     @Override
     public String toString() {
-      renderCount++;
+      RENDER_COUNT.incrementAndGet();
       return "probe";
     }
+  }
+
+  @BeforeEach
+  void resetProbe() {
+    RenderProbe.RENDER_COUNT.set(0);
   }
 
   public interface Service {
@@ -49,7 +64,7 @@ class ProxyLevelRenderingTest {
 
     service.handle(probe);
 
-    assertThat(probe.renderCount)
+    assertThat(RenderProbe.RENDER_COUNT.get())
         .as("parameter must not be rendered when the level suppresses values")
         .isZero();
     var root = context.captureTrace().roots().get(0);
@@ -64,6 +79,6 @@ class ProxyLevelRenderingTest {
 
     service.handle(probe);
 
-    assertThat(probe.renderCount).isPositive();
+    assertThat(RenderProbe.RENDER_COUNT.get()).isPositive();
   }
 }

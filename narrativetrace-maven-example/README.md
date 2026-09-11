@@ -33,13 +33,31 @@ Then, from this directory:
 mvn test
 ```
 
-Expect to see the trace print during the run, and these files afterward:
+Expect to see the trace narrated twice during the run — once as the
+`narrativetrace` SLF4J logger at `TRACE` (via
+[`src/test/resources/logback-test.xml`](src/test/resources/logback-test.xml),
+picked up automatically by logback; see "Where the logger is configured"
+below), once as the JUnit 5 extension's own console summary — and these
+files afterward:
 
 ```
 target/narrativetrace/traces/GreetingServiceTest/greets_by_name.md
 target/narrativetrace/clarity-report.md
 target/narrativetrace/clarity-results.json
 ```
+
+## Where the logger is configured
+
+`pom.xml` declares `narrativetrace-slf4j` and `logback-classic` (both
+`test`-scoped) so `PipelineBootstrap` auto-attaches `Slf4jTraceEventListener`
+— see [Configuration Guide §7](../documentation/configuration-guide.md#7-slf4j-configuration).
+The dependency alone only puts the listener on the classpath; the config
+that actually lets `TRACE` events through is
+[`src/test/resources/logback-test.xml`](src/test/resources/logback-test.xml),
+which Maven's test classpath picks up with no extra system property (unlike
+the Gradle examples' `-Dlogback.configurationFile`). See
+[Maven Guide, Dependencies](../documentation/maven-guide.md#dependencies) for the
+full walkthrough of why both pieces are needed.
 
 ## What to look at
 

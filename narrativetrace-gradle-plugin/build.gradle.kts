@@ -30,6 +30,9 @@ tasks.named<ProcessResources>("processResources") {
     // Read at configuration time: reaching for `project` inside `doLast` is deprecated and fails
     // outright under the configuration cache.
     val moduleVersion = project.version.toString()
+    // Declared as an input, or a version bump leaves the task UP-TO-DATE and a warm
+    // build directory keeps serving the previous version's file.
+    inputs.property("moduleVersion", moduleVersion)
     outputs.file(propsFile)
     doLast {
         propsFile.get().asFile.writeText("version=$moduleVersion\n")

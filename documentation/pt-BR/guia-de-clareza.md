@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob d4fed0a583f4 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/clarity-guide.md blob 500fd784f720 | translated: 2026-09-11 | reviewed: - -->
 # Guia de Clareza do NarrativeTrace Java
 
 [English](../clarity-guide.md) | [Español](../es/guia-de-claridad.md) | **Português** | [简体中文](../zh-CN/清晰度指南.md)
@@ -15,7 +15,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Com o JUnit 5, os relatórios de clareza são gerados automaticamente quando `narrativetrace.output=true` — sem necessidade de código.
+Com o JUnit 5, os relatórios de clareza são gerados automaticamente por padrão — sem necessidade de código, sem necessidade de configuração. `narrativetrace.output=false` desativa isso junto com todos os outros artefatos de trace.
 
 ## O que é pontuado
 
@@ -233,7 +233,7 @@ Produz um resumo ordenado de todos os cenários. Cenários com pontuação abaix
 
 ## Integração com o JUnit 5
 
-Quando `narrativetrace.output=true` está em `junit-platform.properties`, a extensão do JUnit automaticamente:
+Por padrão (a menos que `narrativetrace.output=false` esteja em `junit-platform.properties`), a extensão do JUnit automaticamente:
 
 1. Executa `ClarityAnalyzer.analyze()` no trace de cada teste
 2. Escreve `clarity-report.md` no diretório de saída depois que todos os testes terminam

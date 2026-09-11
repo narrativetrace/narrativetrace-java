@@ -22,16 +22,17 @@ setup.
 
 ## No trace output files
 
-**Cause:** output is off by default outside the plugin.
+**Cause:** output writes by default to `build/narrativetrace`, so a missing
+file usually means one of: `narrativetrace.output=false` is set somewhere
+(`junit-platform.properties`, a system property, or the Gradle plugin's
+`enabled.set(false)`); the trace was empty because no call went through a
+traced proxy/agent; or `narrativetrace.outputDir` points somewhere other than
+where you're looking.
 
-**Fix:** add to `src/test/resources/junit-platform.properties`:
-
-```properties
-narrativetrace.output=true
-```
-
-Or run with `-Dnarrativetrace.output=true`. The Gradle plugin sets this for
-you.
+**Fix:** confirm the property isn't set to `false`, and check
+`build/narrativetrace/` (or your configured `narrativetrace.outputDir`) —
+see the [Configuration Guide](configuration-guide.md) for every property and
+its default.
 
 ## I don't see anything in my terminal
 
@@ -159,8 +160,8 @@ dependencies {
 ```
 
 Or set `scope.set("production")` if NarrativeTrace is meant to run in
-production anyway. See [First 10 Minutes § 7](first-10-minutes.md#7-add-nottraced-and-see-redaction),
-where this is hit and fixed the same way.
+production anyway. See [Configuration Guide § Gradle Plugin
+DSL](configuration-guide.md#gradle-plugin-dsl), where `scope` is documented.
 
 ## Approval mode wrote `.received.nt`
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 8bf50960f149 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/troubleshooting.md blob c331818784be | translated: 2026-09-11 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -27,16 +27,18 @@ uma configuração manual.
 
 ## Nenhum arquivo de saída de trace
 
-**Causa:** a saída está desativada por padrão fora do plugin.
+**Causa:** a saída é gravada por padrão em `build/narrativetrace`, então um
+arquivo ausente geralmente significa uma destas: `narrativetrace.output=false`
+está definido em algum lugar (`junit-platform.properties`, uma propriedade de
+sistema, ou `enabled.set(false)` no plugin do Gradle); o trace estava vazio
+porque nenhuma chamada passou por um proxy/agente rastreado; ou
+`narrativetrace.outputDir` aponta para outro lugar diferente de onde você
+está olhando.
 
-**Correção:** adicione a `src/test/resources/junit-platform.properties`:
-
-```properties
-narrativetrace.output=true
-```
-
-Ou execute com `-Dnarrativetrace.output=true`. O plugin do Gradle
-configura isso para você.
+**Correção:** confirme que a propriedade não está como `false`, e verifique
+`build/narrativetrace/` (ou o `narrativetrace.outputDir` configurado) — veja
+o [Guia de Configuração](guia-de-configuracao.md) para cada propriedade e seu
+padrão.
 
 ## Não vejo nada no meu terminal
 
@@ -173,9 +175,9 @@ dependencies {
 ```
 
 Ou defina `scope.set("production")` se o NarrativeTrace for feito para
-rodar em produção de qualquer forma. Veja [Primeiros 10 minutos §
-7](primeiros-10-minutos.md#7-adicione-nottraced-e-veja-a-ocultação), onde
-isso é encontrado e corrigido da mesma forma.
+rodar em produção de qualquer forma. Veja [Guia de Configuração § DSL do
+plugin do Gradle](guia-de-configuracao.md#dsl-do-plugin-do-gradle), onde
+`scope` está documentado.
 
 ## O modo de aprovação escreveu `.received.nt`
 

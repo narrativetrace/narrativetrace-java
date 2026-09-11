@@ -213,7 +213,7 @@ class ValueRendererTest {
 
     var result = renderer.render(map);
 
-    assertThat(result).contains("<ExplodingKey>=1");
+    assertThat(result).contains("<error: IllegalStateException>=1");
   }
 
   @Test
@@ -517,10 +517,15 @@ class ValueRendererTest {
     }
   }
 
+  /**
+   * A summary that throws used to fall through to ordinary rendering, which hid the failure: the
+   * reader saw output indistinguishable from a class that never declared a summary at all. The
+   * failed part now names the exception's type — and only its type.
+   */
   @Test
-  void narrativeSummaryThatThrowsFallsBackToToString() {
+  void narrativeSummaryThatThrowsRendersTheTypedMarkerRatherThanFallingBack() {
     var result = renderer.render(new FailingSummary());
-    assertThat(result).isEqualTo("FailingSummary{}");
+    assertThat(result).isEqualTo("<error: RuntimeException>").doesNotContain("oops");
   }
 
   static class HasSummaryWithParams {
@@ -546,7 +551,7 @@ class ValueRendererTest {
   void recordWithFailingAccessorRendersErrorFallback() {
     var result = renderer.render(new BrokenRecord("test"));
 
-    assertThat(result).isEqualTo("BrokenRecord(name: <error>)");
+    assertThat(result).isEqualTo("BrokenRecord(name: <error: RuntimeException>)");
   }
 
   @Test
@@ -592,9 +597,16 @@ class ValueRendererTest {
     }
   }
 
+  /**
+   * The 2026-09-11 family invariant: a class that has state is walked field by field whatever its
+   * {@code toString()} would have printed, so the deny-list and {@code @NotTraced} are consulted at
+   * every depth instead of being bypassed. {@code @NarrativeSummary} is the opt-in back to curated
+   * text — see {@link #usesNarrativeSummaryMethodWhenPresent}.
+   */
   @Test
-  void objectWithCustomToStringUsesToString() {
-    assertThat(renderer.render(new WithCustomToString())).isEqualTo("custom");
+  void aCustomToStringDoesNotStandInForIntrospectionOnAClassWithFields() {
+    assertThat(renderer.render(new WithCustomToString()))
+        .isEqualTo("WithCustomToString{name: \"ignored\"}");
   }
 
   @SuppressWarnings("unused")
@@ -630,9 +642,12 @@ class ValueRendererTest {
     }
   }
 
+  /** A field-less class keeps its own text, so a throwing one reaches the typed failure marker. */
   @Test
-  void toStringFailureRendersClassName() {
-    assertThat(renderer.render(new ThrowingToString())).isEqualTo("<ThrowingToString>");
+  void toStringFailureRendersTheExceptionType() {
+    assertThat(renderer.render(new ThrowingToString()))
+        .isEqualTo("<error: RuntimeException>")
+        .doesNotContain("boom");
   }
 
   @SuppressWarnings("unused")
@@ -671,13 +686,13 @@ class ValueRendererTest {
     // Cleaner is in java.base/java.lang.ref which is not opened for
     // reflective access. It has no custom toString(), so renderObject
     // is reached and field.setAccessible(true) throws
-    // InaccessibleObjectException. This must not crash — fields should
-    // render as <error>.
+    // InaccessibleObjectException. This must not crash — the field
+    // renders as the typed failure marker naming that exception.
     var cleaner = java.lang.ref.Cleaner.create();
     var result = renderer.render(cleaner);
 
     assertThat(result).startsWith("Cleaner{");
-    assertThat(result).contains("<error>");
+    assertThat(result).contains("<error: InaccessibleObjectException>");
     assertThat(result).endsWith("}");
   }
 

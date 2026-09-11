@@ -6,6 +6,17 @@ is the row-by-row version of that contract: what redacts, where it does and
 does not reach, and what NarrativeTrace guarantees versus what it does not
 claim at all.
 
+**Test-time trace output writes by default** — the JUnit 5 extension and the
+JUnit 4 integration write each test's `.md`/`.json`/`.mmd` artifacts to the
+ephemeral `build/narrativetrace` (gitignored, regenerated every run) with no
+configuration needed; `narrativetrace.output=false` opts out. That default
+does not change what gets redacted or how — every artifact still goes
+through the same `ValueRenderer` and the same deny-list described below,
+whether writing was on by default or turned on explicitly. See the
+[Configuration Guide](configuration-guide.md) for every key, and
+[What to Commit](what-to-commit.md) for why none of it belongs in source
+control.
+
 ## Redaction, surface by surface
 
 | Surface | Can disable built-in redaction? |
@@ -61,30 +72,71 @@ value:
    through the pipeline SPI. It is never rendered and then replaced — a
    secret formatted and discarded still existed as a string.
 
-A **curated `toString()`** is normally preferred over reflective
-introspection — but a class that declares a `@NotTraced` field is
-introspected anyway, so the annotation is honored instead of whatever that
-`toString()` would have printed. For a **field or record component**, the
-name-based deny-list does *not* get the same override power: it only applies
-when NarrativeTrace is already introspecting fields, so a class with its own
-`toString()` and no `@NotTraced` member is trusted as written. Only the
-explicit annotation outranks a curated `toString()`.
+### A type's own `toString()` is never trusted while the type has state
 
-A **parameter** is different, and the difference follows from where the
-decision is made. A parameter whose *name* the deny-list denies is settled at
-capture, before the argument is handed to any renderer — so no `toString()`,
-curated or otherwise, is ever called on it. The distinction is not
-inconsistency: a field name is discovered *by* introspection, while a
-parameter name is known from the method signature before the value is
-touched at all.
+This is the invariant the rest of the page rests on, and it is worth stating
+plainly:
 
-Redaction also **survives one container deep** — `Optional`, `Future`,
+> **A class or record that declares instance fields is walked field by field,
+> at every depth, with both redaction mechanisms consulted per field — whatever
+> its own `toString()` would have printed.**
+
+Exactly two kinds of value keep their own text. One is a class with **no
+instance fields at all**: there is nothing to hide and nothing to walk. The
+other is a class **the platform defines** — `LocalDate`, `Duration`, `UUID`,
+`URI` and their kind — whose `toString()` is the JDK's format rather than
+application code, and which cannot declare one of your fields in the first
+place. A class *your* code declares is application code whatever it extends.
+
+The single opt-in back to curated rendering is **`@NarrativeSummary`**: a
+zero-argument method you wrote *for* the trace, so its output is your choice.
+Even that is not trusted verbatim — its text passes the value-shape check, the
+control-character escape and the length cap, exactly as a `String` parameter
+would, so a summary that interpolates a bearer token still renders
+`[REDACTED]`.
+
+Until 2026-09-11 the rule ran the opposite way: any `toString()` was preferred
+over introspection unless the class declared a `@NotTraced` field. That check
+consulted neither the name deny-list nor the types of the fields, which left
+two channels open. A plain `Login { username, password }` with a hand-written
+`toString()` printed the password **at depth zero** — no nesting, no wrapper,
+no annotation involved. And a curated `toString()` on any outer class printed
+nested `@NotTraced` values straight through ordinary Java stringification,
+because the outer class itself declared nothing sensitive. Walking instead also
+puts the depth cap and the cycle guard back in front of every value: your
+`toString()` used to run outside both.
+
+**The cost is real and was accepted.** A value class with a pleasant
+`toString()` and no `@NarrativeSummary` now renders as a field dump —
+`Amount{currency: "EUR", units: 10}` rather than `EUR 10.00`. Uglier, and
+correct. Add `@NarrativeSummary` to the types where the reading matters.
+
+A **parameter** is settled earlier still, and the difference follows from where
+the decision is made. A parameter whose *name* the deny-list denies is decided
+at capture, before the argument is handed to any renderer — so nothing on the
+value is ever called. The distinction is not inconsistency: a field name is
+discovered *by* introspection, while a parameter name is known from the method
+signature before the value is touched at all.
+
+Redaction survives **every wrapper, at any depth** — `Optional`, `Future`,
 `AtomicReference`, `AtomicReferenceArray` and a standalone `Map.Entry` are
-opened rather than rendered via their own `toString()`, so a redacted value
-inside one of them stays redacted instead of leaking through the wrapper.
-And it **wins over a narration template that names it**: `{param.property}`
-in `@Narrated`/`@OnError` resolves a path to a redacted member as
-`[REDACTED]`, at every depth along the path, never the literal value.
+opened rather than rendered via their own `toString()`, and what they hold is
+rendered under exactly these rules, which then applies again to whatever *that*
+holds. A `Map` **key** is walked the same way, so a composite used as a key
+cannot carry a field out through the one place stringification is hardest to
+avoid. And redaction **wins over a narration template that names it**:
+`{param.property}` in `@Narrated`/`@OnError` resolves a path to a redacted
+member as `[REDACTED]`, at every depth along the path, never the literal value.
+
+### When rendering a part fails
+
+A value whose `toString()`, `@NarrativeSummary`, getter or accessor throws
+costs only its own slot: that part renders as `<error: IllegalStateException>`
+— the exception's **type name and nothing else** — and the rest of the value
+renders whole. The message is deliberately excluded. An exception message
+routinely interpolates the very value that failed to format
+(`"cannot render " + password`), so a marker carrying it would turn the
+renderer's own failure path into a leak.
 
 Full detail and worked examples: [Annotations Guide](annotations-guide.md).
 

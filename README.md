@@ -2,15 +2,24 @@
 
 **English** | [Español](LEAME.md) | [Português](LEIAME.md) | [简体中文](自述文件.md)
 
-> Code is the log.
+## Start here
+
+[See a trace in 60 seconds](documentation/first-10-minutes.md) — a console app, one run, and the trace is in your terminal.
+
+## Demo
+
+Clone the repository and run `./demo.sh`.
+
+## Examples
+
+See [the examples](narrativetrace-examples/) — NarrativeTrace in realistic applications.
+
+## Code is the log
 
 NarrativeTrace™ turns running Java code into a readable execution narrative,
 built from the method, class and parameter names you already wrote. No
 `logger.info(...)` lines. If the trace is unreadable, your code needs
 refactoring — not more log statements.
-
-In a hurry: [run the demo](#try-it-in-one-command) → [add it to one
-test](#add-it-to-one-test) → [pick your integration](#choose-your-integration).
 
 ## The problem
 
@@ -176,23 +185,6 @@ freely while you migrate — see [Coexisting with traditional
 logging](documentation/configuration-guide.md#coexisting-with-traditional-logging)
 for a worked example.
 
-## Try it in one command
-
-No project, no wiring — the repository ships a demo launcher that runs the
-example applications and narrates them live (the first run builds the example):
-
-```bash
-./demo.sh --list                                  # ecommerce, clarity, minecraft, library
-./demo.sh --example ecommerce --no-pause          # the flagship Spring service graph
-./demo.sh --example ecommerce --classic           # the same run as ordinary timestamped log lines
-./demo.sh --example minecraft --no-pause          # the naming comparison above, for real
-./demo.sh --example ecommerce --lang es           # the same run re-rendered through the domain glossary
-```
-
-Without `--no-pause` the demo stops after each scenario — `[Enter]` continues,
-`q` quits — and each scenario opens with a note on how *that* trace is wired.
-See [the examples](narrativetrace-examples/) for what each one teaches.
-
 ## Add it to one test
 
 The shortest path from "interesting library" to "I saw a useful trace of my own
@@ -251,10 +243,10 @@ build/narrativetrace/
 Without the plugin, the same setup is four lines of Gradle and two
 dependencies — see the [Installation Guide](documentation/installation-guide.md).
 
-Want to keep going from here — rename the method and watch the clarity score
-drop, add `@NotTraced` and see a value redacted, turn on approval mode and
-see a `.received.nt`? → [First 10 Minutes](documentation/first-10-minutes.md)
-walks all of it with real, run-for-real output.
+Want to see this outside a test — a plain `main`, one call, a trace printed
+to your terminal? → [See a trace in 60
+seconds](documentation/first-10-minutes.md) is that path end to end, run for
+real against the published artifacts, with the real output pasted in.
 
 ### Which artifact answers which question
 
@@ -399,7 +391,7 @@ What that means, on one screen:
 
 | Guarantee | How it holds |
 |---|---|
-| **Redaction is unconditional** | `@NotTraced` and the name-based deny-list (`password`, `token`, `cvv`, `ssn`, …) apply to every shipped output path — test traces, CI artifacts, container logs, agent narration. No stage, flag or property turns them off (owner decision, 2026-08-16). It survives one container deep (`Optional`, `Future`, `AtomicReference`, `Map.Entry`); `@NotTraced` outranks a curated `toString()`, and a `{param.path}` template naming a redacted member resolves to `[REDACTED]`. |
+| **Redaction is unconditional** | `@NotTraced` and the name-based deny-list (`password`, `token`, `cvv`, `ssn`, …) apply to every shipped output path — test traces, CI artifacts, container logs, agent narration. No stage, flag or property turns them off (owner decision, 2026-08-16). It survives every wrapper at any depth (`Optional`, `Future`, `AtomicReference`, `Map.Entry`) and a composite `Map` key; a type's own `toString()` is never trusted while the type has fields, so a curated one cannot print past a redaction; and a `{param.path}` template naming a redacted member resolves to `[REDACTED]`. |
 | **The AI-safe artifact holds no values at all** | The structural `.nt` file contains names, hierarchy and outcome kinds only. Nothing to redact, zero prompt-injection surface — and that is a property test, not a policy. |
 | **Tracing failures cannot fail your application** | Recording is exception-isolated on every path, and both pipeline consumers swallow their own errors. A throwing `toString()`, a full buffer or a broken appender never changes what your method returns or throws. |
 | **Resource use is bounded** | The buffered analysis path is a fixed-size ring (65,536 slots by default, `narrativetrace.buffer.capacity`) that sheds rather than blocks — and says so: a capture that lost events prints the count in its own footer. Value rendering is capped in string length, collection size, object width and nesting depth. |
@@ -410,9 +402,9 @@ Two honest limits. First, the only way values escape redaction is application
 code that constructs its own `ValueRenderer` with `RedactionPolicy.DISABLED` — a
 deliberate, reviewable act in your own source, never a configuration state.
 Second, capture reads *fields* reflectively and never calls your getters, but it
-does invoke a custom `toString()`, a `@NarrativeSummary` method, record
-component accessors, and property paths named in `@Narrated`/`@OnError`
-templates; keep those pure, as you would for a debugger. Scoping today is
+does invoke a `@NarrativeSummary` method, the `toString()` of a type with no
+instance fields, record component accessors, and property paths named in
+`@Narrated`/`@OnError` templates; keep those pure, as you would for a debugger. Scoping today is
 include-only — `packages=` for the agent, base packages for Spring and Micronaut
 — with no exclude list yet.
 
@@ -489,7 +481,7 @@ single-file reference, and every published module ships a Javadoc-rich source ja
 
 Start here:
 
-- [First 10 Minutes](documentation/first-10-minutes.md) — one tiny service, one JUnit test, eight steps to a real trace, with real output
+- [See a trace in 60 seconds](documentation/first-10-minutes.md) — the smallest path to a real trace: one file, one run, real output pasted in
 - [Installation Guide](documentation/installation-guide.md) — dependencies, every integration path, how capture works, trace output setup
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which module you need, as a decision diagram
 - [Configuration Guide](documentation/configuration-guide.md) — tracing levels, JUnit/Gradle/Spring/Micronaut/SLF4J config
@@ -553,7 +545,7 @@ Under concurrency, the default `DualPathPipeline`'s two paths carry different gu
 
 Four independent layers, not one blanket promise — the row-by-row contract, verified against the code, is [Privacy and Redaction](documentation/privacy-and-redaction.md):
 
-1. **`@NotTraced` on a parameter, field, or record component** — explicit redaction you control. It outranks even a curated `toString()` on the declaring class, and it is unconditional: no stage, flag, or property turns it off.
+1. **`@NotTraced` on a parameter, field, or record component** — explicit redaction you control, unconditional: no stage, flag, or property turns it off. Nothing outranks it, and nothing routes around it: a type's own `toString()` is never trusted while the type has fields, so a curated one is not called at all rather than being allowed to print past the annotation.
 2. **An always-on, multilingual name deny-list** (`RedactionPolicy.DEFAULT`) — matches field and parameter names against `password`, `secret`, `token`, `ssn`, `cvv`, `apikey`, `cardnumber`, `jwt`, `cookie`, `sessionid`, `accountnumber`, `routingnumber`, plus Spanish (`contraseña`, `tarjeta`, `cédula`, `clave de acceso`), Portuguese (`cartão`), French (`mot de passe`, `carte bancaire`), German (`Passwort`, `Kennwort`) and Chinese (`密码`, `身份证`) equivalents. It is on by default, not opt-in, and the patterns most prone to false positives (`pan`, `iban`, `rut`, `cuit`, `dni`, `senha`, `cpf`, `cnpj`, `nir`, `mima`) match only on identifier-token boundaries, so `panelId` and `circuitBreaker` stay visible.
 3. **Value-shape matching, independent of the field name** — a JWT-shaped string, a Luhn-valid card number, a `Set-Cookie`-shaped value, a national-ID checksum (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident ID), or a dashed US Social Security number is redacted even when it arrives under an innocuous name like `data` or `value`. The US SSN is the one shape here without a checksum to lean on, so only the dashed `AAA-GG-SSSS` form counts: nine bare digits are indistinguishable from an order number, and blanking those would cost more than it protects.
 4. **The value-free `.nt` structural mode (ADR-002) — the categorical guarantee.** A `.nt` artifact carries only class, method and parameter *names*, the call hierarchy, and outcome *kinds* — zero runtime values, zero prompt-injection surface, and that is a property test, not a policy someone could forget to apply. Committed as an `.approved.nt` baseline, it is what to hand an external AI tool when no value may leave the process at all. See the [Structural Trace Format](documentation/structural-trace-format.md).

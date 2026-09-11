@@ -80,8 +80,15 @@ class RogueToStringNarrationTest {
     assertThatThrownBy(() -> proxy.process(new Rogue())).isSameAs(business);
   }
 
+  /**
+   * {@link Rogue} declares no instance fields, so it is one of the two kinds of value that still
+   * stringify themselves — and when that throws, the narration carries the typed failure marker.
+   * The marker names the exception's TYPE and not its message: {@code "toString exploded"} is
+   * application text, and in the field such a message routinely interpolates the value that would
+   * not format.
+   */
   @Test
-  void theNarrationDegradesToATypeMarkerRatherThanVanishing() {
+  void theNarrationDegradesToATypedErrorMarkerRatherThanVanishing() {
     NarratedService real = payload -> "ok";
     var context = new ThreadLocalNarrativeContext();
     var proxy = NarrativeTraceProxy.trace(real, NarratedService.class, context);
@@ -89,7 +96,9 @@ class RogueToStringNarrationTest {
     proxy.process(new Rogue());
 
     var narration = context.captureTrace().roots().get(0).signature().narration();
-    assertThat(narration).isEqualTo("Processing <Rogue>");
+    assertThat(narration)
+        .isEqualTo("Processing <error: IllegalStateException>")
+        .doesNotContain("exploded");
   }
 
   @Test

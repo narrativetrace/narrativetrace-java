@@ -12,6 +12,7 @@ import ai.narrativetrace.api.annotation.NotTraced;
 import ai.narrativetrace.api.event.RenderedValue;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
@@ -49,6 +50,17 @@ import java.util.stream.Collectors;
  * handles truncation, records, collections, futures, cycle detection, and {@link
  * ai.narrativetrace.api.annotation.NarrativeSummary}.
  *
+ * <p><b>@llmNote</b> <b>The one invariant to keep when editing this class: a type's own
+ * stringification is never trusted while the type has state.</b> A class or record that declares
+ * instance fields is walked field by field, at every depth, with {@link RedactionPolicy} consulted
+ * per field — whatever {@code toString()} it declares. Exactly two kinds of value keep their own
+ * text: a class with no instance fields, and a class the platform defines (its {@code toString()}
+ * is the JDK's, not the application's). The single opt-in back to curated rendering is {@link
+ * ai.narrativetrace.api.annotation.NarrativeSummary}, written for the trace by the author — and
+ * even that text is scanned by {@link RedactionPolicy#shouldRedactValue} rather than trusted
+ * verbatim. See {@link #rendersItsOwnString} for the rule and what it replaced. Do not reintroduce
+ * a "this class renders itself nicely" fast path: that was the defect.
+ *
  * <p><b>@edgeCase</b> Pending futures render as {@code <pending>}, cancelled futures as {@code
  * <cancelled>}, failed future dereference as {@code <failed>}, and recursive object graphs collapse
  * to a stable identity token.
@@ -58,8 +70,9 @@ import java.util.stream.Collectors;
  * {@link Error}. Rendering runs on the application thread inside proxy and agent entry and exit, so
  * anything escaping here reaches host code — and the business method's result must always win over
  * a rendering failure. The last-resort answer is the value's type marker; the branches that can
- * fail part-way answer with {@code <error>} in that part alone, so one bad element, entry, field or
- * component never discards the rest of the render.
+ * fail part-way answer with {@code <error: SimpleTypeName>} in that part alone, so one bad element,
+ * entry, field or component never discards the rest of the render. The marker names the exception's
+ * TYPE and never its message — a message routinely interpolates the value that failed to format.
  *
  * <p><b>@edgeCase</b> Depth is capped as well as cycles. A chain never repeats an object, so the
  * identity guard never sees it; a ten-thousand-node linked list was therefore a {@code
@@ -89,13 +102,8 @@ public final class ValueRenderer {
    */
   private static final String TOO_DEEP = "<max-depth>";
 
-  /**
-   * Rendered form of a part of a value the renderer could not read: a collection that will not
-   * iterate, a map that will not produce its entries, a field or record component whose accessor
-   * threw. Deliberately the same marker the field paths have always used — a reader does not care
-   * <em>which</em> member of the JDK contract a value broke, only that this slot is missing.
-   */
-  private static final String RENDER_FAILED = "<error>";
+  /** Opening of the typed failure marker; see {@link #renderFailed}. */
+  private static final String FAILURE_PREFIX = "<error: ";
 
   /** Rendered form of a future that has not completed. */
   private static final String PENDING = "<pending>";
@@ -360,11 +368,7 @@ public final class ValueRenderer {
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
-      try {
-        return new RenderedValue.StringVal(String.valueOf(summaryMethod.invoke(value)));
-      } catch (Throwable t) { // NOPMD AvoidCatchingThrowable - a summary method may throw Error
-        // fall through to ordinary rendering
-      }
+      return new RenderedValue.StringVal(summarize(summaryMethod, value));
     }
     if (value.getClass().isRecord()) {
       return renderStructuredRecord(value, walk);
@@ -503,7 +507,7 @@ public final class ValueRenderer {
         elements.add(guardedStructured(item, walk));
       }
     } catch (Throwable t) { // NOPMD
-      elements.add(new RenderedValue.StringVal(RENDER_FAILED));
+      elements.add(new RenderedValue.StringVal(renderFailed(t)));
     }
     return elements;
   }
@@ -514,7 +518,7 @@ public final class ValueRenderer {
     try {
       return renderStructured(value, walk);
     } catch (Throwable t) { // NOPMD
-      return new RenderedValue.StringVal(RENDER_FAILED);
+      return new RenderedValue.StringVal(renderFailed(t));
     }
   }
 
@@ -525,7 +529,7 @@ public final class ValueRenderer {
     try {
       return renderStructured(elementAt.apply(index), walk);
     } catch (Throwable t) { // NOPMD
-      return new RenderedValue.StringVal(RENDER_FAILED);
+      return new RenderedValue.StringVal(renderFailed(t));
     }
   }
 
@@ -576,7 +580,7 @@ public final class ValueRenderer {
       accessor.setAccessible(true);
       return renderStructured(accessor.invoke(record), walk);
     } catch (Throwable t) { // NOPMD
-      return new RenderedValue.StringVal(RENDER_FAILED);
+      return new RenderedValue.StringVal(renderFailed(t));
     }
   }
 
@@ -604,7 +608,8 @@ public final class ValueRenderer {
         putGuardedEntry(fields, entry, walk);
       }
     } catch (Throwable t) { // NOPMD
-      fields.put(RENDER_FAILED, new RenderedValue.StringVal(RENDER_FAILED));
+      var marker = renderFailed(t);
+      fields.put(marker, new RenderedValue.StringVal(marker));
     }
     return fields;
   }
@@ -616,7 +621,8 @@ public final class ValueRenderer {
     try {
       putStructuredEntry(fields, entry, walk);
     } catch (Throwable t) { // NOPMD
-      fields.put(RENDER_FAILED, new RenderedValue.StringVal(RENDER_FAILED));
+      var marker = renderFailed(t);
+      fields.put(marker, new RenderedValue.StringVal(marker));
     }
   }
 
@@ -677,7 +683,7 @@ public final class ValueRenderer {
       field.setAccessible(true);
       return renderStructured(field.get(obj), walk);
     } catch (Throwable t) { // NOPMD
-      return new RenderedValue.StringVal(RENDER_FAILED);
+      return new RenderedValue.StringVal(renderFailed(t));
     }
   }
 
@@ -746,23 +752,52 @@ public final class ValueRenderer {
   }
 
   /**
-   * What the renderer says about a value it could not read at all: the type, in the same {@code
-   * <Name>} shape {@link #renderWithToString} uses for a {@code toString()} that threw.
+   * What the renderer says about a value it could not read at all: the value's own type, in a
+   * {@code <Name>} marker.
    *
    * <p><b>@edgeCase</b> The simple name is derived from {@link Class#getName()} rather than taken
    * from {@link Class#getSimpleName()}, which is documented to throw {@code InternalError} for a
    * malformed class name. This method runs inside the renderer's last-resort catch; a marker that
    * can itself throw would defeat the guard that called it. Cutting at the last {@code .} or {@code
-   * $} reproduces {@code getSimpleName()} for every top-level and nested class, which is what keeps
-   * this marker identical to the one {@link #renderWithToString} produces.
+   * $} reproduces {@code getSimpleName()} for every top-level and nested class.
    */
   private static String typeMarker(Object value) {
-    if (value == null) {
-      return "null";
-    }
-    var name = value.getClass().getName();
+    return value == null ? "null" : "<" + simpleName(value.getClass()) + ">";
+  }
+
+  /**
+   * Rendered form of a part of a value the renderer could not read: a collection that will not
+   * iterate, a map that will not produce its entries, a field, record component or getter whose
+   * accessor threw, a {@code @NarrativeSummary} that refused, a leaf {@code toString()} that
+   * raised.
+   *
+   * <p>INTENT: The marker names the failure's <em>type</em> and nothing else — {@code <error:
+   * StackOverflowError>} tells a reader that the graph was too deep, where the bare {@code <error>}
+   * it replaces told them only that something went wrong. It deliberately stops at the type: {@code
+   * getMessage()} is application text that routinely interpolates the very value that failed to
+   * format ({@code "cannot render " + password}), so a marker carrying it would turn the renderer's
+   * own failure path into the leak the rest of this class exists to prevent.
+   *
+   * <p><b>@llmNote</b> Reflection wraps whatever a target threw in an {@link
+   * InvocationTargetException}, so the cause is unwrapped first — a reader needs the exception the
+   * traced code raised, not the fact that the renderer reached it through {@code Method.invoke}.
+   *
+   * @param failure whatever escaped; never read for its message
+   * @return {@code <error: SimpleTypeName>}
+   */
+  private static String renderFailed(Throwable failure) {
+    var raised =
+        failure instanceof InvocationTargetException wrapper && wrapper.getCause() != null
+            ? wrapper.getCause()
+            : failure;
+    return FAILURE_PREFIX + simpleName(raised.getClass()) + ">";
+  }
+
+  /** A class's simple name, derived without {@link Class#getSimpleName}, which can throw. */
+  private static String simpleName(Class<?> clazz) {
+    var name = clazz.getName();
     var cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
-    return "<" + name.substring(cut + 1) + ">";
+    return name.substring(cut + 1);
   }
 
   /** Follows a reference one level deeper, or renders {@link #TOO_DEEP} instead of descending. */
@@ -793,11 +828,7 @@ public final class ValueRenderer {
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
-      try {
-        return String.valueOf(summaryMethod.invoke(value));
-      } catch (Throwable t) { // NOPMD AvoidCatchingThrowable - a summary method may throw Error
-        // fall through to ordinary rendering
-      }
+      return summarize(summaryMethod, value);
     }
     if (value.getClass().isRecord()) {
       return renderRecord(value, walk);
@@ -806,6 +837,45 @@ public final class ValueRenderer {
       return renderIntrospected(value, walk);
     }
     return renderWithToString(value);
+  }
+
+  /**
+   * The one curated rendering the renderer still trusts: a {@code @NarrativeSummary} method's text.
+   *
+   * <p>INTENT: {@code @NarrativeSummary} is code the author wrote <em>for</em> the trace, so its
+   * output is their choice — unlike a {@code toString()} written years before anyone traced the
+   * class. Trusting the author's intent is not the same as trusting the bytes, though: the text
+   * still passes {@link RedactionPolicy#shouldRedactValue}, the control-character escape and the
+   * string cap, exactly as a {@code String} parameter would. A summary that interpolates a bearer
+   * token is a mistake, not a decision, and the shape axis catches it either way.
+   *
+   * <p><b>@edgeCase</b> A summary that throws no longer falls through to introspection. Falling
+   * through hid the failure: a reader saw a field dump and could not tell it apart from a class
+   * that never declared a summary at all. The failed part now says so, in the type-only marker.
+   *
+   * @param summary the zero-argument annotated method, already made accessible
+   * @param value the instance to summarize
+   * @return the sanitized summary, the redaction marker, or the typed failure marker
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // a summary method may throw Error
+  private String summarize(Method summary, Object value) {
+    try {
+      return scanned(String.valueOf(summary.invoke(value)));
+    } catch (Throwable t) { // NOPMD
+      return renderFailed(t);
+    }
+  }
+
+  /**
+   * The value-shape axis applied to curated text, then the escape and the cap.
+   *
+   * <p><b>@llmNote</b> Both curated paths — {@link #summarize} and {@link #renderWithToString} —
+   * end here, so a JWT is withheld whether an author's summary printed it or a field-less leaf
+   * type's own {@code toString()} did. The name axis cannot help on either path: there is no member
+   * name to match, only text.
+   */
+  private String scanned(String text) {
+    return redactionPolicy.shouldRedactValue(text) ? RedactionPolicy.MARKER : sanitizeAndCap(text);
   }
 
   private String renderIntrospected(Object value, RenderWalk walk) {
@@ -819,15 +889,24 @@ public final class ValueRenderer {
     }
   }
 
+  /**
+   * A leaf type's own text, scanned like any other value.
+   *
+   * <p><b>@llmNote</b> Only reachable for a class {@link #rendersItsOwnString} trusts — one with no
+   * instance fields of its own, or one the platform defines. Everything else is walked, so this
+   * method can no longer print past a redaction the author declared.
+   *
+   * <p><b>@edgeCase</b> A {@code toString()} answering {@code null} breaks the JDK contract but is
+   * not a failure the reader can act on, so it answers the value's type marker; one that throws
+   * answers the typed failure marker naming the exception instead.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // rogue toString() may throw Error
   private String renderWithToString(Object value) {
     try {
       var raw = value.toString();
-      if (raw == null) {
-        return "<" + value.getClass().getSimpleName() + ">";
-      }
-      return sanitizeAndCap(raw);
-    } catch (Throwable t) { // NOPMD AvoidCatchingThrowable - rogue toString() may throw Error
-      return "<" + value.getClass().getSimpleName() + ">";
+      return raw == null ? typeMarker(value) : scanned(raw);
+    } catch (Throwable t) { // NOPMD
+      return renderFailed(t);
     }
   }
 
@@ -946,8 +1025,8 @@ public final class ValueRenderer {
    * collection for its {@code size()} — so a collection that iterates but will not size itself used
    * to lose every item it had already produced. The loop asks for nothing but the iterator.
    *
-   * <p><b>@edgeCase</b> An iterator that throws part-way appends {@link #RENDER_FAILED} after the
-   * items it did yield, so a partly-readable collection renders partly.
+   * <p><b>@edgeCase</b> An iterator that throws part-way appends {@link #renderFailed the typed
+   * failure marker} after the items it did yield, so a partly-readable collection renders partly.
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // iterator() and next() are user code
   private List<String> collectionItems(Collection<?> collection, RenderWalk walk) {
@@ -960,7 +1039,7 @@ public final class ValueRenderer {
         items.add(guardedRender(item, walk));
       }
     } catch (Throwable t) { // NOPMD
-      items.add(RENDER_FAILED);
+      items.add(renderFailed(t));
     }
     return items;
   }
@@ -971,7 +1050,7 @@ public final class ValueRenderer {
     try {
       return render(value, walk);
     } catch (Throwable t) { // NOPMD
-      return RENDER_FAILED;
+      return renderFailed(t);
     }
   }
 
@@ -1037,7 +1116,7 @@ public final class ValueRenderer {
     try {
       return render(elementAt.apply(index), walk);
     } catch (Throwable t) { // NOPMD
-      return RENDER_FAILED;
+      return renderFailed(t);
     }
   }
 
@@ -1067,7 +1146,8 @@ public final class ValueRenderer {
   }
 
   /**
-   * One record component's rendered value, or {@link #RENDER_FAILED} when reading it failed.
+   * One record component's rendered value, or {@link #renderFailed the typed failure marker} when
+   * reading it failed.
    *
    * <p><b>@edgeCase</b> The redaction decision is inside the guard too: reading an annotation can
    * raise {@code TypeNotPresentException} or {@code ArrayStoreException} against a malformed
@@ -1083,11 +1163,14 @@ public final class ValueRenderer {
       accessor.setAccessible(true);
       return render(accessor.invoke(record), walk);
     } catch (Throwable t) { // NOPMD
-      return RENDER_FAILED;
+      return renderFailed(t);
     }
   }
 
-  /** One field's rendered value, or {@link #RENDER_FAILED} when reading it failed. */
+  /**
+   * One field's rendered value, or {@link #renderFailed the typed failure marker} when reading it
+   * failed.
+   */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // setAccessible/get may throw Error
   private String fieldValue(Field field, Object obj, RenderWalk walk) {
     try {
@@ -1097,7 +1180,7 @@ public final class ValueRenderer {
       field.setAccessible(true);
       return render(field.get(obj), walk);
     } catch (Throwable t) { // NOPMD
-      return RENDER_FAILED;
+      return renderFailed(t);
     }
   }
 
@@ -1135,8 +1218,8 @@ public final class ValueRenderer {
   /**
    * Up to {@link #maxCollectionItems} rendered entries, keeping whatever the map managed to yield.
    *
-   * <p><b>@edgeCase</b> An {@code entrySet()} that throws leaves {@link #RENDER_FAILED} alone; an
-   * entry that throws costs only its own slot.
+   * <p><b>@edgeCase</b> An {@code entrySet()} that throws leaves {@link #renderFailed the typed
+   * failure marker} alone; an entry that throws costs only its own slot.
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // entrySet() and its iterator are user code
   private List<String> mapEntries(Map<?, ?> map, RenderWalk walk) {
@@ -1149,7 +1232,7 @@ public final class ValueRenderer {
         entries.add(guardedMapEntry(entry, walk));
       }
     } catch (Throwable t) { // NOPMD
-      entries.add(RENDER_FAILED);
+      entries.add(renderFailed(t));
     }
     return entries;
   }
@@ -1160,7 +1243,7 @@ public final class ValueRenderer {
     try {
       return renderMapEntry(entry, walk);
     } catch (Throwable t) { // NOPMD
-      return RENDER_FAILED;
+      return renderFailed(t);
     }
   }
 
@@ -1194,36 +1277,50 @@ public final class ValueRenderer {
   /**
    * Whether a class may stand in for introspection with its own {@code toString()}.
    *
-   * <p>INTENT: A curated {@code toString()} is the better rendering of a value that has one — that
-   * is why both render paths prefer it. It is <em>not</em> better than a redaction the author
-   * declared: {@code @NotTraced} promises the value is hidden in all rendered and exported output,
-   * and a {@code toString()} written years before anyone traced the class knows nothing about it.
-   * So a class that declares a redacted field is introspected, where the annotation is honored,
-   * whatever its {@code toString()} would have printed.
+   * <p>INTENT: <b>A type's own stringification is never trusted while the type has state.</b> A
+   * class that declares instance fields — its own or inherited — is walked field by field at every
+   * depth, with {@link RedactionPolicy} consulted per field, whatever its {@code toString()} would
+   * have printed. Only two kinds of class keep their own text: one with no instance fields at all
+   * (nothing to hide, nothing to walk) and one the platform itself defines, whose {@code
+   * toString()} is fixed by the JDK rather than written by the application.
+   * {@code @NarrativeSummary} keeps precedence over both — see {@link #summarize}.
+   *
+   * <p>The rule this replaces trusted any {@code toString()} unless the class declared a
+   * {@code @NotTraced} field, and consulted neither the name deny-list nor the field types. A plain
+   * {@code Login{username, password}} with a hand-written {@code toString()} therefore printed the
+   * password at depth zero, and a curated {@code toString()} on any outer class printed nested
+   * {@code @NotTraced} values through ordinary Java stringification. Walking instead also puts the
+   * depth cap and the cycle guard back in front of every value, since user {@code toString()} ran
+   * outside both. Family invariant, owner-ruled 2026-09-11; .NET has always dispatched this way.
    *
    * <p>Both {@code renderComplex} and {@code renderStructuredComplex} ask this one method, so the
    * flat and structured paths cannot drift on the question.
    *
-   * <p><b>@edgeCase</b> Two neighbouring decisions are deliberately left alone. A
-   * {@code @NarrativeSummary} method still wins over everything, including this — it is code the
-   * author wrote <em>for</em> the trace, so its output is their choice. And the name-based
-   * deny-list of {@link RedactionPolicy} does not defeat a {@code toString()}: it is a heuristic
-   * over introspected members, and the documented posture is that a class with a curated {@code
-   * toString()} is trusted. Only an explicit annotation overrides that.
+   * <p><b>@llmNote</b> The cost is real and was accepted: a field-bearing value class with a
+   * pleasant {@code toString()} now renders as a field dump. {@code @NarrativeSummary} is the
+   * opt-in back to curated text, and its output is scanned rather than trusted verbatim.
    */
   private static boolean rendersItsOwnString(Class<?> clazz) {
-    return HAS_CUSTOM_TO_STRING.get(clazz) && !DECLARES_REDACTED_FIELD.get(clazz);
+    return HAS_CUSTOM_TO_STRING.get(clazz)
+        && (!HAS_INSTANCE_FIELDS.get(clazz) || PLATFORM_DEFINED.get(clazz));
   }
 
   /**
-   * Whether the class, or anything it inherits from, declares a {@code @NotTraced} field.
+   * Whether the class, or anything it inherits from, declares a non-static instance field.
    *
-   * <p><b>@llmNote</b> The walk goes up the hierarchy even though introspection only prints {@code
-   * getDeclaredFields()} of the runtime class: a subclass {@code toString()} can print an inherited
-   * secret through a getter, and that is the same broken promise. Cached per class by {@link
-   * ClassValue}, so the reflection cost is paid once and never on the traced path afterwards.
+   * <p>INTENT: "Has state" is the question the invariant turns on, and it is asked of the whole
+   * hierarchy even though introspection only prints {@code getDeclaredFields()} of the runtime
+   * class: a subclass {@code toString()} can print an inherited field through a getter, and that is
+   * the same broken promise. A class with no state cannot leak one, so its own text stands.
+   *
+   * <p><b>@llmNote</b> Synthetic fields do not count — the compiler's {@code this$0} outer-instance
+   * reference and switch-map tables are not state an author declared, and counting them would send
+   * every anonymous class with a curated {@code toString()} to an empty field dump.
+   *
+   * <p>Cached per class by {@link ClassValue}, so the reflection cost is paid once and never on the
+   * traced path afterwards.
    */
-  private static final ClassValue<Boolean> DECLARES_REDACTED_FIELD =
+  private static final ClassValue<Boolean> HAS_INSTANCE_FIELDS =
       new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> clazz) {
@@ -1231,12 +1328,51 @@ public final class ValueRenderer {
               current != null && current != Object.class;
               current = current.getSuperclass()) {
             for (var field : current.getDeclaredFields()) {
-              if (field.isAnnotationPresent(NotTraced.class)) {
+              if (!Modifier.isStatic(field.getModifiers()) && !field.isSynthetic()) {
                 return true;
               }
             }
           }
           return false;
+        }
+      };
+
+  /**
+   * Whether the JDK itself defines this class, rather than the application.
+   *
+   * <p>INTENT: The invariant above is about <em>application</em> stringification. {@code
+   * LocalDate}, {@code UUID}, {@code Duration}, {@code URI} and their kind carry fields, so the
+   * bare rule would walk them — and their fields live in modules that are not open to this one, so
+   * the walk answers a row of {@code <error: InaccessibleObjectException>} where the JDK's own
+   * {@code toString()} answers {@code 2026-09-11}. Neither is a leak; one is unreadable. A platform
+   * type cannot declare an application's secret field and its {@code toString()} is not application
+   * code, so its text is the right answer as well as a safe one. Same reasoning as {@link
+   * ScalarTrust}, which trusts eight JDK numeric types for the same reason one level up; .NET
+   * reaches the same place by enumerating {@code decimal}, {@code DateTime}, {@code Type} and
+   * friends as scalars ahead of its object walk.
+   *
+   * <p><b>@llmNote</b> Decided by defining class loader, not by package name: the bootstrap loader
+   * ({@code null}) and the platform loader are the two the JVM does not let application code define
+   * classes in. A {@code javax.}-prefixed class from an application jar is loaded by the system
+   * loader and is therefore NOT trusted, which a prefix test would have got wrong. Every JDK type
+   * that could carry an application object into its own text — collections, maps, arrays, {@code
+   * Optional}, {@code Future}, {@code AtomicReference}, {@code Map.Entry} — is already dispatched
+   * to its own branch before this question is ever asked.
+   *
+   * <p><b>@edgeCase</b> The trusted text is still scanned, escaped and capped by {@link #scanned};
+   * "the platform wrote this" is a statement about the <em>format</em>, not about the bytes a
+   * {@code StringBuilder} happens to hold.
+   */
+  private static final ClassValue<Boolean> PLATFORM_DEFINED =
+      new ClassValue<>() {
+        @Override
+        @SuppressWarnings("PMD.CompareObjectsWithEquals") // a loader is identified by identity
+        protected Boolean computeValue(Class<?> clazz) {
+          var loader = clazz.getClassLoader();
+          // Reference comparison is the test, not a shortcut for one: the platform loader is a
+          // singleton and ClassLoader does not override equals, so identity is the only question
+          // there is — and a value-shaped comparison would read as though another answer existed.
+          return loader == null || loader == ClassLoader.getPlatformClassLoader(); // NOPMD
         }
       };
 

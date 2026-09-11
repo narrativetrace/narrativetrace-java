@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob d4fed0a583f4 | translated: 2026-08-30 | reviewed: 2026-09-03 -->
+<!-- source: documentation/clarity-guide.md blob 500fd784f720 | translated: 2026-09-11 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -14,7 +14,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Con JUnit 5, los informes de claridad se generan automáticamente cuando `narrativetrace.output=true` — sin necesidad de código.
+Con JUnit 5, los informes de claridad se generan automáticamente por defecto — sin necesidad de código, sin necesidad de configuración. `narrativetrace.output=false` lo desactiva junto con el resto de artefactos de traza.
 
 ## Qué se puntúa
 
@@ -231,7 +231,7 @@ Produce un resumen ordenado de todos los escenarios. Los escenarios con puntuaci
 
 ## Integración con JUnit 5
 
-Cuando `narrativetrace.output=true` está en `junit-platform.properties`, la extensión de JUnit automáticamente:
+Por defecto (salvo que `narrativetrace.output=false` esté en `junit-platform.properties`), la extensión de JUnit automáticamente:
 
 1. Ejecuta `ClarityAnalyzer.analyze()` sobre la traza de cada prueba
 2. Escribe `clarity-report.md` en el directorio de salida cuando terminan todas las pruebas

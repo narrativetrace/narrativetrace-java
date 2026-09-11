@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob babcde8e6e9d | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob 8d2a8c6da217 | translated: 2026-09-11 | reviewed: - -->
 
 # Guía de anotaciones de NarrativeTrace para Java
 
@@ -86,13 +86,15 @@ Cómo funciona:
 - En un campo o componente de record, la ocultación ocurre durante la introspección reflexiva, de modo que un secreto anidado dentro de un DTO trazado queda oculto sin borrar el objeto completo.
 - Casos de uso típicos: contraseñas, tokens, secretos, datos de tarjetas.
 
-**La introspección reflexiva oculta por defecto, no filtra por defecto.** Cuando un objeto trazado no tiene un `toString()` curado, NarrativeTrace hace reflexión sobre sus campos — pero una lista de denegación integrada basada en nombres (`RedactionPolicy`) oculta automáticamente los nombres sensibles habituales (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), y los valores de un `Map` cuya clave coincida, antes de renderizar ningún valor. Las claves de un `Map` se renderizan por la misma ruta protegida que cualquier otro valor: los objetos usados como clave respetan `@NotTraced` y la lista de denegación sobre sus propios campos (nunca su `toString()` crudo), y las claves de tipo cadena se sanean y se limitan en longitud. `@NotTraced` cubre los campos sensibles que la lista de denegación no reconocería por el nombre. Un `toString()` curado tiene preferencia sobre la introspección — con una excepción que lo supera: una clase que declara un campo `@NotTraced` se introspecciona igualmente, de modo que se respeta la anotación en lugar de lo que ese `toString()` hubiera impreso. La lista de denegación basada en nombres no anula un `toString()`; solo lo hace la anotación. Sobrescribe los patrones con `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` o desactívala con `RedactionPolicy.DISABLED`.
+**La introspección reflexiva oculta por defecto, no filtra por defecto.** NarrativeTrace hace reflexión sobre los campos de un objeto trazado — pero una lista de denegación integrada basada en nombres (`RedactionPolicy`) oculta automáticamente los nombres sensibles habituales (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), y los valores de un `Map` cuya clave coincida, antes de renderizar ningún valor. Las claves de un `Map` se renderizan por la misma ruta protegida que cualquier otro valor: los objetos usados como clave respetan `@NotTraced` y la lista de denegación sobre sus propios campos (nunca su `toString()` crudo), y las claves de tipo cadena se sanean y se limitan en longitud. `@NotTraced` cubre los campos sensibles que la lista de denegación no reconocería por el nombre. Sobrescribe los patrones con `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` o desactívala con `RedactionPolicy.DISABLED`.
 
 **Dos secretos se ocultan por lo que son, no solo por cómo se llaman.** La lista de denegación basada en nombres no puede ver un token portador pasado como `value`, devuelto como un `String` desnudo o situado sin nombre dentro de una lista, así que una segunda regla independiente mira los bytes. Se reconocen exactamente tres formas: un JWT (tres segmentos base64url cuyo primero empieza por `eyJ`), un número de tarjeta (13–19 dígitos, se admiten separadores, que supera la suma de comprobación de Luhn) y una cadena `Set-Cookie` (`nombre=valor` seguido de un atributo de cookie como `Path`, `Max-Age` o `HttpOnly`). Todo lo demás se renderiza con normalidad — esto es una lista corta de firmas estructurales, no una heurística de entropía, porque un valor borrado por conjetura es un agujero en tu narrativa que no puedes ver. Se acepta deliberadamente un falso positivo: un identificador con la longitud de un número de tarjeta que casualmente satisface Luhn. Un número de pedido que no lo satisface permanece visible. `RedactionPolicy.DISABLED` desactiva esta regla junto con la lista de denegación por nombres; `RedactionPolicy.ofPatterns(...)` sustituye solo los nombres y la mantiene activa.
 
-**El ocultado sobrevive a un contenedor de profundidad.** Un contenedor como `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` o un `Map.Entry` suelto imprime el `toString()` crudo de su contenido si se le trata como un valor, así que NarrativeTrace lo abre y renderiza lo que contiene siguiendo exactamente estas reglas. Un `AtomicReferenceArray` se renderiza igual que el `Object[]` que contiene los mismos elementos, y un `Map.Entry` suelto se renderiza como `clave=valor`, exactamente igual que dentro de un `Map`. Un `Optional<Card>` se renderiza como `Card(number: "4111", cvv: [REDACTED])`, nunca como `Optional[Card[number=4111, cvv=123]]`; un envoltorio vacío se renderiza como `<empty>`. Esto importa porque `Optional<T>` es el tipo de retorno idiomático de una búsqueda, que es precisamente por donde viajan los datos ocultados.
+**El `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga estado.** Una clase o `record` que declara campos de instancia — propios o heredados — se recorre campo a campo, a cualquier profundidad, consultando ambos mecanismos de ocultación por cada campo, sea lo que sea que su `toString()` hubiera impreso. Exactamente dos tipos de valor conservan su propio texto: una clase sin ningún campo de instancia (nada que ocultar, nada que recorrer), y una clase que define la plataforma (`LocalDate`, `Duration`, `UUID`, `URI` y similares), cuyo `toString()` es el formato del JDK y no código de la aplicación. Una clase declarada por tu propio código es código de aplicación, extienda lo que extienda. La única opción explícita para volver a un renderizado cuidadosamente escrito es `@NarrativeSummary`, más abajo — e incluso su texto pasa por la comprobación de la forma del valor, el escape de caracteres de control y el límite de longitud. Hasta el 2026-09-11 la regla funcionaba al revés, y eso dejaba que un simple `Login { username, password }` con un `toString()` escrito a mano imprimiera la contraseña a profundidad cero, y que cualquier `toString()` cuidadosamente escrito imprimiera valores `@NotTraced` anidados directamente a través de la serialización a texto ordinaria de Java. El coste es real y se aceptó: una clase de valor con un `toString()` agradable y sin `@NarrativeSummary` ahora se renderiza como un volcado de campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00`. Añade `@NarrativeSummary` a los tipos donde la lectura importe.
 
-**El ocultado gana sobre una plantilla que lo nombre.** `@Narrated` y `@OnError` resuelven las rutas `{param.propiedad}` sobre los argumentos crudos, y una ruta que alcanza un miembro ocultado se resuelve como `[REDACTED]` — a cualquier profundidad, así que un miembro ocultado a mitad de una ruta también oculta todo lo que se nombre por debajo de él. Lo mismo vale cuando un marcador nombra el objeto entero en lugar de una ruta dentro de él: `{card}` se renderiza como `Card(number: "4111", cvv: [REDACTED])`, nunca con el `toString()` propio del objeto, que no sabe nada de `@NotTraced`. Un marcador que nombra un objeto siempre lo renderiza con el mismo renderizador que lo captura, de modo que una plantilla y un argumento capturado coinciden en el aspecto del valor: un `record` se narra estructuralmente, como `Money(currency: "EUR", amount: 10)`, en ambos casos. Una clase que define su propio `toString()` y no oculta nada sigue narrándose con él. Para elegir tú mismo la narración — para un `record` o para cualquier otra cosa — dale al tipo un método `@NarrativeSummary`, que aquí se respeta exactamente igual que en todas partes. Nombrar una ruta, o un objeto, nunca debilita las reglas que se aplican al valor directamente. La tercera forma de marcador obedece a esas mismas dos reglas: un `{nombre}` desnudo que nombra un valor directamente lo responde la lista de denegación leyendo esa clave exactamente igual que lee un nombre de campo, y la forma del propio valor, de modo que `@Narrated("login {password}")` y un JWT que llega como `{value}` se renderizan ambos como `[REDACTED]`. Si necesitas el valor en una narración, quita `@NotTraced` del componente; esa eliminación es la decisión deliberada y revisable, y queda a la vista en el diff.
+**El ocultado sobrevive a cualquier envoltorio, a cualquier profundidad.** Un contenedor como `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` o un `Map.Entry` suelto imprime el `toString()` crudo de su contenido si se le trata como un valor, así que NarrativeTrace lo abre y renderiza lo que contiene siguiendo exactamente estas reglas — que se vuelven a aplicar a lo que sea que *eso* contenga. Un `AtomicReferenceArray` se renderiza igual que el `Object[]` que contiene los mismos elementos, y un `Map.Entry` suelto se renderiza como `clave=valor`, exactamente igual que dentro de un `Map`. Un `Optional<Card>` se renderiza como `Card(number: "4111", cvv: [REDACTED])`, nunca como `Optional[Card[number=4111, cvv=123]]`; un envoltorio vacío se renderiza como `<empty>`. Esto importa porque `Optional<T>` es el tipo de retorno idiomático de una búsqueda, que es precisamente por donde viajan los datos ocultados.
+
+**El ocultado gana sobre una plantilla que lo nombre.** `@Narrated` y `@OnError` resuelven las rutas `{param.propiedad}` sobre los argumentos crudos, y una ruta que alcanza un miembro ocultado se resuelve como `[REDACTED]` — a cualquier profundidad, así que un miembro ocultado a mitad de una ruta también oculta todo lo que se nombre por debajo de él. Lo mismo vale cuando un marcador nombra el objeto entero en lugar de una ruta dentro de él: `{card}` se renderiza como `Card(number: "4111", cvv: [REDACTED])`, nunca con el `toString()` propio del objeto, que no sabe nada de `@NotTraced`. Un marcador que nombra un objeto siempre lo renderiza con el mismo renderizador que lo captura, de modo que una plantilla y un argumento capturado coinciden en el aspecto del valor: un `record` se narra estructuralmente, como `Money(currency: "EUR", amount: 10)`, en ambos casos. Una clase corriente también se narra de forma estructural, como `Amount{currency: "EUR", units: 10}`: «no oculta nada» nunca fue un hecho que el renderizador pudiera comprobar, solo «ningún miembro `@NotTraced` *aquí*». Para elegir tú mismo la narración — para un `record` o para cualquier otra cosa — dale al tipo un método `@NarrativeSummary`, que aquí se respeta exactamente igual que en todas partes. Nombrar una ruta, o un objeto, nunca debilita las reglas que se aplican al valor directamente. La tercera forma de marcador obedece a esas mismas dos reglas: un `{nombre}` desnudo que nombra un valor directamente lo responde la lista de denegación leyendo esa clave exactamente igual que lee un nombre de campo, y la forma del propio valor, de modo que `@Narrated("login {password}")` y un JWT que llega como `{value}` se renderizan ambos como `[REDACTED]`. Si necesitas el valor en una narración, quita `@NotTraced` del componente; esa eliminación es la decisión deliberada y revisable, y queda a la vista en el diff.
 
 ### `@NarrativeSummary`
 
@@ -110,8 +112,15 @@ public record Customer(String id, String name, CustomerTier tier) {
 Cómo funciona:
 
 - `ValueRenderer` busca un método público anotado con `@NarrativeSummary` y sin parámetros.
-- Si lo encuentra, la salida de ese método se usa en las trazas.
-- Si no lo encuentra, el renderizado recurre al comportamiento de record/toString.
+- Si lo encuentra, la salida de ese método se usa en las trazas — después de pasar por la
+  comprobación de la forma del valor, el escape de caracteres de control y el límite de
+  longitud, así que un resumen que interpola un token portador se sigue renderizando como
+  `[REDACTED]`. Tu intención elige el texto; no exime a los bytes.
+- Si el método lanza una excepción, el valor se renderiza como `<error: IllegalStateException>`
+  — el nombre del tipo de la excepción y nada más. El mensaje se excluye a propósito: suele
+  interpolar el propio valor que no se pudo formatear.
+- Si no lo encuentra, el renderizado recorre los campos del objeto. Un tipo sin campos de
+  instancia, o uno que define la plataforma, conserva en su lugar su propio `toString()`.
 
 ## El contrato de pureza — efectos secundarios durante el tracing
 
@@ -121,26 +130,33 @@ de acceso, poblado de cachés o E/S — exactamente igual que lo harías para un
 
 Qué se invoca y qué no:
 
-- **La introspección de campos nunca llama a tu código.** Cuando un objeto trazado no tiene un
-  `toString()` curado, `ValueRenderer` lee sus *campos* por reflexión — una lectura pura de memoria. Un
-  getter que incrementa un contador o carga datos de forma perezosa no es tocado por la introspección.
-- **Lo que NarrativeTrace sí invoca:** un `toString()` personalizado, un método `@NarrativeSummary`,
-  los accesores de componentes de record y cualquier ruta de propiedad que nombres en una plantilla
-  `@Narrated`/`@OnError` (`{order.total}` se resuelve llamando primero al método accesor directo `total()`
-  y después al getter JavaBean `getTotal()`). Estos son los únicos lugares donde se ejecuta código de
-  usuario durante el renderizado.
+- **La introspección de campos nunca llama a tu código.** Para cualquier objeto que tenga
+  estado, `ValueRenderer` lee sus *campos* por reflexión — una lectura pura de memoria. Un
+  getter que incrementa un contador o carga datos de forma perezosa no es tocado por la
+  introspección. Esta es ahora la ruta por defecto, no el respaldo: desde el 2026-09-11 un
+  `toString()` personalizado ya no sustituye a la introspección en un tipo que tiene campos,
+  así que se ejecutan *menos* de tus miembros durante el renderizado que antes, no más.
+- **Lo que NarrativeTrace sí invoca:** un método `@NarrativeSummary`, el `toString()` de un
+  tipo sin campos de instancia, los accesores de componentes de record y cualquier ruta de
+  propiedad que nombres en una plantilla `@Narrated`/`@OnError` (`{order.total}` se resuelve
+  llamando primero al método accesor directo `total()` y después al getter JavaBean
+  `getTotal()`). Estos son los únicos lugares donde se ejecuta código de usuario durante el
+  renderizado.
 - **La invocación está acotada y aislada.** La salida tiene límites (longitud de cadenas, elementos de
-  colecciones, profundidad de introspección), un getter o `toString()` que lanza una excepción nunca puede
-  hacer fallar la llamada de negocio trazada (las plantillas recurren al literal `{placeholder}`; el
-  renderizado recurre a un marcador con el nombre del tipo), y los valores se renderizan de forma eager en
+  colecciones, profundidad de introspección), un getter, resumen o `toString()` que lanza una excepción
+  nunca puede hacer fallar la llamada de negocio trazada (las plantillas recurren al literal
+  `{placeholder}`; la parte fallida de un renderizado recurre a `<error: TypeName>`, nombrando el tipo
+  de la excepción y nunca su mensaje), y los valores se renderizan de forma eager en
   el punto de llamada — cualquier efecto secundario ocurre una sola vez, en un punto determinista, en el hilo llamante.
 - **El renderizado nunca fuerza computación diferida.** Un `Future` solo se desenvuelve cuando
   `isDone()`; no se bloquea ni se dispara nada.
 
 Si un miembro no puede ser puro, anótalo con `@NotTraced` — el valor de un miembro oculto no se
-lee jamás — o dale al tipo un `toString()`/`@NarrativeSummary` curado para que controles
-exactamente qué se accede. Con `TracingLevel.OFF` (y para los valores de parámetros con `SUMMARY`),
-no se renderiza ningún argumento, así que no se toca código de usuario en la ruta caliente.
+lee jamás — o dale al tipo un `@NarrativeSummary` para que controles exactamente qué se accede.
+Un `toString()` curado ya no cumple este propósito en un tipo que tiene campos: no se llega a
+llamar, precisamente para que no pueda imprimir más allá de una ocultación. Con
+`TracingLevel.OFF` (y para los valores de parámetros con `SUMMARY`), no se renderiza ningún
+argumento, así que no se toca código de usuario en la ruta caliente.
 
 ## Anotaciones de Spring
 

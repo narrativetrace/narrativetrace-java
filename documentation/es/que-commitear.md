@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 0224575ae05b | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/what-to-commit.md blob b434ea65deac | translated: 2026-09-11 | reviewed: - -->
 # Qué commitear
 
 [English](../what-to-commit.md) | **Español** | [Português](../pt-BR/o-que-commitar.md) | [简体中文](../zh-CN/应提交的内容.md)
@@ -6,6 +6,14 @@
 NarrativeTrace escribe dos tipos de fichero: artefactos generados que
 describen una ejecución, y baselines revisadas que describen un contrato
 pretendido. Commitea el segundo tipo, no el primero.
+
+Todo artefacto de tiempo de prueba se escribe por defecto en el directorio
+efímero `build/narrativetrace` — sin necesidad de configuración,
+`narrativetrace.output=false` lo desactiva (ver la
+[Guía de Configuración](guia-de-configuracion.md)). Efímero es la clave: vive
+bajo `build/`, así que nunca necesita la disciplina de la que trata esta
+página — ya está excluido, se regenera en cada ejecución, y se puede borrar
+en cualquier momento.
 
 | Artefacto | ¿Commitear? | Por qué |
 |---|---|---|

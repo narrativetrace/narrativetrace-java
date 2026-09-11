@@ -71,8 +71,10 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *   <li><strong>ParameterResolver:</strong> injects {@link NarrativeContext} into test methods
  * </ul>
  *
- * <p><b>@llmNote</b> Output is opt-in. Set {@code narrativetrace.output=true} as a system property
- * or JUnit configuration parameter. Additional properties:
+ * <p><b>@llmNote</b> Output is on by default: every test writes its artifacts to the ephemeral
+ * {@code build/narrativetrace} directory with no configuration at all. Set {@code
+ * narrativetrace.output=false} as a system property or JUnit configuration parameter to opt back
+ * out. Additional properties:
  *
  * <ul>
  *   <li>{@code narrativetrace.outputDir} — output directory (default: {@code build/narrativetrace})
@@ -387,7 +389,7 @@ public class NarrativeTraceExtension
     // Output before the report so the failure report can speak in terms of the structural delta the
     // write computed — and so the report is the last (most visible) block in the console.
     Optional<ScenarioDelta> delta = Optional.empty();
-    if ("true".equalsIgnoreCase(configParam(extensionContext, "narrativetrace.output", "false"))) {
+    if (outputEnabled(extensionContext)) {
       delta =
           writeOutputAndAccumulate(
               extensionContext, displayName, trace, failed || rejection.isPresent());
@@ -590,9 +592,7 @@ public class NarrativeTraceExtension
 
   @Override
   public void afterAll(ExtensionContext extensionContext) {
-    var outputEnabled =
-        "true".equalsIgnoreCase(configParam(extensionContext, "narrativetrace.output", "false"));
-    if (!outputEnabled) {
+    if (!outputEnabled(extensionContext)) {
       return;
     }
     @SuppressWarnings("unchecked")
@@ -735,5 +735,16 @@ public class NarrativeTraceExtension
 
   private static String configParam(ExtensionContext context, String key, String defaultValue) {
     return context.getConfigurationParameter(key).orElse(defaultValue);
+  }
+
+  /**
+   * Whether this test writes its trace artifacts to disk — on by default (2026-09-11 ruling):
+   * capture was always on, only file-writing was opt-in, and adopters wrapping services saw no
+   * artifacts and no payoff. {@code narrativetrace.output=false} is the one-line opt-out; any other
+   * value, including the historical {@code true}, changes nothing.
+   */
+  private static boolean outputEnabled(ExtensionContext extensionContext) {
+    return !"false"
+        .equalsIgnoreCase(configParam(extensionContext, "narrativetrace.output", "true"));
   }
 }

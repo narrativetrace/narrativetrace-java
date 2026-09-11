@@ -234,3 +234,12 @@ un-unit-testable entry points (`*Example`, `PlantUmlImageRenderer`,
   containerized JVM runs with an unset `$HOME`. It is gitignored and safe to delete.
 - Each example ships its own logback config (`logback-<name>.xml`) wired via the `run`
   task's JVM args, so console output stays readable per example.
+- **Where the logger is configured.** Each `run` module depends on `narrativetrace-slf4j`
+  (`build.gradle.kts`) so `PipelineBootstrap` auto-attaches `Slf4jTraceEventListener`
+  with no wiring code (Configuration Guide, [§7](../documentation/configuration-guide.md#7-slf4j-configuration));
+  each `logback-<name>.xml` sets the `narrativetrace` logger to `TRACE`, which is
+  what makes the `→ ← !!` lines you see in the demo real SLF4J events, not
+  demo-only formatting. `ecommerce/src/main/resources/logback-ecommerce.xml`,
+  `clarity/src/main/resources/logback-clarity.xml`,
+  `minecraft/src/main/resources/logback-minecraft.xml`, and
+  `library/src/main/resources/logback-library.xml` are the four files.

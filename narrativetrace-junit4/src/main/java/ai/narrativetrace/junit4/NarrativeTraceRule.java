@@ -270,7 +270,13 @@ public class NarrativeTraceRule extends TestWatcher {
     }
   }
 
+  /**
+   * Whether this test writes its trace artifacts to disk — on by default (2026-09-11 ruling):
+   * capture was always on, only file-writing was opt-in, and adopters wrapping services saw no
+   * artifacts and no payoff. {@code narrativetrace.output=false} is the one-line opt-out; any other
+   * value, including the historical {@code true}, changes nothing.
+   */
   static boolean isOutputEnabled() {
-    return "true".equalsIgnoreCase(System.getProperty("narrativetrace.output", "false"));
+    return !"false".equalsIgnoreCase(System.getProperty("narrativetrace.output", "true"));
   }
 }

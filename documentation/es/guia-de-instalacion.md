@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob bb42aee49965 | translated: 2026-09-01 | reviewed: 2026-09-03 -->
+<!-- source: documentation/installation-guide.md blob cc4473269fe0 | translated: 2026-09-11 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -201,7 +201,7 @@ Características:
 - `NarrativeContext` por prueba mediante inyección de parámetros
 - Impresión automática en consola de la traza en caso de fallo
 - Nombre del escenario derivado del nombre del método de prueba (`customerPlacesOrder` → "Customer places order")
-- Con `narrativetrace.output=true`: escribe `.md`, `.json` y `.mmd` por prueba, además de un `clarity-report.md` a nivel de suite
+- Escribe `.md`, `.json` y `.mmd` por prueba por defecto, además de un `clarity-report.md` a nivel de suite — establece `narrativetrace.output=false` para desactivarlo
 
 ### Opción D: contexto automático de JUnit 4 + salida de trazas
 
@@ -223,7 +223,7 @@ Características:
 - `NarrativeContext` por prueba mediante `narrativeTrace.context()`
 - Impresión automática en consola de la traza en caso de fallo
 - Nombre del escenario derivado del nombre del método de prueba (`customerPlacesOrder` → "Customer places order")
-- Con `-Dnarrativetrace.output=true`: escribe `.md`, `.json` y `.mmd` por prueba
+- Escribe `.md`, `.json` y `.mmd` por prueba por defecto — establece `-Dnarrativetrace.output=false` para desactivarlo
 - Añade `@ClassRule` con `NarrativeTraceClassRule` para obtener el `clarity-report.md` a nivel de suite y el resumen en consola
 
 > **Ver la traza de fallo en tu terminal:** la "impresión de la traza de fallo en consola" anterior se escribe en la salida estándar del proceso de pruebas, que Gradle captura dentro del informe XML/HTML — una terminal normal no muestra nada. Para verla en vivo en la consola, habilita el registro de flujos estándar en la tarea `test`:
@@ -237,7 +237,7 @@ Características:
 > Los archivos de traza en `build/narrativetrace/` se escriben de todas formas; esto solo afecta a lo que muestra la consola.
 
 La configuración usa propiedades del sistema (JUnit 4 no tiene `junit-platform.properties`):
-- `narrativetrace.output` — `true`/`false` (por defecto: `false`)
+- `narrativetrace.output` — `true`/`false` (por defecto: `true`)
 - `narrativetrace.outputDir` — ruta (por defecto: `build/narrativetrace`)
 - `narrativetrace.format` — `markdown`/`text`/`mermaid`/`plantuml` (por defecto: `markdown`)
 
@@ -296,16 +296,21 @@ silencio.
 
 ## 4. Configura la salida de trazas
 
+La salida de trazas se escribe en `build/narrativetrace` por defecto — no
+hay nada que activar. Las secciones siguientes son para cambiar el formato
+o desactivarla.
+
 ### JUnit 5 (recomendado): `junit-platform.properties`
 
 Añade `src/test/resources/junit-platform.properties`:
 
 ```properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
-No se necesita cableado en Gradle. Este archivo es solo de pruebas y nunca toca producción.
+Para desactivarla del todo, pon `narrativetrace.output=false` en el mismo
+archivo. Ninguna de las dos cosas necesita cableado en Gradle. Este archivo
+es solo de pruebas y nunca toca producción.
 
 ### Gradle: `gradle.properties` (alternativa)
 
@@ -313,7 +318,6 @@ Define la configuración de la salida de trazas en un solo lugar:
 
 ```properties
 # gradle.properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
@@ -334,7 +338,7 @@ tasks.withType<Test> {
 Las propiedades del sistema anulan todas las demás fuentes:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Pnarrativetrace.format=text
 ```
 
@@ -354,7 +358,7 @@ Ejecuta las pruebas:
 ./gradlew test
 ```
 
-Si `junit-platform.properties` tiene `narrativetrace.output=true`, los archivos de trazas se escriben automáticamente.
+Los archivos de trazas se escriben automáticamente, a menos que `junit-platform.properties` tenga `narrativetrace.output=false`.
 
 Estructura de salida esperada:
 

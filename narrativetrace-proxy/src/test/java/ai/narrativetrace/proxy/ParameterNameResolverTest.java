@@ -13,6 +13,8 @@ import ai.narrativetrace.api.annotation.NotTraced;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.core.render.ValueRenderer;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ParameterNameResolverTest {
@@ -42,14 +44,27 @@ class ParameterNameResolverTest {
     assertThat(captures.get(1).renderedValue()).isEqualTo("3");
   }
 
+  /**
+   * Counts its own stringification.
+   *
+   * <p><b>@llmNote</b> The counter is {@code static} deliberately. Since 2026-09-11 a class that
+   * declares instance fields is walked field by field rather than stringified, so an instance
+   * counter would read zero in every case — a green test measuring nothing. A field-less class
+   * keeps its own text, which is precisely the invocation this probe exists to observe.
+   */
   static final class RenderProbe {
-    int renderCount;
+    static final AtomicInteger RENDER_COUNT = new AtomicInteger();
 
     @Override
     public String toString() {
-      renderCount++;
+      RENDER_COUNT.incrementAndGet();
       return "probe";
     }
+  }
+
+  @BeforeEach
+  void resetProbe() {
+    RenderProbe.RENDER_COUNT.set(0);
   }
 
   @Test
@@ -62,7 +77,9 @@ class ParameterNameResolverTest {
         ParameterNameResolver.resolve(
             paramNames, redacted, new Object[] {probe}, valueRenderer, false);
 
-    assertThat(probe.renderCount).as("value must not be rendered when suppressed").isZero();
+    assertThat(RenderProbe.RENDER_COUNT.get())
+        .as("value must not be rendered when suppressed")
+        .isZero();
     assertThat(captures.get(0).name()).isEqualTo("arg");
     assertThat(captures.get(0).renderedValue()).isEmpty();
     assertThat(captures.get(0).structuredValue()).isNull();
@@ -76,7 +93,7 @@ class ParameterNameResolverTest {
 
     ParameterNameResolver.resolve(paramNames, redacted, new Object[] {probe}, valueRenderer, true);
 
-    assertThat(probe.renderCount).isPositive();
+    assertThat(RenderProbe.RENDER_COUNT.get()).isPositive();
   }
 
   @Test

@@ -20,6 +20,11 @@ dependencies {
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation(project(":narrativetrace-agent"))
     testImplementation(project(":narrativetrace-core"))
+    // AgentRuntime builds its pipeline through the same PipelineBootstrap as every other
+    // integration, so Slf4jTraceEventListener attaches reflectively once this is on the
+    // classpath too (documentation/configuration-guide.md §7) — even in agent mode.
+    // src/test/resources/logback-test.xml decides where the narration actually goes.
+    testRuntimeOnly(project(":narrativetrace-slf4j"))
     testRuntimeOnly("ch.qos.logback:logback-classic:1.5.38")
 }
 

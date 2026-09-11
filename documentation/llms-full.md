@@ -551,6 +551,33 @@ string limit, the 5-element collection limit and the 5-field object limit, and i
 the output says it truncated rather than falling silent. The cap is per path, so a shallow sibling
 after a deep one still renders in full.
 
+**A type's own `toString()` is never trusted while the type has state** (owner ruling,
+2026-09-11; family-wide). Any class or record that declares instance fields — its own or
+inherited — is walked field by field at every depth, with `@NotTraced` and the name
+deny-list consulted per field, whatever `toString()` it declares. Exactly two kinds of
+value keep their own text: a class with no instance fields (nothing to hide, nothing to
+walk) and a class the platform defines (`LocalDate`, `Duration`, `UUID`, `URI` — its
+`toString()` is the JDK's format, and its fields sit in a module that is not open, so
+walking it would answer `<error: InaccessibleObjectException>` where the JDK answers a
+date). A class the application declares is application code whatever it extends.
+`@NarrativeSummary` is the single opt-in back to curated rendering, and its text is
+scanned for credential shapes, escaped and capped like any other value. The rule this
+replaced trusted any `toString()` unless the class declared a `@NotTraced` field, which
+let a plain `Login{username, password}` with a hand-written `toString()` print the
+password at depth zero, and let a curated `toString()` on any outer class print nested
+`@NotTraced` values through ordinary Java stringification. Walking also puts the depth cap
+and the cycle guard in front of every value; user stringification ran outside both. The
+accepted cost: a value class with a pleasant `toString()` and no `@NarrativeSummary` now
+renders as a field dump.
+
+**A failed part names the exception's type, never its message.** A `toString()`,
+`@NarrativeSummary`, getter or accessor that throws costs only its own slot, which renders
+as `<error: StackOverflowError>` — the raised type's simple name and nothing else. The
+message is excluded deliberately: application messages routinely interpolate the value
+that failed to format (`"cannot render " + password`), so a marker carrying one would turn
+the renderer's own failure path into a leak. `Method.invoke`'s `InvocationTargetException`
+wrapper is unwrapped first, so the marker names what the traced code raised.
+
 ---
 
 ## Annotations Reference
@@ -628,7 +655,7 @@ The annotated method must be public, no-arg, and return String.
 
 | Property | Values | Default |
 |----------|--------|---------|
-| `narrativetrace.output` | `true`/`false` | `false` |
+| `narrativetrace.output` | `true`/`false` | `true` |
 | `narrativetrace.outputDir` | path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.level` | `OFF`, `ERRORS`, `SUMMARY`, `NARRATIVE`, `DETAIL` | `DETAIL` |
@@ -637,8 +664,8 @@ The annotated method must be public, no-arg, and return String.
 ### JUnit 5: junit-platform.properties
 
 ```properties
-# src/test/resources/junit-platform.properties
-narrativetrace.output=true
+# src/test/resources/junit-platform.properties — output writes by default;
+# set narrativetrace.output=false to opt out
 narrativetrace.format=markdown
 ```
 
@@ -783,7 +810,7 @@ Features:
 - Per-test `NarrativeContext` via parameter injection
 - Automatic failure reporting: prints the structural delta against the last green run (summary + readable diff) when a baseline exists, the full trace otherwise; trace paths print as `file://` links
 - Scenario names derived from test method names
-- With `narrativetrace.output=true` (markdown format): writes `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (non-green runs compare against it, never overwrite it; a rejected approval counts as non-green, so a rejected structure never poisons the baseline)
+- Writes by default (markdown format): `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (non-green runs compare against it, never overwrite it; a rejected approval counts as non-green, so a rejected structure never poisons the baseline). `narrativetrace.output=false` opts out
 - Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline
 - Suite-level clarity report, run manifest (`manifest.json` — scenario → file index over every artifact written, with the invocation number) and console summary after all tests; the summary ends with `Since last green: …`, the one-line structural delta
 - Approval mode (`narrativetrace.approval=true`): a passing test whose structure differs from its committed `src/test/narratives/<Class>/<scenario>.approved.nt` baseline fails with a readable diff; the Gradle `approveNarratives` task promotes reviewed `.received.nt` files
@@ -804,7 +831,7 @@ public class OrderServiceTest {
 ```
 
 - `rule.context()` provides the per-test context
-- Configuration via system properties (`-Dnarrativetrace.output=true`)
+- Writes by default; configuration via system properties (`-Dnarrativetrace.output=false` to opt out)
 - `NarrativeTraceClassRule` accumulates traces for combined clarity reports
 
 ### Spring
@@ -1049,7 +1076,7 @@ Why it is worth the cost:
 
 - **Correctness** — objects are captured as they were at call time. A mutable object modified after the traced call returns still shows its original value in the trace.
 - **No object retention** — the trace holds strings, not references to your domain objects. Nothing NarrativeTrace keeps prevents an object from being garbage collected.
-- **Safe rendering** — `ValueRenderer` handles nulls, strings, numbers, enums, records, collections, arrays and plain objects; detects cycles by identity; catches rogue `toString()` implementations; and truncates large values. POJOs without a curated `toString()` are rendered by reflecting over their fields.
+- **Safe rendering** — `ValueRenderer` handles nulls, strings, numbers, enums, records, collections, arrays and plain objects; detects cycles by identity; catches rogue `toString()` implementations; and truncates large values. Any object that has instance fields is rendered by reflecting over them, whatever `toString()` it declares — a type's own stringification is never trusted while the type has state, so a curated `toString()` cannot print past a redaction. Only a type with no instance fields, or one the platform defines (`LocalDate`, `UUID`, …), keeps its own text; `@NarrativeSummary` is the opt-in back to curated rendering, and its output is scanned like any other value.
 
 The trade-off is that serialization happens on every traced call, whether or not anyone ever reads the trace. That cost is inside the active-path benchmark numbers. For extremely hot loops, exclude them with `TracingLevel.OFF` or `@NotTraced`, or narrow the traced scope.
 
@@ -1080,8 +1107,9 @@ What it covers:
 - **Value rendering.** `ValueRenderer.render` and `renderStructured` never throw.
   A value whose `toString()`, `iterator()`, `size()`, `entrySet()` or `isDone()`
   raises anything renders as its type marker (`<OrderId>`); one unreadable
-  element, entry, field or record component renders as `<error>` and the rest of
-  the value survives.
+  element, entry, field or record component renders as `<error: TypeName>` — the
+  raised exception's type name and never its message, which routinely carries the
+  value that failed to format — and the rest of the value survives.
 - **The proxy.** Metadata lookup, `isActive()`, signature building, parameter
   rendering, trace entry, return rendering and both exits are guarded
   individually. If entry fails the target is invoked raw and no exit is recorded.

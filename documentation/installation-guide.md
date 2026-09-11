@@ -195,7 +195,7 @@ Features:
 - Per-test `NarrativeContext` via parameter injection
 - Automatic failure trace printing to console
 - Scenario name derived from test method name (`customerPlacesOrder` → "Customer places order")
-- With `narrativetrace.output=true`: writes `.md`, `.json`, `.mmd` per test, plus a suite-level `clarity-report.md`
+- Writes `.md`, `.json`, `.mmd` per test by default, plus a suite-level `clarity-report.md` — set `narrativetrace.output=false` to opt out
 
 ### Option D: JUnit 4 Auto Context + Trace Output
 
@@ -217,7 +217,7 @@ Features:
 - Per-test `NarrativeContext` via `narrativeTrace.context()`
 - Automatic failure trace printing to console
 - Scenario name derived from test method name (`customerPlacesOrder` → "Customer places order")
-- With `-Dnarrativetrace.output=true`: writes `.md`, `.json`, `.mmd` per test
+- Writes `.md`, `.json`, `.mmd` per test by default — set `-Dnarrativetrace.output=false` to opt out
 - Add `@ClassRule` with `NarrativeTraceClassRule` for suite-level `clarity-report.md` and console summary
 
 > **Seeing the failure trace in your terminal:** the "failure trace printing to console" above is written to the test process's standard output, which Gradle captures into the XML/HTML report — a vanilla terminal shows nothing. To surface it live in the console, enable standard-stream logging on the `test` task:
@@ -231,7 +231,7 @@ Features:
 > The trace files under `build/narrativetrace/` are written regardless; this only affects what the console shows.
 
 Configuration uses system properties (JUnit 4 has no `junit-platform.properties`):
-- `narrativetrace.output` — `true`/`false` (default: `false`)
+- `narrativetrace.output` — `true`/`false` (default: `true`)
 - `narrativetrace.outputDir` — path (default: `build/narrativetrace`)
 - `narrativetrace.format` — `markdown`/`text`/`mermaid`/`plantuml` (default: `markdown`)
 
@@ -290,16 +290,20 @@ silent.
 
 ## 4. Configure Trace Output
 
+Trace output writes to `build/narrativetrace` by default — nothing to turn
+on. The sections below are for changing the format or opting out.
+
 ### JUnit 5 (recommended): `junit-platform.properties`
 
 Add `src/test/resources/junit-platform.properties`:
 
 ```properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
-No Gradle wiring needed. This file is test-only and never touches production.
+To opt out entirely, set `narrativetrace.output=false` in the same file.
+No Gradle wiring needed either way. This file is test-only and never touches
+production.
 
 ### Gradle: `gradle.properties` (alternative)
 
@@ -307,7 +311,6 @@ Define trace output settings in one place:
 
 ```properties
 # gradle.properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
@@ -328,7 +331,7 @@ tasks.withType<Test> {
 System properties override all other sources:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Pnarrativetrace.format=text
 ```
 
@@ -348,7 +351,7 @@ Run tests:
 ./gradlew test
 ```
 
-If `junit-platform.properties` has `narrativetrace.output=true`, trace files are written automatically.
+Trace files are written automatically, unless `junit-platform.properties` sets `narrativetrace.output=false`.
 
 Expected output structure:
 

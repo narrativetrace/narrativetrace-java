@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 8bf50960f149 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/troubleshooting.md blob c331818784be | translated: 2026-09-11 | reviewed: - -->
 # Solución de problemas
 
 [English](../troubleshooting.md) | **Español** | [Português](../pt-BR/solucao-de-problemas.md) | [简体中文](../zh-CN/故障排查.md)
@@ -27,16 +27,17 @@ configuración manual.
 
 ## No hay ficheros de salida de traza
 
-**Causa:** la salida está desactivada por defecto fuera del plugin.
+**Causa:** la salida se escribe por defecto en `build/narrativetrace`, así que
+un archivo ausente suele deberse a una de estas: `narrativetrace.output=false`
+está establecido en algún sitio (`junit-platform.properties`, una propiedad
+del sistema, o `enabled.set(false)` en el plugin de Gradle); la traza estaba
+vacía porque ninguna llamada pasó por un proxy/agente trazado; o
+`narrativetrace.outputDir` apunta a otro lugar del que estás mirando.
 
-**Solución:** añade a `src/test/resources/junit-platform.properties`:
-
-```properties
-narrativetrace.output=true
-```
-
-O ejecuta con `-Dnarrativetrace.output=true`. El plugin de Gradle configura
-esto por ti.
+**Solución:** confirma que la propiedad no está en `false`, y revisa
+`build/narrativetrace/` (o tu `narrativetrace.outputDir` configurado) — ver
+la [Guía de Configuración](guia-de-configuracion.md) para cada propiedad y su
+valor por defecto.
 
 ## No veo nada en mi terminal
 
@@ -171,9 +172,9 @@ dependencies {
 ```
 
 O define `scope.set("production")` si NarrativeTrace está pensado para
-correr en producción de todos modos. Consulta
-[Primeros 10 minutos § 7](primeros-10-minutos.md#7-añade-nottraced-y-observa-la-ocultación),
-donde esto se encuentra y se arregla de la misma forma.
+correr en producción de todos modos. Consulta [Guía de configuración § DSL
+del plugin de Gradle](guia-de-configuracion.md#dsl-del-plugin-de-gradle),
+donde `scope` está documentado.
 
 ## El modo aprobación escribió `.received.nt`
 

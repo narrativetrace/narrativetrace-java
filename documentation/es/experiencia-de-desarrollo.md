@@ -1,4 +1,4 @@
-<!-- source: documentation/developer-experience.md blob 34a39401d4b9 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/developer-experience.md blob 70a5b233295a | translated: 2026-09-11 | reviewed: - -->
 # Experiencia de desarrollo
 
 [English](../developer-experience.md) | **Español** | [简体中文](../zh-CN/开发者体验.md)
@@ -46,6 +46,7 @@ local. La documentación del plugin trae la receta completa de
 La ocultación es parte de la experiencia de desarrollo, no un añadido de
 última hora: un componente `@NotTraced` nunca aparece en ninguna salida
 renderizada — ni a través del `toString()` de un envoltorio, ni a través de
-una colección, ni a través de una plantilla de narración que nombre su
-ruta. Si una narrativa necesita un valor, el acto deliberado y revisable es
+una colección, ni a través del `toString()` propio, escrito a mano, de una
+clase que lo contenga, ni a través de una plantilla de narración que nombre
+su ruta. Si una narrativa necesita un valor, el acto deliberado y revisable es
 quitar la anotación, nunca esquivarla.

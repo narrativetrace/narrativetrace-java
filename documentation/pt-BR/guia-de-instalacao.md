@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob bb42aee49965 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/installation-guide.md blob cc4473269fe0 | translated: 2026-09-11 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -220,8 +220,9 @@ Funcionalidades:
 - Impressão automática do trace de falha no console
 - Nome do cenário derivado do nome do método de teste (`customerPlacesOrder`
   → "Customer places order")
-- Com `narrativetrace.output=true`: grava `.md`, `.json`, `.mmd` por teste,
-  além de um `clarity-report.md` no nível da suíte
+- Grava `.md`, `.json`, `.mmd` por teste por padrão, além de um
+  `clarity-report.md` no nível da suíte — defina `narrativetrace.output=false`
+  para desativar
 
 ### Opção D: contexto automático do JUnit 4 + saída de traces
 
@@ -244,7 +245,8 @@ Funcionalidades:
 - Impressão automática do trace de falha no console
 - Nome do cenário derivado do nome do método de teste (`customerPlacesOrder`
   → "Customer places order")
-- Com `-Dnarrativetrace.output=true`: grava `.md`, `.json`, `.mmd` por teste
+- Grava `.md`, `.json`, `.mmd` por teste por padrão — defina
+  `-Dnarrativetrace.output=false` para desativar
 - Adicione `@ClassRule` com `NarrativeTraceClassRule` para um
   `clarity-report.md` no nível da suíte e um resumo no console
 
@@ -265,7 +267,7 @@ Funcionalidades:
 
 A configuração usa propriedades de sistema (o JUnit 4 não tem
 `junit-platform.properties`):
-- `narrativetrace.output` — `true`/`false` (padrão: `false`)
+- `narrativetrace.output` — `true`/`false` (padrão: `true`)
 - `narrativetrace.outputDir` — caminho (padrão: `build/narrativetrace`)
 - `narrativetrace.format` — `markdown`/`text`/`mermaid`/`plantuml` (padrão: `markdown`)
 
@@ -328,17 +330,20 @@ silêncio.
 
 ## 4. Configure a saída de traces
 
+A saída de traces é gravada em `build/narrativetrace` por padrão — não há
+nada para ativar. As seções abaixo servem para mudar o formato ou desativar.
+
 ### JUnit 5 (recomendado): `junit-platform.properties`
 
 Adicione `src/test/resources/junit-platform.properties`:
 
 ```properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
-Nenhum wiring do Gradle é necessário. Esse arquivo é exclusivo de teste e
-nunca toca em produção.
+Para desativar completamente, defina `narrativetrace.output=false` no mesmo
+arquivo. Nenhum wiring do Gradle é necessário em nenhum dos dois casos. Esse
+arquivo é exclusivo de teste e nunca toca em produção.
 
 ### Gradle: `gradle.properties` (alternativa)
 
@@ -346,7 +351,6 @@ Defina as configurações de saída de traces em um único lugar:
 
 ```properties
 # gradle.properties
-narrativetrace.output=true
 narrativetrace.format=markdown
 ```
 
@@ -367,7 +371,7 @@ tasks.withType<Test> {
 Propriedades de sistema sobrescrevem todas as outras fontes:
 
 ```bash
-./gradlew test -Dnarrativetrace.output=true
+./gradlew test -Dnarrativetrace.output=false
 ./gradlew test -Pnarrativetrace.format=text
 ```
 
@@ -388,8 +392,8 @@ Rode os testes:
 ./gradlew test
 ```
 
-Se `junit-platform.properties` tiver `narrativetrace.output=true`, os
-arquivos de trace são gravados automaticamente.
+Os arquivos de trace são gravados automaticamente, a menos que
+`junit-platform.properties` defina `narrativetrace.output=false`.
 
 Estrutura de saída esperada:
 

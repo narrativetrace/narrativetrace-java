@@ -81,13 +81,15 @@ How it works:
 - On a field or record component, redaction happens during reflective introspection, so a secret nested inside a traced DTO is hidden without erasing the whole object.
 - Typical use cases: passwords, tokens, secrets, card data.
 
-**Reflective introspection is redact-by-default, not leak-by-default.** When a traced object has no curated `toString()`, NarrativeTrace reflects over its fields — but a built-in name-based deny-list (`RedactionPolicy`) automatically redacts common sensitive names (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), and `Map` values whose key matches, before any value is rendered. `Map` keys render through the same guarded path as any other value: key objects honor `@NotTraced` and the deny-list on their own fields (never their raw `toString()`), and string keys are sanitized and length-capped. `@NotTraced` covers sensitive fields the deny-list would not recognize by name. A curated `toString()` is preferred over introspection — with one exception that outranks it: a class that declares a `@NotTraced` field is introspected anyway, so the annotation is honored instead of whatever that `toString()` would have printed. The name-based deny-list does not override a `toString()`; only the annotation does. Override the patterns with `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` or opt out with `RedactionPolicy.DISABLED`.
+**Reflective introspection is redact-by-default, not leak-by-default.** NarrativeTrace reflects over a traced object's fields — but a built-in name-based deny-list (`RedactionPolicy`) automatically redacts common sensitive names (`password`, `cvv`, `ssn`, `token`, `secret`, `authorization`, `cardNumber`, `accountNumber`, `routingNumber`, `sessionId`, `jwt`, `cookie`, `pan`, `iban`, …), and `Map` values whose key matches, before any value is rendered. `Map` keys render through the same guarded path as any other value: key objects honor `@NotTraced` and the deny-list on their own fields (never their raw `toString()`), and string keys are sanitized and length-capped. `@NotTraced` covers sensitive fields the deny-list would not recognize by name. Override the patterns with `new ValueRenderer(…, RedactionPolicy.ofPatterns(...))` or opt out with `RedactionPolicy.DISABLED`.
 
 **Two secrets are hidden by what they are, not only by what they are called.** The name deny-list cannot see a bearer token passed as `value`, returned as a bare `String`, or sitting unnamed in a list, so a second and independent rule looks at the bytes. Exactly three shapes are recognised: a JWT (three base64url segments whose first begins `eyJ`), a card number (13–19 digits, separators allowed, passing the Luhn checksum), and a `Set-Cookie` string (`name=value` followed by a cookie attribute such as `Path`, `Max-Age` or `HttpOnly`). Everything else renders normally — this is a short list of structural signatures, not an entropy heuristic, because a value blanked by guesswork is a hole in your narrative you cannot see. One false positive is accepted deliberately: an identifier of card-number length that happens to satisfy Luhn. An order number that does not satisfy it stays visible. `RedactionPolicy.DISABLED` turns this rule off along with the name deny-list; `RedactionPolicy.ofPatterns(...)` replaces the names only and keeps it on.
 
-**Redaction survives one container deep.** A holder such as `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` or a standalone `Map.Entry` prints its payload's raw `toString()` if it is treated as a value, so NarrativeTrace opens it instead and renders what it holds under exactly these rules. An `AtomicReferenceArray` renders exactly as the `Object[]` holding the same elements, and a lone `Map.Entry` renders `key=value` exactly as it would inside a `Map`. `Optional<Card>` renders as `Card(number: "4111", cvv: [REDACTED])`, never as `Optional[Card[number=4111, cvv=123]]`; an empty wrapper renders as `<empty>`. This matters because `Optional<T>` is the idiomatic return type of a lookup, which is precisely where redacted data travels.
+**A type's own `toString()` is never trusted while the type has state.** A class or record that declares instance fields — its own or inherited — is walked field by field, at every depth, with both redaction mechanisms consulted per field, whatever its `toString()` would have printed. Exactly two kinds of value keep their own text: a class with no instance fields at all (nothing to hide, nothing to walk), and a class the platform defines (`LocalDate`, `Duration`, `UUID`, `URI` and their kind), whose `toString()` is the JDK's format rather than application code. A class your own code declares is application code whatever it extends. The single opt-in back to curated rendering is `@NarrativeSummary` below — and even its text passes the value-shape check, the control-character escape and the length cap. Until 2026-09-11 the rule ran the opposite way, and that left a plain `Login { username, password }` with a hand-written `toString()` printing the password at depth zero, and any curated `toString()` printing nested `@NotTraced` values straight through ordinary Java stringification. The cost of the fix is real and was accepted: a value class with a pleasant `toString()` and no `@NarrativeSummary` now renders as a field dump — `Amount{currency: "EUR", units: 10}` rather than `EUR 10.00`. Add `@NarrativeSummary` to the types where the reading matters.
 
-**Redaction wins over a template that names it.** `@Narrated` and `@OnError` resolve `{param.property}` paths against the raw arguments, and a path that reaches a redacted member resolves to `[REDACTED]` — at every depth, so a redacted member part-way along a path hides everything named below it too. The same holds when a placeholder names the whole object rather than a path into it: `{card}` renders `Card(number: "4111", cvv: [REDACTED])`, never the object's own `toString()`, which knows nothing about `@NotTraced`. A placeholder naming an object always renders it through the same renderer that captures it, so a template and a captured argument agree on what the value looks like: a record narrates structurally, as `Money(currency: "EUR", amount: 10)`, in both. A class that defines its own `toString()` and hides nothing still narrates with it. To choose the narration yourself — for a record or for anything else — give the type a `@NarrativeSummary` method, which is honoured here exactly as it is everywhere else. Naming a path, or an object, never weakens the rules that apply to the value directly. The third form of placeholder obeys the same two rules: a bare `{name}` naming a value directly is answered by the deny-list reading that key exactly as it reads a field name, and by the value's own shape, so `@Narrated("login {password}")` and a JWT arriving as `{value}` both render `[REDACTED]`. If you need the value in a narrative, remove `@NotTraced` from the component; that removal is the deliberate, reviewable decision, and it shows up in the diff.
+**Redaction survives every wrapper, at any depth.** A holder such as `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` or a standalone `Map.Entry` prints its payload's raw `toString()` if it is treated as a value, so NarrativeTrace opens it instead and renders what it holds under exactly these rules — which then applies again to whatever *that* holds. An `AtomicReferenceArray` renders exactly as the `Object[]` holding the same elements, and a lone `Map.Entry` renders `key=value` exactly as it would inside a `Map`. `Optional<Card>` renders as `Card(number: "4111", cvv: [REDACTED])`, never as `Optional[Card[number=4111, cvv=123]]`; an empty wrapper renders as `<empty>`. This matters because `Optional<T>` is the idiomatic return type of a lookup, which is precisely where redacted data travels.
+
+**Redaction wins over a template that names it.** `@Narrated` and `@OnError` resolve `{param.property}` paths against the raw arguments, and a path that reaches a redacted member resolves to `[REDACTED]` — at every depth, so a redacted member part-way along a path hides everything named below it too. The same holds when a placeholder names the whole object rather than a path into it: `{card}` renders `Card(number: "4111", cvv: [REDACTED])`, never the object's own `toString()`, which knows nothing about `@NotTraced`. A placeholder naming an object always renders it through the same renderer that captures it, so a template and a captured argument agree on what the value looks like: a record narrates structurally, as `Money(currency: "EUR", amount: 10)`, in both. A plain class narrates structurally too, as `Amount{currency: "EUR", units: 10}`: "hides nothing" was never a fact the renderer could establish, only "no `@NotTraced` member *here*". To choose the narration yourself — for a record or for anything else — give the type a `@NarrativeSummary` method, which is honoured here exactly as it is everywhere else. Naming a path, or an object, never weakens the rules that apply to the value directly. The third form of placeholder obeys the same two rules: a bare `{name}` naming a value directly is answered by the deny-list reading that key exactly as it reads a field name, and by the value's own shape, so `@Narrated("login {password}")` and a JWT arriving as `{value}` both render `[REDACTED]`. If you need the value in a narrative, remove `@NotTraced` from the component; that removal is the deliberate, reviewable decision, and it shows up in the diff.
 
 ### `@NarrativeSummary`
 
@@ -105,8 +107,14 @@ public record Customer(String id, String name, CustomerTier tier) {
 How it works:
 
 - `ValueRenderer` looks for a public method annotated with `@NarrativeSummary` and no parameters.
-- If found, that method output is used in traces.
-- If not found, rendering falls back to record/toString behavior.
+- If found, that method's output is used in traces — after the value-shape check, the
+  control-character escape and the length cap, so a summary that interpolates a bearer
+  token still renders `[REDACTED]`. Your intent chooses the text; it does not exempt the bytes.
+- If the method throws, the value renders as `<error: IllegalStateException>` — the exception's
+  type name and nothing else. The message is excluded on purpose: it routinely interpolates the
+  value that failed to format.
+- If not found, rendering walks the object's fields. A type with no instance fields, or one the
+  platform defines, keeps its own `toString()` instead.
 
 ## The Purity Contract — Side Effects During Tracing
 
@@ -116,25 +124,30 @@ counters, cache population, or I/O — exactly as you would for a debugger or a 
 
 What is invoked, and what is not:
 
-- **Field introspection never calls your code.** When a traced object has no curated
-  `toString()`, `ValueRenderer` reads its *fields* reflectively — a pure memory read. A
-  getter that increments a counter or lazily loads data is not touched by introspection.
-- **What NarrativeTrace does invoke:** a custom `toString()`, a `@NarrativeSummary` method,
-  record component accessors, and any property path you name in a `@Narrated`/`@OnError`
-  template (`{order.total}` resolves by calling the direct accessor method `total()` first,
+- **Field introspection never calls your code.** For any object that has state,
+  `ValueRenderer` reads its *fields* reflectively — a pure memory read. A getter that
+  increments a counter or lazily loads data is not touched by introspection. This is now
+  the default path rather than the fallback: since 2026-09-11 a custom `toString()` no
+  longer stands in for introspection on a type that has fields, so *fewer* of your members
+  run during rendering than before, not more.
+- **What NarrativeTrace does invoke:** a `@NarrativeSummary` method, the `toString()` of a
+  type with no instance fields, record component accessors, and any property path you name
+  in a `@Narrated`/`@OnError` template (`{order.total}` resolves by calling the direct accessor method `total()` first,
   then the JavaBean getter `getTotal()`). These are the only places user code runs during
   rendering.
 - **Invocation is bounded and isolated.** Output is capped (string length, collection
-  items, introspection depth), a throwing getter or `toString()` can never fail the traced
-  business call (templates fall back to the literal `{placeholder}`; rendering falls back
-  to a type-name marker), and values are rendered eagerly at the call site — any side
+  items, introspection depth), a throwing getter, summary or `toString()` can never fail
+  the traced business call (templates fall back to the literal `{placeholder}`; the failed
+  part of a rendering falls back to `<error: TypeName>`, naming the exception's type and
+  never its message), and values are rendered eagerly at the call site — any side
   effect happens once, at a deterministic point, on the calling thread.
 - **Rendering never forces deferred computation.** A `Future` is only unwrapped when it
   `isDone()`; nothing is blocked on or triggered.
 
 If a member cannot be pure, annotate it `@NotTraced` — a redacted member's value is never
-read at all — or give the type a curated `toString()`/`@NarrativeSummary` so you control
-exactly what is accessed. At `TracingLevel.OFF` (and for parameter values at `SUMMARY`),
+read at all — or give the type a `@NarrativeSummary` so you control exactly what is
+accessed. A curated `toString()` no longer serves this purpose on a type that has fields:
+it is not called, precisely so that it cannot print past a redaction. At `TracingLevel.OFF` (and for parameter values at `SUMMARY`),
 no argument rendering happens at all, so no user code is touched in the hot path.
 
 ## Spring Annotations

@@ -173,23 +173,55 @@ class NarrativeTraceClassRuleTest {
   }
 
   @Test
-  void applySkipsReportWhenOutputDisabled() throws Throwable {
+  void applyWritesReportByDefaultWithNoConfiguration(@TempDir Path tempDir) throws Throwable {
     System.clearProperty("narrativetrace.output");
-    var classRule = new NarrativeTraceClassRule();
-    var captured = new ByteArrayOutputStream();
-    classRule.setOut(new PrintStream(captured));
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var classRule = new NarrativeTraceClassRule();
+      var captured = new ByteArrayOutputStream();
+      classRule.setOut(new PrintStream(captured));
 
-    classRule.accumulate("test", traceWithOneCall());
-    var statement =
-        classRule.apply(
-            new Statement() {
-              @Override
-              public void evaluate() {}
-            },
-            Description.createSuiteDescription(getClass()));
-    statement.evaluate();
+      classRule.accumulate("test", traceWithOneCall());
+      var statement =
+          classRule.apply(
+              new Statement() {
+                @Override
+                public void evaluate() {}
+              },
+              Description.createSuiteDescription(getClass()));
+      statement.evaluate();
 
-    assertThat(captured.toString()).isEmpty();
+      assertThat(tempDir.resolve("clarity-report.md")).exists();
+    } finally {
+      System.clearProperty("narrativetrace.outputDir");
+    }
+  }
+
+  @Test
+  void applySkipsReportWhenOutputExplicitlyDisabled(@TempDir Path tempDir) throws Throwable {
+    System.setProperty("narrativetrace.output", "false");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var classRule = new NarrativeTraceClassRule();
+      var captured = new ByteArrayOutputStream();
+      classRule.setOut(new PrintStream(captured));
+
+      classRule.accumulate("test", traceWithOneCall());
+      var statement =
+          classRule.apply(
+              new Statement() {
+                @Override
+                public void evaluate() {}
+              },
+              Description.createSuiteDescription(getClass()));
+      statement.evaluate();
+
+      assertThat(captured.toString()).isEmpty();
+      assertThat(tempDir.resolve("clarity-report.md")).doesNotExist();
+    } finally {
+      System.clearProperty("narrativetrace.output");
+      System.clearProperty("narrativetrace.outputDir");
+    }
   }
 
   @Test

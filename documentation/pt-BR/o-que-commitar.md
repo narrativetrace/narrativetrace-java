@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 0224575ae05b | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/what-to-commit.md blob b434ea65deac | translated: 2026-09-11 | reviewed: - -->
 # O que commitar
 
 [English](../what-to-commit.md) | Español | **Português** | [简体中文](../zh-CN/应提交的内容.md)
@@ -6,6 +6,14 @@
 O NarrativeTrace escreve dois tipos de arquivo: artefatos gerados que
 descrevem uma execução, e baselines revisadas que descrevem um contrato
 pretendido. Faça commit do segundo tipo, não do primeiro.
+
+Todo artefato de tempo de teste é gravado por padrão no diretório efêmero
+`build/narrativetrace` — sem nenhuma configuração necessária,
+`narrativetrace.output=false` desativa isso (veja o
+[Guia de Configuração](guia-de-configuracao.md)). Efêmero é o ponto: ele vive
+sob `build/`, então nunca precisa da disciplina de que trata esta página —
+já está excluído, é regenerado a cada execução, e é seguro apagar a
+qualquer momento.
 
 | Artefato | Commit? | Por quê |
 |---|---|---|

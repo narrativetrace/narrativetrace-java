@@ -88,6 +88,36 @@ classname when it is on the classpath, so nothing else changes:
 </dependency>
 ```
 
+The dependency only puts the listener on the classpath — an SLF4J provider
+(`logback-classic` here) still needs a config that actually lets the events
+through, the same way any other SLF4J consumer does. Maven's test classpath
+picks up `logback-test.xml` automatically, no system property needed
+(unlike the Gradle examples' `run` task, which points `-Dlogback.configurationFile`
+at a `logback-<name>.xml` — see [Configuration Guide §7](configuration-guide.md#7-slf4j-configuration)):
+
+```xml
+<!-- src/test/resources/logback-test.xml -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="narrativetrace" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
+```
+
+Without it, logback falls back to its default `BasicConfigurator`, which sets
+the root logger to `DEBUG` — below `TRACE` — so the listener is on the
+classpath and doing nothing visibly. `narrativetrace-maven-example` ships
+this file at
+[`src/test/resources/logback-test.xml`](../narrativetrace-maven-example/src/test/resources/logback-test.xml).
+
 Round out the test classpath with JUnit 5, AssertJ, and an SLF4J provider —
 see [Surefire: the JUnit 5 provider](#surefire-the-junit-5-provider) for why
 `junit-platform-launcher` is not optional.
@@ -116,14 +146,14 @@ out and every trace still captures, it just captures `arg0` instead of
 
 ## Surefire: wiring trace output
 
-The JUnit 5 extension writes trace files when `narrativetrace.output=true` is
-set as a system property or JUnit configuration parameter — under Gradle this
-usually happens via `src/test/resources/junit-platform.properties` (see
-[Installation Guide § JUnit 5](installation-guide.md#4-configure-trace-output),
-"No Gradle wiring needed" — that file works identically under Maven, since
-JUnit Platform configuration parameters are not a build-tool concept). This
-guide instead wires it on Surefire directly, since the point of a Maven-native
-recipe is showing the Maven-native mechanism:
+The JUnit 5 extension writes trace files by default — no
+`narrativetrace.output` setting needed to turn it on. What a Maven build
+does need is redirecting `narrativetrace.outputDir`, for the reason below.
+This guide wires it on Surefire directly, since the point of a Maven-native
+recipe is showing the Maven-native mechanism (the same properties also work
+via `src/test/resources/junit-platform.properties`, identically to Gradle —
+see [Installation Guide § JUnit 5](installation-guide.md#4-configure-trace-output) —
+since JUnit Platform configuration parameters are not a build-tool concept):
 
 ```xml
 <plugin>
@@ -132,13 +162,15 @@ recipe is showing the Maven-native mechanism:
   <version>3.5.2</version>
   <configuration>
     <systemPropertyVariables>
-      <narrativetrace.output>true</narrativetrace.output>
       <narrativetrace.outputDir>${project.build.directory}/narrativetrace</narrativetrace.outputDir>
       <narrativetrace.format>markdown</narrativetrace.format>
     </systemPropertyVariables>
   </configuration>
 </plugin>
 ```
+
+Set `<narrativetrace.output>false</narrativetrace.output>` here instead to
+opt out.
 
 The one Maven-specific detail: the extension's default `narrativetrace.outputDir`
 is `build/narrativetrace`, a Gradle-ism. A Maven build's directory is

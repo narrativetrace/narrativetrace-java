@@ -243,10 +243,15 @@ class ValueRendererTotalityTest {
     assertThat(renderer.render(new HostileNumber())).isEqualTo("<HostileNumber>");
   }
 
+  /**
+   * A {@code Number} that answers no conversion is not a structured scalar, so the walk reaches it
+   * — and it has no state, so it keeps its own text, which throws. The typed marker is what is
+   * left.
+   */
   @Test
-  void aNumberThatRefusesEveryConversionRendersItsTypeStructurally() {
+  void aNumberThatRefusesEveryConversionRendersTheTypedMarkerStructurally() {
     assertThat(renderer.renderStructured(new HostileNumber()))
-        .isEqualTo(new RenderedValue.StringVal("<HostileNumber>"));
+        .isEqualTo(new RenderedValue.StringVal("<error: IllegalStateException>"));
   }
 
   @Test
@@ -265,11 +270,14 @@ class ValueRendererTotalityTest {
 
   @Test
   void aMapThatWillNotProduceItsEntriesRendersTheFailureMarkerAlone() {
-    assertThat(renderer.render(new HostileMap())).isEqualTo("{<error>}");
+    assertThat(renderer.render(new HostileMap())).isEqualTo("{<error: IllegalStateException>}");
     assertThat(renderer.renderStructured(new HostileMap()))
         .isEqualTo(
             new RenderedValue.ObjectVal(
-                "Map", Map.of("<error>", new RenderedValue.StringVal("<error>"))));
+                "Map",
+                Map.of(
+                    "<error: IllegalStateException>",
+                    new RenderedValue.StringVal("<error: IllegalStateException>"))));
   }
 
   @Test
@@ -285,27 +293,30 @@ class ValueRendererTotalityTest {
 
   @Test
   void aCollectionThatWillNotIterateRendersTheFailureMarkerAlone() {
-    assertThat(renderer.render(new UniterableCollection())).isEqualTo("[<error>]");
+    assertThat(renderer.render(new UniterableCollection()))
+        .isEqualTo("[<error: IllegalStateException>]");
   }
 
   @Test
   void anIteratorThatDiesHalfwayKeepsTheItemsItAlreadyYielded() {
     assertThat(renderer.render(new HalfIterableCollection()))
-        .isEqualTo("[\"item1\", \"item2\", <error>]");
+        .isEqualTo("[\"item1\", \"item2\", <error: IllegalStateException>]");
   }
 
   @Test
   void oneUnrenderableElementCostsOnlyItsOwnSlot() {
     var list = List.of("first", new UniterableCollection(), "last");
 
-    assertThat(renderer.render(list)).isEqualTo("[\"first\", [<error>], \"last\"]");
+    assertThat(renderer.render(list))
+        .isEqualTo("[\"first\", [<error: IllegalStateException>], \"last\"]");
   }
 
   @Test
   void oneUnrenderableArrayElementCostsOnlyItsOwnSlot() {
     var array = new Object[] {"first", new UniterableCollection(), "last"};
 
-    assertThat(renderer.render(array)).isEqualTo("[\"first\", [<error>], \"last\"]");
+    assertThat(renderer.render(array))
+        .isEqualTo("[\"first\", [<error: IllegalStateException>], \"last\"]");
   }
 
   @Test
@@ -314,26 +325,34 @@ class ValueRendererTotalityTest {
     map.put("good", "value");
     map.put("bad", new HostileMap());
 
-    assertThat(renderer.render(map)).isEqualTo("{good=\"value\", bad={<error>}}");
+    assertThat(renderer.render(map))
+        .isEqualTo("{good=\"value\", bad={<error: IllegalStateException>}}");
   }
 
+  /**
+   * Falling back to ordinary rendering hid the failure — the reader could not tell a broken summary
+   * apart from a class that never declared one. The failed part names the raised type instead, and
+   * never its message: {@code "summary assertion"} is application text that in the field routinely
+   * interpolates the value that would not format.
+   */
   @Test
-  void aSummaryMethodThrowingAnErrorFallsBackToOrdinaryRendering() {
-    assertThat(renderer.render(new HostileSummary("S-1"))).isEqualTo("HostileSummary{id: \"S-1\"}");
+  void aSummaryMethodThrowingAnErrorRendersTheTypedMarker() {
+    assertThat(renderer.render(new HostileSummary("S-1")))
+        .isEqualTo("<error: AssertionError>")
+        .doesNotContain("summary");
     assertThat(renderer.renderStructured(new HostileSummary("S-1")))
-        .isEqualTo(
-            new RenderedValue.ObjectVal(
-                "HostileSummary", Map.of("id", new RenderedValue.StringVal("S-1"))));
+        .isEqualTo(new RenderedValue.StringVal("<error: AssertionError>"));
   }
 
   @Test
   void aRecordAccessorThrowingAnErrorMarksOnlyThatComponent() {
     assertThat(renderer.render(new HostileRecord("ignored")))
-        .isEqualTo("HostileRecord(id: <error>)");
+        .isEqualTo("HostileRecord(id: <error: AssertionError>)");
     assertThat(renderer.renderStructured(new HostileRecord("ignored")))
         .isEqualTo(
             new RenderedValue.ObjectVal(
-                "HostileRecord", Map.of("id", new RenderedValue.StringVal("<error>"))));
+                "HostileRecord",
+                Map.of("id", new RenderedValue.StringVal("<error: AssertionError>"))));
   }
 
   @Test
@@ -347,13 +366,13 @@ class ValueRendererTotalityTest {
   void aListElementThatCannotBeReadAtAllLosesOnlyItsOwnSlot() {
     var list = List.of("a", new HostileEntry(), "b");
 
-    assertThat(renderer.render(list)).isEqualTo("[\"a\", <error>, \"b\"]");
+    assertThat(renderer.render(list)).isEqualTo("[\"a\", <error: AssertionError>, \"b\"]");
     assertThat(renderer.renderStructured(list))
         .isEqualTo(
             new RenderedValue.ListVal(
                 List.of(
                     new RenderedValue.StringVal("a"),
-                    new RenderedValue.StringVal("<error>"),
+                    new RenderedValue.StringVal("<error: AssertionError>"),
                     new RenderedValue.StringVal("b"))));
   }
 
@@ -361,19 +380,20 @@ class ValueRendererTotalityTest {
   void anArrayElementThatCannotBeReadAtAllLosesOnlyItsOwnSlot() {
     var array = new Object[] {"a", new HostileEntry(), "b"};
 
-    assertThat(renderer.render(array)).isEqualTo("[\"a\", <error>, \"b\"]");
+    assertThat(renderer.render(array)).isEqualTo("[\"a\", <error: AssertionError>, \"b\"]");
     assertThat(renderer.renderStructured(array))
         .isEqualTo(
             new RenderedValue.ListVal(
                 List.of(
                     new RenderedValue.StringVal("a"),
-                    new RenderedValue.StringVal("<error>"),
+                    new RenderedValue.StringVal("<error: AssertionError>"),
                     new RenderedValue.StringVal("b"))));
   }
 
   @Test
   void aMapEntryThatWillNotGiveUpItsKeyLosesOnlyThatEntry() {
-    assertThat(renderer.render(new HalfReadableMap())).isEqualTo("{good=\"value\", <error>}");
+    assertThat(renderer.render(new HalfReadableMap()))
+        .isEqualTo("{good=\"value\", <error: AssertionError>}");
     assertThat(renderer.renderStructured(new HalfReadableMap()))
         .isEqualTo(
             new RenderedValue.ObjectVal(
@@ -381,13 +401,20 @@ class ValueRendererTotalityTest {
                 Map.of(
                     "good",
                     new RenderedValue.StringVal("value"),
-                    "<error>",
-                    new RenderedValue.StringVal("<error>"))));
+                    "<error: AssertionError>",
+                    new RenderedValue.StringVal("<error: AssertionError>"))));
   }
 
+  /**
+   * A user subclass of a platform temporal is NOT a platform type, so its own {@code toString()} is
+   * not trusted — and its state is inherited, so the walk has nothing it is allowed to print. The
+   * empty brace pair is the honest answer: no leak, and no pretence that anything was read. The
+   * structured path scalar-handles {@code Date} before the walk, so it still answers the type
+   * marker; the two paths diverge here because the value IS two different things to them.
+   */
   @Test
-  void aTemporalValueThatAnswersNothingRendersItsTypeOnBothPaths() {
-    assertThat(renderer.render(new HostileDate())).isEqualTo("<HostileDate>");
+  void aTemporalSubclassThatAnswersNothingRendersNoStateRatherThanItsOwnString() {
+    assertThat(renderer.render(new HostileDate())).isEqualTo("HostileDate{}");
     assertThat(renderer.renderStructured(new HostileDate()))
         .isEqualTo(new RenderedValue.StringVal("<HostileDate>"));
   }

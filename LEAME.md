@@ -1,18 +1,26 @@
-<!-- source: README.md blob ae3b90f86e52 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: README.md blob 4225a897a862 | translated: 2026-09-11 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
 
-> El código es el log.
+## Empieza aquí
+
+[Ve una traza en 60 segundos](documentation/first-10-minutes.md) — una aplicación de consola, una ejecución, y la traza aparece en tu terminal.
+
+## Demo
+
+Clona el repositorio y ejecuta `./demo.sh`.
+
+## Ejemplos
+
+Consulta [los ejemplos](narrativetrace-examples/) — NarrativeTrace en aplicaciones realistas.
+
+## El código es el log
 
 NarrativeTrace™ convierte el código Java en ejecución en una narrativa legible,
 construida a partir de los nombres de método, clase y parámetro que ya
 escribiste. Sin líneas `logger.info(...)`. Si la traza es ilegible, tu código
 necesita refactorización — no más sentencias de log.
-
-Con prisa: [ejecuta la demo](#pruébalo-con-un-solo-comando) → [añádelo a una
-sola prueba](#añádelo-a-una-sola-prueba) → [elige tu
-integración](#elige-tu-integración).
 
 ## El problema
 
@@ -188,25 +196,6 @@ consulta [Convivencia con el logging
 tradicional](documentation/es/guia-de-configuracion.md#convivencia-con-el-logging-tradicional)
 para ver un ejemplo completo.
 
-## Pruébalo con un solo comando
-
-Sin proyecto, sin cableado — el repositorio incluye un lanzador de demos que
-ejecuta las aplicaciones de ejemplo y las narra en vivo (la primera ejecución
-compila el ejemplo):
-
-```bash
-./demo.sh --list                                  # ecommerce, clarity, minecraft, library
-./demo.sh --example ecommerce --no-pause          # el grafo de servicios Spring insignia
-./demo.sh --example ecommerce --classic           # la misma ejecución como líneas de log clásicas
-./demo.sh --example minecraft --no-pause          # la comparación de nombres de arriba, de verdad
-./demo.sh --example ecommerce --lang es           # la misma ejecución re-renderizada con el glosario de dominio
-```
-
-Sin `--no-pause` la demo se detiene tras cada escenario — `[Enter]` continúa,
-`q` sale — y cada escenario se abre con una nota sobre cómo está cableada *esa*
-traza. Consulta los [ejemplos](narrativetrace-examples/LEAME.md) para saber qué
-enseña cada uno.
-
 ## Añádelo a una sola prueba
 
 El camino más corto desde «librería interesante» hasta «vi una traza útil de mi
@@ -268,11 +257,11 @@ Sin el plugin, la misma configuración son cuatro líneas de Gradle y dos
 dependencias — consulta la [Guía de
 instalación](documentation/es/guia-de-instalacion.md).
 
-¿Quieres seguir desde aquí — renombrar el método y ver caer la puntuación de
-claridad, añadir `@NotTraced` y ver un valor ocultado, activar el modo de
-aprobación y ver un `.received.nt`? → [Primeros 10
-minutos](documentation/first-10-minutes.md) (en inglés) recorre todo eso con
-salida real, ejecutada de verdad.
+¿Quieres verlo fuera de una prueba — un `main` sencillo, una llamada, una traza
+en tu terminal? → [Ve una traza en 60
+segundos](documentation/first-10-minutes.md) (en inglés) recorre justo ese
+camino de principio a fin, ejecutado de verdad contra los artefactos
+publicados, con la salida real pegada tal cual.
 
 ### Qué artefacto responde a qué pregunta
 
@@ -427,7 +416,7 @@ va a compartir. Lo que eso significa, en una sola pantalla:
 
 | Garantía | Cómo se sostiene |
 |---|---|
-| **La ocultación es incondicional** | `@NotTraced` y la lista de denegación por nombre (`password`, `token`, `cvv`, `ssn`, …) se aplican a todas las salidas publicadas — trazas de pruebas, artefactos de CI, logs de contenedor, narración del agente. Ninguna etapa, flag o propiedad las desactiva (decisión del propietario, 2026-08-16). Sobrevive un contenedor de profundidad (`Optional`, `Future`, `AtomicReference`, `Map.Entry`); `@NotTraced` prevalece sobre un `toString()` propio, y una plantilla `{param.ruta}` que nombre un miembro oculto se resuelve como `[REDACTED]`. |
+| **La ocultación es incondicional** | `@NotTraced` y la lista de denegación por nombre (`password`, `token`, `cvv`, `ssn`, …) se aplican a todas las salidas publicadas — trazas de pruebas, artefactos de CI, logs de contenedor, narración del agente. Ninguna etapa, flag o propiedad las desactiva (decisión del propietario, 2026-08-16). Sobrevive a cualquier envoltorio, a cualquier profundidad (`Optional`, `Future`, `AtomicReference`, `Map.Entry`) y a una clave de `Map` compuesta; el `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga campos, así que uno cuidadosamente escrito no puede imprimir más allá de una ocultación; y una plantilla `{param.ruta}` que nombre un miembro oculto se resuelve como `[REDACTED]`. |
 | **El artefacto seguro para IA no contiene valor alguno** | El archivo estructural `.nt` contiene solo nombres, jerarquía y tipos de resultado. Nada que ocultar, cero superficie de inyección de prompts — y eso es una prueba de propiedades, no una política. |
 | **Un fallo del tracing no puede hacer fallar tu aplicación** | El registro está aislado frente a excepciones en todas las rutas, y ambos consumidores del pipeline se tragan sus propios errores. Un `toString()` que lanza, un búfer lleno o un appender roto nunca cambian lo que tu método devuelve o lanza. |
 | **El uso de recursos está acotado** | La ruta de análisis con búfer es un anillo de tamaño fijo (65 536 ranuras por defecto, `narrativetrace.buffer.capacity`) que descarta en vez de bloquear — y lo dice: una captura que perdió eventos imprime el recuento en su propio pie. El renderizado de valores está acotado en longitud de cadena, tamaño de colección, anchura de objeto y profundidad de anidamiento. |
@@ -438,10 +427,11 @@ Dos límites honestos. Primero, la única forma de que un valor escape a la
 ocultación es que el código de la aplicación construya su propio `ValueRenderer`
 con `RedactionPolicy.DISABLED` — un acto deliberado y revisable en tu propio
 código fuente, nunca un estado de configuración. Segundo, la captura lee
-*campos* por reflexión y nunca llama a tus getters, pero sí invoca un
-`toString()` propio, un método `@NarrativeSummary`, los accesores de componentes
-de `record` y las rutas de propiedades nombradas en plantillas
-`@Narrated`/`@OnError`; mantenlos puros, como lo harías para un depurador. Hoy
+*campos* por reflexión y nunca llama a tus getters, pero sí invoca un método
+`@NarrativeSummary`, el `toString()` de un tipo sin campos de instancia, los
+accesores de componentes de `record` y las rutas de propiedades nombradas en
+plantillas `@Narrated`/`@OnError`; mantenlos puros, como lo harías para un
+depurador. Hoy
 el alcance es solo de inclusión — `packages=` para el agente, paquetes base para
 Spring y Micronaut — y todavía no hay lista de exclusión.
 
@@ -525,7 +515,7 @@ con Javadoc rico ([javadoc.io](https://javadoc.io/doc/ai.narrativetrace)).
 
 Empieza por aquí:
 
-- [First 10 Minutes](documentation/first-10-minutes.md) (en inglés) — un servicio diminuto, una prueba JUnit, ocho pasos hasta una traza real, con salida real
+- [Ve una traza en 60 segundos](documentation/first-10-minutes.md) (en inglés) — el camino más corto a una traza real: un archivo, una ejecución, salida real pegada tal cual
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — dependencias, todas las vías de integración, cómo funciona la captura, configuración de la salida de trazas
 - [Choosing an Integration](documentation/choosing-an-integration.md) (en inglés) — qué módulo necesitas, como diagrama de decisión
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de JUnit/Gradle/Spring/Micronaut/SLF4J
@@ -592,7 +582,7 @@ Bajo concurrencia, los dos caminos del `DualPathPipeline` por defecto tienen gar
 
 Cuatro capas independientes, no una sola promesa general — el contrato fila por fila, verificado contra el código, es [Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md):
 
-1. **`@NotTraced` en un parámetro, campo o componente de record** — ocultación explícita que tú controlas. Prevalece incluso sobre un `toString()` cuidadosamente escrito en la clase declarante, y es incondicional: ningún stage, flag o propiedad la desactiva.
+1. **`@NotTraced` en un parámetro, campo o componente de record** — ocultación explícita que tú controlas, incondicional: ningún stage, flag o propiedad la desactiva. Nada la prevalece, y nada la rodea: el `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga campos, así que uno cuidadosamente escrito no se llega a invocar, en lugar de dejarlo imprimir más allá de la anotación.
 2. **Una lista de denegación por nombre, siempre activa y multilingüe** (`RedactionPolicy.DEFAULT`) — compara nombres de campos y parámetros con `password`, `secret`, `token`, `ssn`, `cvv`, `apikey`, `cardnumber`, `jwt`, `cookie`, `sessionid`, `accountnumber`, `routingnumber`, más los equivalentes en español (`contraseña`, `tarjeta`, `cédula`, `clave de acceso`), portugués (`cartão`), francés (`mot de passe`, `carte bancaire`), alemán (`Passwort`, `Kennwort`) y chino (`密码`, `身份证`). Está activa por defecto, no es opcional, y los patrones más propensos a falsos positivos (`pan`, `iban`, `rut`, `cuit`, `dni`, `senha`, `cpf`, `cnpj`, `nir`, `mima`) solo coinciden en los límites del token identificador, así que `panelId` y `circuitBreaker` siguen visibles.
 3. **Coincidencia por la forma del valor, independiente del nombre del campo** — un string con forma de JWT, un número de tarjeta válido por Luhn, un valor con forma de `Set-Cookie`, un checksum de identificación nacional (RUT chileno, CPF/CNPJ brasileño, DNI/NIE español, NIR francés, cédula de identidad china), o un número de la Seguridad Social de EE. UU. con guiones se oculta aunque llegue bajo un nombre inocuo como `data` o `value`. El SSN estadounidense es la única forma de esta lista que no tiene un checksum en el que apoyarse, así que solo cuenta la forma con guiones `AAA-GG-SSSS`: nueve dígitos sueltos son indistinguibles de un número de pedido, y ocultarlos costaría más de lo que protege.
 4. **El modo estructural sin valores `.nt` (ADR-002) — la garantía categórica.** Un artefacto `.nt` lleva solo los *nombres* de clase, método y parámetro, la jerarquía de llamadas, y los *tipos* de resultado — cero valores en tiempo de ejecución, cero superficie de inyección de prompts, y eso es una propiedad verificada por test, no una política que alguien podría olvidar aplicar. Guardado como baseline `.approved.nt`, es lo que hay que entregar a una herramienta de IA externa cuando ningún valor puede salir del proceso en absoluto. Consulta el [formato de traza estructural](documentation/es/formato-de-traza-estructural.md).

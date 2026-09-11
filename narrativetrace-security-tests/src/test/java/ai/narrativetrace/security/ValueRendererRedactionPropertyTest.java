@@ -80,6 +80,80 @@ class ValueRendererRedactionPropertyTest {
     assertThat(rendered).contains("[REDACTED]").doesNotContain(sentinel);
   }
 
+  /**
+   * Corpus rows {@code curated-tostring-top-level} and {@code curated-tostring-nested}: a class
+   * that has fields is walked field by field whatever its {@code toString()} would have printed, so
+   * the deny-list and {@code @NotTraced} are consulted at every depth instead of being bypassed.
+   *
+   * <p>Containment alone is satisfied by a renderer that prints nothing at all, so the marker is
+   * asserted beside it — the field must be visibly withheld, not silently missing.
+   */
+  @Test
+  void aCuratedToStringNeverStandsInForIntrospection() {
+    var softly = new org.assertj.core.api.SoftAssertions();
+    for (var id : java.util.List.of("curated-tostring-top-level", "curated-tostring-nested")) {
+      var sentinel = Oracles.freshSentinel();
+      var rendered = renderer.render(graphNamed(id, sentinel));
+
+      softly
+          .assertThat(rendered)
+          .as("[%s] a hand-written toString must not stand in for introspection", id)
+          .doesNotContain(sentinel)
+          .contains("[REDACTED]");
+    }
+    softly.assertAll();
+  }
+
+  /**
+   * Corpus row {@code sensitive-map-key}: a key has to become text before it can be printed, which
+   * is where native stringification is hardest to avoid. The key is walked like any other value.
+   */
+  @Test
+  void aSensitiveMapKeyCarriesNoSecretIntoTheRenderedKey() {
+    var sentinel = Oracles.freshSentinel();
+    var graph = graphNamed("sensitive-map-key", sentinel);
+
+    assertThat(renderer.render(graph))
+        .as("a deny-listed field must not reach output through a map key")
+        .doesNotContain(sentinel)
+        .contains("[REDACTED]");
+    assertThat(String.valueOf(renderer.renderStructured(graph))).doesNotContain(sentinel);
+  }
+
+  /**
+   * Corpus row {@code throwing-summary}: the summary marker is the only opt-in to curated rendering
+   * left, so its failure mode is part of the contract — a typed, value-free marker naming the
+   * exception's TYPE, never its message, which carries the value that failed to format.
+   */
+  @Test
+  void aThrowingSummaryRendersATypedMarkerAndNoMessage() {
+    var sentinel = Oracles.freshSentinel();
+    var graph = graphNamed("throwing-summary", sentinel);
+
+    var rendered = renderer.render(graph);
+    var structured = String.valueOf(renderer.renderStructured(graph));
+
+    assertThat(rendered)
+        .as("a failing summary renders the exception TYPE and nothing else about it")
+        .contains("<error: IllegalStateException>")
+        .doesNotContain(sentinel)
+        .doesNotContain("cannot summarise");
+    assertThat(structured)
+        .contains("<error: IllegalStateException>")
+        .doesNotContain(sentinel)
+        .doesNotContain("cannot summarise");
+  }
+
+  /** Builds the corpus row with the given id, failing loudly if the row was renamed or removed. */
+  private static Object graphNamed(String id, String sentinel) {
+    var graphCase =
+        HostileCorpus.graphs().stream()
+            .filter(candidate -> candidate.id().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no graph corpus row with id " + id));
+    return HostileGraphs.build(graphCase, sentinel);
+  }
+
   @Test
   void renderingIsIdempotentForEveryHostileGraph() {
     for (var graphCase : HostileCorpus.graphs()) {
