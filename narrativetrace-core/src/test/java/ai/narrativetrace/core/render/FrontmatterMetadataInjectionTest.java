@@ -127,11 +127,14 @@ class FrontmatterMetadataInjectionTest {
   }
 
   @Test
-  @DisplayName("an emoji is ordinary content and passes through")
-  void aWellFormedSurrogatePairPassesThrough() {
+  @DisplayName("an emoji round-trips as a \\U escape, so no parser buffer can split its pair")
+  void aWellFormedSurrogatePairBecomesAUnicodeEscape() {
+    // Changed 2026-09-08 (audit): a raw pair is spec-valid YAML, but SnakeYAML 2.3
+    // crashes when its 1024-char read buffer ends on the high half. Frontmatter is emitted
+    // BMP-only; \U is YAML's own 32-bit escape, decoded back to the same code point.
     var entry = lineStartingWith(frontmatterFor("A\uD83D\uDE00B", "m"), "entry_point: ");
 
-    assertThat(entry).contains("A\uD83D\uDE00B.m");
+    assertThat(entry).isEqualTo("entry_point: \"A\\U0001f600B.m\"");
   }
 
   private static java.util.List<String> keysOf(String frontmatter) {

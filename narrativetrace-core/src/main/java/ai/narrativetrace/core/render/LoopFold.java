@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.render;
 
+import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.core.tree.TreeWalk;
@@ -39,6 +40,14 @@ final class LoopFold {
 
   /** Beyond this many direct children the flow tail is capped with an ellipsis. */
   private static final int MAX_FLOW = 8;
+
+  /**
+   * Characters of a distinguishing scalar the fold line shows before eliding the rest.
+   *
+   * <p>Long enough for a SKU, an id or a short amount — the things that actually separate two
+   * iterations — and short enough that several of them still fit on one line.
+   */
+  private static final int MAX_VALUE_LENGTH = 32;
 
   private LoopFold() {}
 
@@ -94,10 +103,47 @@ final class LoopFold {
       var p = params.get(i);
       if (!p.redacted() && !p.renderedValue().equals(firstParams.get(i).renderedValue())) {
         var label = refs.foldDisplay(p.renderedValue(), p.structuredValue());
-        return label != null ? label : "#" + position;
+        return label != null ? label : namedValue(position, p);
       }
     }
     return valueKey(first).equals(valueKey(node)) ? null : "#" + position;
+  }
+
+  /**
+   * A folded iteration named by the argument that distinguishes it, beside the position that
+   * locates it: {@code #2 sku=`"TENT"`}.
+   *
+   * <p>INTENT: The identity ladder mints a {@code ‹label›} only from a structured value with an
+   * identity field, and a loop's distinguishing argument is very often a plain scalar — a SKU, an
+   * id, an amount. Those fell through to a bare {@code #2}, which named the iteration without
+   * saying anything about it: two catalog lookups with different SKUs and prices rendered as the
+   * first lookup plus {@code ×1 more: #2}, and the second SKU was unrecoverable from the artifact
+   * (2026-09-08 agent evaluation). The position stays because it is what lets a reader find the
+   * same iteration in the JSON artifact or in an unfolded render.
+   *
+   * <p><b>@edgeCase</b> The value is caller-influenced text going into a Markdown line, so it is
+   * escaped through the same code-span sink every other rendered value uses, and elided at {@link
+   * #MAX_VALUE_LENGTH} so one long argument cannot swallow the line.
+   */
+  private static String namedValue(int position, ParameterCapture parameter) {
+    return "#"
+        + position
+        + " "
+        + MarkdownEscape.text(parameter.name())
+        + "="
+        + MarkdownEscape.code(elided(parameter.renderedValue()));
+  }
+
+  /** The value, cut on a code-point boundary so a surrogate pair is never split in half. */
+  private static String elided(String rendered) {
+    if (rendered.length() <= MAX_VALUE_LENGTH) {
+      return rendered;
+    }
+    var end = MAX_VALUE_LENGTH;
+    if (Character.isHighSurrogate(rendered.charAt(end - 1))) {
+      end--;
+    }
+    return rendered.substring(0, end) + "…";
   }
 
   private static void appendFlow(TraceNode first, StringBuilder sb) {

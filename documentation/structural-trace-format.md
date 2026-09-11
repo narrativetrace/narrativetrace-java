@@ -10,7 +10,7 @@ approval baselines and conformance fixtures travel between platforms.
 
 | File | Role |
 |---|---|
-| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Emitted on the markdown path; the file on disk is the **last-green baseline** — a failed run compares against it (console delta, failure report) but never overwrites it |
+| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Emitted on the markdown path; the file on disk is the **last-green baseline** — a non-green run compares against it (console delta, failure report) but never overwrites it. "Green" is the whole verdict: a test that passed but whose structure approval *rejected* ends red, so a rejected structure never becomes the baseline and reverting the change reports no delta |
 | `src/test/narratives/<TestClass>/<scenario>.approved.nt` | Committed approval baseline (`NarrativeApproval`; opt-in via `narrativetrace.approval=true`, directory configurable via `narrativetrace.approvedDir`) — a passing test whose structure differs fails with a readable diff |
 | `<scenario>.received.nt` | Written beside the baseline on approval mismatch (or when no baseline exists yet); review it, then promote via the Gradle `approveNarratives` task |
 | `<scenario>.incomplete.nt` | The same content, written instead of `.received.nt` when the run itself was incomplete (the best-effort path dropped events, or refused an async scope at the adoption cap). `approveNarratives` ignores it by name: a short run must never become the committed baseline, or every later complete run reads as having *added* calls. Such a run is compared by subsequence containment rather than equality — absences are tolerated and named, anything added or reordered still fails |
@@ -19,6 +19,44 @@ The format extension is last (`.approved.nt`, ApprovalTests
 convention) so editors and diff viewers key off `.nt`. Note: `.nt`
 collides with RDF N-Triples in some syntax-highlighting maps; register
 an override in `.gitattributes` where it matters.
+
+### Artifact identity (cross-platform, 2026-09-09)
+
+`<scenario>` above is the **artifact identity** of one test invocation,
+and every runtime spells it the same way — an artifact written by one
+runtime is found under the same name by another:
+
+- An ordinary test method is its slugged name: camel-case split on `_`,
+  lowercased, everything outside `[a-z0-9_]` replaced with `_` —
+  `customerPlacesOrder` → `customer_places_order`.
+- One invocation of a method that runs more than once (parameterized,
+  repeated) appends `-<index>-<label>`: the 1-based invocation number
+  zero-padded to three digits, then the invocation's display name
+  through the same slug rule with runs of `_` collapsed and the ends
+  trimmed — `equipment_can_be_found-002-find_tent`. A label that slugs
+  to nothing is dropped, leaving `equipment_can_be_found-002`.
+- `-` is the separator precisely because the slug alphabet cannot
+  produce one. The index — not the label — is what makes the scheme
+  collision-proof: two invocations always differ in it, so display names
+  that differ only in characters a path cannot carry (`find/TENT` versus
+  `find TENT`) still get separate files. The label is what makes the
+  name readable.
+- The name is stable across runs, machines and processes, which is what
+  lets one invocation's `.approved.nt` be committed at all. Where a name
+  exceeds the 255-byte path-element limit the *method* half is truncated
+  and given eight hex characters of the Java `String.hashCode` of the
+  full slug — specified, therefore identical everywhere; a per-process
+  hash would silently invalidate every baseline it touched.
+
+Because artifact names are derived rather than announced, a run also
+writes `<outputDir>/manifest.json`: one row per traced scenario naming
+its test, its invocation number and every file it owns. Read that when
+you know the scenario and want the file.
+
+> The `scenario:` header is a display name, and a parameterized test's
+> display-name template interpolates arguments into it. Call bodies stay
+> value-free; the header and the filename do not. Do not interpolate a
+> secret into a display-name template.
 
 ## Content
 

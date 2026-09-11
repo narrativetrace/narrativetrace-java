@@ -92,6 +92,14 @@
       }
     },
     {
+      "source": "documentation/dual-path-pipeline.md",
+      "translations": {
+        "es": "canalizacion-de-doble-ruta.md",
+        "zh-CN": "双路径事件管道.md",
+        "pt-BR": "pipeline-de-caminho-duplo.md"
+      }
+    },
+    {
       "source": "documentation/what-to-commit.md",
       "translations": {
         "es": "que-commitear.md",

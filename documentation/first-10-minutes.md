@@ -16,7 +16,7 @@ still — this page is for when you want to see it against *your own* code.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -201,7 +201,7 @@ carries no runtime dependencies of its own):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.0")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.1")
 }
 ```
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob eda4f553fb10 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob f536b6e80b05 | translated: 2026-09-09 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -171,6 +171,7 @@ A extensão do JUnit usa `ExtensionContext.getConfigurationParameter()`, que res
 | `narrativetrace.output` | `true` / `false` | `false` |
 | `narrativetrace.outputDir` | Qualquer caminho com permissão de escrita | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
+| `narrativetrace.unfolded` | `true` / `false` | `false` |
 | `narrativetrace.glossary` | `true` / `false` | `false` |
 | `narrativetrace.glossaryDir` | Qualquer caminho com permissão de escrita | diretório de trabalho |
 | `narrativetrace.canonicalJson` | `true` / `false` | `false` |
@@ -223,10 +224,29 @@ parâmetros trazem `[ELIDED]`, os valores de retorno e as mensagens de exceção
 são null) — o artefato estrutural seguro para IA do ADR-002 Nível 1. As duas
 flags são independentes e podem ser combinadas em uma mesma execução.
 
+`narrativetrace.unfolded` **desliga o dobramento de laços** na narrativa
+Markdown. Por padrão, uma sequência de chamadas irmãs consecutivas de mesma
+forma é renderizada como a primeira iteração completa mais uma linha de
+resumo — `×2 more: ‹Taxi›, #3 sku=` `` `"TENT"` `` ` — same flow (validate ✓
+→ record ✓)`. Essa linha nomeia cada iteração dobrada: pelo seu rótulo de
+identidade quando o argumento que a distingue tem um, e caso contrário pela
+posição mais o próprio argumento, de modo que as iterações omitidas
+continuam alcançáveis. Quando você precisa da subárvore *inteira* de cada
+iteração e de todos os seus valores, defina `narrativetrace.unfolded=true` e
+cada iteração é renderizada por completo. Só Markdown — nenhum outro formato
+dobra, e o JSON canônico sempre carrega todas as iterações. Com o plugin do
+Gradle, encaminhe como qualquer outra propriedade:
+
+```kotlin
+tasks.withType<Test> { systemProperty("narrativetrace.unfolded", "true") }
+```
+
 `narrativetrace.approval` ativa o modo de aprovação: depois de um teste que
 **passa**, a estrutura livre de valores do cenário (a mesma renderização do
 artefato `.nt`) é verificada contra a baseline commitada
-`<approvedDir>/<TestClassSimpleName>/<test_method_slug>.approved.nt`. Uma
+`<approvedDir>/<TestClassSimpleName>/<artifact_name>.approved.nt` — a mesma
+identidade de artefato de qualquer outro arquivo por teste, então um método
+que roda mais de uma vez tem uma baseline por invocação. Uma
 baseline ausente ou uma diferença estrutural falha o teste com um diff
 legível e escreve a estrutura atual ao lado da baseline como
 `*.received.nt`; revise-a e aceite-a com a task `approveNarratives` do
@@ -282,22 +302,80 @@ Sufixos de tipo de parâmetro do JUnit (por exemplo, `(NarrativeContext)`) são 
 
 Layout base:
 
-- `<outputDir>/traces/<TestClassSimpleName>/<test_method_slug>.<ext>`
+- `<outputDir>/traces/<TestClassSimpleName>/<artifact_name>.<ext>`
+
+`<artifact_name>` é a **identidade de artefato** de uma invocação de
+teste:
+
+- Um método de teste comum é o seu nome convertido em slug —
+  `customerPlacesOrder` → `customer_places_order`.
+- Um método que roda mais de uma vez (`@ParameterizedTest`,
+  `@RepeatedTest`) acrescenta `-<índice>-<rótulo>`: o número da invocação
+  em base 1, preenchido com zeros até três dígitos, e depois o nome
+  exibido da invocação pela mesma regra de slug —
+  `equipment_can_be_found-002-find_tent`. O rótulo é omitido quando seu
+  slug fica vazio, deixando `equipment_can_be_found-002`.
+- `-` é o separador porque o alfabeto do slug é `[a-z0-9_]` e nunca pode
+  produzir um: o artefato de uma invocação nunca colide com o de um
+  método comum, e o nome volta a se separar em método, índice e rótulo.
+  Duas invocações de um mesmo método sempre diferem no índice, então
+  nomes exibidos que só se distinguem por caracteres que um caminho não
+  pode carregar (`find/TENT` versus `find TENT`) continuam caindo em
+  arquivos diferentes.
+- Nada no nome varia entre execuções ou entre máquinas, que é o que
+  permite commitar uma baseline de aprovação por invocação. Um nome longo
+  demais para o sistema de arquivos é encurtado na sua metade de *método*
+  e recebe oito caracteres hexadecimais do `String.hashCode` do Java
+  sobre o slug completo; o índice e o rótulo nunca são a parte truncada.
+
+Todos os artefatos por teste de uma invocação compartilham esse nome: o
+trace, a exportação JSON, o diagrama, o artefato estrutural e a baseline
+`.approved.nt` commitada ao lado deles.
+
+> Um template `@ParameterizedTest(name = ...)` interpola argumentos no
+> nome exibido, e esse nome chega tanto ao *nome de arquivo* do artefato
+> quanto ao cabeçalho `scenario:` do artefato `.nt` livre de valores. Os
+> corpos das chamadas continuam sem valores; o nome não. Não interpole um
+> segredo em um template de nome exibido.
 
 Quando `format=markdown`, a extensão também escreve, por teste:
 
-- Diagrama Mermaid: `<outputDir>/diagrams/<TestClassSimpleName>/<test_method_slug>.mmd`
-- Exportação JSON: `<outputDir>/traces/<TestClassSimpleName>/<test_method_slug>.json`
-- Artefato estrutural: `<outputDir>/structural/<TestClassSimpleName>/<test_method_slug>.nt`
+- Diagrama Mermaid: `<outputDir>/diagrams/<TestClassSimpleName>/<artifact_name>.mmd`
+- Exportação JSON: `<outputDir>/traces/<TestClassSimpleName>/<artifact_name>.json`
+- Artefato estrutural: `<outputDir>/structural/<TestClassSimpleName>/<artifact_name>.nt`
   — a estrutura de chamadas livre de valores (especificação do formato:
   [formato-de-trace-estrutural.md](formato-de-trace-estrutural.md)). O
   arquivo em disco é a **baseline do último verde**: uma execução verde a
-  avança, uma execução que falha compara com ela mas nunca a sobrescreve, de
+  avança, uma execução não verde compara com ela mas nunca a sobrescreve, de
   modo que cada delta se lê como "o que mudou desde a última vez que esse
-  cenário passou"
+  cenário passou". "Verde" é o veredito inteiro, não só as asserções — um
+  teste que passou mas cuja estrutura a aprovação **rejeitou** termina
+  vermelho, e sua estrutura não é escrita. Rejeitar uma mudança deixa
+  portanto a baseline onde estava, e reverter a mudança não reporta delta
+  nenhum
 
 Depois que todos os testes de uma classe terminam, a extensão escreve:
 
+- Manifesto da execução: `<outputDir>/manifest.json` — uma linha por
+  cenário rastreado, em ordem de execução, nomeando o teste que o
+  produziu, seu número de invocação quando o método rodou mais de uma
+  vez, e cada artefato que lhe pertence como caminho relativo a
+  `<outputDir>`. É o índice a ler quando você conhece o cenário e quer o
+  arquivo:
+  ```json
+  {
+    "scenario": "find TENT",
+    "testClass": "traildepot.CatalogTest",
+    "testMethod": "equipmentCanBeFound",
+    "invocation": 2,
+    "artifacts": {
+      "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
+      "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
+    }
+  }
+  ```
+  Apenas artefatos realmente presentes em disco são listados, então a
+  linha reflete o formato e as flags que a execução usou.
 - Relatório de clareza: `<outputDir>/clarity-report.md`
 - Resumo no console (impresso no stdout), terminando com o delta estrutural
   de uma linha contra a última execução verde:
@@ -632,7 +710,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.1")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.

@@ -8,6 +8,7 @@
 package ai.narrativetrace.agent;
 
 import ai.narrativetrace.api.event.SourceLocation;
+import ai.narrativetrace.core.render.RedactionPolicy;
 
 /**
  * Everything about one instrumented method that never changes between calls.
@@ -56,17 +57,49 @@ record AgentMethodMetadata(
   /** The record for a method whose parameters the class file can name. */
   static AgentMethodMetadata of(
       String qualifiedClassName, String methodName, String descriptor, MethodMetadata collected) {
+    var names = captureNames(collected.parameterNames());
     return new AgentMethodMetadata(
         simpleName(qualifiedClassName),
         packageName(qualifiedClassName),
         methodName,
-        captureNames(collected.parameterNames()),
+        names,
         MethodDescriptorTypes.parameterTypes(descriptor),
-        collected.redacted(),
+        redactedByAnnotationOrName(names, collected.redacted()),
         MethodDescriptorTypes.returnType(descriptor),
         collected.narratedTemplate(),
         sourceLocation(collected),
         collected.onErrors());
+  }
+
+  /**
+   * Widens the annotation flags with the name deny-list, once per instrumented method.
+   *
+   * <p>INTENT: {@code @NotTraced} used to be the only thing that redacted a parameter, so a method
+   * taking {@code String password} printed it in full — the deny-list reached fields and record
+   * components but was never asked about a parameter name. This is where it is asked.
+   *
+   * <p><b>@llmNote</b> Here rather than in a renderer, for two reasons. The cheap one: this record
+   * is built once, at instrumentation time, and the hot path only ever reads the resulting {@code
+   * boolean[]} — so the lookup costs nothing per traced call, however large the vocabulary grows.
+   * The important one: a value redacted at capture never enters the {@link
+   * ai.narrativetrace.api.event.TraceEvent} at all, so it cannot reach the audit emitter, the
+   * buffered consumer, or any listener attached through the pipeline SPI. Redacting in a renderer
+   * would leave the cleartext travelling through all of them.
+   *
+   * @param names capture names, parallel to the flags
+   * @param annotated which parameters carry {@code @NotTraced}
+   * @return flags widened with every name the deny-list denies
+   */
+  private static boolean[] redactedByAnnotationOrName(String[] names, boolean[] annotated) {
+    if (names.length == 0) {
+      return annotated;
+    }
+    var widened = new boolean[names.length];
+    for (int i = 0; i < names.length; i++) {
+      var wasAnnotated = i < annotated.length && annotated[i];
+      widened[i] = RedactionPolicy.DEFAULT.isRedacted(names[i], wasAnnotated);
+    }
+    return widened;
   }
 
   /**

@@ -86,8 +86,8 @@ class LossFooterRenderingTest {
 
     assertThat(sentence)
         .isEqualTo(
-            "⚠ Incomplete narrative: 3 async scopes not adopted "
-                + "(adoption cap), 12 spans missing.");
+            "⚠ Incomplete narrative: 3 async scopes refused "
+                + "(adoption cap or uncollected), 12 spans missing.");
     assertThat(sentence).doesNotContain(LossFooter.CAPACITY_KEY);
   }
 
@@ -97,7 +97,7 @@ class LossFooterRenderingTest {
 
     assertThat(sentence)
         .contains("7 events shed under load")
-        .contains("1 async scope not adopted")
+        .contains("1 async scope refused")
         .contains("4 spans missing")
         .contains(LossFooter.CAPACITY_KEY);
   }
@@ -107,7 +107,7 @@ class LossFooterRenderingTest {
     assertThat(LossFooter.sentence(new TraceLoss(1, 0, 0))).contains("1 event shed");
     assertThat(LossFooter.sentence(new TraceLoss(2, 0, 0))).contains("2 events shed");
     assertThat(LossFooter.sentence(new TraceLoss(0, 1, 1)))
-        .contains("1 async scope not adopted")
+        .contains("1 async scope refused")
         .contains("1 span missing");
   }
 

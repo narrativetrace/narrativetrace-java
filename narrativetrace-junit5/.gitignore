@@ -1,0 +1,5 @@
+# Test-run artifacts: NarrativeTraceExtensionTest and the glossary fixtures
+# write these into the module dir; they are outputs, never sources.
+glossary.json
+glossary.md
+src/test/narratives/

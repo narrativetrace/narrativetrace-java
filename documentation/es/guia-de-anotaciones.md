@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob 6b6882d5c812 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob babcde8e6e9d | translated: 2026-09-09 | reviewed: - -->
 
 # Guía de anotaciones de NarrativeTrace para Java
 
@@ -22,7 +22,15 @@ NarrativeTrace sigue la filosofía de **El código es el log**: los nombres de m
 
 ### `@Narrated`
 
-Usa `@Narrated` en métodos cuando quieras una frase explícita en la traza en lugar de depender solo del nombre del método + parámetros.
+`@Narrated` es una válvula de escape, no la forma estándar de añadir
+narración — el camino por defecto se deriva enteramente del propio nombre
+del método, sus parámetros y su resultado. Recurrir a una plantilla es una
+señal, la misma que la puntuación de claridad existe para detectar: significa
+que el código no está diciendo por sí mismo lo que hace. Antes de escribir
+una, pregúntate si el nombre del método es el problema real — un nombre
+mejor arregla cada traza que pase por ese método, no solo esta línea.
+
+Úsalo, deliberadamente, en métodos cuando quieras una frase explícita en la traza en lugar de depender solo del nombre del método + parámetros.
 
 ```java
 public interface OrderService {

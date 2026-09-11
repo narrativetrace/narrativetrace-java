@@ -143,6 +143,48 @@ class BoundedEventBufferTest {
     assertThat(drained.size()).isLessThanOrEqualTo(64);
   }
 
+  /**
+   * The flush-barrier predicate pair: the cursor is the claim horizon at the moment it is read, and
+   * {@code consumedPast} answers whether the consumer has accounted for everything below it.
+   */
+  @Test
+  void cursorMarksTheClaimHorizonAndConsumedPastTracksTheDrain() {
+    var buffer = new BoundedEventBuffer(4);
+    assertThat(buffer.consumedPast(buffer.cursor()))
+        .as("an untouched buffer has nothing outstanding")
+        .isTrue();
+
+    buffer.put(enterEvent("A", "a"));
+    buffer.put(enterEvent("B", "b"));
+    long cursor = buffer.cursor();
+
+    assertThat(buffer.consumedPast(cursor)).as("published but not yet drained").isFalse();
+    buffer.drain(e -> {});
+    assertThat(buffer.consumedPast(cursor)).as("the drain accounted for both").isTrue();
+  }
+
+  /**
+   * A lapped slot is accounted for by the overwrite counter, not by delivery — and it still counts
+   * as consumed, or a barrier waiting on the cursor would wait for an event that no longer exists.
+   */
+  @Test
+  void consumedPastCountsOverwrittenSlotsAsAccountedFor() {
+    var buffer = new BoundedEventBuffer(2);
+    for (int i = 0; i < 4; i++) {
+      buffer.put(enterEvent("T", "m" + i));
+    }
+    long cursor = buffer.cursor();
+
+    var drained = new ArrayList<TraceEvent>();
+    buffer.drain(drained::add);
+
+    assertThat(buffer.consumedPast(cursor)).isTrue();
+    assertThat(drained).hasSize(2);
+    assertThat(buffer.overwrittenCount())
+        .as("the lapped half is counted, never silent")
+        .isEqualTo(2);
+  }
+
   private static TraceEvent.EnterEvent enterEvent(String className, String methodName) {
     return new TraceEvent.EnterEvent(
         TestSpanContext.create(),

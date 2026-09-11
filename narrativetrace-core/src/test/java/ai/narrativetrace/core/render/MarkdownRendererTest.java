@@ -404,6 +404,33 @@ class MarkdownRendererTest {
   }
 
   @Test
+  void escapesScenarioInDocumentBodyHeaderExactlyAsInFrontmatter() {
+    // The frontmatter routes the scenario through YAML escaping; the body header used to append
+    // it raw, so a hostile scenario forged document structure (a heading) and injected raw HTML
+    // into the rendered Markdown. 2026-09-08 audit.
+    var node =
+        new TraceNode(
+            new MethodSignature("OrderService", "placeOrder", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("\"order-42\""),
+            412_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+    var metadata =
+        new TraceMetadata(
+            "ok\n# forged heading\n<img src=x onerror=alert(1)>", ScenarioResult.SUCCESS);
+
+    var result = new MarkdownRenderer().renderDocument(tree, metadata);
+
+    assertThat(result)
+        .contains("**Scenario:** ok\\n# forged heading\\n&lt;img src=x onerror=alert(1)&gt;\n");
+    assertThat(result.lines()).noneMatch("# forged heading"::equals);
+    // The body (everything after the frontmatter block) carries no active HTML. The frontmatter
+    // itself is YAML, where < and > are ordinary printable characters inside a quoted scalar.
+    var body = result.substring(result.indexOf("## Trace:"));
+    assertThat(body).doesNotContain("<img");
+  }
+
+  @Test
   void rendersNarrationAsItalicsBelowMethodEntry() {
     var child =
         new TraceNode(

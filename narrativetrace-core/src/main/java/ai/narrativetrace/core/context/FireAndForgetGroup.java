@@ -86,12 +86,16 @@ public final class FireAndForgetGroup {
   /**
    * Takes the tagged copy this group hands out, then ends the worker scope that produced it.
    *
-   * <p><b>@edgeCase</b> The discard is unconditional for the same reason it is in {@link
-   * ForkGroup}: a scope that produced no roots can still have recorded events, and nothing else
-   * will ever clear them.
+   * <p>Collection goes through {@link NarrativeContext#collectLocalTrace()} for the same reason
+   * {@link ForkGroup} does: the paired capture-and-discard lets the context count, as loss, a child
+   * whose events it could not see before the discard — never dropping one silently.
+   *
+   * <p><b>@edgeCase</b> The discard inside the collect is unconditional for the same reason it is
+   * in {@link ForkGroup}: a scope that produced no roots can still have recorded events, and
+   * nothing else will ever clear them.
    */
   private void collectAndTagRoots(Thread thread) {
-    var roots = context.captureLocalTrace().roots();
+    var roots = context.collectLocalTrace().roots();
     if (!roots.isEmpty()) {
       var info =
           new ConcurrencyInfo(
@@ -104,7 +108,6 @@ public final class FireAndForgetGroup {
         collectedRoots.add(ConcurrencySupport.withConcurrency(root, info));
       }
     }
-    context.discardLocalTrace();
   }
 
   public String groupId() {

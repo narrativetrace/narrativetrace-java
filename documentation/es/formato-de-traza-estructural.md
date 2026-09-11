@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob be6ccb00efc4 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob 752b803add4d | translated: 2026-09-09 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -14,7 +14,7 @@ fixtures de conformidad viajen entre plataformas.
 
 | Fichero | Rol |
 |---|---|
-| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Se emite en la vía de markdown; el fichero en disco es la **última línea base en verde** — una ejecución fallida se compara contra él (delta en consola, informe de fallos) pero nunca lo sobrescribe |
+| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Se emite en la vía de markdown; el fichero en disco es la **última línea base en verde** — una ejecución no verde se compara contra él (delta en consola, informe de fallos) pero nunca lo sobrescribe. "Verde" es el veredicto completo: un test que pasó pero cuya estructura la aprobación *rechazó* termina en rojo, así que una estructura rechazada nunca se convierte en la línea base y revertir el cambio no reporta ningún delta |
 | `src/test/narratives/<TestClass>/<scenario>.approved.nt` | Línea base de aprobación comiteada (`NarrativeApproval`; opt-in mediante `narrativetrace.approval=true`, directorio configurable mediante `narrativetrace.approvedDir`) — una prueba que pasa pero cuya estructura difiere falla con un diff legible |
 | `<scenario>.received.nt` | Se escribe junto a la línea base cuando la aprobación no coincide (o cuando aún no existe una línea base); revísalo y luego promuévelo mediante la tarea de Gradle `approveNarratives` |
 | `<scenario>.incomplete.nt` | El mismo contenido, escrito en lugar de `.received.nt` cuando la propia ejecución fue incompleta (la ruta de mejor esfuerzo descartó eventos, o rechazó un ámbito async al alcanzar el tope de adopción). `approveNarratives` lo ignora por nombre: una ejecución corta nunca debe convertirse en la línea base comiteada, o cada ejecución completa posterior se leería como si hubiera *añadido* llamadas. Una ejecución así se compara por contención de subsecuencia en lugar de por igualdad — las ausencias se toleran y se nombran, cualquier cosa añadida o reordenada sigue fallando |
@@ -24,6 +24,49 @@ ApprovalTests) para que los editores y los visores de diffs se guíen por
 `.nt`. Nota: `.nt` colisiona con RDF N-Triples en algunos mapas de
 resaltado de sintaxis; registra una anulación en `.gitattributes` donde
 importe.
+
+### Identidad de artefacto (multiplataforma, 2026-09-09)
+
+`<scenario>` arriba es la **identidad de artefacto** de una invocación de
+test, y todos los runtimes la escriben igual — un artefacto escrito por
+un runtime se encuentra bajo el mismo nombre desde otro:
+
+- Un método de test ordinario es su nombre convertido a slug: camel-case
+  separado con `_`, en minúsculas, y todo lo que quede fuera de
+  `[a-z0-9_]` reemplazado por `_` — `customerPlacesOrder` →
+  `customer_places_order`.
+- Una invocación de un método que se ejecuta más de una vez
+  (parametrizado, repetido) añade `-<índice>-<etiqueta>`: el número de
+  invocación base 1 rellenado con ceros a tres dígitos, y después el
+  nombre visible de la invocación por la misma regla de slug, con las
+  secuencias de `_` colapsadas y los extremos recortados —
+  `equipment_can_be_found-002-find_tent`. Una etiqueta cuyo slug queda
+  vacío se omite, dejando `equipment_can_be_found-002`.
+- `-` es el separador precisamente porque el alfabeto del slug no puede
+  producirlo. El índice — no la etiqueta — es lo que hace el esquema a
+  prueba de colisiones: dos invocaciones siempre difieren en él, así que
+  nombres visibles que solo se diferencian en caracteres que una ruta no
+  puede llevar (`find/TENT` frente a `find TENT`) reciben archivos
+  distintos. La etiqueta es lo que hace el nombre legible.
+- El nombre es estable entre ejecuciones, máquinas y procesos, que es lo
+  que permite comitear el `.approved.nt` de una invocación. Cuando un
+  nombre supera el límite de 255 bytes por elemento de ruta, se trunca la
+  mitad de *método* y se le añaden ocho caracteres hexadecimales del
+  `String.hashCode` de Java sobre el slug completo — está especificado,
+  por tanto es idéntico en todas partes; un hash por proceso invalidaría
+  en silencio cada línea base que tocara.
+
+Como los nombres de artefacto son derivados y no anunciados, una
+ejecución también escribe `<outputDir>/manifest.json`: una fila por
+escenario trazado que nombra su test, su número de invocación y cada
+archivo que le pertenece. Léelo cuando conozcas el escenario y quieras el
+archivo.
+
+> La cabecera `scenario:` es un nombre visible, y la plantilla de nombre
+> visible de un test parametrizado interpola argumentos en ella. Los
+> cuerpos de llamada siguen sin valores; la cabecera y el nombre de
+> archivo no. No interpoles un secreto en una plantilla de nombre
+> visible.
 
 ## Contenido
 

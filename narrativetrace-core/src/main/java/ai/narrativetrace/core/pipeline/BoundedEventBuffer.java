@@ -278,6 +278,31 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
     return delivered;
   }
 
+  /**
+   * The claim horizon: every publication begun before this call claimed an index below it.
+   *
+   * <p>INTENT: One half of the flush barrier. A caller that has finished its own {@link #put}s
+   * reads the horizon, drains, and asks {@link #consumedPast} — its own events all sit below the
+   * horizon, so "consumed past it" is exactly "everything I published has been delivered or
+   * counted".
+   */
+  long cursor() {
+    return producerIndex;
+  }
+
+  /**
+   * Whether the consumer has accounted for every index below the given horizon — delivered, or
+   * counted as overwritten. False while a drain is stopped at a slot some producer has claimed and
+   * not yet written.
+   *
+   * <p><b>@threadSafety</b> Reads {@code consumerIndex}, which only the single consumer writes —
+   * ask this where draining itself is legal: under the consumer's serialization, or on the consumer
+   * thread.
+   */
+  boolean consumedPast(long cursor) {
+    return consumerIndex >= cursor;
+  }
+
   /** Approximate number of unconsumed events (may briefly exceed capacity during races). */
   int size() {
     return (int) Math.min(Math.max(0, producerIndex - consumerIndex), slots.length);

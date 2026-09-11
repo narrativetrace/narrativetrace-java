@@ -69,7 +69,7 @@ public final class LossFooter {
     if (loss.refusedScopes() > 0) {
       parts.add(
           count(loss.refusedScopes(), "async scope")
-              + " not adopted (adoption cap), "
+              + " refused (adoption cap or uncollected), "
               + count(loss.refusedSpans(), "span")
               + " missing");
     }

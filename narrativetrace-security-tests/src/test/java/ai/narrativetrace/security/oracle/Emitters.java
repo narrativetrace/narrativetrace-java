@@ -149,16 +149,28 @@ public final class Emitters {
 
   /** The in-memory renderers, which a library consumer calls directly. */
   public static Map<String, String> renderers(TraceTree tree) {
-    var metadata = new TraceMetadata(SCENARIO, ScenarioResult.SUCCESS);
+    return renderers(tree, SCENARIO);
+  }
+
+  /**
+   * The same, under a caller-supplied scenario.
+   *
+   * <p>INTENT: The scenario is a route of its own — caller-supplied text that reaches the YAML
+   * frontmatter, the Markdown body header, the structural header and the JSON scenario name, each
+   * with its own escaping. The 2026-09-08 audit (the body header appended it raw) was only
+   * reachable through this parameter, which every builder here used to pin to a benign constant.
+   */
+  public static Map<String, String> renderers(TraceTree tree, String scenario) {
+    var metadata = new TraceMetadata(scenario, ScenarioResult.SUCCESS);
     var outputs = new LinkedHashMap<String, String>();
     outputs.put("renderer:prose", new ProseRenderer().render(tree));
     outputs.put("renderer:indented", new IndentedTextRenderer().render(tree));
     outputs.put("renderer:markdown", new MarkdownRenderer().render(tree));
     outputs.put(
         "renderer:markdown-document", new MarkdownRenderer().renderDocument(tree, metadata));
-    outputs.put("renderer:frontmatter", new FrontmatterBuilder().scenario(SCENARIO).build(tree));
+    outputs.put("renderer:frontmatter", new FrontmatterBuilder().scenario(scenario).build(tree));
     outputs.put(
-        "renderer:structural", new StructuralTraceRenderer().renderDocument(tree, SCENARIO));
+        "renderer:structural", new StructuralTraceRenderer().renderDocument(tree, scenario));
     outputs.put("renderer:json", new JsonExporter().exportDocument(tree, metadata));
     outputs.put("renderer:mermaid", new MermaidSequenceDiagramRenderer().render(tree));
     outputs.put(

@@ -45,6 +45,7 @@ above — each language's index lists that language's translated guides.
 
 | Document | What it covers |
 |---|---|
+| [Dual-Path Event Pipeline](dual-path-pipeline.md) | The default pipeline's contract: the crash-durable synchronous narration path, the never-blocking buffered path, counted loss, and capture-time redaction upstream of both |
 | [API Surface](api-surface.md) | What is in `narrativetrace-api` and why: the admission rule, one row per admitted type, and the types deliberately kept out |
 | [Security Testing](security-testing.md) | The two-tier fuzz suite: the shared hostile corpus, the seven oracles every target asserts, how to add a case, and how a crash becomes a regression test |
 | [Security Tooling](security-tooling.md) | Secrets scanning, SAST, dependency-vulnerability scanning and bytecode security analysis: what runs when, each tool's entry point, and the dependency-verification-metadata update workflow |

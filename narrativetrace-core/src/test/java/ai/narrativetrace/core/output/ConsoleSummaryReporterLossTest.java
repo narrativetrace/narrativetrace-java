@@ -32,7 +32,7 @@ class ConsoleSummaryReporterLossTest {
         reporter.formatSuiteFooter(5, "build/narrativetrace", scores(), new TraceLoss(1204, 0, 0));
 
     assertThat(footer).contains("Incomplete: 1204 events dropped (buffer full)");
-    assertThat(footer).doesNotContain("not adopted");
+    assertThat(footer).doesNotContain("refused");
   }
 
   @Test
@@ -41,7 +41,7 @@ class ConsoleSummaryReporterLossTest {
         reporter.formatSuiteFooter(5, "build/narrativetrace", scores(), new TraceLoss(0, 3, 4100));
 
     assertThat(footer)
-        .contains("Incomplete: 3 async scopes not adopted (cap), 4100 spans")
+        .contains("Incomplete: 3 async scopes refused (cap or uncollected), 4100 spans")
         .doesNotContain("buffer full");
   }
 
@@ -52,7 +52,7 @@ class ConsoleSummaryReporterLossTest {
 
     assertThat(footer)
         .contains("Incomplete: 12 events dropped (buffer full)")
-        .contains("1 async scope not adopted (cap), 7 spans")
+        .contains("1 async scope refused (cap or uncollected), 7 spans")
         .doesNotContain("late span");
   }
 
@@ -73,7 +73,7 @@ class ConsoleSummaryReporterLossTest {
     assertThat(footer)
         .contains("Incomplete: 2000 late spans discarded (parent reset)")
         .doesNotContain("dropped (buffer full)")
-        .doesNotContain("not adopted");
+        .doesNotContain("refused");
   }
 
   @Test
@@ -93,7 +93,7 @@ class ConsoleSummaryReporterLossTest {
     assertThat(footer)
         .contains("Incomplete: 12 events dropped (buffer full)")
         .contains("2000 late spans discarded (parent reset)")
-        .doesNotContain("not adopted");
+        .doesNotContain("refused");
   }
 
   @Test
@@ -104,10 +104,10 @@ class ConsoleSummaryReporterLossTest {
 
     assertThat(footer)
         .contains("Incomplete: 1204 events dropped (buffer full)")
-        .contains("3 async scopes not adopted (cap), 4100 spans")
+        .contains("3 async scopes refused (cap or uncollected), 4100 spans")
         .contains("2000 late spans discarded (parent reset)");
-    assertThat(footer.indexOf("events dropped")).isLessThan(footer.indexOf("not adopted"));
-    assertThat(footer.indexOf("not adopted")).isLessThan(footer.indexOf("late spans discarded"));
+    assertThat(footer.indexOf("events dropped")).isLessThan(footer.indexOf("refused"));
+    assertThat(footer.indexOf("refused")).isLessThan(footer.indexOf("late spans discarded"));
   }
 
   @Test

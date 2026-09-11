@@ -21,6 +21,7 @@ páginas sem arquivo correspondente aqui — está em
 | [Guia de Configuração](pt-BR/guia-de-configuracao.md) | Cada superfície de configuração: propriedades do sistema, `junit-platform.properties`, Gradle, Spring, Micronaut, SLF4J; flags de captura, chaves MDC e valores padrão de ocultação |
 | [Guia de Anotações](pt-BR/guia-de-anotacoes.md) | `@Narrated`, `@OnError`, `@NotTraced`, `@NarrativeSummary`, `@EnableNarrativeTrace`, e o contrato de pureza que elas implicam |
 | [Privacidade e Ocultação](pt-BR/privacidade-e-ocultacao.md) | O contrato de ocultação linha a linha verificado contra o código, a lista de garantias e não garantias, e o modelo de perda em produção |
+| [O pipeline de eventos de caminho duplo](pt-BR/pipeline-de-caminho-duplo.md) | O contrato do pipeline padrão: o caminho síncrono de narração durável a quedas, o caminho com buffer que nunca bloqueia, a perda contada, e a ocultação na captura a montante de ambos |
 | [O Que Commitar](pt-BR/o-que-commitar.md) | Quais arquivos gerados são artefatos de CI e quais são baselines revisadas que você deve commitar |
 | [Solução de Problemas](pt-BR/solucao-de-problemas.md) | Sintoma → causa → correção para os modos de falha que as pessoas realmente encontram, de parâmetros `arg0` a um agente silencioso |
 

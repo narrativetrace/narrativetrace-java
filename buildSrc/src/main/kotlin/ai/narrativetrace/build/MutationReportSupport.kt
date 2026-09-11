@@ -37,11 +37,19 @@ data class MutationSummary(
 
 object MutationReportSupport {
 
-    private val pitestModules = setOf("narrativetrace-core", "narrativetrace-proxy", "narrativetrace-clarity")
-
-    fun collectEntriesFromProjects(projects: Iterable<Project>): List<MutationEntry> {
+    /**
+     * `moduleNames` is a required parameter, not a list this object owns: the module set that
+     * actually runs mutation testing is `build.gradle.kts`'s own `mutationTestedModules` /
+     * `mutationAgentModules` (default-deny, accounted for by `mutationAccounting`), and a second,
+     * independently hand-synced copy living here once caused `narrativetrace-api` and
+     * `narrativetrace-glossary` to silently drop out of every printed report. Filtering by
+     * `moduleNames` rather than by report-file existence also keeps this aggregate from picking up
+     * the agent module's report by accident — the two tiers are deliberately kept apart (owner
+     * ruling, 2026-09-03).
+     */
+    fun collectEntriesFromProjects(projects: Iterable<Project>, moduleNames: Set<String>): List<MutationEntry> {
         val inputs = projects
-            .filter { it.name in pitestModules }
+            .filter { it.name in moduleNames }
             .map { MutationReportInput(it.name, it.file("build/reports/pitest/mutations.xml")) }
         return collectEntries(inputs)
     }

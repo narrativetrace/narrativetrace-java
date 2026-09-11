@@ -34,14 +34,44 @@ import java.util.stream.Collectors;
  */
 public final class MarkdownRenderer implements NarrativeRenderer {
 
+  /** Milliseconds beyond which a call is marked slow, when nothing says otherwise. */
+  private static final long DEFAULT_SLOW_THRESHOLD_MS = 200;
+
   private final long slowThresholdMs;
+  private final boolean foldLoops;
 
   public MarkdownRenderer() {
-    this(200);
+    this(DEFAULT_SLOW_THRESHOLD_MS);
   }
 
   public MarkdownRenderer(long slowThresholdMs) {
+    this(slowThresholdMs, true);
+  }
+
+  /**
+   * @param foldLoops whether a run of same-shape consecutive siblings collapses into one {@code ×k
+   *     more …} line; {@code false} renders every iteration in full — see {@link #unfolded()}
+   */
+  public MarkdownRenderer(long slowThresholdMs, boolean foldLoops) {
     this.slowThresholdMs = slowThresholdMs;
+    this.foldLoops = foldLoops;
+  }
+
+  /**
+   * The unfolded renderer: every iteration of a loop rendered in full, none summarized.
+   *
+   * <p>INTENT: Folding compresses sameness that has been <em>structurally</em> proven — the folded
+   * iterations' values still differ, and the fold line can name only the first distinguishing
+   * argument of each. When the question is "what did iteration five actually pass", that is not
+   * enough, and a reader should not have to leave Markdown for the JSON artifact to answer it
+   * (2026-09-08 agent evaluation).
+   *
+   * <p><b>@llmNote</b> Reached from a test run with {@code narrativetrace.unfolded=true}. Nothing
+   * else about the document changes, so a folded and an unfolded render of one trace differ only in
+   * the iterations the folded one summarizes.
+   */
+  public static MarkdownRenderer unfolded() {
+    return new MarkdownRenderer(DEFAULT_SLOW_THRESHOLD_MS, false);
   }
 
   private static final StructuralTraceRenderer STRUCTURE = new StructuralTraceRenderer();
@@ -122,6 +152,13 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     return MarkdownEscape.text(sig.className()) + "." + MarkdownEscape.text(sig.methodName());
   }
 
+  /**
+   * <b>@edgeCase</b> The scenario is caller-supplied text and the frontmatter already escapes it
+   * (via {@code FrontmatterBuilder.yamlSafe}); this header escapes the same value for the Markdown
+   * body — one escaping decision per sink, never a raw append. A raw scenario here forged document
+   * structure (a heading of its own) and injected active HTML (2026-09-08 audit). The result's
+   * {@code displayName()} stays raw on purpose: it is enum-controlled, never caller-supplied.
+   */
   private void renderDocumentHeader(TraceTree tree, TraceMetadata metadata, StringBuilder sb) {
     if (tree.roots().isEmpty()) {
       return;
@@ -129,7 +166,7 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     var sig = tree.roots().get(0).signature();
     var durationMs = DurationFormat.millis(tree.durationNanos());
     sb.append("\n## Trace: ").append(signatureText(sig)).append("\n\n");
-    sb.append("**Scenario:** ").append(metadata.scenario()).append("\n");
+    sb.append("**Scenario:** ").append(MarkdownEscape.text(metadata.scenario())).append("\n");
     sb.append("**Duration:** ")
         .append(durationMs)
         .append("ms | **Result:** ")
@@ -227,7 +264,7 @@ public final class MarkdownRenderer implements NarrativeRenderer {
       }
       return i + 1;
     }
-    var end = foldRunEnd(segments, i);
+    var end = foldLoops ? foldRunEnd(segments, i) : i + 1;
     if (end - i >= 2) {
       planFoldedRun(segments, i, end, depth, planned, carry);
       return end;

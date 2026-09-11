@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.build
 
+import org.gradle.testfixtures.ProjectBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -119,5 +120,43 @@ class MutationReportSupportTest {
         val text = out.toString()
         assertTrue(text.contains("All mutants killed!"))
         assertTrue(!text.contains("SURVIVING MUTANTS"))
+    }
+
+    // Regression for the module-filter bug found while wiring `verifyAll`'s mutation category:
+    // `collectEntriesFromProjects` once silently dropped narrativetrace-api and
+    // narrativetrace-glossary through an internally hand-synced module list. That list is gone —
+    // the caller now supplies the module set explicitly (build.gradle.kts's own
+    // `mutationTestedModules`), so this proves the filter honours exactly the set it is given.
+    @Test
+    fun collectEntriesFromProjectsReadsExactlyTheGivenModuleSet() {
+        val root = ProjectBuilder.builder().withProjectDir(tempDir).build()
+        val moduleNames = listOf(
+            "narrativetrace-api", "narrativetrace-core", "narrativetrace-proxy",
+            "narrativetrace-clarity", "narrativetrace-glossary", "narrativetrace-agent",
+        )
+        val subprojects = moduleNames.map { name ->
+            val dir = tempDir.resolve(name).also { it.mkdirs() }
+            val sub = ProjectBuilder.builder().withName(name).withProjectDir(dir).withParent(root).build()
+            val reportsDir = dir.resolve("build/reports/pitest").also { it.mkdirs() }
+            reportsDir.resolve("mutations.xml").writeText(mutationsXml().readText())
+            sub
+        }
+
+        val entries = MutationReportSupport.collectEntriesFromProjects(
+            subprojects,
+            setOf(
+                "narrativetrace-api", "narrativetrace-core", "narrativetrace-proxy",
+                "narrativetrace-clarity", "narrativetrace-glossary",
+            )
+        )
+
+        // 2 mutations per module report * the 5 requested modules; narrativetrace-agent is
+        // excluded here (it runs through its own isolated `pitestAgent` task, not this aggregate),
+        // even though its report file exists on disk — the filter is by module set, not by
+        // whether a mutations.xml happens to be sitting there.
+        assertEquals(10, entries.size)
+        assertTrue(entries.none { it.module == "narrativetrace-agent" })
+        assertTrue(entries.any { it.module == "narrativetrace-api" })
+        assertTrue(entries.any { it.module == "narrativetrace-glossary" })
     }
 }

@@ -16,7 +16,7 @@ The core insight: if your method is called `placeOrder(customerId, quantity)` an
 - Narrative delta loop: suite footer prints a one-line structural delta since the last green run; approval mode fails passing tests whose structure drifts from committed `.approved.nt` baselines
 - Trace value references: repeated captured values dedup to readable labels (`‹Hotel›=full` first, `‹Hotel›` after)
 - Intra-trace value deltas: the same entity re-captured with a scalar field changed renders as a diff against the in-document reference (`‹Dinner›′{amount: 100.0→92.0}`); anything the diff cannot express renders in full
-- Loop folding: consecutive same-shape sibling subtrees condense in Markdown — first iteration in full, then one `×k more: ‹Dinner›, ‹Taxi› — same flow (validate ✓ → record ✓)` line; a divergent call or outcome renders in full outside the fold (Markdown only)
+- Loop folding: consecutive same-shape sibling subtrees condense in Markdown — first iteration in full, then one `×k more: ‹Dinner›, ‹Taxi› — same flow (validate ✓ → record ✓)` line; a divergent call or outcome renders in full outside the fold (Markdown only). Each folded iteration is named on that line: by its identity label where the distinguishing argument has one, otherwise by position and the argument itself (`#2 sku="TENT"`). `narrativetrace.unfolded=true` turns folding off and renders every iteration in full
 - Naming clarity analysis that scores code readability (method, class, parameter names) with a per-element teaching note at every score
 - Spring integration with automatic bean post-processing
 - Servlet filter for production request lifecycle tracing
@@ -142,7 +142,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -196,9 +196,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.1")
 }
 ```
 
@@ -646,7 +646,7 @@ narrativetrace.format=markdown
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 
 narrativeTrace {
@@ -783,8 +783,9 @@ Features:
 - Per-test `NarrativeContext` via parameter injection
 - Automatic failure reporting: prints the structural delta against the last green run (summary + readable diff) when a baseline exists, the full trace otherwise; trace paths print as `file://` links
 - Scenario names derived from test method names
-- With `narrativetrace.output=true` (markdown format): writes `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (failed runs compare against it, never overwrite it)
-- Suite-level clarity report and console summary after all tests; the summary ends with `Since last green: …`, the one-line structural delta
+- With `narrativetrace.output=true` (markdown format): writes `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (non-green runs compare against it, never overwrite it; a rejected approval counts as non-green, so a rejected structure never poisons the baseline)
+- Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline
+- Suite-level clarity report, run manifest (`manifest.json` — scenario → file index over every artifact written, with the invocation number) and console summary after all tests; the summary ends with `Since last green: …`, the one-line structural delta
 - Approval mode (`narrativetrace.approval=true`): a passing test whose structure differs from its committed `src/test/narratives/<Class>/<scenario>.approved.nt` baseline fails with a readable diff; the Gradle `approveNarratives` task promotes reviewed `.received.nt` files
 
 ### JUnit 4
@@ -1155,9 +1156,9 @@ A request ends when its thread calls `reset()`, and everything that request coul
 
 - **A worker that finishes after its request reset** finds a closed origin. Its spans and events are discarded on the spot and counted as `TraceLoss.discardedSpans`. They are not adopted into a stack nobody will ever capture from, and they are not left in memory.
 - **A worker whose batch the 10,000-span adoption cap refuses** is discarded the same way, but counted where it already was — as a refused scope, the number that says a subtree is missing from the narrative.
-- **A helper-owned worker** (`ForkGroup`, `FireAndForgetGroup`, anything using `activateWithoutAdoption()`) is discarded at collection, through `discardLocalTrace()`: the copied `TraceNode`s are the surviving record, and `merge()` re-emits them as the spans a reader sees.
+- **A helper-owned worker** (`ForkGroup`, `FireAndForgetGroup`, anything using `activateWithoutAdoption()`) is discarded at collection, through `collectLocalTrace()` — capture and discard as one operation: the copied `TraceNode`s are the surviving record, and `merge()` re-emits them as the spans a reader sees. Because that capture is the last one the scope ever gets, the collect counts, as refused loss, any of the worker's own spans whose events it could not see — a child is allowed to be lost under pressure, never silently.
 
-A capture is also a **bounded wait**, not a snapshot: `captureTrace()` flushes the pipeline, asks whether everything published has arrived, and flushes again while it has not (up to 64 spin-flushes). The buffered path's drain stops at a slot another thread has claimed but not finished writing, so a single flush under concurrent publishing can leave the calling thread's *own* events outstanding — and a capture that reported then would omit them silently. A pipeline that is already drained, which is every single-threaded capture, pays one boolean.
+A capture is also a **bounded wait**, not a snapshot: the buffered path's drain stops at a slot another thread has claimed but not finished writing, and the thread inside that window can be descheduled for a whole scheduling quantum — so a flush that returned around the stall would leave the calling thread's *own* events outstanding, and a capture taken then would omit them silently. `flush()` is therefore a barrier for everything published before it was called, waiting out stalled claims under an explicit deadline (spin, then yield, 10 ms); `captureTrace()` still retries the flush while the pipeline reports itself undrained (up to 64 spin-flushes, for pipelines that drain incrementally). A pipeline that is already drained, which is every single-threaded capture, pays one comparison.
 
 `discardedSpans` is deliberately **not** part of `TraceLoss.any()`, so it never triggers a renderer's incomplete-narrative footer: the discard happens after its request's tree was captured, so no rendered narrative is missing anything it could have contained. Read it when you want to know that async work is outliving its request; read `droppedEvents` and `refusedScopes` when you want to know whether the trace in your hand is complete.
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 11cb3181e5e4 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/privacy-and-redaction.md blob 1b80647f6c96 | translated: 2026-09-10 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -46,22 +46,48 @@ renderizado por reflexión:
 1. **`@NotTraced`** en un parámetro, campo o componente de record —
    siempre oculta, incondicionalmente, en todas partes.
 2. **La lista de denegación basada en nombre** (`RedactionPolicy.DEFAULT`)
-   — compara nombres de campo contra un conjunto multilingüe integrado
+   — compara **nombres de parámetro, nombres de campo y nombres de
+   componente de record** contra un conjunto multilingüe integrado
    (`password`, `token`, `cvv`, `ssn`, `secret`, `authorization`,
-   `cardNumber`, y sus equivalentes en español, portugués, francés y
-   chino, entre otros), más una segunda comprobación independiente sobre
+   `cardNumber`, y sus equivalentes en español, portugués, francés, alemán
+   y chino, entre otros), más una segunda comprobación independiente sobre
    la *forma* del propio valor (un JWT, un número de tarjeta válido según
-   Luhn, una cadena `Set-Cookie`), de modo que un token bearer pasado bajo
-   un nombre no reconocido se sigue atrapando.
+   Luhn, una cadena `Set-Cookie`, un número de identidad nacional que pasa
+   su propio checksum, un número de la Seguridad Social de EE. UU. con
+   guiones), de modo que un token bearer pasado bajo un nombre no
+   reconocido se sigue atrapando.
+
+   Los nombres de parámetro se añadieron el 2026-09-10. Hasta entonces este
+   eje solo alcanzaba campos y componentes de record, así que un método que
+   recibía `String password` lo imprimía completo a menos que el parámetro
+   llevara `@NotTraced` — mientras el README afirmaba lo contrario. La
+   decisión ahora ocurre en el **momento de captura**, en los metadatos por
+   método que tanto el proxy como el agente ya cachean, lo cual tiene dos
+   consecuencias que vale la pena conocer: la búsqueda no cuesta nada por
+   llamada trazada, y un valor denegado nunca entra al `TraceEvent`, así
+   que no puede llegar a la vía de auditoría, al consumidor con buffer ni a
+   un listener conectado a través del SPI del pipeline. Nunca se
+   renderiza y luego se sustituye — un secreto formateado y descartado
+   igual existió como string.
 
 Un **`toString()` cuidado** normalmente se prefiere a la introspección
 reflexiva — pero una clase que declara un campo `@NotTraced` se introspecta
 de todos modos, así que se respeta la anotación en lugar de lo que ese
-`toString()` habría impreso. La lista de denegación basada en nombre *no*
-tiene ese mismo poder de anulación: solo se aplica cuando NarrativeTrace ya
-está introspeccionando campos, así que una clase con su propio `toString()`
-y sin ningún miembro `@NotTraced` se confía tal como está escrita. Solo la
-anotación explícita supera a un `toString()` cuidado.
+`toString()` habría impreso. Para un **campo o componente de record**, la
+lista de denegación basada en nombre *no* tiene ese mismo poder de
+anulación: solo se aplica cuando NarrativeTrace ya está introspeccionando
+campos, así que una clase con su propio `toString()` y sin ningún miembro
+`@NotTraced` se confía tal como está escrita. Solo la anotación explícita
+supera a un `toString()` cuidado.
+
+Un **parámetro** es distinto, y la diferencia se debe a en qué momento se
+toma la decisión. Un parámetro cuyo *nombre* deniega la lista se resuelve
+en el momento de captura, antes de que el argumento llegue a ningún
+renderer — así que nunca se llama a ningún `toString()`, cuidado o no,
+sobre él. La distinción no es una inconsistencia: un nombre de campo se
+descubre *mediante* la introspección, mientras que un nombre de parámetro
+se conoce a partir de la firma del método antes de que el valor sea
+tocado en absoluto.
 
 La ocultación también **sobrevive un nivel de contenedor** — `Optional`,
 `Future`, `AtomicReference`, `AtomicReferenceArray` y un `Map.Entry`

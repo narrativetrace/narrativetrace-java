@@ -21,6 +21,7 @@ publicada completa — incluidas páginas sin fichero aquí — está en
 | [Guía de configuración](es/guia-de-configuracion.md) | Cada superficie de configuración: propiedades del sistema, `junit-platform.properties`, Gradle, Spring, Micronaut, SLF4J; flags de captura, claves MDC y valores por defecto de ocultación |
 | [Guía de anotaciones](es/guia-de-anotaciones.md) | `@Narrated`, `@OnError`, `@NotTraced`, `@NarrativeSummary`, `@EnableNarrativeTrace`, y el contrato de pureza que implican |
 | [Privacidad y ocultación](es/privacidad-y-ocultacion.md) | El contrato de ocultación fila por fila verificado contra el código, la lista de garantías y no-garantías, y el modelo de pérdida en producción |
+| [La canalización de eventos de doble ruta](es/canalizacion-de-doble-ruta.md) | El contrato de la canalización por defecto: la ruta síncrona de narración durable ante caídas, la ruta con búfer que nunca bloquea, la pérdida contada, y la ocultación en captura aguas arriba de ambas |
 | [Qué commitear](es/que-commitear.md) | Qué ficheros generados son artefactos de CI y cuáles son baselines revisadas que commiteas |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → solución para los modos de fallo que la gente realmente encuentra, desde parámetros `arg0` hasta un agente silencioso |
 

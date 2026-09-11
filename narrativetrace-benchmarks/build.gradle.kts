@@ -15,6 +15,14 @@ dependencies {
     jmh(project(":narrativetrace-spring"))
     jmh(project(":narrativetrace-agent"))
     jmh("org.springframework:spring-context:6.2.19")
+    // The root build declares a version-less `testRuntimeOnly("org.junit.platform:junit-platform-launcher")`
+    // in every module (Gradle 9 readiness); everywhere else junit-jupiter's BOM supplies its
+    // version. This module has no test dependencies at all, yet the JMH plugin resolves
+    // `testRuntimeClasspath` for its generated-classes compile step — so without a BOM the
+    // launcher is unresolvable and every jmh/allocation task fails before running anything
+    // (the nightly allocationCheck job had failed on every night since it was created,
+    // 2026-09-02..08 logs).
+    "testRuntimeOnly"(platform("org.junit:junit-bom:5.11.4"))
 }
 
 val agentJar = project(":narrativetrace-agent").tasks.named<Jar>("shadowJar").map { it.archiveFile.get().asFile.absolutePath }
@@ -29,6 +37,13 @@ val benchmarkLauncher = extensions.getByType<JavaToolchainService>()
     .launcherFor(extensions.getByType<JavaPluginExtension>().toolchain)
 
 jmh {
+    // This module has no test sources, so the JMH classpath must not inherit the test runtime
+    // classpath (the plugin's default). Inheriting it dragged in the repo-wide version-less
+    // `testRuntimeOnly("org.junit.platform:junit-platform-launcher")` (declared for Gradle 9
+    // readiness) with no junit-jupiter/junit-bom in this module to give it a version —
+    // `jmhRunBytecodeGenerator` therefore failed resolution on every run, which is why the
+    // nightly allocationCheck job had failed on every night since it was created (2026-09-02).
+    includeTests.set(false)
     warmupIterations.set(3)
     iterations.set(5)
     fork.set(1)

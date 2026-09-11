@@ -30,8 +30,9 @@ package ai.narrativetrace.api.event;
  * {@link TraceOutcome.Incomplete}, so an outcome — not only a branch — may be missing.
  *
  * @param droppedEvents events the bounded buffer shed under load (process-wide since start)
- * @param refusedScopes worker scopes whose spans were refused whole because the adoption cap was
- *     full — each one is an async subtree absent from the tree
+ * @param refusedScopes worker scopes whose spans were refused whole — the adoption cap was full, or
+ *     a concurrency helper's collect exhausted its bounded drain wait before the scope's events
+ *     became visible — each one is an async subtree absent from the tree
  * @param refusedSpans spans lost to those refusals
  * @param discardedSpans spans dropped because the request that owned them had already ended — an
  *     async worker that finished after its request reset (process-wide since start)

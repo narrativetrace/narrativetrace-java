@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 11cb3181e5e4 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/privacy-and-redaction.md blob 1b80647f6c96 | translated: 2026-09-10 | reviewed: - -->
 # Privacidade e ocultação
 
 [English](../privacy-and-redaction.md) | Español | **Português** | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -46,24 +46,49 @@ renderizado reflexivamente:
 1. **`@NotTraced`** em um parâmetro, campo ou componente de record —
    sempre oculta, incondicionalmente, em todo lugar.
 2. **A lista de negação baseada em nome** (`RedactionPolicy.DEFAULT`) —
-   compara nomes de campos com um conjunto embutido e multilíngue
-   (`password`, `token`, `cvv`, `ssn`, `secret`, `authorization`,
-   `cardNumber`, e seus equivalentes em espanhol, português, francês e
-   chinês, entre outros), mais uma segunda verificação independente
-   sobre a *forma* do próprio valor (um JWT, um número de cartão válido
-   pelo algoritmo de Luhn, uma string `Set-Cookie`), de modo que um
-   bearer token passado sob um nome não reconhecido ainda assim é
-   capturado.
+   compara **nomes de parâmetro, nomes de campo e nomes de componente de
+   record** com um conjunto embutido e multilíngue (`password`, `token`,
+   `cvv`, `ssn`, `secret`, `authorization`, `cardNumber`, e seus
+   equivalentes em espanhol, português, francês, alemão e chinês, entre
+   outros), mais uma segunda verificação independente sobre a *forma* do
+   próprio valor (um JWT, um número de cartão válido pelo algoritmo de
+   Luhn, uma string `Set-Cookie`, um número de identidade nacional que
+   passa seu próprio checksum, um número de Seguro Social dos EUA com
+   hífens), de modo que um bearer token passado sob um nome não
+   reconhecido ainda assim é capturado.
+
+   Nomes de parâmetro foram adicionados em 2026-09-10. Até então esse eixo
+   alcançava apenas campos e componentes de record, então um método que
+   recebia `String password` o imprimia por completo a menos que o
+   parâmetro levasse `@NotTraced` — enquanto o README afirmava o
+   contrário. A decisão agora acontece na **captura**, nos metadados por
+   método que tanto o proxy quanto o agente já armazenam em cache, o que
+   traz duas consequências que vale a pena conhecer: a busca não custa
+   nada por chamada rastreada, e um valor negado nunca entra no
+   `TraceEvent`, então ele não pode alcançar o caminho de auditoria, o
+   consumidor com buffer nem um listener conectado através do SPI do
+   pipeline. Ele nunca é renderizado e depois substituído — um segredo
+   formatado e descartado existiu do mesmo jeito, como string.
 
 Um **`toString()` cuidadosamente escrito** normalmente é preferido em
 vez da introspecção reflexiva — mas uma classe que declara um campo
 `@NotTraced` é introspectada mesmo assim, então a anotação é respeitada
-em vez do que aquele `toString()` teria impresso. A lista de negação
-baseada em nome *não* tem o mesmo poder de sobrepor: ela só se aplica
-quando o NarrativeTrace já está introspectando campos, então uma classe
-com seu próprio `toString()` e nenhum membro `@NotTraced` é confiada
-como está escrita. Somente a anotação explícita tem prioridade sobre um
-`toString()` cuidadosamente escrito.
+em vez do que aquele `toString()` teria impresso. Para um **campo ou
+componente de record**, a lista de negação baseada em nome *não* tem o
+mesmo poder de sobrepor: ela só se aplica quando o NarrativeTrace já
+está introspectando campos, então uma classe com seu próprio
+`toString()` e nenhum membro `@NotTraced` é confiada como está escrita.
+Somente a anotação explícita tem prioridade sobre um `toString()`
+cuidadosamente escrito.
+
+Um **parâmetro** é diferente, e a diferença decorre de em que momento a
+decisão é tomada. Um parâmetro cujo *nome* a lista de negação nega é
+resolvido na captura, antes de o argumento chegar a qualquer renderer —
+então nenhum `toString()`, cuidadosamente escrito ou não, é chamado
+sobre ele. A distinção não é inconsistência: um nome de campo é
+descoberto *pela* introspecção, enquanto um nome de parâmetro é
+conhecido a partir da assinatura do método antes de o valor ser tocado
+de qualquer forma.
 
 A ocultação também **sobrevive um nível de container de profundidade**
 — `Optional`, `Future`, `AtomicReference`, `AtomicReferenceArray` e um

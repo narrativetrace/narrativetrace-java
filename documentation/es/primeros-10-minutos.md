@@ -1,4 +1,4 @@
-<!-- source: documentation/first-10-minutes.md blob 4729e8e94bf8 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/first-10-minutes.md blob e11cf346a7c3 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
 # Primeros 10 minutos
 
 [English](../first-10-minutes.md) | **Español** | [Português](../pt-BR/primeiros-10-minutos.md) | [简体中文](../zh-CN/前10分钟.md)
@@ -20,7 +20,7 @@ contra *tu propio* código.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -210,7 +210,7 @@ arreglarlo (no acarrea dependencias de runtime propias):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.0")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.1")
 }
 ```
 

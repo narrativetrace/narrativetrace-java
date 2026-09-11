@@ -64,61 +64,16 @@ public final class RedactionPolicy {
    */
   public static final String MARKER = "[REDACTED]";
 
-  private static final Set<String> DEFAULT_PATTERNS =
-      Set.of(
-          // English
-          "password",
-          "passwd",
-          "secret",
-          "token",
-          "apikey",
-          "api_key",
-          "cvv",
-          "ssn",
-          "authorization",
-          "credential",
-          "privatekey",
-          "private_key",
-          "cardnumber",
-          "card_number",
-          "jwt",
-          "cookie",
-          "setcookie",
-          "set_cookie",
-          "sessionid",
-          "session_id",
-          "accountnumber",
-          "account_number",
-          "routingnumber",
-          "routing_number",
-          // Spanish: contrase\u00f1a, tarjeta, c\u00e9dula -- written folded, matched either way
-          "contrasena",
-          "tarjeta",
-          "cedula",
-          // Spanish: bare "clave" was narrowed away 2026-09-03 -- it matched clavePrimaria and
-          // claveForanea, ordinary database terms, not credentials. These two compounds are the
-          // unit instead; both spellings, because the underscore is part of the name being matched.
-          "claveacceso",
-          "clave_acceso",
-          "clavesecreta",
-          "clave_secreta",
-          // Portuguese: cart\u00e3o
-          "cartao",
-          // French: both spellings, because the underscore is part of the name being matched
-          "motdepasse",
-          "mot_de_passe",
-          // French: bare "carte" was narrowed away 2026-09-03 -- it matched carteGraphique and
-          // carteRoutiere, ordinary identifiers, not credentials. These two compounds are the unit
-          // instead; both spellings, same reason as above.
-          "cartebancaire",
-          "carte_bancaire",
-          "numerocarte",
-          "numero_carte",
-          // Chinese: U+5BC6 U+7801 (mima, password) and U+8EAB U+4EFD U+8BC1 (identity card),
-          // plus the pinyin a codebase without CJK identifiers writes instead
-          "\u5bc6\u7801",
-          "\u8eab\u4efd\u8bc1",
-          "shenfenzheng");
+  /**
+   * Names matched anywhere inside an identifier, flattened from {@link SensitiveVocabulary}.
+   *
+   * <p><b>@llmNote</b> The vocabulary is a list of concepts so that a half-covered one — a name in
+   * one language and no value shape — is visible to a reader and to a test. Matching never walks
+   * it: it is flattened here once, during class initialisation, and every traced call sees only
+   * these two flat sets. The concept structure therefore costs nothing per call, and the vocabulary
+   * can grow to any number of languages without touching steady-state performance.
+   */
+  private static final Set<String> DEFAULT_PATTERNS = SensitiveVocabulary.substringTerms();
 
   /**
    * Patterns matched against whole identifier tokens rather than as substrings.
@@ -145,8 +100,7 @@ public final class RedactionPolicy {
    * live in {@link #DEFAULT_PATTERNS} instead, spelled out as the specific compounds that are
    * credentials.
    */
-  private static final Set<String> WORD_PATTERNS =
-      Set.of("pan", "iban", "rut", "cuit", "dni", "senha", "cpf", "cnpj", "nir", "mima");
+  private static final Set<String> WORD_PATTERNS = SensitiveVocabulary.identifierTokenTerms();
 
   /**
    * Splits an identifier into words: on any non-alphanumeric run, on a lower-to-upper transition

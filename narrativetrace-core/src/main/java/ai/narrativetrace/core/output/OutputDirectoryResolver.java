@@ -48,6 +48,25 @@ public final class OutputDirectoryResolver {
    */
   private static final int SUFFIX_RESERVE_BYTES = 16;
 
+  /**
+   * Bytes an invocation label may occupy inside an artifact name.
+   *
+   * <p>A display name is prose — {@code @ParameterizedTest(name = ...)} interpolates arguments into
+   * it — so it is bounded before the method slug is, and the index it follows is never the part
+   * that gets truncated. 60 leaves a long name readable while keeping the whole element far below
+   * the component limit.
+   */
+  private static final int MAX_LABEL_BYTES = 60;
+
+  /**
+   * Separates a method slug from its invocation discriminator.
+   *
+   * <p>The slug alphabet is {@code [a-z0-9_]}, so a hyphen can never appear inside either part: an
+   * ordinary method's artifact can never collide with an invocation's, and a reader (or a manifest
+   * consumer) can split the name back into method, index and label.
+   */
+  private static final String INVOCATION_SEPARATOR = "-";
+
   private final Path baseDir;
 
   public OutputDirectoryResolver(Path baseDir) {
@@ -83,7 +102,34 @@ public final class OutputDirectoryResolver {
   }
 
   public Path traceFile(String testClassName, String testMethodName) {
-    return traceDirectory(testClassName).resolve(toFileSlug(testMethodName) + ".md");
+    return traceFile(ArtifactIdentity.ofMethod(testClassName, testMethodName));
+  }
+
+  /** The trace file of one invocation — the same layout, keyed by the full artifact identity. */
+  public Path traceFile(ArtifactIdentity identity) {
+    return traceArtifact(identity, ".md");
+  }
+
+  /**
+   * A per-test artifact in the {@code traces} tree: the rendered narrative in whichever format was
+   * chosen, and the JSON siblings written beside it.
+   *
+   * @param suffix the whole suffix including its dot, e.g. {@code .txt}, {@code .canonical.json}
+   */
+  public Path traceArtifact(ArtifactIdentity identity, String suffix) {
+    return traceDirectory(identity.testClassName()).resolve(identity.fileSlug() + suffix);
+  }
+
+  /** The Mermaid diagram of one invocation, in the {@code diagrams} tree. */
+  public Path diagramFile(ArtifactIdentity identity) {
+    return classDirectory(baseDir.resolve("diagrams"), identity.testClassName())
+        .resolve(identity.fileSlug() + ".mmd");
+  }
+
+  /** The last-green structural artifact of one invocation, in the {@code structural} tree. */
+  public Path structuralFile(ArtifactIdentity identity) {
+    return classDirectory(baseDir.resolve("structural"), identity.testClassName())
+        .resolve(identity.fileSlug() + ".nt");
   }
 
   public Path baseDir() {
@@ -141,8 +187,57 @@ public final class OutputDirectoryResolver {
    * One slug rule for every per-test artifact: {@code customerPlacesOrder → customer_places_order}.
    */
   static String toFileSlug(String methodName) {
-    var slug = methodName.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
-    return capped(slug.replaceAll("[^a-z0-9_]", "_"), MAX_COMPONENT_BYTES - SUFFIX_RESERVE_BYTES);
+    return capped(rawFileSlug(methodName), MAX_COMPONENT_BYTES - SUFFIX_RESERVE_BYTES);
+  }
+
+  /**
+   * The artifact base name for one invocation of a test method — the scheme {@link
+   * ArtifactIdentity} documents in full, and the one place it is computed.
+   *
+   * <p>An index of zero means "this method runs once", which is every ordinary test, and returns
+   * exactly what {@link #toFileSlug(String)} always returned: no existing artifact — or approved
+   * baseline beside it — moves. Otherwise the discriminator is appended and the <em>method</em>
+   * half absorbs any shortening, so the index a reader navigates by is never the part truncated
+   * away.
+   *
+   * @param invocationIndex 1-based invocation number, or {@code 0} for a method that runs once
+   * @param invocationLabel the invocation's display name; may be blank
+   */
+  static String toFileSlug(String methodName, int invocationIndex, String invocationLabel) {
+    if (invocationIndex <= 0) {
+      return toFileSlug(methodName);
+    }
+    var tail = invocationTail(invocationIndex, invocationLabel);
+    var budget = MAX_COMPONENT_BYTES - SUFFIX_RESERVE_BYTES - utf8Length(tail);
+    return capped(rawFileSlug(methodName), budget) + tail;
+  }
+
+  /** {@code -002-find_tent}: the index a reader navigates by, then the label they recognize. */
+  private static String invocationTail(int invocationIndex, String invocationLabel) {
+    var index = INVOCATION_SEPARATOR + String.format("%03d", invocationIndex);
+    var label = labelSlug(invocationLabel);
+    return label.isEmpty() ? index : index + INVOCATION_SEPARATOR + label;
+  }
+
+  /**
+   * A display name reduced to a readable name fragment: the shared slug rule, then runs of {@code
+   * _} collapsed and the ends trimmed, so JUnit's default {@code [1] KAYAK} reads as {@code
+   * 1_kayak} rather than {@code _1__kayak}. A label that slugs to nothing is dropped entirely — the
+   * index alone still names the invocation.
+   *
+   * <p><b>@llmNote</b> Never null: {@link ArtifactIdentity} normalizes an absent label to the empty
+   * string before it reaches here, so absence is handled in exactly one place.
+   */
+  private static String labelSlug(String invocationLabel) {
+    var collapsed = rawFileSlug(invocationLabel).replaceAll("_+", "_");
+    var trimmed = collapsed.replaceAll("^_+", "").replaceAll("_+$", "");
+    return capped(trimmed, MAX_LABEL_BYTES);
+  }
+
+  /** The uncapped slug: camel-case split, lowercased, everything outside the alphabet replaced. */
+  private static String rawFileSlug(String name) {
+    var slug = name.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
+    return slug.replaceAll("[^a-z0-9_]", "_");
   }
 
   /**

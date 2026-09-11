@@ -117,13 +117,34 @@ public class NarrativeTraceRule extends TestWatcher {
       return;
     }
     printTemplateWarnings();
-    // Output first so the failure report can speak in terms of the structural delta the write
-    // computed — TestWatcher guarantees finished() runs after failed().
-    var delta = writeTraceIfEnabled(description);
+    // The verdict has to be known BEFORE anything is written: an approval rejection fails the test
+    // too, and a run that ends red must not advance the last-green artifact.
+    var rejection = testFailed ? null : approvalRejection(description);
+    // Output before the report so the failure report can speak in terms of the structural delta the
+    // write computed — TestWatcher guarantees finished() runs after failed().
+    var delta = writeTraceIfEnabled(description, testFailed || rejection != null);
     printFailureReport(description, delta);
     accumulateIfLinked(description);
-    if (!testFailed) {
+    if (rejection != null) {
+      throw rejection;
+    }
+  }
+
+  /**
+   * Runs approval verification and hands back the failure it would raise, instead of raising it.
+   *
+   * <p>INTENT: The last-green artifact advances only on a run that is green <em>in full</em>, and
+   * that includes the approval verdict — a rejected structure that advanced the baseline poisoned
+   * it, and the next (reverted, correct) run then reported a removal that never happened
+   * (2026-09-08 agent evaluation). The error is thrown after the write, so the test fails exactly
+   * as it did before, with the same message.
+   */
+  private AssertionError approvalRejection(Description description) {
+    try {
       verifyApprovalIfEnabled(description);
+      return null;
+    } catch (AssertionError e) {
+      return e;
     }
   }
 
@@ -197,7 +218,12 @@ public class NarrativeTraceRule extends TestWatcher {
     }
   }
 
-  private Optional<ScenarioDelta> writeTraceIfEnabled(Description description) {
+  /**
+   * @param verdictFailed the run's verdict: the test failed, or its approval was rejected. A
+   *     non-green run compares against the last-green artifact and never advances it
+   */
+  private Optional<ScenarioDelta> writeTraceIfEnabled(
+      Description description, boolean verdictFailed) {
     if (!isOutputEnabled()) {
       return Optional.empty();
     }
@@ -216,7 +242,7 @@ public class NarrativeTraceRule extends TestWatcher {
               testMethodName,
               testMethodName,
               trace,
-              testFailed,
+              verdictFailed,
               outputDir,
               out,
               format,

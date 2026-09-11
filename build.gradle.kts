@@ -222,39 +222,164 @@ tasks.register("demoWiringCheck") {
     }
 }
 
-tasks.register("pitest") {
-    description = "Runs mutation testing (PIT) across api, core, proxy, clarity, and glossary modules"
+// ------------------------------------------------------------------------------------------------
+// Mutation testing (PIT) module selection — default-deny.
+//
+// Every subproject is classified in EXACTLY ONE of the three collections below;
+// `mutationAccounting` (registered further down, wired into `check`) enforces that as a
+// build-time check. Before this, the plugin-application `if` and this file's own `pitest`
+// aggregate `dependsOn` were two independently hand-synced module-name lists with no accounting
+// between them — a new module could ship unmutated forever and nothing would say so. Now there
+// is one list per tier and a map of reasons for everything else; a module that falls through all
+// three fails the build, naming itself.
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * The shared pitest tier: threshold 80 (or a measured, ratcheted floor — see
+ * `mutationThresholdFloors`), DEFAULTS mutators, 8s per-mutant timeout. `narrativetrace-slf4j`,
+ * `narrativetrace-diagrams`, `narrativetrace-junit5`, and `narrativetrace-opentelemetry` joined
+ * the original five 2026-09-10 (owner order: "slf4j should be mutated, add a few more, we will
+ * increment gradually").
+ */
+val mutationTestedModules = setOf(
+    "narrativetrace-api",
+    "narrativetrace-core",
+    "narrativetrace-proxy",
+    "narrativetrace-clarity",
+    "narrativetrace-glossary",
+    "narrativetrace-slf4j",
+    "narrativetrace-diagrams",
+    "narrativetrace-junit5",
+    "narrativetrace-opentelemetry",
+)
+
+/**
+ * Per-module mutation-score floors below the shared 80% threshold, set only where a measured
+ * score genuinely falls short of it — never used to weaken the original five. Round DOWN to the
+ * whole percent measured; raise with tests, never lower.
+ */
+val mutationThresholdFloors: Map<String, Int> = mapOf(
+    "narrativetrace-diagrams" to 78, // measured floor 2026-09-10 — ratchet: raise with tests, never lower
+)
+
+/** The agent module's own isolated tier (owner ruling, 2026-09-03) — see the subproject block below. */
+val mutationAgentModules = setOf("narrativetrace-agent")
+
+/**
+ * Every other subproject, with the one-line reason it is not mutation-tested (yet, or ever).
+ * Keyed by leaf module name, except the whole `narrativetrace-examples` tree (the parent plus its
+ * six `narrativetrace-examples:*` children), which `mutationAccounting` folds into the single
+ * "narrativetrace-examples" entry below by path prefix.
+ *
+ * `narrativetrace-maven-example` is not a Gradle subproject at all — a standalone Maven project
+ * under narrativetrace-maven-example/, proven the same way as the Gradle example modules below:
+ * by being executed, not by mutants — so it never reaches this map or `mutationAccounting`.
+ */
+val mutationExemptModules: Map<String, String> = mapOf(
+    "narrativetrace-examples" to
+        "demo/consumer code (this module and its narrativetrace-examples:* children) — proven by " +
+            "being executed (acceptance/dockerTest), not by mutants",
+    "narrativetrace-agent-example" to
+        "demo/consumer code for narrativetrace-agent — proven by being executed, not by mutants",
+    "narrativetrace-junit4-example" to
+        "demo/consumer code for narrativetrace-junit4 — proven by being executed, not by mutants",
+    "narrativetrace-benchmarks" to
+        "JMH harness — source lives in src/jmh, not src/main; no assertable invariants to mutate",
+    "narrativetrace-jcstress" to
+        "concurrency stress harness — probabilistic tests, mutants meaningless",
+    "narrativetrace-build-tests" to
+        "GradleTestKit functional suite for the root build itself (license packaging, build " +
+            "configuration, the publication script) — is itself a test suite; mutating tests tests nothing",
+    "narrativetrace-security-tests" to
+        "corpus-replay test suite (src/test only, zero src/main) — is itself a test suite; " +
+            "mutating tests tests nothing",
+    "narrativetrace-gradle-plugin" to
+        "build-time plugin, proven by its own src/functionalTest GradleTestKit executions; " +
+            "DEFERRED — candidate for a later increment",
+    "narrativetrace-junit4" to
+        "thin JUnit 4 adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-servlet" to
+        "thin servlet-filter adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-spring" to
+        "thin Spring adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-spring-web" to
+        "thin Spring Web adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-micrometer" to
+        "thin Micrometer context-accessor adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-micronaut" to
+        "Kotlin, not Java (src/main is 100% .kt) — thin adapter over the Micronaut DI container; " +
+            "DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-micronaut-http" to
+        "Kotlin, not Java (src/main is 100% .kt) — thin HTTP filter/factory adapter over Micronaut; " +
+            "DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+)
+
+/**
+ * Every subproject appears in exactly one of `mutationTestedModules`, `mutationAgentModules`, or
+ * `mutationExemptModules` — never zero (a silently-unmutated new module), never more than one
+ * (a stale entry nobody reconciled). The whole `narrativetrace-examples` tree collapses to its one
+ * `mutationExemptModules` entry by path prefix; everything else is keyed by leaf name.
+ */
+tasks.register("mutationAccounting") {
+    description = "Fails if any subproject is unclassified or double-classified for mutation testing"
     group = "verification"
-    dependsOn(
-        ":narrativetrace-api:pitest",
-        ":narrativetrace-core:pitest",
-        ":narrativetrace-proxy:pitest",
-        ":narrativetrace-clarity:pitest",
-        ":narrativetrace-glossary:pitest"
-    )
     doLast {
-        val entries = ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects)
+        val problems = mutableListOf<String>()
+        subprojects.forEach { sub ->
+            val key = moduleKey(sub)
+            val exemptKey = if (key == "narrativetrace-examples" || key.startsWith("narrativetrace-examples:")) {
+                "narrativetrace-examples"
+            } else {
+                key
+            }
+            val memberships = listOfNotNull(
+                "mutationTestedModules".takeIf { sub.name in mutationTestedModules },
+                "mutationAgentModules".takeIf { sub.name in mutationAgentModules },
+                "mutationExemptModules".takeIf { exemptKey in mutationExemptModules },
+            )
+            when {
+                memberships.isEmpty() -> problems.add(
+                    "$key: not classified for mutation testing — add it to mutationTestedModules, " +
+                        "mutationAgentModules, or mutationExemptModules (with a reason) in build.gradle.kts"
+                )
+                memberships.size > 1 -> problems.add(
+                    "$key: classified in more than one collection (${memberships.joinToString(", ")}) — " +
+                        "remove it from all but one in build.gradle.kts"
+                )
+            }
+        }
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "Mutation testing module accounting failed:\n" + problems.joinToString("\n")
+            )
+        }
+        println(
+            "mutationAccounting: ${subprojects.size} modules accounted for — " +
+                "${mutationTestedModules.size} mutation-tested, ${mutationAgentModules.size} agent-tier, " +
+                "${mutationExemptModules.size} exempt reasons"
+        )
+    }
+}
+
+tasks.register("pitest") {
+    description = "Runs mutation testing (PIT) across the mutationTestedModules set (build.gradle.kts)"
+    group = "verification"
+    dependsOn(mutationTestedModules.map { ":$it:pitest" })
+    doLast {
+        val entries = ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects, mutationTestedModules)
         ai.narrativetrace.build.MutationReportSupport.printReport(entries)
     }
 }
 
 // Isolated from the "pitest" aggregate above on purpose — see the pitest-extension comment on
 // the narrativetrace-agent subproject block for why this module gets its own task and its own
-// GitLab job (`mutation-agent`) rather than a sixth dependsOn entry above.
+// GitLab job (`mutation-agent`) rather than a spot in `mutationTestedModules` above.
 tasks.register("pitestAgent") {
     description = "Runs mutation testing (PIT) on the agent module, isolated in its own time box"
     group = "verification"
-    dependsOn(":narrativetrace-agent:pitest")
+    dependsOn(mutationAgentModules.map { ":$it:pitest" })
     doLast {
-        val entries =
-            ai.narrativetrace.build.MutationReportSupport.collectEntries(
-                listOf(
-                    ai.narrativetrace.build.MutationReportInput(
-                        "narrativetrace-agent",
-                        file("narrativetrace-agent/build/reports/pitest/mutations.xml")
-                    )
-                )
-            )
+        val entries = ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects, mutationAgentModules)
         ai.narrativetrace.build.MutationReportSupport.printReport(entries)
     }
 }
@@ -263,7 +388,7 @@ tasks.register("mutationReport") {
     description = "Shows mutation testing results from latest pitest run"
     group = "verification"
     doLast {
-        val entries = ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects)
+        val entries = ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects, mutationTestedModules)
         ai.narrativetrace.build.MutationReportSupport.printReport(entries)
     }
 }
@@ -350,9 +475,7 @@ tasks.register("pmdReport") {
 // gitleaks: a named entry point so CI encodes only this task's name, never the
 // binary's path, flags or version (THIN-CI rule). The local pre-commit hook
 // covers the staged diff on every commit; this covers the whole git history —
-// for a periodic sweep, and for a machine that never ran the hook. Degrades
-// gracefully: warns and passes when the `gitleaks` binary is absent locally,
-// the same convention the pre-commit hook uses.
+// for a periodic sweep, and for a machine that never ran the hook.
 // Deliberately not wired into `check` or a CI job here — see
 // documentation/security-tooling.md for the cadence this repo runs it at.
 fun findExecutableOnPath(name: String): String? {
@@ -363,16 +486,34 @@ fun findExecutableOnPath(name: String): String? {
         ?.absolutePath
 }
 
+// A missing scanner binary is never a silent green (the exact class
+// that bit the .NET first release; release-retrospective rule 2: a graceful-skip tool must prove
+// it has ever run). Locally it WARNS and records `skipped` under build/reports/security-scans/;
+// in CI, or under -Pnarrativetrace.security.required=true, it fails the task. A scan that ran
+// clean records `ran-clean`, so ran-clean / skipped / never-ran stay distinguishable after the
+// fact. The decision logic lives in ScannerGateSupport (buildSrc), unit-tested there.
+val securityScannersRequired =
+    providers.gradleProperty("narrativetrace.security.required").orNull == "true" ||
+        !System.getenv("CI").isNullOrEmpty()
+val securityScanStatusDir = layout.buildDirectory.dir("reports/security-scans")
+
 tasks.register("gitleaksScan") {
-    description = "Scans the full git history for secrets with gitleaks (warns and passes if the binary is absent)"
+    description = "Scans the full git history for secrets with gitleaks (missing binary: WARN + skipped status locally, failure in CI/required mode)"
     group = "verification"
     doLast {
+        val statusDir = securityScanStatusDir.get().asFile
         val gitleaks = findExecutableOnPath("gitleaks")
         if (gitleaks == null) {
-            println(
-                "gitleaksScan: 'gitleaks' not found on PATH — skipped. " +
-                    "Install: https://github.com/gitleaks/gitleaks#installing (see documentation/security-tooling.md)."
+            val decision = ai.narrativetrace.build.ScannerGateSupport.onMissingBinary(
+                "gitleaks",
+                securityScannersRequired,
+                "https://github.com/gitleaks/gitleaks#installing (see documentation/security-tooling.md)"
             )
+            ai.narrativetrace.build.ScannerGateSupport.recordSkipped(statusDir, "gitleaks", "binary not on PATH")
+            if (decision.fail) {
+                throw GradleException("gitleaksScan: ${decision.message}")
+            }
+            logger.warn("gitleaksScan: ${decision.message}")
             return@doLast
         }
         val reportFile = layout.buildDirectory.file("reports/gitleaks/report.json").get().asFile
@@ -388,6 +529,7 @@ tasks.register("gitleaksScan") {
                 "gitleaksScan: gitleaks reported a probable secret — see $reportFile and the output above"
             )
         }
+        ai.narrativetrace.build.ScannerGateSupport.recordRanClean(statusDir, "gitleaks")
         println("gitleaksScan: clean — full git history scanned, report at $reportFile")
     }
 }
@@ -396,18 +538,26 @@ tasks.register("gitleaksScan") {
 // (OSS/community-maintained; no custom rules — see documentation/security-tooling.md
 // for why custom rules are out of scope here). Fetching the ruleset needs
 // network, which is why this is not in `check` or a per-push job: wired into
-// private CI on merge-request and scheduled pipelines only. Degrades
-// gracefully when the `semgrep` binary is absent locally.
+// private CI on merge-request and scheduled pipelines only. A missing binary
+// follows the scanner gate above: WARN + skipped status locally, failure in
+// CI/required mode.
 tasks.register("semgrepScan") {
     description = "Runs Semgrep's community p/java security ruleset over the source tree (needs network)"
     group = "verification"
     doLast {
+        val statusDir = securityScanStatusDir.get().asFile
         val semgrep = findExecutableOnPath("semgrep")
         if (semgrep == null) {
-            println(
-                "semgrepScan: 'semgrep' not found on PATH — skipped. " +
-                    "Install: https://semgrep.dev/docs/getting-started/ (see documentation/security-tooling.md)."
+            val decision = ai.narrativetrace.build.ScannerGateSupport.onMissingBinary(
+                "semgrep",
+                securityScannersRequired,
+                "https://semgrep.dev/docs/getting-started/ (see documentation/security-tooling.md)"
             )
+            ai.narrativetrace.build.ScannerGateSupport.recordSkipped(statusDir, "semgrep", "binary not on PATH")
+            if (decision.fail) {
+                throw GradleException("semgrepScan: ${decision.message}")
+            }
+            logger.warn("semgrepScan: ${decision.message}")
             return@doLast
         }
         val reportFile = layout.buildDirectory.file("reports/semgrep/results.json").get().asFile
@@ -423,6 +573,7 @@ tasks.register("semgrepScan") {
                 "semgrepScan: Semgrep reported finding(s) — see $reportFile and the output above"
             )
         }
+        ai.narrativetrace.build.ScannerGateSupport.recordRanClean(statusDir, "semgrep")
         println("semgrepScan: clean — report at $reportFile")
     }
 }
@@ -434,18 +585,26 @@ tasks.register("semgrepScan") {
 // GradleTestKit cache), which describe *their* dependencies, not this
 // project's resolved graph. Querying the OSV database needs network, so this
 // is not in `check`: private CI runs it on the schedule and on a manual
-// web trigger only. Degrades gracefully when the `osv-scanner` binary is absent.
+// web trigger only. A missing binary follows the scanner gate above: WARN +
+// skipped status locally, failure in CI/required mode.
 tasks.register("osvScan") {
     description = "Scans the aggregated dependency SBOM against the OSV database (needs network)"
     group = "verification"
     dependsOn("cyclonedxBom")
     doLast {
+        val statusDir = securityScanStatusDir.get().asFile
         val osvScanner = findExecutableOnPath("osv-scanner")
         if (osvScanner == null) {
-            println(
-                "osvScan: 'osv-scanner' not found on PATH — skipped. " +
-                    "Install: https://google.github.io/osv-scanner/installation/ (see documentation/security-tooling.md)."
+            val decision = ai.narrativetrace.build.ScannerGateSupport.onMissingBinary(
+                "osv-scanner",
+                securityScannersRequired,
+                "https://google.github.io/osv-scanner/installation/ (see documentation/security-tooling.md)"
             )
+            ai.narrativetrace.build.ScannerGateSupport.recordSkipped(statusDir, "osv-scanner", "binary not on PATH")
+            if (decision.fail) {
+                throw GradleException("osvScan: ${decision.message}")
+            }
+            logger.warn("osvScan: ${decision.message}")
             return@doLast
         }
         val sbom = layout.buildDirectory.file("reports/cyclonedx/bom.json").get().asFile
@@ -469,6 +628,7 @@ tasks.register("osvScan") {
                 "osvScan: known vulnerabilities found in the dependency graph — see $reportFile and the output above"
             )
         }
+        ai.narrativetrace.build.ScannerGateSupport.recordRanClean(statusDir, "osv-scanner")
         println("osvScan: clean — report at $reportFile")
     }
 }
@@ -791,10 +951,11 @@ subprojects {
             dependsOn(":demoWiringCheck")
             dependsOn(":licensingCheck")
             dependsOn(":baselineFreshnessCheck")
+            dependsOn(":mutationAccounting")
         }
     }
 
-    if (name in setOf("narrativetrace-api", "narrativetrace-core", "narrativetrace-proxy", "narrativetrace-clarity", "narrativetrace-glossary")) {
+    if (name in mutationTestedModules) {
         apply(plugin = "info.solidsoft.pitest")
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
@@ -804,20 +965,25 @@ subprojects {
             timestampedReports = false
             timeoutConstInMillis = 8000
             mutators = setOf("DEFAULTS")
-            mutationThreshold = 80
-            excludedTestClasses = setOf("*PerfTest")
+            mutationThreshold = mutationThresholdFloors[name] ?: 80
+            // *FailingTestFixture: narrativetrace-junit5's NarrativeTraceExtensionTest launches this
+            // fixture programmatically (via the JUnit Platform Launcher API) to assert on the trace a
+            // *failing* test still produces — it never runs as a top-level test under `./gradlew test`
+            // (its name doesn't match Gradle's default test-class patterns), but PIT's own test-class
+            // scan finds and runs it directly, and PIT requires a green suite before it can mutate.
+            excludedTestClasses = setOf("*PerfTest", "*FailingTestFixture")
         }
     }
 
     // narrativetrace-agent joins mutation testing (owner ruling, 2026-09-03) through its own
     // `pitestAgent` task, deliberately not folded into the shared `pitest` aggregate above: ASM
     // bytecode rewriting plus a double shadow-jar build (see the module's own build script) make
-    // its baseline test run heavier than the other five pitest modules, and a blowout in an
+    // its baseline test run heavier than the other mutationTestedModules, and a blowout in an
     // instrumentation-visitor mutant must not consume the time box they share. Its own,
     // larger `timeoutConstInMillis` is that time box. It runs only where mutation already runs —
     // never per-commit, see `pitestAgent` at the bottom of this file and the GitLab `mutation-agent`
-    // job, both isolated from the five-module `pitest`/`mutation` pair the same way.
-    if (name == "narrativetrace-agent") {
+    // job, both isolated from the `mutationTestedModules`/`pitest`/`mutation` tier the same way.
+    if (name in mutationAgentModules) {
         apply(plugin = "info.solidsoft.pitest")
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
@@ -871,6 +1037,550 @@ subprojects {
         tasks.named("check") {
             dependsOn(tasks.named("jdependCheck"))
             dependsOn(rootProject.tasks.named("jdependCrossModule"))
+        }
+    }
+}
+
+// ================================================================================================
+// verifyAll — pro repo TODO §35E: "one command that runs everything and reports numbers."
+//
+// Today the only way to know what actually ran is to read five build systems and a log directory.
+// This is the family's first entry point of this shape — its JSON is the schema the other four
+// runtimes (.NET/`VerifyAll`, TS/`verify:all`, Python/`verify-all`, Swift/`verify-all.sh`) mirror —
+// so its output is deliberately generic (field names, statuses, category ids) rather than
+// Java-shaped. See `reports/verification/SCHEMA.md` for the field-by-field contract.
+//
+// It runs EVERY verification category this repo has, gate and heavy alike, in one sitting: cheap
+// static checks first (so a formatting break is visible in seconds), then the test/coverage/
+// architecture/conformance tier (all sliced from ONE `./gradlew test` run — see below), then the
+// genuinely heavy tier (mutation, coverage-guided fuzzing, benchmarks, concurrency stress) last.
+// A category's failure is recorded and the run CONTINUES — the report's value is completeness, not
+// an early exit — and `verifyAll` itself only fails at the very end, once every category has had
+// its turn, if any category's status is `failed`.
+//
+// Each category is its OWN fresh, non-daemon `./gradlew` subprocess (never a second in parallel):
+// this is a large, memory-constrained monorepo build, and the family's own container has choked on
+// concurrent heavy Gradle invocations before. Parsing logic
+// lives in buildSrc (JUnitAggregateSupport, PropertyTestClassifier, SpotBugsViolationSupport,
+// JcstressReportSupport, VerificationReportSupport) and is unit-tested there — this task only
+// orchestrates the sequence and shapes the rows.
+// ================================================================================================
+
+/** One subprocess's outcome: whether it succeeded, everything it printed, and how long it took. */
+data class GradleRunOutcome(val exitCode: Int, val output: String, val seconds: Double, val logFile: File)
+
+/**
+ * Runs a fresh `./gradlew` invocation with [args] and blocks until it exits. Always `--no-daemon`
+ * (no daemon left running to accumulate across dozens of these) and `--continue` (one failing task
+ * inside the invocation must never hide the others' results) and `--max-workers=2` (the container
+ * this repo builds in ships 8 GiB with its swap already committed).
+ *
+ * The full captured output is always written to `build/verifyAll-logs/<category>.log` — a summary
+ * line alone is not enough to diagnose a failure, and this is the one place that output would
+ * otherwise be lost (Gradle's own console only shows the OUTER `verifyAll` process; each category
+ * is a separate, nested `./gradlew` process whose stdout nothing else captures).
+ */
+fun runGradleSubprocess(rootDir: File, category: String, vararg args: String): GradleRunOutcome {
+    val gradlewCmd = if (System.getProperty("os.name").lowercase().contains("win")) "gradlew.bat" else "./gradlew"
+    val command = listOf(gradlewCmd, "--continue", "--no-daemon", "--max-workers=2") + args.toList()
+    val start = System.nanoTime()
+    val process = ProcessBuilder(command).directory(rootDir).redirectErrorStream(true).start()
+    val output = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+    val logFile = File(rootDir, "build/verifyAll-logs/$category.log")
+    logFile.parentFile.mkdirs()
+    logFile.writeText(output)
+    return GradleRunOutcome(exitCode, output, (System.nanoTime() - start) / 1_000_000_000.0, logFile)
+}
+
+/** The short commit `verifyAll` ran at — falls back to `"unknown"` rather than failing the run over it. */
+fun shortCommitOf(rootDir: File): String = try {
+    val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD").directory(rootDir).start()
+    val out = process.inputStream.bufferedReader().readText().trim()
+    process.waitFor()
+    out.ifBlank { "unknown" }
+} catch (e: Exception) {
+    "unknown"
+}
+
+/** Appends the saved log path to [note] whenever [status] is not a clean pass — a passed row stays as clean as [note] already was. */
+fun withLogHint(note: String?, outcome: GradleRunOutcome, status: ai.narrativetrace.build.VerificationStatus): String? =
+    if (status == ai.narrativetrace.build.VerificationStatus.PASSED) note
+    else (note?.let { "$it; " } ?: "") + "full output: ${outcome.logFile.path}"
+
+/** `<hostname>-<arch>` — enough to explain a timing anomaly without carrying anything sensitive. */
+fun hostDescriptor(): String {
+    val hostname = System.getenv("HOSTNAME") ?: System.getenv("COMPUTERNAME")
+        ?: runCatching { java.net.InetAddress.getLocalHost().hostName }.getOrDefault("unknown")
+    return "$hostname-${System.getProperty("os.arch")}"
+}
+
+/** Counts occurrences of `pattern` in [text] — used for jazzer's own "Done N runs in" console lines. */
+fun countOccurrences(text: String, pattern: Regex): Int = pattern.findAll(text).count()
+
+tasks.register("verifyAll") {
+    description = "Runs EVERY verification this repo has end to end — unit tests, coverage, " +
+        "mutation, property tests, both fuzz tiers, jcstress, benchmarks/allocation, ArchUnit, " +
+        "conformance, secrets/SAST/SCA scanners, format/lint/complexity and translation checks — " +
+        "and writes reports/verification/<date>.json + .md. LONG-RUNNING BY DESIGN: mutation " +
+        "testing across the mutationTestedModules set plus the agent module, and the unbounded jcstress " +
+        "sweep, are each historically well over an hour on this project's own dev container. " +
+        "Slowness is fine here; hidden state is not. A category's failure never aborts the run — " +
+        "see reports/verification/SCHEMA.md for how to read the report it produces."
+    group = "verification"
+
+    doLast {
+        println("=".repeat(100))
+        println("verifyAll: running every verification category this repo has, gate and heavy alike.")
+        println("This is LONG-RUNNING BY DESIGN (mutation + the unbounded stress sweep are each")
+        println("historically over an hour). Each category's result is collected regardless of")
+        println("whether an earlier category failed; verifyAll only fails at the very end.")
+        println("=".repeat(100))
+
+        val startedAt = java.time.Instant.now()
+        val results = mutableListOf<ai.narrativetrace.build.CategoryResult>()
+
+        fun addRow(row: ai.narrativetrace.build.CategoryResult) {
+            results += row
+            val elapsed = java.time.Duration.between(startedAt, java.time.Instant.now()).seconds
+            println(
+                "[$elapsed s elapsed] ${row.category.id.padEnd(14)} ${row.status.id.padEnd(15)} " +
+                    "(${"%.1f".format(row.durationSeconds)}s)  ${row.note ?: ""}"
+            )
+        }
+
+        // -------------------------------------------------------------------------------- format
+        run {
+            val outcome = runGradleSubprocess(rootDir, "format", "spotlessCheck")
+            val status = if (outcome.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+            addRow(
+                ai.narrativetrace.build.CategoryResult(
+                    ai.narrativetrace.build.VerificationCategory.FORMAT,
+                    "Spotless (google-java-format 1.25.2 + ktlint 1.5.0)",
+                    status,
+                    emptyMap(),
+                    outcome.seconds,
+                    withLogHint(
+                        if (status == ai.narrativetrace.build.VerificationStatus.PASSED) null
+                        else "spotlessCheck reported formatting violations; the plugin's console output carries no structured violation count to parse",
+                        outcome, status,
+                    ),
+                )
+            )
+        }
+
+        // ------------------------------------------------------------------- lint + complexity + sast (spotbugs half)
+        val staticAnalysis = runGradleSubprocess(rootDir, "lint-complexity", "pmdMain", "pmdTest", "spotbugsMain", "metricsReport")
+        val pmdViolations = ai.narrativetrace.build.PmdViolationSupport.collectViolationsFromProjects(subprojects)
+        val spotbugsViolations = ai.narrativetrace.build.SpotBugsViolationSupport.collectFromProjects(subprojects)
+        val ncssViolations = pmdViolations.filter { it.rule == "NcssCount" }
+        val styleViolations = pmdViolations.filter { it.rule != "NcssCount" }
+        val spotbugsStyle = ai.narrativetrace.build.SpotBugsViolationSupport.styleFindings(spotbugsViolations)
+        val spotbugsSecurity = ai.narrativetrace.build.SpotBugsViolationSupport.securityFindings(spotbugsViolations)
+
+        val lintStatus = if (styleViolations.isEmpty() && spotbugsStyle.isEmpty()) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.LINT,
+                "PMD 7.8.0 (bestpractices+errorprone) + SpotBugs 6.5.11 (non-security categories)",
+                lintStatus,
+                mapOf("findings" to (styleViolations.size + spotbugsStyle.size)),
+                staticAnalysis.seconds,
+                withLogHint(null, staticAnalysis, lintStatus),
+            )
+        )
+        val complexityStatus = if (ncssViolations.isEmpty()) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.COMPLEXITY,
+                "PMD NcssCount (config/pmd/ruleset.xml, hard gate ≤20 statements/method)",
+                complexityStatus,
+                mapOf("findings" to ncssViolations.size),
+                0.0,
+                withLogHint("derived from the same pmdMain/pmdTest run as the lint row above (0s: no separate invocation)", staticAnalysis, complexityStatus),
+            )
+        )
+
+        // ------------------------------------------------------------------------------------ sast
+        val sast = runGradleSubprocess(rootDir, "sast", "spotbugsMain", "semgrepScan")
+        val semgrepStatus = ai.narrativetrace.build.ScannerGateSupport.status(
+            layout.buildDirectory.dir("reports/security-scans").get().asFile, "semgrep"
+        )
+        val sastStatus = if (spotbugsSecurity.isNotEmpty()) ai.narrativetrace.build.VerificationStatus.FAILED
+            else if (semgrepStatus.startsWith("skipped")) ai.narrativetrace.build.VerificationStatus.PASSED
+            else if (sast.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED
+            else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.SAST,
+                "FindSecBugs 1.14.0 (SpotBugs SECURITY category) + Semgrep p/java",
+                sastStatus,
+                mapOf("findings" to spotbugsSecurity.size),
+                sast.seconds,
+                withLogHint("FindSecBugs ran as the gate tool; Semgrep (network, community p/java ruleset) status: $semgrepStatus", sast, sastStatus),
+            )
+        )
+
+        // --------------------------------------------------------------------------------- secrets
+        val secrets = runGradleSubprocess(rootDir, "secrets", "gitleaksScan")
+        val gitleaksStatus = ai.narrativetrace.build.ScannerGateSupport.status(
+            layout.buildDirectory.dir("reports/security-scans").get().asFile, "gitleaks"
+        )
+        val secretsStatus = when {
+            gitleaksStatus.startsWith("skipped") -> ai.narrativetrace.build.VerificationStatus.SKIPPED
+            secrets.exitCode == 0 -> ai.narrativetrace.build.VerificationStatus.PASSED
+            else -> ai.narrativetrace.build.VerificationStatus.FAILED
+        }
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.SECRETS,
+                "gitleaks (full git history)",
+                secretsStatus,
+                emptyMap(),
+                secrets.seconds,
+                withLogHint("gitleaksScan status: $gitleaksStatus", secrets, secretsStatus),
+            )
+        )
+
+        // ------------------------------------------------------------------------------------- sca
+        val sca = runGradleSubprocess(rootDir, "sca", "osvScan")
+        val osvStatus = ai.narrativetrace.build.ScannerGateSupport.status(
+            layout.buildDirectory.dir("reports/security-scans").get().asFile, "osv-scanner"
+        )
+        val scaStatus = when {
+            osvStatus.startsWith("skipped") -> ai.narrativetrace.build.VerificationStatus.SKIPPED
+            sca.exitCode == 0 -> ai.narrativetrace.build.VerificationStatus.PASSED
+            else -> ai.narrativetrace.build.VerificationStatus.FAILED
+        }
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.SCA,
+                "OSV-Scanner over the aggregated CycloneDX SBOM",
+                scaStatus,
+                emptyMap(),
+                sca.seconds,
+                withLogHint("osvScan status: $osvStatus (needs network + the osv-scanner binary; see documentation/security-tooling.md)", sca, scaStatus),
+            )
+        )
+
+        // ------------------------------------------------------------------------------- translation
+        val translation = runGradleSubprocess(rootDir, "translation", "translationCheck")
+        val translationStatus = if (translation.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.TRANSLATION,
+                "custom translationCheck (blob-hash headers + i18n manifest)",
+                translationStatus,
+                emptyMap(),
+                translation.seconds,
+                withLogHint(null, translation, translationStatus),
+            )
+        )
+
+        // ----------------------------------------------------------------------------------- types
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.TYPES,
+                "none",
+                ai.narrativetrace.build.VerificationStatus.NOT_IMPLEMENTED,
+                emptyMap(),
+                0.0,
+                "javac's own compile-time type checking runs on every build; no standalone type-checking tool is wired for Java",
+            )
+        )
+
+        // --------------------------------------------------------------------------------- clarity
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.CLARITY,
+                "none",
+                ai.narrativetrace.build.VerificationStatus.NOT_IMPLEMENTED,
+                emptyMap(),
+                0.0,
+                "no in-house clarity/naming-quality self-gate exists for this repo's own source. narrativetrace-clarity is a product feature this library offers CONSUMERS, not a self-check on this repo",
+            )
+        )
+
+        // ------------------------------------------------------------------------------ unit-tests
+        val unitTests = runGradleSubprocess(rootDir, "unit-tests", "test")
+        val allSuites = subprojects.flatMap {
+            ai.narrativetrace.build.JUnitAggregateSupport.readModuleTestResults(it.projectDir, it.name)
+        }
+        val unitTestsStatus = if (unitTests.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.UNIT_TESTS,
+                "JUnit 5.11.4 (JUnit Platform)",
+                unitTestsStatus,
+                ai.narrativetrace.build.JUnitAggregateSupport.summarize(allSuites),
+                unitTests.seconds,
+                withLogHint(
+                    "excludes @Tag(\"perf\") tests (see the separate perfTest task); JDK17 toolchain — the JDK21-only virtual-thread bodies are additionally covered by the nightly -Pnarrativetrace.toolchain=21 run, not by this row",
+                    unitTests, unitTestsStatus,
+                ),
+            )
+        )
+
+        // ---------------------------------------------------------------- property + fuzz-tier-a (derived, 0 extra cost)
+        val classification = ai.narrativetrace.build.PropertyTestClassifier.classify(rootDir)
+        val propertySuites = ai.narrativetrace.build.PropertyTestClassifier.matching(allSuites, classification.propertyTestClasses)
+        val fuzzTierASuites = ai.narrativetrace.build.PropertyTestClassifier.matching(allSuites, classification.fuzzTierAClasses)
+
+        val propertyStatus = if (ai.narrativetrace.build.JUnitAggregateSupport.allGreen(propertySuites)) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.PROPERTY,
+                "jqwik 1.9.2",
+                propertyStatus,
+                ai.narrativetrace.build.JUnitAggregateSupport.summarize(propertySuites) + mapOf("test_classes" to propertySuites.size),
+                propertySuites.sumOf { it.timeSeconds },
+                withLogHint(
+                    "sliced from the unit-tests row's own ./gradlew test run (${classification.propertyTestClasses.size} classes using @Property, repo-wide) — 0 additional invocations",
+                    unitTests, propertyStatus,
+                ),
+            )
+        )
+        val fuzzTierAStatus = if (ai.narrativetrace.build.JUnitAggregateSupport.allGreen(fuzzTierASuites)) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.FUZZ_TIER_A,
+                "jqwik 1.9.2 (hostile-corpus properties) + Jazzer 0.30.0 (regression-mode corpus replay)",
+                fuzzTierAStatus,
+                ai.narrativetrace.build.JUnitAggregateSupport.summarize(fuzzTierASuites) + mapOf("test_classes" to fuzzTierASuites.size),
+                fuzzTierASuites.sumOf { it.timeSeconds },
+                withLogHint(
+                    "sliced from the same test run: ${classification.hostileCorpusPropertyClasses.size} jqwik property classes over HostileCorpus + ${classification.fuzzTestClasses.size} @FuzzTest classes replaying the committed seed corpus (not fuzzing — see fuzz-tier-b)",
+                    unitTests, fuzzTierAStatus,
+                ),
+            )
+        )
+
+        // ----------------------------------------------------------------------- architecture (ArchUnit + JDepend)
+        val archUnitSuites = ai.narrativetrace.build.PropertyTestClassifier.matching(allSuites, setOf("ArchitectureTest", "ApiSurfaceTest"))
+        val jdepend = runGradleSubprocess(rootDir, "architecture", "jdependCheck", "jdependCrossModule")
+        val architectureStatus = if (ai.narrativetrace.build.JUnitAggregateSupport.allGreen(archUnitSuites) && jdepend.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.ARCHITECTURE,
+                "ArchUnit 1.4 + JDepend 2.9.1 (per-module D≤0.7, cross-module D≤0.8, zero cycles)",
+                architectureStatus,
+                ai.narrativetrace.build.JUnitAggregateSupport.summarize(archUnitSuites),
+                archUnitSuites.sumOf { it.timeSeconds } + jdepend.seconds,
+                withLogHint(
+                    "ArchUnit tests are sliced from the unit-tests run (${archUnitSuites.size} test classes); JDepend re-run separately (fast — reuses already-compiled classes)",
+                    jdepend, architectureStatus,
+                ),
+            )
+        )
+
+        // -------------------------------------------------------------------------------- conformance
+        val functionalTest = runGradleSubprocess(rootDir, "conformance", ":narrativetrace-gradle-plugin:functionalTest")
+        val functionalTestSuites = ai.narrativetrace.build.JUnitAggregateSupport.readModuleTestResults(
+            file("narrativetrace-gradle-plugin"), "narrativetrace-gradle-plugin", "functionalTest"
+        )
+        val buildTestsSuites = allSuites.filter { it.module == "narrativetrace-build-tests" }
+        val conformanceSuites = functionalTestSuites + buildTestsSuites
+        val conformanceStatus = if (ai.narrativetrace.build.JUnitAggregateSupport.allGreen(conformanceSuites)) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.CONFORMANCE,
+                "GradleTestKit functionalTest + narrativetrace-build-tests (JUnit 5)",
+                conformanceStatus,
+                ai.narrativetrace.build.JUnitAggregateSupport.summarize(conformanceSuites),
+                functionalTest.seconds + buildTestsSuites.sumOf { it.timeSeconds },
+                withLogHint(
+                    "narrativetrace-build-tests half sliced from the unit-tests run; functionalTest (GradleTestKit) run separately",
+                    functionalTest, conformanceStatus,
+                ),
+            )
+        )
+
+        // ------------------------------------------------------------------------------------ coverage
+        val jacocoToolVersion = runCatching {
+            subprojects.first().extensions.getByType<org.gradle.testing.jacoco.plugins.JacocoPluginExtension>().toolVersion
+        }.getOrDefault("unknown")
+        val coverage = runGradleSubprocess(rootDir, "coverage", "jacocoTestCoverageVerification")
+        val coverageEntries = ai.narrativetrace.build.CoverageReportSupport.collectEntriesFromProjects(subprojects)
+        val totalMissed = coverageEntries.sumOf { it.missed }
+        val totalCovered = coverageEntries.sumOf { it.covered }
+        val coveragePct = if (totalMissed + totalCovered == 0) 0.0 else totalCovered.toDouble() / (totalMissed + totalCovered) * 100.0
+        val coverageStatus = if (coverage.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.COVERAGE,
+                "JaCoCo $jacocoToolVersion (98% line minimum, 97% for the agent module)",
+                coverageStatus,
+                mapOf("coverage_pct" to coveragePct, "lines_covered" to totalCovered, "lines_missed" to totalMissed),
+                coverage.seconds,
+                withLogHint(null, coverage, coverageStatus),
+            )
+        )
+
+        // ---------------------------------------------------------------------------------- mutation
+        val mutation = runGradleSubprocess(rootDir, "mutation", ":pitest", ":pitestAgent")
+        val mutationEntries =
+            ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects, mutationTestedModules) +
+                ai.narrativetrace.build.MutationReportSupport.collectEntriesFromProjects(subprojects, mutationAgentModules)
+        val killed = mutationEntries.count { it.status == "KILLED" }
+        val survived = mutationEntries.count { it.status == "SURVIVED" }
+        val noCoverage = mutationEntries.count { it.status == "NO_COVERAGE" }
+        val mutationScore = if (mutationEntries.isEmpty()) 0.0 else killed.toDouble() / mutationEntries.size * 100.0
+        val mutationStatus = if (mutation.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.MUTATION,
+                "Pitest 1.17.4 (api, core, proxy, clarity, glossary + the agent module; 80% threshold)",
+                mutationStatus,
+                mapOf(
+                    "mutants_killed" to killed, "mutants_survived" to survived,
+                    "mutants_no_coverage" to noCoverage, "mutation_score" to mutationScore,
+                ),
+                mutation.seconds,
+                withLogHint(if (mutationEntries.isEmpty()) "no mutation report produced" else null, mutation, mutationStatus),
+            )
+        )
+
+        // -------------------------------------------------------------------------------- fuzz-tier-b
+        val fuzzTierB = runGradleSubprocess(rootDir, "fuzz-tier-b", ":narrativetrace-security-tests:fuzz")
+        val fuzzTargets = mapOf(
+            "OutputFormat" to "ai.narrativetrace.security.fuzz.OutputFormatFuzzTest",
+            "Template" to "ai.narrativetrace.security.fuzz.TemplateFuzzTest",
+            "Traceparent" to "ai.narrativetrace.security.fuzz.TraceparentFuzzTest",
+            "ValueRenderer" to "ai.narrativetrace.security.fuzz.ValueRendererFuzzTest",
+        )
+        val fuzzTargetReports = fuzzTargets.map { (target, testClass) ->
+            ai.narrativetrace.build.FuzzReportSupport.read(
+                target, testClass, file("narrativetrace-security-tests/build/test-results/fuzz$target")
+            )
+        }
+        val fuzzExecutions = countOccurrences(fuzzTierB.output, Regex("""Done (\d+) runs in"""))
+        val fuzzProblems = ai.narrativetrace.build.FuzzReportSupport.problems(fuzzTargetReports)
+        val fuzzTierBStatus = if (fuzzProblems.isEmpty() && fuzzTierB.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.FUZZ_TIER_B,
+                "Jazzer 0.30.0 (coverage-guided, JAZZER_FUZZ=1, 4 targets x FuzzBudget.PER_TARGET=5m)",
+                fuzzTierBStatus,
+                mapOf("executions" to fuzzExecutions, "targets_fuzzed" to (fuzzTargetReports.size - fuzzProblems.size), "targets_total" to fuzzTargetReports.size),
+                fuzzTierB.seconds,
+                withLogHint(
+                    if (fuzzProblems.isEmpty()) "executions parsed from Jazzer's own \"Done N runs in\" console lines, summed across targets" else fuzzProblems.joinToString("; "),
+                    fuzzTierB, fuzzTierBStatus,
+                ),
+            )
+        )
+
+        // ---------------------------------------------------------------------------------- benchmarks
+        val benchmarks = runGradleSubprocess(rootDir, "benchmarks", ":narrativetrace-benchmarks:benchmarkCompare")
+        val benchmarksMetrics = runCatching {
+            val current = ai.narrativetrace.build.BenchmarkResultSupport.read(file("narrativetrace-benchmarks/build/reports/jmh/benchmark.json"))
+            val baseline = ai.narrativetrace.build.BenchmarkCompareSupport.readBaseline(file("narrativetrace-benchmarks/baseline.txt"))
+            val tolerances = ai.narrativetrace.build.BenchmarkCompareSupport.readTolerances(file("narrativetrace-benchmarks/benchmark-tolerances.properties"))
+            val comparisons = ai.narrativetrace.build.BenchmarkCompareSupport.compare(baseline, current, tolerances)
+            val missing = ai.narrativetrace.build.BenchmarkCompareSupport.missing(baseline, current)
+            mapOf(
+                "benchmarks_run" to current.size,
+                "regressions" to (comparisons.count { it.regressed } + missing.size),
+            )
+        }.getOrDefault(mapOf("benchmarks_run" to 0, "regressions" to 0))
+        val benchmarksStatus = if (benchmarks.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.BENCHMARKS,
+                "JMH 0.7.3 (me.champeau.jmh) vs narrativetrace-benchmarks/baseline.txt",
+                benchmarksStatus,
+                benchmarksMetrics,
+                benchmarks.seconds,
+                withLogHint(null, benchmarks, benchmarksStatus),
+            )
+        )
+
+        // ---------------------------------------------------------------------------------- allocation
+        val allocation = runGradleSubprocess(rootDir, "allocation", ":narrativetrace-benchmarks:allocationCheck")
+        val allocationMetrics = runCatching {
+            val thresholds = ai.narrativetrace.build.AllocationCheckSupport.readThresholds(file("narrativetrace-benchmarks/allocation-thresholds.properties"))
+            val measured = ai.narrativetrace.build.BenchmarkResultSupport.read(file("narrativetrace-benchmarks/build/reports/jmh/allocation.json"))
+            val verdicts = ai.narrativetrace.build.AllocationCheckSupport.verdicts(thresholds, measured)
+            mapOf("benchmarks_run" to verdicts.size, "regressions" to ai.narrativetrace.build.AllocationCheckSupport.problems(verdicts).size)
+        }.getOrDefault(mapOf("benchmarks_run" to 0, "regressions" to 0))
+        val allocationStatus = if (allocation.exitCode == 0) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.ALLOCATION,
+                "JMH GC profiler vs narrativetrace-benchmarks/allocation-thresholds.properties",
+                allocationStatus,
+                allocationMetrics,
+                allocation.seconds,
+                withLogHint(null, allocation, allocationStatus),
+            )
+        )
+
+        // ------------------------------------------------------------------------------- stress-short
+        val stressShort = runGradleSubprocess(rootDir, "stress-short", ":narrativetrace-jcstress:jcstress", "-PjcstressMode=quick")
+        val stressShortSummary = ai.narrativetrace.build.JcstressReportSupport.summarize(file("narrativetrace-jcstress/build/reports/jcstress"))
+        val stressShortStatus = if (stressShortSummary.overallPassed) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.STRESS_SHORT,
+                "OpenJDK jcstress 0.16 (-m quick)",
+                stressShortStatus,
+                mapOf("tests_passed" to stressShortSummary.testsPassed, "tests_failed" to stressShortSummary.testsFailed),
+                stressShort.seconds,
+                withLogHint(null, stressShort, stressShortStatus),
+            )
+        )
+
+        // -------------------------------------------------------------------------------- stress-long
+        // No mode override by default: jcstress's own default is its unbounded, hours-long sweep —
+        // the honest "long" tier. -Pnarrativetrace.verifyAll.jcstressLongMode lets a validation run
+        // time-box this one category explicitly (see README.md); the default `./gradlew verifyAll`
+        // invocation passes nothing here and gets the real, hours-long sweep.
+        val jcstressLongModeOverride = findProperty("narrativetrace.verifyAll.jcstressLongMode") as String?
+        val stressLongArgs = mutableListOf(":narrativetrace-jcstress:jcstress")
+        jcstressLongModeOverride?.let { stressLongArgs += "-PjcstressMode=$it" }
+        val stressLong = runGradleSubprocess(rootDir, "stress-long", *stressLongArgs.toTypedArray())
+        val stressLongSummary = ai.narrativetrace.build.JcstressReportSupport.summarize(file("narrativetrace-jcstress/build/reports/jcstress"))
+        val stressLongStatus = if (stressLongSummary.overallPassed) ai.narrativetrace.build.VerificationStatus.PASSED else ai.narrativetrace.build.VerificationStatus.FAILED
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.STRESS_LONG,
+                "OpenJDK jcstress 0.16 (" + (jcstressLongModeOverride?.let { "-m $it, time-boxed for this run" } ?: "unbounded default depth") + ")",
+                stressLongStatus,
+                mapOf("tests_passed" to stressLongSummary.testsPassed, "tests_failed" to stressLongSummary.testsFailed),
+                stressLong.seconds,
+                withLogHint(
+                    jcstressLongModeOverride?.let { "time-boxed via -Pnarrativetrace.verifyAll.jcstressLongMode=$it for this run; the default ./gradlew verifyAll invocation runs jcstress's real unbounded sweep here" },
+                    stressLong, stressLongStatus,
+                ),
+            )
+        )
+
+        // ---------------------------------------------------------------------------------- report
+        val endedAt = java.time.Instant.now()
+        val run = ai.narrativetrace.build.VerificationRun(
+            runtime = "java",
+            version = providers.gradleProperty("narrativetraceVersion").get(),
+            commit = shortCommitOf(rootDir),
+            host = hostDescriptor(),
+            startedAt = startedAt,
+            endedAt = endedAt,
+            categories = results,
+        )
+        val dateStr = java.time.LocalDate.now().toString()
+        val jsonFile = file("reports/verification/$dateStr.json")
+        val mdFile = file("reports/verification/$dateStr.md")
+        ai.narrativetrace.build.VerificationReportSupport.writeJson(run, jsonFile)
+        mdFile.writeText(ai.narrativetrace.build.VerificationReportSupport.renderMarkdown(jsonFile))
+
+        println()
+        println(ai.narrativetrace.build.VerificationReportSupport.renderMarkdown(jsonFile))
+        println("verifyAll: wrote $jsonFile and $mdFile")
+
+        if (run.overallStatus == "failed") {
+            throw GradleException(
+                "verifyAll: one or more categories failed — see $mdFile for the full table " +
+                    "(${results.count { it.status == ai.narrativetrace.build.VerificationStatus.FAILED }} of ${results.size} categories)"
+            )
         }
     }
 }

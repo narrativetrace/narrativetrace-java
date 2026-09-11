@@ -13,6 +13,7 @@ import ai.narrativetrace.api.annotation.OnError;
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.core.context.NarrativeContext;
+import ai.narrativetrace.core.render.RedactionPolicy;
 import ai.narrativetrace.core.render.ValueRenderer;
 import ai.narrativetrace.core.template.TemplateParser;
 import java.lang.reflect.InvocationHandler;
@@ -152,7 +153,13 @@ public final class NarrativeTraceProxy {
     for (int i = 0; i < parameters.length; i++) {
       paramNames[i] = parameters[i].getName();
       paramTypes[i] = parameters[i].getType().getTypeName();
-      redacted[i] = parameters[i].isAnnotationPresent(NotTraced.class);
+      // The name deny-list decides here, beside the annotation, and not in a renderer: this
+      // metadata is cached per method, so the lookup happens once and never on a traced call.
+      // Deciding at capture also means a denied value never enters the TraceEvent at all, so it
+      // cannot reach the audit emitter, the buffered consumer or an SPI listener either.
+      redacted[i] =
+          RedactionPolicy.DEFAULT.isRedacted(
+              paramNames[i], parameters[i].isAnnotationPresent(NotTraced.class));
     }
     var narrated = method.getAnnotation(Narrated.class);
     var narratedTemplate = narrated != null ? narrated.value() : null;

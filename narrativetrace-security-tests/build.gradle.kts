@@ -39,6 +39,12 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
 
+    // Synthesises interfaces whose parameter NAMES come from the corpus, so the
+    // capture path can be replayed with a real signature. Java reads parameter
+    // names from the class file, so a data-driven name has to be compiled, and
+    // that is the only reason this is here. Test-only.
+    testImplementation("org.ow2.asm:asm:9.7.1")
+
     // Tier A — structured fuzz, the repo's existing PBT library.
     testImplementation("net.jqwik:jqwik:1.9.2")
     // Reading the corpus fixtures back, and reading every JSON artifact back as

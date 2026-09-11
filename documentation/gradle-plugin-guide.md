@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -145,7 +145,7 @@ narrativeTrace {
 
 ### `approvedDir`
 
-Directory of committed narrative baselines, laid out as `<dir>/<TestClassSimpleName>/<test_method_slug>.approved.nt` — the same class-directory and slug rules as every other per-test artifact.
+Directory of committed narrative baselines, laid out as `<dir>/<TestClassSimpleName>/<artifact_name>.approved.nt` — the same class-directory and artifact-identity rules as every other per-test artifact, so a method that runs more than once (parameterized, repeated) has one baseline per invocation.
 
 Default: `layout.projectDirectory.dir("src/test/narratives")`
 
@@ -337,7 +337,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -473,7 +473,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.0'
+    id 'ai.narrativetrace' version '0.2.1'
 }
 
 narrativeTrace {

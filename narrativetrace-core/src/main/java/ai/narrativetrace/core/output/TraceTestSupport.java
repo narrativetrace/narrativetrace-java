@@ -84,6 +84,24 @@ public final class TraceTestSupport {
       boolean failed,
       NarrativeRenderer mermaidRenderer,
       NarrativeRenderer plantumlRenderer) {
+    return renderForFormat(
+        format, trace, displayName, failed, mermaidRenderer, plantumlRenderer, true);
+  }
+
+  /**
+   * The same render, with loop folding selectable.
+   *
+   * @param foldLoops {@code false} renders every iteration of a loop in full instead of summarizing
+   *     the repeats as {@code ×k more …}; Markdown only, since no other format folds
+   */
+  public static String renderForFormat(
+      String format,
+      TraceTree trace,
+      String displayName,
+      boolean failed,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops) {
     var scenario = ScenarioFramer.humanize(displayName);
     return switch (format.toLowerCase()) {
       case "text" ->
@@ -92,7 +110,8 @@ public final class TraceTestSupport {
       case "plantuml" -> plantumlRenderer.render(trace);
       default -> {
         var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed));
-        yield new MarkdownRenderer().renderDocument(trace, metadata);
+        var renderer = foldLoops ? new MarkdownRenderer() : MarkdownRenderer.unfolded();
+        yield renderer.renderDocument(trace, metadata);
       }
     };
   }
@@ -116,15 +135,77 @@ public final class TraceTestSupport {
       NarrativeRenderer mermaidRenderer,
       NarrativeRenderer plantumlRenderer)
       throws IOException {
+    return writeTraceFile(
+        ArtifactIdentity.ofMethod(testClassName, testMethodName),
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer);
+  }
+
+  /**
+   * The same write, keyed by the full {@link ArtifactIdentity} — the overload an integration whose
+   * test method may run more than once (parameterized, repeated) must use, so each invocation gets
+   * its own files instead of overwriting the previous one's.
+   *
+   * @param failed the run's verdict: {@code true} when the test failed <em>or</em> its approval was
+   *     rejected. A non-green run compares against the last-green artifact and never advances it
+   */
+  public static Optional<ScenarioDelta> writeTraceFile(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer)
+      throws IOException {
+    return writeTraceFile(
+        identity,
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer,
+        true);
+  }
+
+  /**
+   * The same write, with loop folding selectable.
+   *
+   * @param foldLoops {@code false} renders every iteration of a loop in full in the Markdown
+   *     narrative instead of summarizing the repeats as {@code ×k more …}. The structural artifact
+   *     and the delta are unaffected — they carry no values, so folding never applied to them
+   */
+  public static Optional<ScenarioDelta> writeTraceFile(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops)
+      throws IOException {
     if (trace.isEmpty()) {
       return Optional.empty();
     }
     var resolver = new OutputDirectoryResolver(outputDir);
-    var mdFile = resolver.traceFile(testClassName, testMethodName);
-    var baseName = mdFile.getFileName().toString().replaceAll("\\.md$", "");
-    var file = mdFile.resolveSibling(baseName + extensionForFormat(format));
+    var file = resolver.traceArtifact(identity, extensionForFormat(format));
     var content =
-        renderForFormat(format, trace, displayName, failed, mermaidRenderer, plantumlRenderer);
+        renderForFormat(
+            format, trace, displayName, failed, mermaidRenderer, plantumlRenderer, foldLoops);
     var writer = new TraceFileWriter();
     writer.write(content, file);
     out.println(
@@ -140,15 +221,7 @@ public final class TraceTestSupport {
     }
     return Optional.of(
         writeMarkdownExtras(
-            writer,
-            testClassName,
-            displayName,
-            trace,
-            failed,
-            outputDir,
-            mdFile,
-            baseName,
-            mermaidRenderer));
+            writer, resolver, identity, displayName, trace, failed, mermaidRenderer));
   }
 
   /**
@@ -160,8 +233,14 @@ public final class TraceTestSupport {
   public static void writeCanonicalTraceFile(
       String testClassName, String testMethodName, TraceTree trace, Path outputDir)
       throws IOException {
-    writeEntryArtifact(
-        testClassName, testMethodName, trace, outputDir, ".canonical.json", entry -> entry);
+    writeCanonicalTraceFile(
+        ArtifactIdentity.ofMethod(testClassName, testMethodName), trace, outputDir);
+  }
+
+  /** The canonical entry artifact of one invocation, keyed by the full artifact identity. */
+  public static void writeCanonicalTraceFile(
+      ArtifactIdentity identity, TraceTree trace, Path outputDir) throws IOException {
+    writeEntryArtifact(identity, trace, outputDir, ".canonical.json", entry -> entry);
   }
 
   /**
@@ -173,9 +252,15 @@ public final class TraceTestSupport {
   public static void writeStructuralTraceFile(
       String testClassName, String testMethodName, TraceTree trace, Path outputDir)
       throws IOException {
+    writeStructuralTraceFile(
+        ArtifactIdentity.ofMethod(testClassName, testMethodName), trace, outputDir);
+  }
+
+  /** The AI-safe entry artifact of one invocation, keyed by the full artifact identity. */
+  public static void writeStructuralTraceFile(
+      ArtifactIdentity identity, TraceTree trace, Path outputDir) throws IOException {
     writeEntryArtifact(
-        testClassName,
-        testMethodName,
+        identity,
         trace,
         outputDir,
         ".structural.json",
@@ -183,8 +268,7 @@ public final class TraceTestSupport {
   }
 
   private static void writeEntryArtifact(
-      String testClassName,
-      String testMethodName,
+      ArtifactIdentity identity,
       TraceTree trace,
       Path outputDir,
       String suffix,
@@ -193,9 +277,7 @@ public final class TraceTestSupport {
     if (trace.isEmpty()) {
       return;
     }
-    var mdFile = new OutputDirectoryResolver(outputDir).traceFile(testClassName, testMethodName);
-    var baseName = mdFile.getFileName().toString().replaceAll("\\.md$", "");
-    var file = mdFile.resolveSibling(baseName + suffix);
+    var file = new OutputDirectoryResolver(outputDir).traceArtifact(identity, suffix);
     var json =
         ai.narrativetrace.core.export.TraceTreeCanonicalMapper.fromTree(trace).stream()
             .map(projection)
@@ -206,37 +288,38 @@ public final class TraceTestSupport {
 
   private static ScenarioDelta writeMarkdownExtras(
       TraceFileWriter writer,
-      String testClassName,
+      OutputDirectoryResolver resolver,
+      ArtifactIdentity identity,
       String displayName,
       TraceTree trace,
       boolean failed,
-      Path outputDir,
-      Path mdFile,
-      String baseName,
       NarrativeRenderer mermaidRenderer)
       throws IOException {
-    var diagramFile =
-        OutputDirectoryResolver.classDirectory(outputDir.resolve("diagrams"), testClassName)
-            .resolve(baseName + ".mmd");
-    writer.write(mermaidRenderer.render(trace), diagramFile);
+    writer.write(mermaidRenderer.render(trace), resolver.diagramFile(identity));
 
     var scenario = ScenarioFramer.humanize(displayName);
     var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed));
-    var jsonFile = mdFile.resolveSibling(baseName + ".json");
-    writer.write(new JsonExporter().exportDocument(trace, metadata), jsonFile);
+    writer.write(
+        new JsonExporter().exportDocument(trace, metadata),
+        resolver.traceArtifact(identity, ".json"));
 
-    var ntFile =
-        OutputDirectoryResolver.classDirectory(outputDir.resolve("structural"), testClassName)
-            .resolve(baseName + ".nt");
-    return writeStructuralArtifact(writer, trace, failed, ntFile, scenario);
+    return writeStructuralArtifact(
+        writer, trace, failed, resolver.structuralFile(identity), scenario);
   }
 
   /**
    * Writes the ADR-002 structural artifact ({@code .nt}) and classifies the scenario against it.
    *
-   * <p>The file on disk is the LAST GREEN baseline: a green run advances it, a failed run compares
-   * against it but never overwrites it — so the delta always reads "what changed since the last
-   * time this scenario passed".
+   * <p>The file on disk is the LAST GREEN baseline: a green run advances it, a non-green run
+   * compares against it but never overwrites it — so the delta always reads "what changed since the
+   * last time this scenario passed".
+   *
+   * <p><b>@llmNote</b> "Green" is the run's whole verdict, not just its assertions: a test that
+   * passed but whose structure the approval gate <em>rejected</em> ends red, and a rejected
+   * structure must never become the baseline. An integration therefore has to know the approval
+   * verdict before it calls this — advancing first and verifying afterwards left the rejected
+   * structure in the baseline, and the next (reverted, correct) run reported a removal that never
+   * happened (2026-09-08 agent evaluation).
    */
   private static ScenarioDelta writeStructuralArtifact(
       TraceFileWriter writer, TraceTree trace, boolean failed, Path ntFile, String scenario)

@@ -1,4 +1,4 @@
-<!-- source: README.md blob a4e519f1b340 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: README.md blob ae3b90f86e52 | translated: 2026-09-10 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -51,6 +51,34 @@ public OrderResult placeOrder(String customerId, String productId, int quantity)
 
 Lógica de negócio pura. O trace é gerado a partir dos nomes de métodos, dos
 nomes de parâmetros e dos valores de retorno — a informação que já estava ali.
+
+## Deriva código-log
+
+As linhas de log são a única parte do código sem verificação do compilador
+e, na prática, sem cobertura de testes — então elas silenciosamente deixam
+de ser verdadeiras conforme o código muda. Uma renomeação deixa a mensagem
+descrevendo o nome antigo; um passo adicionado simplesmente nunca é
+mencionado; uma mudança de unidade (centavos → euros) faz `total` descrever
+um número diferente. Nada detecta isso: o texto do log quase nunca é
+verificado por uma asserção, e quando é, a asserção é frágil e é a primeira
+coisa removida. Um log obsoleto é peor do que nenhum — em um incidente ele é
+lido como evidência do que aconteceu, quando é uma frase que alguém escreveu
+uma vez sobre um código que já mudou.
+
+> **Deriva código-log, eliminada por construção.** Uma linha de log é uma
+> afirmação sobre o código, escrita uma vez e nunca mais verificada. Um trace
+> narrativo é derivado da execução — então não há nada para desviar.
+
+Para ser preciso: um template de narração (`@Narrated`) ainda é uma string
+escrita à mão, e um parâmetro renomeado pode quebrar seu marcador — é
+exatamente por isso que ele é a exceção aqui, não o caminho padrão (veja o
+[Guia de anotações](documentation/pt-BR/guia-de-anotacoes.md)). Tudo o mais
+em um trace — as chamadas, os argumentos e os resultados — é derivado, nunca
+escrito, então não há nada ali para ficar obsoleto. E como um trace é
+estrutural, uma mudança real de comportamento se torna algo que um revisor
+pode comparar, não uma frase que silenciosamente parou de descrever o
+código — ative o modo de aprovação (mais abaixo) e esse diff falha o build
+em vez de passar despercebido.
 
 ## Como é a saída
 
@@ -192,7 +220,7 @@ a JVM de testes e fornece o engine do Jupiter:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -244,10 +272,27 @@ aprovação e ver um `.received.nt`? → [Primeiros 10
 minutos](documentation/pt-BR/primeiros-10-minutos.md) percorre tudo isso com
 saída real, executada de verdade.
 
+### Qual artefato responde a qual pergunta
+
+Um teste escreve vários arquivos. Abra o que responde à sua pergunta:
+
+| Sua pergunta | Leia |
+|---|---|
+| O que chamou o quê, e em que ordem? | `structural/…/<scenario>.nt` — estrutura de chamadas, sem valores |
+| Quais foram os valores reais? | `traces/…/<scenario>.json` — cada chamada, cada valor capturado |
+| O que aconteceu, para uma pessoa? | `traces/…/<scenario>.md` — a narrativa |
+| Qual arquivo contém este cenário? | `manifest.json` — cenário → arquivo, uma linha por invocação |
+
+A narrativa em Markdown dobra uma sequência de iterações de mesma forma na
+primeira completa mais uma linha `×2 more: #2 sku=…`, de modo que as
+repetições ficam nomeadas em vez de exibidas. O JSON mantém todas as
+iterações aconteça o que acontecer, e `narrativetrace.unfolded=true`
+também renderiza todas elas em Markdown.
+
 ### Gradle ou Maven?
 
 Os jars de runtime são artefatos Maven comuns.
-`ai.narrativetrace:narrativetrace-core:0.2.0` e todos os módulos ao lado dele
+`ai.narrativetrace:narrativetrace-core:0.2.1` e todos os módulos ao lado dele
 se resolvem e funcionam exatamente da mesma forma a partir de um build Maven;
 nada na própria biblioteca é específico do Gradle. O que *é* específico do
 Gradle é o plugin acima — uma conveniência que conecta a flag do compilador,
@@ -509,10 +554,59 @@ Para se aprofundar:
 ```bash
 ./gradlew test                                     # executa todos os testes
 ./gradlew check                                    # testes + PMD + cobertura JaCoCo + os demais gates
+./gradlew verifyAll                                # toda categoria de verificação que este repositório tem — veja abaixo
 ./gradlew :narrativetrace-examples:runExamples     # todos os exemplos em sequência
 ./gradlew :narrativetrace-examples:traceExamples   # executa os testes → arquivos Markdown de trace
 ./gradlew :narrativetrace-examples:ejb4:dockerTest # WAR EJB 4 no WildFly traçado apenas pelo agente (requer Docker)
 ```
+
+`./gradlew verifyAll` executa, em um único comando e de ponta a ponta, toda
+verificação que este repositório possui: testes unitários, cobertura, testes
+de mutação, testes baseados em propriedades, os dois níveis de fuzzing,
+estresse de concorrência, benchmarks e alocação, regras de arquitetura,
+scanners de segredos/segurança/dependências, formatação, lint e verificações
+de tradução. É **deliberadamente demorado** — só o teste de mutação
+costuma levar mais de uma hora — e isso é intencional: o objetivo é um único
+comando em que qualquer pessoa que clone o repositório possa confiar, não um
+comando rápido. Uma categoria que falha nunca interrompe a execução; todas
+rodam de qualquer forma, e `verifyAll` só termina com código de saída
+diferente de zero no final, se algo tiver falhado. Ele grava uma linha por
+categoria em um relatório JSON — a ferramenta concreta, um status
+(`passed`/`failed`/`skipped`/`not-implemented`; este último é uma resposta
+real e de primeira classe para uma categoria que este projeto simplesmente não
+tem ferramenta para cobrir, não uma falha) — e números reais extraídos da
+saída dessa ferramenta, nunca estimados — além de uma tabela em Markdown
+renderizada a partir desse mesmo JSON, de modo que os dois nunca possam
+discordar entre si.
+
+## Perguntas frequentes
+
+### Quanto overhead isso adiciona, e o que acontece sob alta concorrência?
+
+Não vamos afirmar "overhead zero" — veja [Desempenho](#desempenho) acima para os números datados que esta resposta resume (JMH, JDK 17, `-prof gc`, gravados em [`narrativetrace-benchmarks/baseline.txt`](narrativetrace-benchmarks/baseline.txt) e [`allocation-baseline.txt`](narrativetrace-benchmarks/allocation-baseline.txt), atualizados pela última vez em 2026-08-31/2026-09-01): uma chamada direta, não traçada, custa ~9–12 ns neste harness; o proxy dinâmico da JDK com o tracing desligado adiciona só ~12–26 ns e 24 B/op (um `Object[]` para os argumentos) atrás de uma checagem `isActive()` que pula toda captura, renderização e reflexão. O caminho inativo do agente de bytecode é ainda mais barato — ~37–44 ns a **56 B/op, a mesma alocação da própria chamada direta** — porque um método instrumentado lê um `isActive()` estático antes de empacotar qualquer coisa. Com o tracing totalmente ativo (captura de parâmetros e renderização de valores), uma chamada traçada custa **0,6–1,7 µs** e aloca **~1,0–1,5 kB/op**; capturar e resetar um trace de um único nó custa 1,3–2,3 µs e 2,8–3,1 kB.
+
+O que o NarrativeTrace em si adiciona é essa captura — interceptar a chamada, ler os argumentos, construir a árvore de trace. Tudo depois da captura (a escrita do SLF4J, o collector, o disco ou a rede) é o mesmo custo que sua stack de logging já paga; o NarrativeTrace não adiciona um segundo destino. Para uma equipe substituindo instruções de log escritas à mão, o lado do destino fica quase no zero a zero: N chamadas de log por método viram uma escrita de trace, e essas instruções deixam de ser escritas, revisadas e mantidas sincronizadas com o código.
+
+Sob concorrência, os dois caminhos do `DualPathPipeline` padrão têm garantias diferentes. O caminho síncrono — normalmente um `Slf4jTraceEventListener` — roda em linha na própria thread de quem chama: a escrita é concluída antes do método retornar, então é exatamente tão durável — e custa exatamente o mesmo — quanto uma chamada de log já custa. O caminho com buffer, de melhor esforço — o que alimenta `captureTrace()` e a análise — é um anel de tamanho fixo (65.536 slots por padrão, `narrativetrace.buffer.capacity`) que nunca cresce. Ele descarta sob carga acima de 70% de ocupação em vez de bloquear quem chama, e cada evento descartado é **contado** — sobrescritas do anel, descartes do dreno adaptativo e descartes do assinante igualmente, via `BufferedEventConsumer.droppedCount()` — e mostrado no próprio rodapé do trace, omitido só quando nada foi perdido: um trace curto nunca fica indistinguível em silêncio de um trace tranquilo.
+
+**O limite honesto:** hoje não existe sampling nesta implementação, nem em nenhuma implementação do NarrativeTrace — toda chamada traçada é capturada por completo no `TracingLevel` configurado. Um amostrador por porcentagem ou por taxa está no roadmap, mas não foi lançado. Se você precisa limitar o volume de captura agora, use `TracingLevel.OFF` ou restrinja o escopo traçado ao limite que importa.
+
+### Como sei que um parâmetro com PII ou credenciais não vai vazar em um trace?
+
+Quatro camadas independentes, não uma única promessa geral — o contrato linha a linha, verificado contra o código, é [Privacidade e ocultação](documentation/pt-BR/privacidade-e-ocultacao.md):
+
+1. **`@NotTraced` em um parâmetro, campo ou componente de record** — ocultação explícita que você controla. Ela prevalece até sobre um `toString()` cuidadosamente escrito na classe declarante, e é incondicional: nenhum stage, flag ou propriedade a desliga.
+2. **Uma lista de negação por nome, sempre ativa e multilíngue** (`RedactionPolicy.DEFAULT`) — compara nomes de campos e parâmetros com `password`, `secret`, `token`, `ssn`, `cvv`, `apikey`, `cardnumber`, `jwt`, `cookie`, `sessionid`, `accountnumber`, `routingnumber`, mais os equivalentes em português (`senha`, `cartão`, `cpf`, `cnpj`), espanhol (`contraseña`, `dni`, `rut`), alemão (`Passwort`, `Kennwort`) e chinês (`密码`, `身份证`). Está ativa por padrão, não é opcional, e os padrões mais propensos a falsos positivos (`pan`, `iban`, `rut`, `cuit`, `dni`, `senha`, `cpf`, `cnpj`, `nir`, `mima`) só correspondem nos limites do token identificador, então `panelId` e `circuitBreaker` continuam visíveis.
+3. **Correspondência pela forma do valor, independente do nome do campo** — uma string com forma de JWT, um número de cartão válido por Luhn, um valor com forma de `Set-Cookie`, um checksum de identificação nacional (RUT chileno, CPF/CNPJ brasileiro, DNI/NIE espanhol, NIR francês, carteira de identidade chinesa), ou um número de Seguro Social dos EUA com hífens é ocultado mesmo que chegue sob um nome inocente como `data` ou `value`. O SSN dos EUA é a única forma desta lista sem um checksum a que recorrer, então só conta a forma com hífens `AAA-GG-SSSS`: nove dígitos soltos são indistinguíveis de um número de pedido, e ocultá-los custaria mais do que protege.
+4. **O modo estrutural sem valores `.nt` (ADR-002) — a garantia categórica.** Um artefato `.nt` carrega só os *nomes* de classe, método e parâmetro, a hierarquia de chamadas, e os *tipos* de resultado — zero valores em tempo de execução, zero superfície de injeção de prompt, e isso é uma propriedade verificada por teste, não uma política que alguém poderia esquecer de aplicar. Salvo como baseline `.approved.nt`, é o que entregar a uma ferramenta de IA externa quando nenhum valor pode sair do processo de jeito nenhum. Veja o [formato de trace estrutural](documentation/pt-BR/formato-de-trace-estrutural.md).
+
+Seja preciso sobre o limite: as camadas 1–3 são heurísticas e extensíveis — os padrões são adicionados à medida que lacunas são encontradas, e sempre podem deixar passar uma que ninguém nomeou ainda. A camada 4 é a única *categórica*. Se o seu modelo de ameaça exige "nenhum valor pode jamais sair do processo", recorra ao artefato estrutural `.nt`, não só às camadas de ocultação.
+
+### Os IDs de trace podem se correlacionar com um ID de correlação padrão entre serviços, ou o tracing é só local?
+
+Sim — através do W3C `traceparent`, o mesmo mecanismo que o próprio OpenTelemetry usa. Um cabeçalho `traceparent` de entrada é adotado via `NarrativeContext.adoptTraceparent(...)` (conectado automaticamente pelo filtro de servlet, pelo filtro HTTP do Micronaut, e pelo filtro web do Spring), e o próprio ID de trace do NarrativeTrace **se torna** diretamente o ID de trace desse cabeçalho — não é um identificador separado apenas com uma forma parecida. `outboundTraceparent()` dá a qualquer cliente HTTP o valor para anexar na saída (o exemplo de ecommerce conecta isso a um `HttpRequest.Builder` real). Quando não há cabeçalho presente, um novo ID é gerado na mesma forma W3C de 32 caracteres hexadecimais minúsculos. O módulo `narrativetrace-opentelemetry` também exporta os spans do NarrativeTrace (`TraceSpanExporter`, em lote; `OtelTraceEventListener`, ao vivo) com atributos tipados, então seu collector OTel, Jaeger ou middleware de ID de correlação já existentes entendem o ID sem nada para reconciliar.
+
+O que fica local: a árvore narrativa em si — as chamadas de método aninhadas, os argumentos, a narração — é capturada por processo e nunca é enviada a outro serviço; só o ID de trace cruza a fronteira. Um serviço downstream produz sua própria árvore narrativa correlacionada com esse mesmo ID, não uma única árvore combinada entre serviços.
 
 ## Licença
 

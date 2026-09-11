@@ -50,6 +50,32 @@ public OrderResult placeOrder(String customerId, String productId, int quantity)
 Pure business logic. The trace is generated from the method names, parameter
 names and return values — the information that was already there.
 
+## Code–log drift
+
+Log statements are the one part of a codebase with no compiler check and, in
+practice, no test coverage — so they silently stop being true as the code
+changes. A rename leaves the message describing the old name; an added step
+is simply never mentioned; a unit change (cents → euros) leaves `total`
+describing a different number. Nothing catches it: log text is rarely
+asserted, and where it is, the assertion is brittle and gets deleted first. A
+stale log is worse than none — in an incident it is read as evidence of what
+happened, when it is a sentence someone wrote once about code that has since
+changed.
+
+> **Code–log drift, eliminated by construction.** A log line is a claim about
+> code, written once and never checked again. A narrative trace is derived
+> from the run — so there is nothing to drift.
+
+To be precise: a narration template (`@Narrated`) is still a hand-written
+string, and a renamed parameter can break its placeholder — which is exactly
+why it is the exception here, not the standard path (see the [Annotations
+Guide](documentation/annotations-guide.md)). Everything else in a trace — the
+calls, arguments, and outcomes — is derived, never written, so there is
+nothing there to go stale. And because a trace is structural, a genuine
+behavior change becomes something a reviewer can diff, not a sentence that
+silently stopped matching the code — turn on approval mode (below) and that
+diff fails the build instead of slipping by.
+
 ## What the output looks like
 
 Run your code and get execution traces like this:
@@ -180,7 +206,7 @@ and supplies the Jupiter engine:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -230,9 +256,25 @@ drop, add `@NotTraced` and see a value redacted, turn on approval mode and
 see a `.received.nt`? → [First 10 Minutes](documentation/first-10-minutes.md)
 walks all of it with real, run-for-real output.
 
+### Which artifact answers which question
+
+One test writes several files. Open the one that answers your question:
+
+| Your question | Read |
+|---|---|
+| What called what, in what order? | `structural/…/<scenario>.nt` — call structure, no values |
+| What were the actual values? | `traces/…/<scenario>.json` — every call, every captured value |
+| What happened, for a human? | `traces/…/<scenario>.md` — the narrative |
+| Which file holds this scenario? | `manifest.json` — scenario → file, one row per invocation |
+
+The Markdown narrative folds a run of same-shape iterations into the first one
+in full plus a `×2 more: #2 sku=…` line, so the repeats are named rather than
+shown. The JSON keeps every iteration whatever happens, and
+`narrativetrace.unfolded=true` renders them all in Markdown too.
+
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.0`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.1`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
@@ -473,10 +515,56 @@ Going deeper:
 ```bash
 ./gradlew test                                     # run all tests
 ./gradlew check                                    # tests + PMD + JaCoCo coverage + the other gates
+./gradlew verifyAll                                # every verification category this repo has — see below
 ./gradlew :narrativetrace-examples:runExamples     # every example in sequence
 ./gradlew :narrativetrace-examples:traceExamples   # run tests → Markdown trace files
 ./gradlew :narrativetrace-examples:ejb4:dockerTest # EJB 4 WAR on WildFly traced by the agent alone (needs Docker)
 ```
+
+`./gradlew verifyAll` runs every verification this repo has, end to end, in one
+command: unit tests, coverage, mutation testing, property-based tests, both
+fuzzing tiers, concurrency stress, benchmarks and allocation, architecture
+rules, secrets/security/dependency scanners, formatting, linting and
+translation checks. It is **long-running by design** — mutation testing alone
+typically takes well over an hour — and that is deliberate: the point is one
+command anyone who clones the repo can run and trust, not a fast one. A
+failing category never stops the run; every category executes regardless, and
+`verifyAll` exits non-zero only at the very end, if anything failed. It writes
+one row per category to a JSON report — the concrete tool, a status
+(`passed`/`failed`/`skipped`/`not-implemented` — the last one is a real,
+first-class answer for a category this project genuinely has no tool for, not
+a failure), and real numbers parsed from that tool's own output, never
+estimated — plus a Markdown table rendered from that same JSON, so the two can
+never disagree.
+
+## FAQ
+
+### How much overhead does this add, and what happens under high concurrency?
+
+We will not claim "zero overhead" — see [Performance](#performance) above for the dated numbers this answer summarizes (JMH, JDK 17, `-prof gc`, committed to [`narrativetrace-benchmarks/baseline.txt`](narrativetrace-benchmarks/baseline.txt) and [`allocation-baseline.txt`](narrativetrace-benchmarks/allocation-baseline.txt), most recently refreshed 2026-08-31/2026-09-01): a direct, untraced call costs ~9–12 ns in this harness; the JDK dynamic proxy with tracing off adds only ~12–26 ns and 24 B/op (one `Object[]` for the arguments) behind an `isActive()` gate that skips all capture, rendering and reflection. The bytecode agent's inactive path is cheaper still — ~37–44 ns at **56 B/op, the same allocation as the direct call itself** — because an instrumented method reads a static `isActive()` before it marshals anything. With tracing fully on (parameter capture and value rendering), a traced call costs **0.6–1.7 µs** and allocates **~1.0–1.5 kB/op**; capturing and resetting a one-node trace costs 1.3–2.3 µs and 2.8–3.1 kB.
+
+What NarrativeTrace itself adds is that capture — intercepting the call, reading arguments, building the trace tree. Everything downstream of capture (the SLF4J write, the collector, the disk or network) is the same cost your logging stack already pays; NarrativeTrace does not add a second sink. For a team replacing hand-written log statements, the sink side is close to a wash: N log calls per method become one trace write, and those statements stop being written, reviewed, and kept in sync with the code.
+
+Under concurrency, the default `DualPathPipeline`'s two paths carry different guarantees. The synchronous path — typically an `Slf4jTraceEventListener` — runs inline on the caller's thread: the write completes before the method returns, so it is exactly as durable, and costs exactly what, a log call already does. The buffered, best-effort path — the one that backs `captureTrace()` and analysis — is a bounded ring buffer (65,536 slots by default, `narrativetrace.buffer.capacity`) that never grows. It load-sheds above 70% fill rather than blocking the caller, and every dropped event is **counted** — ring overwrites, adaptive-drain discards and subscriber drops alike, via `BufferedEventConsumer.droppedCount()` — and surfaced in the trace's own footer, omitted only when nothing was lost: a short trace is never silently indistinguishable from a quiet one.
+
+**The honest gap:** there is no sampling in this runtime, or in any NarrativeTrace runtime, today — every traced call is captured in full at its configured `TracingLevel`. A percentage- or rate-based sampler is on the roadmap, not shipped. If you need to cap capture volume now, use `TracingLevel.OFF` or narrow the traced scope to the boundary that matters.
+
+### How do I know a parameter with PII or credentials won't leak into a trace?
+
+Four independent layers, not one blanket promise — the row-by-row contract, verified against the code, is [Privacy and Redaction](documentation/privacy-and-redaction.md):
+
+1. **`@NotTraced` on a parameter, field, or record component** — explicit redaction you control. It outranks even a curated `toString()` on the declaring class, and it is unconditional: no stage, flag, or property turns it off.
+2. **An always-on, multilingual name deny-list** (`RedactionPolicy.DEFAULT`) — matches field and parameter names against `password`, `secret`, `token`, `ssn`, `cvv`, `apikey`, `cardnumber`, `jwt`, `cookie`, `sessionid`, `accountnumber`, `routingnumber`, plus Spanish (`contraseña`, `tarjeta`, `cédula`, `clave de acceso`), Portuguese (`cartão`), French (`mot de passe`, `carte bancaire`), German (`Passwort`, `Kennwort`) and Chinese (`密码`, `身份证`) equivalents. It is on by default, not opt-in, and the patterns most prone to false positives (`pan`, `iban`, `rut`, `cuit`, `dni`, `senha`, `cpf`, `cnpj`, `nir`, `mima`) match only on identifier-token boundaries, so `panelId` and `circuitBreaker` stay visible.
+3. **Value-shape matching, independent of the field name** — a JWT-shaped string, a Luhn-valid card number, a `Set-Cookie`-shaped value, a national-ID checksum (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident ID), or a dashed US Social Security number is redacted even when it arrives under an innocuous name like `data` or `value`. The US SSN is the one shape here without a checksum to lean on, so only the dashed `AAA-GG-SSSS` form counts: nine bare digits are indistinguishable from an order number, and blanking those would cost more than it protects.
+4. **The value-free `.nt` structural mode (ADR-002) — the categorical guarantee.** A `.nt` artifact carries only class, method and parameter *names*, the call hierarchy, and outcome *kinds* — zero runtime values, zero prompt-injection surface, and that is a property test, not a policy someone could forget to apply. Committed as an `.approved.nt` baseline, it is what to hand an external AI tool when no value may leave the process at all. See the [Structural Trace Format](documentation/structural-trace-format.md).
+
+Be precise about the boundary: layers 1–3 are heuristic and extensible — patterns get added as gaps are found, and can always miss one nobody has named yet. Layer 4 is the only *categorical* one. If your threat model requires "no value can possibly leave the process," reach for the `.nt` structural artifact, not the redaction layers alone.
+
+### Can trace IDs correlate with a standard correlation ID across services, or is tracing local only?
+
+Yes — through W3C `traceparent`, the same mechanism OpenTelemetry itself uses. An inbound `traceparent` header is adopted via `NarrativeContext.adoptTraceparent(...)` (wired automatically by the servlet filter, the Micronaut HTTP filter, and Spring's web filter), and NarrativeTrace's own trace id **becomes** that header's trace id directly — not a separate identifier merely shaped to match. `outboundTraceparent()` gives any HTTP client the value to attach on the way out (the ecommerce example wires this into a real `HttpRequest.Builder`). Where no header is present, a fresh id is generated in the same W3C 32-lowercase-hex-character shape. The `narrativetrace-opentelemetry` module additionally exports NarrativeTrace spans (`TraceSpanExporter`, batch; `OtelTraceEventListener`, live) with typed attributes, so your existing OTel collector, Jaeger, or correlation-id middleware understands the id with nothing to reconcile.
+
+What stays local: the narrative tree itself — the nested method calls, arguments, narration — is captured per process and is never shipped to another service; only the trace id crosses the boundary. A downstream service produces its own narrative tree correlated to that same id, not one merged cross-service tree.
 
 ## License
 

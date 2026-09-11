@@ -99,6 +99,23 @@ public final class BufferedEventConsumer implements RetainingConsumer, AutoClose
   private static final long WATCHDOG_STALE_THRESHOLD_MILLIS = 5000;
   private static final long WATCHDOG_CHECK_INTERVAL_MILLIS = 1000;
 
+  /**
+   * How long {@link #flush()} waits for a publication that was claimed before the flush began but
+   * is not yet written.
+   *
+   * <p>Sized for the stall it covers, not the instructions: the window between claiming a slot and
+   * writing it is a handful of instructions, but the thread inside that window can be descheduled,
+   * and on a loaded host a scheduling quantum is milliseconds. The wait is a latency cap, not a
+   * correctness line — exhausting it leaves {@link #drained()} false so the caller can tell, and
+   * the collect path counts what it could not see rather than dropping it silently.
+   */
+  static final long IN_FLIGHT_PUBLISH_WAIT_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
+
+  /** Spin-then-yield split inside the wait; the spins cover the running producer's instructions. */
+  private static final int IN_FLIGHT_SPIN_ATTEMPTS = 64;
+
+  private final long inFlightPublishWaitNanos;
+
   private final Thread consumer;
   private final ConsumerWatchdog watchdog;
   private final Thread shutdownHook;
@@ -114,9 +131,19 @@ public final class BufferedEventConsumer implements RetainingConsumer, AutoClose
     this(bufferCapacity, true);
   }
 
-  @SuppressWarnings("PMD.DoNotUseThreads")
   public BufferedEventConsumer(int bufferCapacity, boolean startConsumer) {
-    this.queue = new BoundedEventBuffer(bufferCapacity);
+    this(new BoundedEventBuffer(bufferCapacity), startConsumer, IN_FLIGHT_PUBLISH_WAIT_NANOS);
+  }
+
+  /**
+   * Test seam: ring and wait are injectable, so a stalled-claim scenario is schedulable — the seam
+   * ring can hold a producer between claim and write, and the wait can be stretched (a barrier the
+   * test releases mid-flush) or shrunk (a deterministic exhaustion).
+   */
+  @SuppressWarnings("PMD.DoNotUseThreads")
+  BufferedEventConsumer(BoundedEventBuffer queue, boolean startConsumer, long inFlightWaitNanos) {
+    this.queue = queue;
+    this.inFlightPublishWaitNanos = inFlightWaitNanos;
     this.consumer = new Thread(this::drain, "narrative-trace-consumer");
     this.consumer.setDaemon(true);
     if (startConsumer) {
@@ -144,10 +171,51 @@ public final class BufferedEventConsumer implements RetainingConsumer, AutoClose
     return store.events();
   }
 
-  /** Drains all buffered events into the store so query methods observe them. */
+  /**
+   * Drains all buffered events into the store so query methods observe them.
+   *
+   * <p>INTENT: A barrier for the caller's own events. Everything published before this call is in
+   * the store when it returns — including events behind a slot another producer has claimed and not
+   * yet written, which the drain alone cannot pass and which used to make a flush silently
+   * incomplete. The wait is bounded ({@link #IN_FLIGHT_PUBLISH_WAIT_NANOS}); an exhausted wait
+   * leaves {@link #drained()} false, so the caller can tell, and is never silent. Publications that
+   * begin after the flush starts are out of scope: drained when seen, never waited for.
+   */
   @Override
   public synchronized void flush() {
+    long cursor = queue.cursor();
     drainRemaining();
+    awaitInFlightPublishes(cursor);
+  }
+
+  /**
+   * Waits boundedly for publications claimed before the flush began, re-draining as they land.
+   *
+   * <p><b>@edgeCase</b> Spin first, yield after: the claim-to-write window is a handful of
+   * instructions, so the spins cover a producer that is running; a producer that was descheduled
+   * inside the window needs the CPU this thread is holding, which is exactly what {@link
+   * Thread#yield()} offers it. Bounded by an explicit deadline, never by an attempt count — an
+   * attempt count measures contention, not time, and this wait exists precisely for the case where
+   * time (a scheduling quantum) is the problem.
+   */
+  private void awaitInFlightPublishes(long cursor) {
+    if (queue.consumedPast(cursor)) {
+      return;
+    }
+    long deadline = System.nanoTime() + inFlightPublishWaitNanos;
+    int attempts = 0;
+    do {
+      attempts++;
+      if (attempts <= IN_FLIGHT_SPIN_ATTEMPTS) {
+        Thread.onSpinWait();
+      } else {
+        Thread.yield();
+      }
+      drainRemaining();
+      if (queue.consumedPast(cursor)) {
+        return;
+      }
+    } while (System.nanoTime() - deadline < 0);
   }
 
   /**

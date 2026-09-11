@@ -48,6 +48,10 @@ class OutputFormatFuzzTest {
     assertWellFormed(Emitters.renderers(Emitters.treeNarrating(value, value)));
     assertWellFormed(Emitters.renderers(Emitters.treeThrowing(new IllegalStateException(value))));
     assertWellFormed(Emitters.renderers(Emitters.treeWithHostileMetadata(value)));
+    // The scenario route: caller-supplied text that reaches the YAML frontmatter, the Markdown
+    // body header, the structural header and the JSON scenario name. Un-fuzzed until the
+    // 2026-09-08 audit found both of its findings on this exact channel.
+    assertWellFormed(Emitters.renderers(Emitters.treeOf(rendered(value), rendered(value)), value));
   }
 
   private String rendered(String value) {

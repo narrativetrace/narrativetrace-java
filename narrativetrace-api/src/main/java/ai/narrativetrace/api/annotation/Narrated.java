@@ -28,6 +28,11 @@ import java.lang.annotation.Target;
  * <p>INTENT: Use this when the method name alone does not tell a good story and you want rendered
  * traces to read like domain prose.
  *
+ * <p><b>This is an escape hatch, not the default.</b> The standard path is entirely derived — the
+ * method's own name, parameters and outcome already tell the story. Reaching for this annotation is
+ * a signal, the same one clarity scoring exists to flag: consider fixing the name before writing a
+ * sentence.
+ *
  * <p>The template replaces the auto-generated description with a hand-written sentence.
  * Placeholders reference method parameters by name and support one-hop property access:
  *

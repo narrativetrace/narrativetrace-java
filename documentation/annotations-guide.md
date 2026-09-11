@@ -18,7 +18,14 @@ NarrativeTrace follows a **Code is the Log** philosophy: method names, parameter
 
 ### `@Narrated`
 
-Use `@Narrated` on methods when you want an explicit sentence in the trace instead of relying only on method name + parameters.
+`@Narrated` is an escape hatch, not the standard way to add narration — the
+default path is entirely derived from the method's own name, parameters, and
+outcome. Reaching for a template is a signal, the same kind clarity scoring
+exists to flag: it means the code is not saying what it does on its own.
+Before writing one, consider whether the method name is the real problem — a
+better name fixes every trace through that method, not just this one.
+
+Use it, deliberately, on methods when you want an explicit sentence in the trace instead of relying only on method name + parameters.
 
 ```java
 public interface OrderService {

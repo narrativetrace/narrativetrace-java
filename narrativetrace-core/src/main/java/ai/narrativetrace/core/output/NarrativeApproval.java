@@ -133,7 +133,7 @@ public final class NarrativeApproval {
       parts.add(loss.droppedEvents() + " events dropped");
     }
     if (loss.refusedScopes() > 0) {
-      parts.add(loss.refusedScopes() + " async scopes not adopted");
+      parts.add(loss.refusedScopes() + " async scopes refused");
     }
     return String.join(", ", parts);
   }
@@ -144,8 +144,20 @@ public final class NarrativeApproval {
    * rules as every other per-test artifact, so baseline and build artifact line up by name.
    */
   public static Path approvedFile(Path approvedDir, String testClassName, String testMethodName) {
-    return OutputDirectoryResolver.classDirectory(approvedDir, testClassName)
-        .resolve(OutputDirectoryResolver.toFileSlug(testMethodName) + ".approved.nt");
+    return approvedFile(approvedDir, ArtifactIdentity.ofMethod(testClassName, testMethodName));
+  }
+
+  /**
+   * The committed baseline of one invocation, keyed by the full artifact identity.
+   *
+   * <p>INTENT: A method that runs more than once has one baseline per invocation. Keying by the
+   * method alone made every invocation share one {@code .approved.nt}, so the last invocation's
+   * structure silently became the contract for all of them — the approval half of the 2026-09-08
+   * artifact-collision finding.
+   */
+  public static Path approvedFile(Path approvedDir, ArtifactIdentity identity) {
+    return OutputDirectoryResolver.classDirectory(approvedDir, identity.testClassName())
+        .resolve(identity.fileSlug() + ".approved.nt");
   }
 
   /** Where a lossy run's structure goes: readable, comparable by hand, and never promotable. */

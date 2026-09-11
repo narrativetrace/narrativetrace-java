@@ -178,7 +178,7 @@ public final class ConsoleSummaryReporter {
     if (loss.refusedScopes() > 0) {
       parts.add(
           count(loss.refusedScopes(), "async scope")
-              + " not adopted (cap), "
+              + " refused (cap or uncollected), "
               + count(loss.refusedSpans(), "span"));
     }
     if (loss.discardedSpans() > 0) {

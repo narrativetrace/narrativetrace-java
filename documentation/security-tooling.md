@@ -28,10 +28,11 @@ Two entry points, same tool:
   degrade-gracefully convention every other step in that hook follows.
 - **`gitleaksScan`** (Gradle, `verification` group) runs `gitleaks detect`
   against the full git history, for a periodic sweep or a machine that never
-  ran the hook. JSON report under `build/reports/gitleaks/`. Warns and passes
-  when the binary is absent; not wired into `check` or a CI job — gitleaks
-  itself is fast and fully offline, but no cadence was specified for the
-  full-history sweep, so none was invented.
+  ran the hook. JSON report under `build/reports/gitleaks/`. A missing binary
+  follows the [skipped-scan rule](#a-skipped-scan-is-not-a-clean-scan) below.
+  Not wired into `check` or a CI job — gitleaks itself is fast and fully
+  offline, but no cadence was specified for the full-history sweep, so none
+  was invented.
 
 A full-history sweep (2026-09-02) found two flagged strings,
 both the same false positive: `.gitsecret/paths/mapping.cfg`, a SHA-256
@@ -44,8 +45,9 @@ found in the repository's history.
 
 `semgrepScan` (Gradle, `verification` group) runs the community `p/java`
 registry ruleset (OSS rules only — no custom rules; see "Scope" below) over
-the tracked source tree, JSON report under `build/reports/semgrep/`. Warns
-and passes when the `semgrep` binary is absent.
+the tracked source tree, JSON report under `build/reports/semgrep/`. A
+missing binary follows the
+[skipped-scan rule](#a-skipped-scan-is-not-a-clean-scan) below.
 
 Fetching the registry ruleset needs network, so this is not in `check`:
 private CI runs it on merge requests and the weekly schedule only, never
@@ -190,12 +192,30 @@ than a floating tag — a floating tag is mutable at the source, so a pinned
 SHA is what makes "this workflow runs the action version it was reviewed
 against" actually true. No further action here.
 
+## A skipped scan is not a clean scan
+
+A scanner whose binary is absent used to warn and pass — a green build that
+looked like "secrets/static analysis passed" when nothing was checked, the
+exact failure class a family release retrospective pinned as rule 2 ("a
+graceful-skip tool must prove it has ever run"). Since 2026-09-08, all three
+shell-out scan tasks (`gitleaksScan`, `semgrepScan`, `osvScan`) behave the
+same way when their binary is missing:
+
+- **Locally**: the task **warns** ("a skipped scan is NOT a clean scan") and
+  still passes, so a machine without the tools keeps a working build.
+- **In CI, or under `-Pnarrativetrace.security.required=true`**: the task
+  **fails** — a job meant to provide security assurance must mean the scan
+  ran.
+- Every outcome is recorded under `build/reports/security-scans/<tool>.status`
+  as `ran-clean` or `skipped: <reason>` (no file at all reads as `never-ran`),
+  so "ran clean" and "never ran" stay distinguishable after the fact.
+
 ## Installing the scanners locally
 
 None of `gitleaks`, `semgrep` or `osv-scanner` is a Gradle dependency — each
-entry point shells out to a binary on `PATH` and warns-and-passes when it is
-absent, so a machine without them still gets a working `check`/pre-commit.
-For a machine that wants a real local scan:
+entry point shells out to a binary on `PATH`, and a missing binary follows
+the skipped-scan rule above, so a machine without them still gets a working
+`check`/pre-commit. For a machine that wants a real local scan:
 
 - **gitleaks**: a standalone binary — see the
   [releases page](https://github.com/gitleaks/gitleaks#installing).

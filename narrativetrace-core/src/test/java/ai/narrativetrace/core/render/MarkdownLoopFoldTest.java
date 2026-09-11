@@ -145,11 +145,66 @@ class MarkdownLoopFoldTest {
   @Test
   void siblingsDifferingOnlyByValueFoldTogetherWithLabels() {
     // Compress proven (structural) sameness, amplify difference: same shape, different value → one
-    // run; the differing bare-string value has no identity object, so it takes a positional marker.
+    // run. A bare string has no identity object to mint a ‹label› from, so the fold line names the
+    // position AND the distinguishing argument itself — "#2" alone told a reader nothing about
+    // which iteration was folded away (2026-09-08 agent evaluation).
     var result = render(List.of(leafMs("\"a\"", 0), leafMs("\"b\"", 0), leafMs("\"a\"", 0)));
 
-    assertThat(result)
-        .contains("×2 more: #2"); // b (iteration #2) distinguished; the trailing a is identical
+    assertThat(result).contains("×2 more: #2 note=`\"b\"`");
+  }
+
+  /**
+   * The reported case: two catalog lookups whose SKU differed folded to {@code ×1 more: #2}, and
+   * the second SKU was unrecoverable from the artifact. It has to be on the line.
+   */
+  @Test
+  void aFoldedIterationNamesTheArgumentThatDistinguishesIt() {
+    var result =
+        render(
+            List.of(
+                leaf("CatalogService", "findEquipment", "sku", "\"KAYAK\""),
+                leaf("CatalogService", "findEquipment", "sku", "\"TENT\"")));
+
+    assertThat(result).contains("×1 more: #2 sku=`\"TENT\"`");
+  }
+
+  @Test
+  void aDistinguishingValueTooLongForTheLineIsTruncatedNotDropped() {
+    var result =
+        render(
+            List.of(
+                leaf("Svc", "run", "note", "\"" + "x".repeat(80) + "\""),
+                leaf("Svc", "run", "note", "\"" + "y".repeat(80) + "\"")));
+
+    assertThat(result).contains("×1 more: #2 note=`\"" + "y".repeat(31) + "…`");
+  }
+
+  @Test
+  void unfoldedModeRendersEveryIterationInFull() {
+    var iterations =
+        List.of(
+            leaf("CatalogService", "findEquipment", "sku", "\"KAYAK\""),
+            leaf("CatalogService", "findEquipment", "sku", "\"TENT\""),
+            leaf("CatalogService", "findEquipment", "sku", "\"ROPE\""));
+
+    var result =
+        MarkdownRenderer.unfolded().render(new DefaultTraceTree(List.of(parentOf(iterations))));
+
+    assertThat(result).doesNotContain(" more");
+    assertThat(result).contains("sku: `\"KAYAK\"`");
+    assertThat(result).contains("sku: `\"TENT\"`");
+    assertThat(result).contains("sku: `\"ROPE\"`");
+  }
+
+  @Test
+  void unfoldedModeRendersEveryIterationsWholeSubtree() {
+    var iterations = List.of(expenseVal("Dinner", "100.00"), expenseVal("Taxi", "20.00"));
+
+    var unfolded =
+        MarkdownRenderer.unfolded().render(new DefaultTraceTree(List.of(parentOf(iterations))));
+
+    assertThat(unfolded.split("Validator.validate")).hasSize(3);
+    assertThat(unfolded).contains("\"Taxi\"");
   }
 
   @Test

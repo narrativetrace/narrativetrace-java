@@ -11,12 +11,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.net.InetAddress;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class ECommerceExampleTest {
 
   @Test
   void mainRunsAllScenariosWithoutError() {
+    // One scenario calls a live HTTP service on purpose — the example exists to show
+    // a real outbound call being traced. That makes this test network-dependent, and
+    // the nightly quality run is deliberately offline, where it failed with an
+    // unresolved address rather than saying why. An unreachable network is not a
+    // finding about this library, so the test says so and stops.
+    Assumptions.assumeTrue(hostIsReachable(), "needs network: the example calls a live service");
     var out = new ByteArrayOutputStream();
     var original = System.out;
     System.setOut(new PrintStream(out));
@@ -49,5 +57,14 @@ class ECommerceExampleTest {
   void classCanBeInstantiated() {
     var example = new ECommerceExample();
     assertThat(example).isNotNull();
+  }
+
+  private static boolean hostIsReachable() {
+    try {
+      InetAddress.getByName("jsonplaceholder.typicode.com");
+      return true;
+    } catch (java.net.UnknownHostException e) {
+      return false;
+    }
   }
 }

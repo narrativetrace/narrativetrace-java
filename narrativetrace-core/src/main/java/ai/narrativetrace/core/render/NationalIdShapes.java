@@ -50,6 +50,17 @@ final class NationalIdShapes {
   private static final Pattern CNPJ =
       Pattern.compile("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}|\\d{14}");
 
+  /**
+   * United States: {@code AAA-GG-SSSS}, dashes required.
+   *
+   * <p><b>@edgeCase</b> The dashes are the entire signal and the reason this pattern is safe. An
+   * SSN carries no check digit, so nine bare digits are arithmetically indistinguishable from an
+   * order number, an account id or an unpunctuated phone number — matching those would blank
+   * ordinary business data in every trace, which is exactly the false-positive budget this class
+   * exists to protect. Punctuation is the only evidence the writer meant an SSN.
+   */
+  private static final Pattern US_SSN = Pattern.compile("\\d{3}-\\d{2}-\\d{4}");
+
   /** Spain: a DNI is 8 digits plus a letter; a NIE swaps the leading digit for {@code X/Y/Z}. */
   private static final Pattern SPANISH_ID =
       Pattern.compile("(?:[XYZ]\\d{7}|\\d{8})-?[A-Z]", Pattern.CASE_INSENSITIVE);
@@ -90,7 +101,7 @@ final class NationalIdShapes {
    *
    * @param value a trimmed rendered value
    * @return {@code true} for a valid Chilean RUT, Brazilian CPF or CNPJ, Spanish DNI or NIE, French
-   *     NIR, or Chinese resident identity card
+   *     NIR, Chinese resident identity card, or a dashed US Social Security number
    */
   static boolean isNationalId(String value) {
     return isRut(value)
@@ -98,7 +109,36 @@ final class NationalIdShapes {
         || isCnpj(value)
         || isSpanishId(value)
         || isFrenchNir(value)
-        || isChineseResidentId(value);
+        || isChineseResidentId(value)
+        || isUsSsn(value);
+  }
+
+  /**
+   * A US Social Security number written in the dashed form {@code AAA-GG-SSSS}.
+   *
+   * <p>INTENT: The name deny-list carries {@code ssn} and, since 2026-09-10, its longer spellings —
+   * but a real SSN arriving under an innocuous name ({@code taxpayerRef}, {@code identifier}) was
+   * caught by nothing at all. An audit found the concept covered by name in one language and by no
+   * shape whatsoever; this is that missing axis.
+   *
+   * <p><b>@edgeCase</b> This is the one matcher here that is not a checksum, because the scheme has
+   * none. The structural rules the SSA publishes stand in for one: area {@code 000}, {@code 666}
+   * and {@code 900-999} are never issued, group {@code 00} never is, and serial {@code 0000} never
+   * is. Rejecting those keeps {@code 000-00-0000} — the placeholder that fills test fixtures and
+   * redacted forms everywhere — visible rather than blanked, and costs nothing real: those
+   * combinations cannot be anyone's number.
+   */
+  private static boolean isUsSsn(String value) {
+    if (!US_SSN.matcher(value).matches()) {
+      return false;
+    }
+    var area = value.substring(0, 3);
+    var group = value.substring(4, 6);
+    var serial = value.substring(7);
+    if ("000".equals(area) || "666".equals(area) || area.charAt(0) == '9') {
+      return false;
+    }
+    return !"00".equals(group) && !"0000".equals(serial);
   }
 
   private static boolean isRut(String value) {

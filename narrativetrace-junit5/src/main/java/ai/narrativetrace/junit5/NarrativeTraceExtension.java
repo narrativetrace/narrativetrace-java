@@ -22,9 +22,11 @@ import ai.narrativetrace.clarity.DomainVocabulary;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.core.output.ArtifactIdentity;
 import ai.narrativetrace.core.output.NarrativeApproval;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
+import ai.narrativetrace.core.output.ScenarioManifest;
 import ai.narrativetrace.core.output.TemplateWarningCollector;
 import ai.narrativetrace.core.output.TraceFileWriter;
 import ai.narrativetrace.core.output.TraceTestSupport;
@@ -64,7 +66,8 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *   <li><strong>BeforeEach:</strong> creates a fresh {@link ThreadLocalNarrativeContext}
  *   <li><strong>AfterTestExecution:</strong> captures the trace, prints failure reports, writes
  *       Markdown/Mermaid/PlantUML/JSON files (when output is enabled)
- *   <li><strong>AfterAll:</strong> accumulates traces for the combined clarity report
+ *   <li><strong>AfterAll:</strong> accumulates traces for the combined clarity report and for the
+ *       run's {@code manifest.json}, the scenario → file index over every artifact written
  *   <li><strong>ParameterResolver:</strong> injects {@link NarrativeContext} into test methods
  * </ul>
  *
@@ -75,6 +78,9 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *   <li>{@code narrativetrace.outputDir} — output directory (default: {@code build/narrativetrace})
  *   <li>{@code narrativetrace.format} — output format: {@code markdown}, {@code text}, {@code
  *       mermaid}, or {@code plantuml} (default: {@code markdown})
+ *   <li>{@code narrativetrace.unfolded} — render every iteration of a loop in full instead of
+ *       summarizing repeats as {@code ×k more …} (default: {@code false}, Markdown only). Turn it
+ *       on when a folded run hides the per-iteration values you are looking for
  *   <li>{@code narrativetrace.bufferCapacity} — slots in this context's event ring (default {@value
  *       #DEFAULT_TEST_BUFFER_CAPACITY}). Raise it when a narrative reports shed events; the
  *       runtime-wide {@code narrativetrace.buffer.capacity} overrules it
@@ -130,6 +136,10 @@ public class NarrativeTraceExtension
   /** JUnit configuration key overriding {@link #DEFAULT_TEST_BUFFER_CAPACITY}. */
   static final String BUFFER_CAPACITY_KEY = "narrativetrace.bufferCapacity";
 
+  /** The unique-id segment JUnit gives one invocation of a test template. */
+  private static final java.util.regex.Pattern INVOCATION_SEGMENT =
+      java.util.regex.Pattern.compile("\\[test-template-invocation:#(\\d{1,9})]");
+
   private static final ExtensionContext.Namespace NAMESPACE =
       ExtensionContext.Namespace.create(NarrativeTraceExtension.class);
   private static final String CONTEXT_KEY = "narrativeContext";
@@ -147,6 +157,7 @@ public class NarrativeTraceExtension
   static class GlobalTraceAccumulator implements ExtensionContext.Store.CloseableResource {
     private final List<Map.Entry<String, TraceTree>> allTraces = new ArrayList<>();
     private final List<ScenarioDelta> allDeltas = new ArrayList<>();
+    private final List<ScenarioManifest.Entry> manifestRows = new ArrayList<>();
     private TraceLoss suiteLoss = TraceLoss.none();
     private Path outputDir;
     private GlossaryHarvestStep glossaryStep = GlossaryHarvestStep.disabled();
@@ -155,6 +166,16 @@ public class NarrativeTraceExtension
     /** Adds one test's loss to the suite total — each test gets a fresh context, so these sum. */
     synchronized void recordLoss(TraceLoss loss) {
       suiteLoss = suiteLoss.plus(loss);
+    }
+
+    /**
+     * Adds one scenario's row to the run manifest, in execution order.
+     *
+     * <p>Kept here rather than in the class-level store because the manifest is one file for the
+     * whole run: a reader looking for a scenario should not have to know which class produced it.
+     */
+    synchronized void recordArtifacts(ScenarioManifest.Entry entry) {
+      manifestRows.add(entry);
     }
 
     synchronized void contribute(
@@ -184,6 +205,7 @@ public class NarrativeTraceExtension
           glossaryStep.run(allTraces.stream().map(Map.Entry::getValue).toList(), System.out);
       try {
         writeClarityFiles(extension, suiteIssues);
+        ScenarioManifest.write(manifestRows, outputDir);
       } catch (IOException e) {
         System.err.println("Failed to write clarity report: " + e.getMessage());
       }
@@ -353,19 +375,49 @@ public class NarrativeTraceExtension
     // Each test runs on its own context, so this reading is that test's loss, not the process's.
     var loss = context.traceLoss();
     accumulator(extensionContext).recordLoss(loss);
-    var exception = extensionContext.getExecutionException().orElse(null);
-    var failed = exception != null;
+    var failed = extensionContext.getExecutionException().isPresent();
     var displayName = extensionContext.getDisplayName();
+    // The verdict has to be known BEFORE anything is written: an approval rejection fails the test
+    // too, and a run that ends red must not advance the last-green artifact (see #advanceable).
+    var rejection =
+        failed
+            ? Optional.<AssertionError>empty()
+            : approvalRejection(extensionContext, displayName, trace, loss);
 
-    // Output first so the failure report can speak in terms of the structural delta the write
-    // computed — and so the report is the last (most visible) block in the console.
+    // Output before the report so the failure report can speak in terms of the structural delta the
+    // write computed — and so the report is the last (most visible) block in the console.
     Optional<ScenarioDelta> delta = Optional.empty();
     if ("true".equalsIgnoreCase(configParam(extensionContext, "narrativetrace.output", "false"))) {
-      delta = writeOutputAndAccumulate(extensionContext, displayName, trace, failed);
+      delta =
+          writeOutputAndAccumulate(
+              extensionContext, displayName, trace, failed || rejection.isPresent());
     }
     handleAfterTest(displayName, failed, trace, delta, System.out);
-    if (!failed) {
+    if (rejection.isPresent()) {
+      throw rejection.get();
+    }
+  }
+
+  /**
+   * Runs approval verification and hands back the failure it would raise, instead of raising it.
+   *
+   * <p>INTENT: The last-green artifact must advance only on a run that is green <em>in full</em>,
+   * and "in full" includes the approval verdict — a rejected structure that advanced the baseline
+   * poisoned it, and the next (reverted, correct) run then reported a removal that never happened
+   * (2026-09-08 agent evaluation). Approval therefore runs first and its verdict is carried to the
+   * write; the error is thrown afterwards, so the test still fails exactly as it did, with the same
+   * message, after the artifacts a reviewer needs are on disk.
+   *
+   * <p><b>@sideEffects</b> Writes the {@code *.received.nt} / {@code *.incomplete.nt} file, and
+   * prints the lossy-pass note. Deleting a stale received file on a clean pass happens here too.
+   */
+  private static Optional<AssertionError> approvalRejection(
+      ExtensionContext extensionContext, String displayName, TraceTree trace, TraceLoss loss) {
+    try {
       verifyApprovalIfEnabled(extensionContext, displayName, trace, loss);
+      return Optional.empty();
+    } catch (AssertionError e) {
+      return Optional.of(e);
     }
   }
 
@@ -387,10 +439,7 @@ public class NarrativeTraceExtension
     var approvedDir =
         Path.of(configParam(extensionContext, "narrativetrace.approvedDir", "src/test/narratives"));
     var approvedFile =
-        NarrativeApproval.approvedFile(
-            approvedDir,
-            extensionContext.getRequiredTestClass().getName(),
-            extensionContext.getRequiredTestMethod().getName());
+        NarrativeApproval.approvedFile(approvedDir, artifactIdentity(extensionContext));
     try {
       var note =
           NarrativeApproval.verify(trace, ScenarioFramer.humanize(displayName), approvedFile, loss);
@@ -408,16 +457,14 @@ public class NarrativeTraceExtension
     var outputDir =
         Path.of(configParam(extensionContext, "narrativetrace.outputDir", "build/narrativetrace"));
     var format = configParam(extensionContext, "narrativetrace.format", "markdown");
-    var testClassName = extensionContext.getRequiredTestClass().getName();
-    var testMethodName = extensionContext.getRequiredTestMethod().getName();
+    var identity = artifactIdentity(extensionContext);
     Optional<ScenarioDelta> delta = Optional.empty();
     try {
       NarrativeRenderer mermaid = new MermaidSequenceDiagramRenderer()::render;
       NarrativeRenderer plantuml = new PlantUmlSequenceDiagramRenderer()::render;
       delta =
           TraceTestSupport.writeTraceFile(
-              testClassName,
-              testMethodName,
+              identity,
               displayName,
               trace,
               failed,
@@ -425,49 +472,114 @@ public class NarrativeTraceExtension
               System.out,
               format,
               mermaid,
-              plantuml);
+              plantuml,
+              !"true"
+                  .equalsIgnoreCase(
+                      configParam(extensionContext, "narrativetrace.unfolded", "false")));
       delta.ifPresent(d -> accumulatedDeltas(extensionContext).add(d));
-      writeOptionalEntryArtifacts(
-          extensionContext, testClassName, testMethodName, trace, outputDir);
+      writeOptionalEntryArtifacts(extensionContext, identity, trace, outputDir);
     } catch (IOException e) {
       System.err.println("Failed to write trace file: " + e.getMessage());
     }
-
-    if (!trace.isEmpty()) {
-      var scenario = ScenarioFramer.humanize(displayName);
-      var classStore = extensionContext.getParent().orElseThrow().getStore(NAMESPACE);
-      @SuppressWarnings("unchecked")
-      var accumulated =
-          (Map<String, TraceTree>)
-              classStore.getOrComputeIfAbsent(
-                  TRACES_KEY, k -> new LinkedHashMap<String, TraceTree>(), Map.class);
-      accumulated.put(scenario, trace);
-    }
+    accumulateScenario(extensionContext, identity, displayName, trace, outputDir);
     return delta;
+  }
+
+  /**
+   * Which artifact this invocation owns.
+   *
+   * <p>A {@code @ParameterizedTest} or {@code @RepeatedTest} method runs more than once, and every
+   * run used to write the same files, so only the last one survived. The engine's own invocation
+   * number is what separates them — deterministic for a given argument source, and therefore the
+   * only part of the name an approval baseline can safely be pinned to.
+   */
+  private static ArtifactIdentity artifactIdentity(ExtensionContext extensionContext) {
+    var testClassName = extensionContext.getRequiredTestClass().getName();
+    var testMethodName = extensionContext.getRequiredTestMethod().getName();
+    var index = invocationIndex(extensionContext.getUniqueId());
+    return index == 0
+        ? ArtifactIdentity.ofMethod(testClassName, testMethodName)
+        : ArtifactIdentity.ofInvocation(
+            testClassName, testMethodName, index, extensionContext.getDisplayName());
+  }
+
+  /**
+   * The 1-based invocation number carried by a test-template unique id, or {@code 0} for an
+   * ordinary test method that runs exactly once.
+   *
+   * <p>The unique id is the engine's own record of which invocation this is — JUnit exposes no
+   * accessor for it on {@code ExtensionContext} — and it is the last such segment that names this
+   * invocation, since a nested template would contribute an outer one first. The digit count is
+   * bounded so a hand-built id can never overflow the parse.
+   */
+  static int invocationIndex(String uniqueId) {
+    var matcher = INVOCATION_SEGMENT.matcher(uniqueId);
+    var index = 0;
+    while (matcher.find()) {
+      index = Integer.parseInt(matcher.group(1));
+    }
+    return index;
+  }
+
+  /** Records the scenario's trace for the suite report and its files for the run manifest. */
+  private static void accumulateScenario(
+      ExtensionContext extensionContext,
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      Path outputDir) {
+    if (trace.isEmpty()) {
+      return;
+    }
+    var scenario = ScenarioFramer.humanize(displayName);
+    var classStore = classContext(extensionContext).getStore(NAMESPACE);
+    @SuppressWarnings("unchecked")
+    var accumulated =
+        (Map<String, TraceTree>)
+            classStore.getOrComputeIfAbsent(
+                TRACES_KEY, k -> new LinkedHashMap<String, TraceTree>(), Map.class);
+    accumulated.put(scenario, trace);
+    accumulator(extensionContext)
+        .recordArtifacts(ScenarioManifest.entryFor(outputDir, identity, scenario));
+  }
+
+  /**
+   * The class-level context a per-test accumulation belongs in — the store {@link #afterAll} later
+   * reads.
+   *
+   * <p><b>@edgeCase</b> Not simply {@code getParent()}: an invocation of a test template has the
+   * template's own container as its parent, so a parameterized test's traces and deltas landed in a
+   * store {@code afterAll} never looks at. A class holding nothing but parameterized tests
+   * therefore contributed <em>nothing</em> to the suite — no clarity rows, no delta line, no
+   * manifest — because the write path and the read path disagreed about which context is "the
+   * class". Walking up until the context has no test method is that agreement, in one place.
+   */
+  private static ExtensionContext classContext(ExtensionContext extensionContext) {
+    var current = extensionContext;
+    while (current.getTestMethod().isPresent() && current.getParent().isPresent()) {
+      current = current.getParent().orElseThrow();
+    }
+    return current;
   }
 
   /** The opt-in machine artifacts beside each trace: canonical and structural entry arrays. */
   private static void writeOptionalEntryArtifacts(
-      ExtensionContext extensionContext,
-      String testClassName,
-      String testMethodName,
-      TraceTree trace,
-      Path outputDir)
+      ExtensionContext extensionContext, ArtifactIdentity identity, TraceTree trace, Path outputDir)
       throws IOException {
     if ("true"
         .equalsIgnoreCase(configParam(extensionContext, "narrativetrace.canonicalJson", "false"))) {
-      TraceTestSupport.writeCanonicalTraceFile(testClassName, testMethodName, trace, outputDir);
+      TraceTestSupport.writeCanonicalTraceFile(identity, trace, outputDir);
     }
     if ("true"
         .equalsIgnoreCase(
             configParam(extensionContext, "narrativetrace.structuralJson", "false"))) {
-      TraceTestSupport.writeStructuralTraceFile(testClassName, testMethodName, trace, outputDir);
+      TraceTestSupport.writeStructuralTraceFile(identity, trace, outputDir);
     }
   }
 
   /** The class-level list collecting each test's structural delta for the suite footer line. */
   private static List<ScenarioDelta> accumulatedDeltas(ExtensionContext extensionContext) {
-    var classStore = extensionContext.getParent().orElseThrow().getStore(NAMESPACE);
+    var classStore = classContext(extensionContext).getStore(NAMESPACE);
     @SuppressWarnings("unchecked")
     var deltas =
         (List<ScenarioDelta>)

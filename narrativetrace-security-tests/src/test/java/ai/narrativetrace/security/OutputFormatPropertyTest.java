@@ -65,6 +65,11 @@ class OutputFormatPropertyTest {
                     () -> {
                       assertWellFormedIncludingArtifacts(asCapturedValue(hostile));
                       assertWellFormed(Emitters.renderers(asNarration(hostile)));
+                      // The third route: the same hostile text as the scenario, which reaches the
+                      // YAML frontmatter, the Markdown body header, the structural header and the
+                      // JSON scenario name (2026-09-08 audit, findings 1 and 2).
+                      assertWellFormed(
+                          Emitters.renderers(asCapturedValue(hostile), hostile.value()));
                     }))
         .toList();
   }

@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 0bd33c301640 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/gradle-plugin-guide.md blob cf519cb92da0 | translated: 2026-09-09 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -148,7 +148,7 @@ narrativeTrace {
 
 ### `approvedDir`
 
-Diretório de baselines narrativas commitadas, organizado como `<dir>/<TestClassSimpleName>/<test_method_slug>.approved.nt` — as mesmas regras de diretório por classe e slug de qualquer outro artefato por teste.
+Diretório de baselines narrativas commitadas, organizado como `<dir>/<TestClassSimpleName>/<artifact_name>.approved.nt` — as mesmas regras de diretório por classe e de identidade de artefato de qualquer outro artefato por teste, então um método que roda mais de uma vez (parametrizado, repetido) tem uma baseline por invocação.
 
 Padrão: `layout.projectDirectory.dir("src/test/narratives")`
 
@@ -341,7 +341,7 @@ Quando definida, toda dependência gerenciada do NarrativeTrace é resolvida nes
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -477,7 +477,7 @@ Todos os exemplos acima usam o DSL do Kotlin. O equivalente em Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.0'
+    id 'ai.narrativetrace' version '0.2.1'
 }
 
 narrativeTrace {

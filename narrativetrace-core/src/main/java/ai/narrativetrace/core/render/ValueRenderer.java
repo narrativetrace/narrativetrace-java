@@ -185,6 +185,51 @@ public final class ValueRenderer {
   }
 
   /**
+   * Renders a value for a {@code ParameterCapture}, additionally reporting whether the value-shape
+   * axis withheld the whole value — the seam {@code ParameterCapture.redacted()} needs to stay true
+   * whenever a parameter caught by {@link RedactionPolicy#shouldRedactValue} is rendered.
+   *
+   * <p>INTENT: The name/annotation axis is decided by the caller before this method is ever reached
+   * (a name-denied parameter is never rendered at all — see {@code ParameterNameResolver} and
+   * {@code AgentRuntime.buildCaptures}), so every caller of this method only needs the axis it
+   * cannot see from a name: whether the runtime value itself is shaped like a credential. Reporting
+   * that fact here, at the point the match actually happens, is what keeps a capture site from
+   * having to infer it later by comparing rendered text back against {@link RedactionPolicy#MARKER}
+   * — a comparison that cannot tell a real match from an unrelated value whose own rendering
+   * happens to coincide.
+   *
+   * <p><b>@sideEffects</b> None beyond {@link #render(Object)} and {@link
+   * #renderStructured(Object)}, which this calls once each; total, like every other entry point.
+   *
+   * @param value the parameter's raw runtime value, exactly what {@link #render(Object)} would take
+   * @return the flat and structured renderings plus whether the top-level value's own shape matched
+   */
+  public CapturedRendering renderForCapture(Object value) {
+    return new CapturedRendering(
+        render(value), renderStructured(value), topLevelShapeRedacted(value));
+  }
+
+  /**
+   * Whether the value handed to {@link #renderForCapture} is, itself, a shape-redacted string.
+   *
+   * <p><b>@edgeCase</b> Deliberately shallow — {@code instanceof String} without unwrapping an
+   * {@code Optional}, following a {@code Future}, or descending into a field. Any of those already
+   * renders its shape-matched contents as {@link RedactionPolicy#MARKER} through the ordinary walk;
+   * what changes here is only whether that fact is also promoted to the parameter-level flag, and
+   * only the direct top-level case is documented to do so. See {@link
+   * CapturedRendering#shapeRedacted}.
+   */
+  @SuppressWarnings(
+      "PMD.AvoidCatchingThrowable") // this must stay total like every other entry point
+  private boolean topLevelShapeRedacted(Object value) {
+    try {
+      return value instanceof String s && redactionPolicy.shouldRedactValue(s);
+    } catch (Throwable t) { // NOPMD
+      return false;
+    }
+  }
+
+  /**
    * Renders a value preserving its original Java type as a {@link RenderedValue}.
    *
    * <p>Mirrors the decision tree of {@link #render(Object)} but returns structured types instead of

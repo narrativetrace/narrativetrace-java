@@ -303,6 +303,17 @@ public final class Formats {
     return markdown.lines().filter(line -> line.strip().startsWith("```")).count();
   }
 
+  /**
+   * How many ATX heading lines a Markdown document carries.
+   *
+   * <p>A heading is document structure the renderer alone may write; a value or a scenario that
+   * adds one has forged the document's outline (The 2026-09-08 audit did exactly that through the
+   * body header's raw scenario).
+   */
+  public static long headingCount(String markdown) {
+    return markdown.lines().filter(line -> line.matches("#{1,6} .*")).count();
+  }
+
   /** How many frontmatter fences a Markdown document carries: exactly two, or it is broken. */
   public static long frontmatterFenceCount(String markdown) {
     return markdown.lines().filter(line -> "---".equals(line.strip())).count();

@@ -112,6 +112,19 @@ class NoopNarrativeContextTest {
     assertThat(NoopNarrativeContext.INSTANCE.captureTrace().isEmpty()).isTrue();
   }
 
+  /**
+   * The default collect is the capture-then-discard pair, verbatim: an implementation that
+   * overrides neither still hands the caller its copy, and one that overrides only the halves is
+   * still routed through them.
+   */
+  @Test
+  void defaultCollectLocalTraceCapturesThenForgets() {
+    var tree = NoopNarrativeContext.INSTANCE.collectLocalTrace();
+
+    assertThat(tree.isEmpty()).isTrue();
+    assertThat(tree.roots()).isEmpty();
+  }
+
   @Test
   void defaultIsActiveReturnsTrue() {
     NarrativeContext defaultImpl = new MinimalNarrativeContext();

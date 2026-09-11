@@ -139,6 +139,35 @@ class FrontmatterBuilderTest {
   }
 
   @Test
+  void supplementaryCharacterIsEscapedNotPassedThroughRaw() {
+    // A raw astral-plane character in the frontmatter can land its high-surrogate half exactly
+    // on a downstream parser's read-buffer boundary: SnakeYAML 2.3 reads 1024-char chunks and,
+    // when a chunk ends on a high surrogate, reads one char past its own buffer —
+    // IndexOutOfBoundsException while parsing spec-valid YAML (2026-09-08 audit;
+    // nightly fuzz crashes 2026-09-03..08, one class). Emitting the \U escape keeps the
+    // frontmatter BMP-only, so no boundary can ever split a pair, and a conforming parser
+    // decodes it back to the same code point — fidelity preserved.
+    var tree = new DefaultTraceTree(List.of());
+
+    var frontmatter = new FrontmatterBuilder().scenario("see🙈no evil").build(tree);
+
+    assertThat(frontmatter).contains("scenario: \"see\\U0001f648no evil\"");
+    assertThat(frontmatter.chars().anyMatch(c -> Character.isSurrogate((char) c))).isFalse();
+  }
+
+  @Test
+  void aLongAstralRunLeavesNoSurrogateAtAnyParserBufferBoundary() {
+    // The minimized shape of the fuzz crash class: enough astral pairs that char index 1023 of
+    // the frontmatter block is a high surrogate. After escaping, no output character is a
+    // surrogate at all, so the property holds for every alignment, not just this one.
+    var tree = new DefaultTraceTree(List.of());
+
+    var frontmatter = new FrontmatterBuilder().scenario("🙈".repeat(600)).build(tree);
+
+    assertThat(frontmatter.chars().anyMatch(c -> Character.isSurrogate((char) c))).isFalse();
+  }
+
+  @Test
   void plainScenarioIsNotQuoted() {
     var tree = new DefaultTraceTree(List.of());
 

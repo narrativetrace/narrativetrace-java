@@ -42,11 +42,11 @@ import org.junit.jupiter.api.TestFactory;
  * changes the shape while leaving the document well formed. A well-formedness check alone would
  * pass a forged field.
  *
- * <p><b>@edgeCase</b> Values enter by the two routes production has, and the contract differs. A
+ * <p><b>@edgeCase</b> Values enter by the three routes production has, and the contract differs. A
  * <em>captured value</em> passes through {@link ValueRenderer}, so its shape must match the
- * baseline exactly. An <em>exception message</em> is text the application wrote and renderers show
- * it as prose, so the oracle there is the structural one only — the message may add lines, but it
- * may never add a field, a statement or a frontmatter key.
+ * baseline exactly. An <em>exception message</em> and a <em>scenario</em> are text the application
+ * wrote and renderers show them as prose, so the oracle there is the structural one only — the text
+ * may add lines, but it may never add a field, a statement, a heading or a frontmatter key.
  */
 class InjectionContainmentPropertyTest {
 
@@ -121,6 +121,26 @@ class InjectionContainmentPropertyTest {
     }
   }
 
+  /**
+   * The scenario is the third route production has: caller-supplied text that reaches the YAML
+   * frontmatter, the Markdown body header, the structural header and the JSON scenario name. Like
+   * an exception message it is prose, so the oracle is the structural one — it may say anything and
+   * still add no field, statement, fence, heading or frontmatter key. The 2026-09-08 audit's this
+   * route was the gap: the body header appended the scenario raw while the frontmatter escaped it.
+   */
+  @TestFactory
+  List<DynamicTest> noInjectionPayloadInAScenarioAddsStructure() {
+    return HostileCorpus.injections().stream()
+        .map(
+            payload ->
+                DynamicTest.dynamicTest(
+                    payload.id(),
+                    () ->
+                        assertSameStructure(
+                            benignBaseline(), Emitters.renderers(treeOf(BENIGN), payload.value()))))
+        .toList();
+  }
+
   /** An exception message is prose, but it still may not add structure to any format. */
   @TestFactory
   List<DynamicTest> noInjectionPayloadInAnExceptionMessageAddsStructure() {
@@ -188,6 +208,9 @@ class InjectionContainmentPropertyTest {
     assertThat(Formats.frontmatterFenceCount(hostile.get(document)))
         .as("a value must not open or close the frontmatter block")
         .isEqualTo(Formats.frontmatterFenceCount(benign.get(document)));
+    assertThat(Formats.headingCount(hostile.get(document)))
+        .as("a value must not forge a Markdown heading")
+        .isEqualTo(Formats.headingCount(benign.get(document)));
   }
 
   private static String shapeOfJson(Map<String, String> outputs) {

@@ -16,7 +16,7 @@ This guide covers integrating NarrativeTrace into a Spring Boot application, fro
 Add the dependency:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.2.1")
 ```
 
 Enable tracing on your configuration class:
@@ -85,7 +85,7 @@ This ensures tracing runs on the actual async thread, not the caller thread.
 For tracing HTTP requests in a deployed application, add the servlet filter module:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.1")
 ```
 
 This auto-registers `NarrativeTraceFilter` as a Spring bean. The filter follows a reset-chain-capture-export-reset lifecycle on each request:
@@ -170,8 +170,8 @@ NarrativeTrace uses [Micrometer context-propagation](https://github.com/micromet
 ### Dependencies
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.2.0")
-implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.2.1")
+implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.1")
 ```
 
 ### Configuration

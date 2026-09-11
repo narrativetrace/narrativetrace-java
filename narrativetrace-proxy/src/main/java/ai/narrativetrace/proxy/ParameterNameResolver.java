@@ -20,8 +20,12 @@ import java.util.List;
  * <p>INTENT: Proxy code uses this to keep parameter-name lookup and redaction handling out of the
  * invocation path logic.
  *
- * <p><b>@llmNote</b> Redacted parameters are stored as {@code [REDACTED]} and marked redacted=true;
- * they are not passed through {@link ValueRenderer}.
+ * <p><b>@llmNote</b> Name/annotation-redacted parameters are stored as {@code [REDACTED]} and
+ * marked redacted=true without ever reaching {@link ValueRenderer}. Every other parameter is
+ * rendered through {@link ValueRenderer#renderForCapture(Object)}, whose {@code shapeRedacted}
+ * answer becomes {@code redacted} here too — a value whose own shape matched a credential pattern
+ * (a bearer token under an innocuous name) is flagged exactly like a name match, per {@link
+ * ParameterCapture#redacted()}.
  */
 public final class ParameterNameResolver {
 
@@ -92,9 +96,14 @@ public final class ParameterNameResolver {
       } else if (!renderValues) {
         captures.add(new ParameterCapture(paramNames[i], "", false, null, type));
       } else {
-        var rendered = valueRenderer.render(args[i]);
-        var structured = valueRenderer.renderStructured(args[i]);
-        captures.add(new ParameterCapture(paramNames[i], rendered, false, structured, type));
+        var capture = valueRenderer.renderForCapture(args[i]);
+        captures.add(
+            new ParameterCapture(
+                paramNames[i],
+                capture.rendered(),
+                capture.shapeRedacted(),
+                capture.structured(),
+                type));
       }
     }
     return List.copyOf(captures);
@@ -119,10 +128,14 @@ public final class ParameterNameResolver {
       if (isRedacted) {
         captures.add(new ParameterCapture(parameters[i].getName(), "[REDACTED]", true, null, type));
       } else {
-        var rendered = valueRenderer.render(args[i]);
-        var structured = valueRenderer.renderStructured(args[i]);
+        var capture = valueRenderer.renderForCapture(args[i]);
         captures.add(
-            new ParameterCapture(parameters[i].getName(), rendered, false, structured, type));
+            new ParameterCapture(
+                parameters[i].getName(),
+                capture.rendered(),
+                capture.shapeRedacted(),
+                capture.structured(),
+                type));
       }
     }
     return List.copyOf(captures);

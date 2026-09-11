@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob be6ccb00efc4 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob 752b803add4d | translated: 2026-09-09 | reviewed: - -->
 # Formato de trace estrutural (`.nt`)
 
 [English](../structural-trace-format.md) | [Español](../es/formato-de-traza-estructural.md) | **Português** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -14,7 +14,7 @@ conformidade viajem entre plataformas.
 
 | Arquivo | Papel |
 |---|---|
-| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Emitido na trilha de markdown; o arquivo em disco é a **baseline do último verde** — uma execução com falha compara contra ele (delta no console, relatório de falha) mas nunca o sobrescreve |
+| `build/narrativetrace/structural/<TestClass>/<scenario>.nt` | Emitido na trilha de markdown; o arquivo em disco é a **baseline do último verde** — uma execução não verde compara contra ele (delta no console, relatório de falha) mas nunca o sobrescreve. "Verde" é o veredito inteiro: um teste que passou mas cuja estrutura a aprovação *rejeitou* termina vermelho, então uma estrutura rejeitada nunca vira a baseline e reverter a mudança não reporta delta |
 | `src/test/narratives/<TestClass>/<scenario>.approved.nt` | Baseline de aprovação commitada (`NarrativeApproval`; opt-in via `narrativetrace.approval=true`, diretório configurável via `narrativetrace.approvedDir`) — um teste que passa mas cuja estrutura difere falha com um diff legível |
 | `<scenario>.received.nt` | Escrito ao lado da baseline quando a aprovação não coincide (ou quando ainda não existe uma baseline); revise-o e depois promova via a task `approveNarratives` do Gradle |
 | `<scenario>.incomplete.nt` | O mesmo conteúdo, escrito no lugar de `.received.nt` quando a própria execução foi incompleta (o caminho de melhor esforço descartou eventos, ou recusou um escopo async no teto de adoção). `approveNarratives` o ignora pelo nome: uma execução curta nunca deve se tornar a baseline commitada, ou toda execução completa posterior seria lida como tendo *adicionado* chamadas. Uma execução assim é comparada por contenção de subsequência em vez de igualdade — ausências são toleradas e nomeadas, qualquer coisa adicionada ou reordenada ainda falha |
@@ -24,6 +24,46 @@ ApprovalTests) para que editores e visualizadores de diff se guiem por
 `.nt`. Nota: `.nt` colide com RDF N-Triples em alguns mapas de realce
 de sintaxe; registre uma substituição em `.gitattributes` onde isso
 importar.
+
+### Identidade de artefato (multiplataforma, 2026-09-09)
+
+`<scenario>` acima é a **identidade de artefato** de uma invocação de
+teste, e todos os runtimes a escrevem do mesmo jeito — um artefato
+escrito por um runtime é encontrado sob o mesmo nome por outro:
+
+- Um método de teste comum é o seu nome em slug: camel-case separado com
+  `_`, em minúsculas, e tudo fora de `[a-z0-9_]` substituído por `_` —
+  `customerPlacesOrder` → `customer_places_order`.
+- Uma invocação de um método que roda mais de uma vez (parametrizado,
+  repetido) acrescenta `-<índice>-<rótulo>`: o número da invocação em
+  base 1, preenchido com zeros até três dígitos, e depois o nome exibido
+  da invocação pela mesma regra de slug, com sequências de `_` colapsadas
+  e as pontas aparadas — `equipment_can_be_found-002-find_tent`. Um
+  rótulo cujo slug fica vazio é omitido, deixando
+  `equipment_can_be_found-002`.
+- `-` é o separador exatamente porque o alfabeto do slug não consegue
+  produzi-lo. O índice — não o rótulo — é o que torna o esquema à prova
+  de colisões: duas invocações sempre diferem nele, então nomes exibidos
+  que só se distinguem por caracteres que um caminho não pode carregar
+  (`find/TENT` versus `find TENT`) recebem arquivos distintos. O rótulo é
+  o que torna o nome legível.
+- O nome é estável entre execuções, máquinas e processos, que é o que
+  permite commitar o `.approved.nt` de uma invocação. Quando um nome
+  excede o limite de 255 bytes por elemento de caminho, a metade de
+  *método* é truncada e recebe oito caracteres hexadecimais do
+  `String.hashCode` do Java sobre o slug completo — é especificado,
+  portanto idêntico em toda parte; um hash por processo invalidaria em
+  silêncio cada baseline que tocasse.
+
+Como nomes de artefato são derivados e não anunciados, uma execução
+também escreve `<outputDir>/manifest.json`: uma linha por cenário
+rastreado nomeando seu teste, seu número de invocação e cada arquivo que
+lhe pertence. Leia isso quando você conhece o cenário e quer o arquivo.
+
+> O cabeçalho `scenario:` é um nome exibido, e o template de nome exibido
+> de um teste parametrizado interpola argumentos nele. Os corpos das
+> chamadas continuam sem valores; o cabeçalho e o nome de arquivo não.
+> Não interpole um segredo em um template de nome exibido.
 
 ## Conteúdo
 

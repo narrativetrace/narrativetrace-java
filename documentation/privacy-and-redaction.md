@@ -40,22 +40,43 @@ value:
 
 1. **`@NotTraced`** on a parameter, field, or record component — always
    redacts, unconditionally, everywhere.
-2. **The name-based deny-list** (`RedactionPolicy.DEFAULT`) — matches field
-   names against a built-in, multilingual set (`password`, `token`, `cvv`,
-   `ssn`, `secret`, `authorization`, `cardNumber`, and their Spanish,
-   Portuguese, French and Chinese equivalents, among others), plus a second
-   independent check on the *shape* of the value itself (a JWT, a
-   Luhn-valid card number, a `Set-Cookie` string) so a bearer token passed
-   under an unrecognized name is still caught.
+2. **The name-based deny-list** (`RedactionPolicy.DEFAULT`) — matches
+   **parameter names, field names and record-component names** against a
+   built-in, multilingual set (`password`, `token`, `cvv`, `ssn`, `secret`,
+   `authorization`, `cardNumber`, and their Spanish, Portuguese, French,
+   German and Chinese equivalents, among others), plus a second independent
+   check on the *shape* of the value itself (a JWT, a Luhn-valid card
+   number, a `Set-Cookie` string, a national identity number that passes its
+   own checksum, a dashed US Social Security number) so a bearer token
+   passed under an unrecognized name is still caught.
+
+   Parameter names were added on 2026-09-10. Until then this axis reached
+   fields and record components only, so a method taking `String password`
+   printed it in full unless the parameter carried `@NotTraced` — while the
+   README stated the opposite. The decision now happens at **capture**, in
+   the per-method metadata both the proxy and the agent already cache, which
+   has two consequences worth knowing: the lookup costs nothing per traced
+   call, and a denied value never enters the `TraceEvent` at all, so it
+   cannot reach the audit path, the buffered consumer or a listener attached
+   through the pipeline SPI. It is never rendered and then replaced — a
+   secret formatted and discarded still existed as a string.
 
 A **curated `toString()`** is normally preferred over reflective
 introspection — but a class that declares a `@NotTraced` field is
 introspected anyway, so the annotation is honored instead of whatever that
-`toString()` would have printed. The name-based deny-list does *not* get the
-same override power: it only applies when NarrativeTrace is already
-introspecting fields, so a class with its own `toString()` and no
-`@NotTraced` member is trusted as written. Only the explicit annotation
-outranks a curated `toString()`.
+`toString()` would have printed. For a **field or record component**, the
+name-based deny-list does *not* get the same override power: it only applies
+when NarrativeTrace is already introspecting fields, so a class with its own
+`toString()` and no `@NotTraced` member is trusted as written. Only the
+explicit annotation outranks a curated `toString()`.
+
+A **parameter** is different, and the difference follows from where the
+decision is made. A parameter whose *name* the deny-list denies is settled at
+capture, before the argument is handed to any renderer — so no `toString()`,
+curated or otherwise, is ever called on it. The distinction is not
+inconsistency: a field name is discovered *by* introspection, while a
+parameter name is known from the method signature before the value is
+touched at all.
 
 Redaction also **survives one container deep** — `Optional`, `Future`,
 `AtomicReference`, `AtomicReferenceArray` and a standalone `Map.Entry` are

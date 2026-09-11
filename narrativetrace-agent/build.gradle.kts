@@ -123,3 +123,29 @@ tasks.test {
         )
     }
 }
+
+// PIT runs the suite in its own minion JVMs, which see none of `tasks.test`'s doFirst system
+// properties and none of its task dependencies. The jar-composition/attach tests read the three
+// `narrativetrace.test.*Jar` paths and need the jars actually built, so without this block every
+// pitest run died in the coverage phase with "16 tests did not pass without mutation"
+// (nightly java-pitest, 2026-09-05..08 — the agent module joined mutation testing 2026-09-03 and
+// its pitest task had never been runnable). Same three paths, handed to the minions as -D flags;
+// lazy providers so configuration never forces the jar tasks.
+tasks.named("pitest") {
+    dependsOn(tasks.named("shadowJar"), tasks.named("standaloneJar"))
+}
+configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
+    jvmArgs.set(
+        provider {
+            listOf(
+                "-Dnarrativetrace.test.agentJar=" +
+                    tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar")
+                        .get().archiveFile.get().asFile.absolutePath,
+                "-Dnarrativetrace.test.standaloneJar=" +
+                    tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("standaloneJar")
+                        .get().archiveFile.get().asFile.absolutePath,
+                "-Dnarrativetrace.test.slf4jProviderJar=" + standaloneTestProvider.singleFile.absolutePath
+            )
+        }
+    )
+}

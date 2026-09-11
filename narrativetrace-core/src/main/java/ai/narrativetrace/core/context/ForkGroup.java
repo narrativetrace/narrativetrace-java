@@ -123,20 +123,24 @@ public final class ForkGroup {
   /**
    * Takes the copy this group will present, then ends the worker scope that produced it.
    *
-   * <p><b>@edgeCase</b> The discard is unconditional, not guarded by {@code roots.isEmpty()}: a
-   * scope can record spans and still produce no roots — at {@code ERRORS} a successful call is
-   * pruned from the tree — and those are exactly the events nothing else would ever clear. The
-   * scope was activated without adoption, so no thread's reportable set contains it and no {@code
-   * reset()} can reach it.
+   * <p>Collection goes through {@link NarrativeContext#collectLocalTrace()} as one operation: the
+   * capture inside it is the last one this scope ever gets, so the context treats it as a barrier
+   * for the worker's own events and counts as loss anything it still could not see. Splitting it
+   * back into capture-then-discard would reopen the silent-drop window that pairing closed.
+   *
+   * <p><b>@edgeCase</b> The discard inside the collect is unconditional, not guarded by {@code
+   * roots.isEmpty()}: a scope can record spans and still produce no roots — at {@code ERRORS} a
+   * successful call is pruned from the tree — and those are exactly the events nothing else would
+   * ever clear. The scope was activated without adoption, so no thread's reportable set contains it
+   * and no {@code reset()} can reach it.
    */
   private void collectRoots(Thread thread) {
-    var roots = context.captureLocalTrace().roots();
+    var roots = context.collectLocalTrace().roots();
     if (!roots.isEmpty()) {
       children.add(
           new CollectedChild(
               roots, thread.getName(), thread.getId(), ConcurrencySupport.isVirtual(thread)));
     }
-    context.discardLocalTrace();
   }
 
   private record CollectedChild(

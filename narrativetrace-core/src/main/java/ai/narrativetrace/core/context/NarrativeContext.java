@@ -227,12 +227,33 @@ public interface NarrativeContext {
    *
    * <p><b>@sideEffects</b> Scoped exactly like {@link #captureLocalTrace()}: it discards the
    * calling thread's scope and nothing else, so a concurrent request sharing this context is
-   * untouched. It is not loss — the narrative keeps the copy — so nothing is counted.
+   * untouched. It is not loss — the narrative keeps the copy — so nothing is counted. That premise
+   * holds only when the caller really has taken its copy; the helpers therefore go through {@link
+   * #collectLocalTrace()}, whose implementation can count what the copy could not contain.
    *
    * <p>The default is a no-op, for implementations that retain nothing to discard.
    */
   default void discardLocalTrace() {
     // nothing retained, nothing to discard
+  }
+
+  /**
+   * Captures the current execution scope's trace and then forgets the scope — collection, as one
+   * operation.
+   *
+   * <p>INTENT: The concurrency helpers end every worker scope with exactly this
+   * capture-then-discard pair, and keeping the pair together is a contract, not a convenience: the
+   * capture is the last one the scope will ever get, so an implementation can treat it as a barrier
+   * for the scope's own events and count as loss whatever it still could not see — see {@link
+   * ThreadLocalNarrativeContext#collectLocalTrace()}. A call site that splits the pair forfeits
+   * that accounting.
+   *
+   * @return the trace tree the scope produced; the caller's copy is the surviving record
+   */
+  default TraceTree collectLocalTrace() {
+    var tree = captureLocalTrace();
+    discardLocalTrace();
+    return tree;
   }
 
   /**

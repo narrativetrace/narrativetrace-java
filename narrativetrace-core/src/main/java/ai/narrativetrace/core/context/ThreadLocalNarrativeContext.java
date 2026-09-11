@@ -113,10 +113,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   /**
    * How many extra flushes a capture will spend waiting for in-flight publishes.
    *
-   * <p>Sized for the window it covers, not for load: a producer holds an unwritten slot for the
-   * handful of instructions between claiming it and storing the event, so a capture that has not
-   * seen the ring empty after this many spin-and-flush attempts is looking at a pipeline other
-   * threads are keeping busy, not at a straggler — and waiting longer would not help it.
+   * <p>These retries exist for pipelines whose {@code flush()} drains incrementally (see {@code
+   * CapturePendingEventTest}'s shape) — the default pipeline's flush is itself a bounded barrier
+   * for everything published before it, so it normally leaves nothing for the loop to do. The count
+   * bounds contention, not time: a straggler descheduled mid-publication is the barrier's job, with
+   * an explicit deadline, and a capture that gives up anyway is followed by the collect path
+   * counting what it could not see.
    */
   private static final int DRAIN_ATTEMPTS = 64;
 
@@ -137,6 +139,22 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * the pipeline's process-wide drop count, which is the same kind of number.
    */
   private final AtomicLong discardedSpans = new AtomicLong();
+
+  /**
+   * Scopes, and the spans inside them, that a collect had to give up on: their events were still in
+   * flight when the bounded drain wait was exhausted, and the discard that ends every collect then
+   * dropped them unseen — no capture ever contained them, and none ever can.
+   *
+   * <p>Context-level for the same reason {@link #discardedSpans} is: the worker's own stack is
+   * being thrown away by the same collect, so the count must ride somewhere the origin thread can
+   * still read. Reported through {@link #traceLoss()} inside the refused-scope/-span numbers — the
+   * reader-facing meaning is identical to the adoption cap's refusals: an async subtree absent from
+   * the tree, counted, never silent.
+   */
+  private final AtomicLong uncollectedScopes = new AtomicLong();
+
+  /** Spans lost to those exhausted collects — the number a reader of the trace is missing. */
+  private final AtomicLong uncollectedSpans = new AtomicLong();
 
   /**
    * The per-thread stack, created on demand by {@link #stack()} and never by the holder itself.
@@ -314,8 +332,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   List<TraceEvent> events() {
     drainPublishedEvents();
-    var ids = knownSpanIds();
-    return pipeline.events().stream().filter(e -> hasKnownSpanId(ids, e)).toList();
+    return reportableEvents();
   }
 
   /**
@@ -338,11 +355,14 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * two runs out of eight, with the deficit exactly the number of collections that saw no events at
    * all.
    *
-   * <p><b>@edgeCase</b> The wait is bounded and busy: the window it covers is a producer's few
-   * instructions between claiming a slot and writing it, so an attempt costs a spin, and a pipeline
-   * that never empties because other threads keep publishing costs {@link #DRAIN_ATTEMPTS} of them
-   * and then proceeds with what it has. Zero attempts for the common case of a pipeline that drains
-   * on the first flush — which is every single-threaded capture.
+   * <p><b>@edgeCase</b> The wait is bounded and busy: an attempt costs a spin, and a pipeline that
+   * never empties because other threads keep publishing costs {@link #DRAIN_ATTEMPTS} of them and
+   * then proceeds with what it has. Zero attempts for the common case of a pipeline that drains on
+   * the first flush — which is every single-threaded capture, and, since the default pipeline's
+   * flush became a bounded barrier for the caller's own events, every capture whose stragglers
+   * resolve within that barrier's deadline. A capture can still come up short — the barrier's
+   * deadline is explicit, not infinite — which is why {@link #collectLocalTrace()} counts what the
+   * final capture of a scope could not see.
    */
   private void drainPublishedEvents() {
     pipeline.flush();
@@ -628,15 +648,25 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     if (!isActive()) {
       return TraceTreeBuilder.build(List.of(), config.level(), assignedTraceId(), TraceLoss.none());
     }
-    var ids = knownSpanIds();
-    var filtered = pipeline.events().stream().filter(e -> hasKnownSpanId(ids, e)).toList();
     // The tree carries the trace id this stack was assigned, so an exporter can name the trace
     // even for a tree whose nodes carry no span context. Read without generating: a thread that
     // traced nothing must not acquire an identity by being asked for one.
     // The loss reading rides on the tree so every renderer can say the narrative is incomplete;
     // without it the fact would live only in a console summary the reader of a trace file never
     // sees.
-    return TraceTreeBuilder.build(filtered, config.level(), assignedTraceId(), traceLoss());
+    return TraceTreeBuilder.build(
+        reportableEvents(), config.level(), assignedTraceId(), traceLoss());
+  }
+
+  /**
+   * The already-drained pipeline view, filtered to the spans the calling thread may report.
+   *
+   * <p>Callers drain first ({@link #drainPublishedEvents()}); this method only snapshots and
+   * filters, so a capture and the accounting beside it read one list, not two racing ones.
+   */
+  private List<TraceEvent> reportableEvents() {
+    var ids = knownSpanIds();
+    return pipeline.events().stream().filter(e -> hasKnownSpanId(ids, e)).toList();
   }
 
   /**
@@ -681,16 +711,86 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public TraceLoss traceLoss() {
     var stack = stack();
+    // Exhausted collects join the adoption cap's refusals: both are whole async subtrees absent
+    // from the tree, and the reader asking "is my narrative complete?" needs their sum.
     return new TraceLoss(
         pipeline.droppedEventCount(),
-        stack.refusedScopeCount(),
-        stack.refusedSpanCount(),
+        stack.refusedScopeCount() + uncollectedScopes.get(),
+        stack.refusedSpanCount() + uncollectedSpans.get(),
         discardedSpans.get());
   }
 
   @Override
   public TraceTree captureLocalTrace() {
     return captureTrace();
+  }
+
+  /**
+   * Captures the calling scope's trace, counts what the capture could not see, then discards the
+   * scope.
+   *
+   * <p>INTENT: This is the concurrency helpers' collect step, and the one capture after which the
+   * scope's raw events are unconditionally gone — so it is where "not visible yet" hardens from
+   * latency into loss. The drain wait is bounded, and when it is exhausted under a stalled
+   * publisher, a span whose events were all still in flight would otherwise vanish whole: the
+   * capture returns no node for it, the discard tombstones its events, and no counter anywhere
+   * records that a child existed. Counting those spans through the refusal channel keeps the family
+   * rule — loss under pressure is acceptable, silent loss never is.
+   *
+   * <p><b>@edgeCase</b> A span with <em>some</em> events visible is not counted: it appears in the
+   * capture (possibly with an {@link ai.narrativetrace.api.event.TraceOutcome.Incomplete} outcome),
+   * so its loss mode is visible in the narrative itself. Only a span with <em>no</em> visible event
+   * is silent, and only the caller's own spans qualify — the calling thread's publishes happened
+   * before this call, so "still invisible" is proof of an exhausted drain rather than of another
+   * thread's ongoing work.
+   */
+  @Override
+  public TraceTree collectLocalTrace() {
+    drainPublishedEvents();
+    var tree = collectableTree();
+    discardLocalTrace();
+    return tree;
+  }
+
+  /** The collect-step capture: identical to {@link #captureTrace()} plus the unseen accounting. */
+  private TraceTree collectableTree() {
+    if (!isActive()) {
+      return TraceTreeBuilder.build(List.of(), config.level(), assignedTraceId(), TraceLoss.none());
+    }
+    var visible = reportableEvents();
+    countOwnSpansUnseen(visible);
+    return TraceTreeBuilder.build(visible, config.level(), assignedTraceId(), traceLoss());
+  }
+
+  /**
+   * Counts, as refused loss, the caller's own spans with no event in the capture it just took.
+   *
+   * <p>After a fully drained capture this counts nothing: every span in the calling thread's
+   * created set published its enter before being recorded there, on the same thread, so at least
+   * one event per span is visible once the drain has caught up. Tracing levels do not change that —
+   * pruning happens at tree build, never at the store.
+   */
+  private void countOwnSpansUnseen(List<TraceEvent> visible) {
+    var stack = stackHolder.get();
+    if (stack == null) {
+      return;
+    }
+    var own = stack.knownSpanIds();
+    if (own.isEmpty()) {
+      return;
+    }
+    var seen = new HashSet<SpanId>();
+    for (var event : visible) {
+      var spanId = TraceEvent.spanIdOf(event);
+      if (spanId != null) {
+        seen.add(spanId);
+      }
+    }
+    long unseen = own.stream().filter(spanId -> !seen.contains(spanId)).count();
+    if (unseen > 0) {
+      uncollectedScopes.incrementAndGet();
+      uncollectedSpans.addAndGet(unseen);
+    }
   }
 
   /**

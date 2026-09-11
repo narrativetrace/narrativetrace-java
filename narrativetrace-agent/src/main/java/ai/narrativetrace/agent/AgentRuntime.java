@@ -412,9 +412,14 @@ public final class AgentRuntime {
       } else if (!renderValues) {
         captures.add(new ParameterCapture(paramNames[i], "", false, null, type));
       } else {
-        var rendered = VALUE_RENDERER.render(paramValues[i]);
-        var structured = VALUE_RENDERER.renderStructured(paramValues[i]);
-        captures.add(new ParameterCapture(paramNames[i], rendered, false, structured, type));
+        var capture = VALUE_RENDERER.renderForCapture(paramValues[i]);
+        captures.add(
+            new ParameterCapture(
+                paramNames[i],
+                capture.rendered(),
+                capture.shapeRedacted(),
+                capture.structured(),
+                type));
       }
     }
     return captures;

@@ -1,4 +1,4 @@
-<!-- source: documentation/spring-integration-guide.md blob cd2a81631cc6 | translated: 2026-08-31 | reviewed: 2026-09-03 -->
+<!-- source: documentation/spring-integration-guide.md blob 0d6314bf97ad | translated: 2026-08-31 | reviewed: 2026-09-03 -->
 # Spring 集成指南
 
 [English](../spring-integration-guide.md) | [Español](../es/guia-de-integracion-con-spring.md) | **简体中文**
@@ -19,7 +19,7 @@
 添加依赖:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.2.1")
 ```
 
 在你的配置类上启用追踪:
@@ -88,7 +88,7 @@ Async 代理(外层) → 追踪代理(内层) → 真实 Bean
 要在已部署的应用中追踪 HTTP 请求,添加 Servlet 过滤器模块:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.1")
 ```
 
 这会自动将 `NarrativeTraceFilter` 注册为 Spring Bean。该过滤器在每个请求上遵循"重置—执行链—捕获—导出—重置"的生命周期:
@@ -173,8 +173,8 @@ NarrativeTrace 使用 [Micrometer context-propagation](https://github.com/microm
 ### 依赖
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.2.0")
-implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.2.1")
+implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.1")
 ```
 
 ### 配置

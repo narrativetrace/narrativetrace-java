@@ -27,10 +27,24 @@ package ai.narrativetrace.api.event;
  * @param name Parameter name as discovered from bytecode metadata or instrumentation.
  * @param renderedValue Pre-rendered textual value. Strings include quotes, scalars use plain text,
  *     and non-{@code DETAIL} levels may suppress the value as an empty string.
- * @param redacted Whether the parameter was marked with {@code @NotTraced} and should be rendered
- *     as redacted downstream.
+ * @param redacted {@code true} if and only if the parameter's <em>whole</em> value was withheld —
+ *     by a name deny-list match or an explicit {@code @NotTraced} (decided before rendering, so a
+ *     name-denied value is never rendered at all), or because the top-level value's own shape
+ *     matched a credential pattern (a JWT, a Luhn-valid PAN, a {@code Set-Cookie} string, a
+ *     national ID) and its entire rendering is the {@code "[REDACTED]"} marker (see {@code
+ *     RedactionPolicy} and {@code CapturedRendering} in {@code ai.narrativetrace.core.render}).
+ *     Consumers that branch on this flag — audit emitters, SPI listeners, the canonical JSON export
+ *     — may treat {@code true} as "nothing of this value's text reached {@code renderedValue}".
+ *     <p><b>@edgeCase</b> A shape match on a value <em>nested inside</em> this parameter — a JWT in
+ *     one field of a DTO, a PAN inside a list element — masks that nested text but does <b>not</b>
+ *     set this flag. The flag is per-parameter and a shape match is per-leaf; setting it for a
+ *     partial match would claim the whole value was withheld when only a fragment was.
  * @param structuredValue Optional type-preserving representation for OTel typed attributes. Null
- *     when not captured (manual construction, test fixtures) or when the parameter is redacted.
+ *     when not captured (manual construction, test fixtures) or when the parameter is redacted by
+ *     name or annotation — that axis never renders at all. When {@link #redacted} is {@code true}
+ *     only because the value's shape matched, this instead carries the marker as a {@link
+ *     RenderedValue.StringVal}, the same total rendering {@code renderedValue} carries as text; no
+ *     branch of the value's own structure survives either way.
  * @param type Declared parameter type as {@link Class#getTypeName()} renders it (e.g. {@code
  *     "java.lang.String"}, {@code "int"}, {@code "long[]"}), or {@code null} when the capture site
  *     cannot supply it. Captured because overload identity is unrecoverable downstream. Never

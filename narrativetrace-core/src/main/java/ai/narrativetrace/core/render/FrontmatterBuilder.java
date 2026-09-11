@@ -188,17 +188,28 @@ public final class FrontmatterBuilder {
   }
 
   /**
-   * A well-formed surrogate pair passes through; anything outside YAML's printable set becomes
-   * {@code \\uXXXX}.
+   * A well-formed surrogate pair becomes one {@code \\UXXXXXXXX} escape; anything outside YAML's
+   * printable set becomes {@code \\uXXXX}.
    *
-   * @return the index to read from next
+   * <p><b>@edgeCase</b> Supplementary characters are YAML-printable, but a raw pair puts surrogate
+   * halves into the emitted chars, and a downstream parser that reads in fixed-size {@code char}
+   * chunks can land its buffer boundary between the halves — SnakeYAML 2.3 reads 1024-char chunks
+   * and, when a chunk ends on a high surrogate, reads one char past its own buffer:
+   * IndexOutOfBoundsException on spec-valid YAML (2026-09-08 audit; found by the output-format
+   * fuzzer). Frontmatter is a machine-readable interoperability contract, so it is emitted
+   * BMP-only: the 8-digit {@code \\U} escape is YAML's own ({@code ns-esc-32-bit}), a conforming
+   * parser decodes it back to the same code point, and no boundary can ever split what is no longer
+   * a pair.
+   *
+   * @return the index to read from next, which is two ahead for a surrogate pair
    */
   private static int appendPlainOrEscaped(StringBuilder sb, String value, int index) {
     var c = value.charAt(index);
     if (Character.isHighSurrogate(c)
         && index + 1 < value.length()
         && Character.isLowSurrogate(value.charAt(index + 1))) {
-      sb.append(c).append(value.charAt(index + 1));
+      var codePoint = Character.toCodePoint(c, value.charAt(index + 1));
+      sb.append(String.format("\\U%08x", codePoint));
       return index + 2;
     }
     if (isYamlPrintable(c)) {

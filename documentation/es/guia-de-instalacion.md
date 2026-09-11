@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob bc69d31d48cf | translated: 2026-09-01 | reviewed: 2026-09-03 -->
+<!-- source: documentation/installation-guide.md blob bb42aee49965 | translated: 2026-09-01 | reviewed: 2026-09-03 -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -12,7 +12,7 @@ Esta guía cubre la instalación y el cableado de NarrativeTrace Java en un proy
 
 ## Compatibilidad
 
-Versiones a fecha de 0.2.0. «Incluida» significa que el módulo depende de ella
+Versiones a fecha de 0.2.1. «Incluida» significa que el módulo depende de ella
 y Gradle la resuelve por ti; «tuya» significa que el módulo compila contra ella
 pero no depende de ella — ya la tienes, y NarrativeTrace usa la versión que
 aportes.
@@ -79,7 +79,7 @@ El plugin de Gradle se encarga de todo el cableado automáticamente — dependen
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -126,23 +126,23 @@ Empieza con el stack mínimo y luego añade solo las integraciones que necesites
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
 
     // Integraciones opcionales
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.0")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.1")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.1")
 }
 ```
 

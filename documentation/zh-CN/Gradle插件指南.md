@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 0bd33c301640 | translated: 2026-08-31 | reviewed: 2026-09-03 -->
+<!-- source: documentation/gradle-plugin-guide.md blob cf519cb92da0 | translated: 2026-09-09 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -148,7 +148,7 @@ narrativeTrace {
 
 ### `approvedDir`
 
-已提交叙事基线的目录,布局为 `<dir>/<TestClassSimpleName>/<test_method_slug>.approved.nt` —— 与其他所有按测试生成的产物遵循相同的类目录与 slug 规则。
+已提交叙事基线的目录,布局为 `<dir>/<TestClassSimpleName>/<artifact_name>.approved.nt` —— 与其他所有按测试生成的产物遵循相同的类目录与产物身份规则,因此运行多次的方法(参数化、重复)每次调用都有自己的基线。
 
 默认值:`layout.projectDirectory.dir("src/test/narratives")`
 
@@ -334,7 +334,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 ```
 
@@ -469,7 +469,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.0'
+    id 'ai.narrativetrace' version '0.2.1'
 }
 
 narrativeTrace {

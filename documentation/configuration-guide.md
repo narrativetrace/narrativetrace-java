@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.0"
+    id("ai.narrativetrace") version "0.2.1"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -168,6 +168,7 @@ The JUnit extension uses `ExtensionContext.getConfigurationParameter()`, which r
 | `narrativetrace.output` | `true` / `false` | `false` |
 | `narrativetrace.outputDir` | Any writable path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
+| `narrativetrace.unfolded` | `true` / `false` | `false` |
 | `narrativetrace.glossary` | `true` / `false` | `false` |
 | `narrativetrace.glossaryDir` | Any writable path | working directory |
 | `narrativetrace.canonicalJson` | `true` / `false` | `false` |
@@ -220,10 +221,29 @@ entry array with every runtime-value field elided (parameters carry
 AI-safe structural artifact of ADR-002 Level 1. Both flags are
 independent and can be combined in one run.
 
+`narrativetrace.unfolded` turns **loop folding off** in the Markdown
+narrative. By default a run of consecutive same-shape sibling calls
+renders as the first iteration in full plus one summary line —
+`×2 more: ‹Taxi›, #3 sku=` `` `"TENT"` `` ` — same flow (validate ✓ →
+record ✓)`. That line names every folded iteration: by its identity label
+where the distinguishing argument has one, and otherwise by position plus
+the argument itself, so the omitted iterations are reachable. When you
+need each iteration's *whole* subtree and all of its values, set
+`narrativetrace.unfolded=true` and every iteration renders in full.
+Markdown only — no other format folds, and the canonical JSON always
+carries every iteration. With the Gradle plugin, forward it like any
+other property:
+
+```kotlin
+tasks.withType<Test> { systemProperty("narrativetrace.unfolded", "true") }
+```
+
 `narrativetrace.approval` turns on approval mode: after a **passing**
 test, the scenario's value-free structure (the same render as the `.nt`
 artifact) is verified against the committed baseline
-`<approvedDir>/<TestClassSimpleName>/<test_method_slug>.approved.nt`.
+`<approvedDir>/<TestClassSimpleName>/<artifact_name>.approved.nt` — the
+same artifact identity as every other per-test file, so a method that
+runs more than once has one baseline per invocation.
 A missing baseline or a structural difference fails the test with a
 readable diff and writes the current structure beside the baseline as
 `*.received.nt`; review it and accept it with the Gradle
@@ -279,21 +299,76 @@ JUnit parameter type suffixes (e.g. `(NarrativeContext)`) are stripped automatic
 
 Base layout:
 
-- `<outputDir>/traces/<TestClassSimpleName>/<test_method_slug>.<ext>`
+- `<outputDir>/traces/<TestClassSimpleName>/<artifact_name>.<ext>`
+
+`<artifact_name>` is the **artifact identity** of one test invocation:
+
+- An ordinary test method is its slugged name — `customerPlacesOrder` →
+  `customer_places_order`.
+- A method that runs more than once (`@ParameterizedTest`,
+  `@RepeatedTest`) appends `-<index>-<label>`: the 1-based invocation
+  number zero-padded to three digits, then the invocation's display name
+  through the same slug rule — `equipment_can_be_found-002-find_tent`.
+  The label is dropped when it slugs to nothing, leaving
+  `equipment_can_be_found-002`.
+- `-` is the separator because the slug alphabet is `[a-z0-9_]` and can
+  never produce one: an invocation artifact can never collide with an
+  ordinary method's, and the name splits back into method, index and
+  label. Two invocations of one method always differ in the index, so
+  display names that differ only in characters a path cannot carry
+  (`find/TENT` versus `find TENT`) still land on different files.
+- Nothing in the name varies per run or per machine, which is what lets
+  an approval baseline be committed for one invocation. A name too long
+  for the filesystem is shortened on its *method* half and given eight
+  hex characters of the Java `String.hashCode` of the full slug; the
+  index and label are never the part truncated away.
+
+Every per-test artifact of one invocation shares that name: the trace,
+the JSON export, the diagram, the structural artifact, and the committed
+`.approved.nt` baseline beside them.
+
+> A `@ParameterizedTest(name = ...)` template interpolates arguments into
+> the display name, and the display name reaches both the artifact
+> *filename* and the `scenario:` header of the value-free `.nt` artifact.
+> Call bodies are still value-free; the name is not. Do not interpolate a
+> secret into a display-name template.
 
 When `format=markdown`, the extension also writes per test:
 
-- Mermaid diagram: `<outputDir>/diagrams/<TestClassSimpleName>/<test_method_slug>.mmd`
-- JSON export: `<outputDir>/traces/<TestClassSimpleName>/<test_method_slug>.json`
-- Structural artifact: `<outputDir>/structural/<TestClassSimpleName>/<test_method_slug>.nt`
+- Mermaid diagram: `<outputDir>/diagrams/<TestClassSimpleName>/<artifact_name>.mmd`
+- JSON export: `<outputDir>/traces/<TestClassSimpleName>/<artifact_name>.json`
+- Structural artifact: `<outputDir>/structural/<TestClassSimpleName>/<artifact_name>.nt`
   — the value-free call structure (format spec:
   [structural-trace-format.md](structural-trace-format.md)). The file on
-  disk is the **last-green baseline**: a green run advances it, a failed
-  run compares against it but never overwrites it, so every delta reads
-  "what changed since the last time this scenario passed"
+  disk is the **last-green baseline**: a green run advances it, a
+  non-green run compares against it but never overwrites it, so every
+  delta reads "what changed since the last time this scenario passed".
+  "Green" is the whole verdict, not just the assertions — a test that
+  passed but whose structure approval **rejected** ends red, and its
+  structure is not written. Rejecting a change therefore leaves the
+  baseline where it was, and reverting the change reports no delta
 
 After all tests in a class complete, the extension writes:
 
+- Run manifest: `<outputDir>/manifest.json` — one row per traced
+  scenario, in execution order, naming the test that produced it, its
+  invocation number when the method ran more than once, and every
+  artifact it owns as a path relative to `<outputDir>`. This is the
+  index to read when you know the scenario and want the file:
+  ```json
+  {
+    "scenario": "find TENT",
+    "testClass": "traildepot.CatalogTest",
+    "testMethod": "equipmentCanBeFound",
+    "invocation": 2,
+    "artifacts": {
+      "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
+      "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
+    }
+  }
+  ```
+  Only artifacts actually on disk are listed, so the row reflects the
+  format and flags the run used.
 - Clarity report: `<outputDir>/clarity-report.md`
 - Console summary (printed to stdout), ending with the one-line
   structural delta against the last green run:
@@ -621,7 +696,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.1")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.
