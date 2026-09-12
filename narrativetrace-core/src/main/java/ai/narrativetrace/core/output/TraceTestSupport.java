@@ -303,8 +303,14 @@ public final class TraceTestSupport {
         new JsonExporter().exportDocument(trace, metadata),
         resolver.traceArtifact(identity, ".json"));
 
+    // Not `scenario`: the structural artifact is the value-free one, and a display name may have
+    // had an argument interpolated into it (see ArtifactIdentity#structuralScenario).
     return writeStructuralArtifact(
-        writer, trace, failed, resolver.structuralFile(identity), scenario);
+        writer,
+        trace,
+        failed,
+        resolver.structuralFile(identity),
+        identity.structuralScenario(displayName));
   }
 
   /**

@@ -1,11 +1,11 @@
-<!-- source: README.md blob 4225a897a862 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: README.md blob e391298242ad | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
 
 ## Empieza aquí
 
-[Ve una traza en 60 segundos](documentation/first-10-minutes.md) — una aplicación de consola, una ejecución, y la traza aparece en tu terminal.
+[Ve una traza en 60 segundos](documentation/sixty-seconds.md) — una aplicación de consola, una ejecución, y la traza aparece en tu terminal.
 
 ## Demo
 
@@ -259,7 +259,7 @@ instalación](documentation/es/guia-de-instalacion.md).
 
 ¿Quieres verlo fuera de una prueba — un `main` sencillo, una llamada, una traza
 en tu terminal? → [Ve una traza en 60
-segundos](documentation/first-10-minutes.md) (en inglés) recorre justo ese
+segundos](documentation/sixty-seconds.md) (en inglés) recorre justo ese
 camino de principio a fin, ejecutado de verdad contra los artefactos
 publicados, con la salida real pegada tal cual.
 
@@ -341,7 +341,7 @@ Integration](documentation/choosing-an-integration.md) (en inglés).
 
 | Módulo | Lo necesitas cuando... |
 |--------|------------------------|
-| `narrativetrace-api` | El contrato solo de compilación: anotaciones, modelo de eventos y SPI. Normalmente lo obtienes de forma transitiva con `core` — depende solo de él si eres autor de una librería que publica contra el contrato. |
+| `narrativetrace-api` | El contrato solo de compilación: anotaciones, modelo de eventos y SPI. Llega de forma transitiva con `core`; depende de él directamente solo cuando publiques una librería que implemente una SPI sin necesitar el runtime. |
 | `narrativetrace-core` | Siempre requerido. Contexto de ejecución, pipeline, renderizadores, configuración y exportación. Cero dependencias en tiempo de ejecución. |
 | `narrativetrace-proxy` | Usas tracing con proxy JDK (lo más común). |
 | `narrativetrace-junit5` | Auto-tracing en pruebas JUnit 5. |
@@ -515,7 +515,7 @@ con Javadoc rico ([javadoc.io](https://javadoc.io/doc/ai.narrativetrace)).
 
 Empieza por aquí:
 
-- [Ve una traza en 60 segundos](documentation/first-10-minutes.md) (en inglés) — el camino más corto a una traza real: un archivo, una ejecución, salida real pegada tal cual
+- [Ve una traza en 60 segundos](documentation/sixty-seconds.md) (en inglés) — el camino más corto a una traza real: un archivo, una ejecución, salida real pegada tal cual
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — dependencias, todas las vías de integración, cómo funciona la captura, configuración de la salida de trazas
 - [Choosing an Integration](documentation/choosing-an-integration.md) (en inglés) — qué módulo necesitas, como diagrama de decisión
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de JUnit/Gradle/Spring/Micronaut/SLF4J

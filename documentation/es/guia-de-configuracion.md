@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob f6d93be29ca8 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 0f1d0f473132 | translated: 2026-09-12 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -168,7 +168,7 @@ La extensión de JUnit usa `ExtensionContext.getConfigurationParameter()`, que r
 
 | Propiedad | Valores | Predeterminado |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2, unreleased)* |
 | `narrativetrace.outputDir` | Cualquier ruta con permiso de escritura | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -341,10 +341,14 @@ traza, la exportación JSON, el diagrama, el artefacto estructural y la
 línea base `.approved.nt` commiteada junto a ellos.
 
 > Una plantilla `@ParameterizedTest(name = ...)` interpola argumentos en
-> el nombre visible, y ese nombre llega tanto al *nombre de archivo* del
-> artefacto como a la cabecera `scenario:` del artefacto `.nt` libre de
-> valores. Los cuerpos de llamada siguen sin valores; el nombre no. No
-> interpoles un secreto en una plantilla de nombre visible.
+> el nombre visible, así que el artefacto `.nt` libre de valores no se
+> titula con él: la cabecera `scenario:` de una invocación es `<nombre
+> humanizado del método> #<índice>` (`Equipment can be found #2`), y un
+> método que se ejecuta una sola vez conserva el nombre visible que
+> siempre tuvo *(since 0.2.2, unreleased)*. El *nombre de archivo* del artefacto y `manifest.json` sí
+> llevan el nombre visible — el nombre de archivo es lo que distingue dos
+> invocaciones en disco, y el manifiesto indexa también los artefactos con
+> valores. Mantén los secretos fuera de las plantillas de nombre visible.
 
 Cuando `format=markdown`, la extensión también escribe por cada test:
 

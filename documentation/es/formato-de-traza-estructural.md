@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 752b803add4d | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob d3646cf3f74a | translated: 2026-09-12 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -62,11 +62,17 @@ escenario trazado que nombra su test, su número de invocación y cada
 archivo que le pertenece. Léelo cuando conozcas el escenario y quieras el
 archivo.
 
-> La cabecera `scenario:` es un nombre visible, y la plantilla de nombre
-> visible de un test parametrizado interpola argumentos en ella. Los
-> cuerpos de llamada siguen sin valores; la cabecera y el nombre de
-> archivo no. No interpoles un secreto en una plantilla de nombre
-> visible.
+> La cabecera `scenario:` de una invocación **no** es su nombre visible *(since 0.2.2, unreleased)*.
+> Una plantilla `@ParameterizedTest(name = …)` interpola argumentos en el
+> nombre visible, así que este artefacto — el que no lleva valores — se
+> titula con el método y el número de invocación: `Equipment can be found
+> #2`. Un método que se ejecuta una sola vez conserva el nombre visible
+> que siempre tuvo, así que ninguna baseline commiteada se mueve. El
+> *nombre de archivo* sí sigue llevando la etiqueta en forma de slug,
+> porque es lo que distingue dos invocaciones en disco, y `manifest.json`
+> — un índice que cubre también los artefactos con valores — nombra el
+> escenario tal como lo mostró el runner. Mantén los secretos fuera de
+> las plantillas de nombre visible.
 
 ## Contenido
 
@@ -84,7 +90,10 @@ scenario: Weekend trip settles with three transfers
 ```
 
 - **Cabecera:** `scenario: <humanized test name>` + línea en blanco. Nada
-  más — sin resultado, sin ids/nombres de traza, sin fechas.
+  más — sin resultado, sin ids/nombres de traza, sin fechas. Una
+  invocación de un método que se ejecuta más de una vez es `scenario:
+  <nombre humanizado del método> #<índice>`: los argumentos de una
+  plantilla de nombre visible nunca llegan hasta ahí.
 - **Línea de llamada:** `ClassName.methodName(paramName, paramName)` —
   solo nombres, en el orden de captura, con dos espacios de indentación
   por nivel de profundidad.

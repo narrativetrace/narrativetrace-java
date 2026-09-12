@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob cc4473269fe0 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 3002688c6121 | translated: 2026-09-12 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -201,7 +201,7 @@ Características:
 - `NarrativeContext` por prueba mediante inyección de parámetros
 - Impresión automática en consola de la traza en caso de fallo
 - Nombre del escenario derivado del nombre del método de prueba (`customerPlacesOrder` → "Customer places order")
-- Escribe `.md`, `.json` y `.mmd` por prueba por defecto, además de un `clarity-report.md` a nivel de suite — establece `narrativetrace.output=false` para desactivarlo
+- Escribe `.md`, `.json` y `.mmd` por prueba por defecto *(since 0.2.2, unreleased)*, además de un `clarity-report.md` a nivel de suite — establece `narrativetrace.output=false` para desactivarlo
 
 ### Opción D: contexto automático de JUnit 4 + salida de trazas
 
@@ -406,6 +406,7 @@ dashboards y conversaciones del equipo.
 
 | Módulo | Cuándo añadirlo |
 |---|---|
+| `narrativetrace-api` | Nunca — llega de forma transitiva con `narrativetrace-core`; depende de él directamente solo cuando publiques una librería que implemente una SPI sin necesitar el runtime |
 | `narrativetrace-core` | Siempre requerido |
 | `narrativetrace-proxy` | Tracing basado en interfaces mediante proxies JDK |
 | `narrativetrace-junit5` | Extensión de JUnit 5 y emisión de archivos de trazas |

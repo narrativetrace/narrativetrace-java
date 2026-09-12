@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 270717ac0aff | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob f1658f8ad5f8 | translated: 2026-09-12 | reviewed: - -->
 # Privacidade e ocultação
 
 [English](../privacy-and-redaction.md) | Español | **Português** | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -13,7 +13,7 @@ garante versus o que ele nem chega a reivindicar.
 JUnit 5 e a integração do JUnit 4 gravam os artefatos `.md`/`.json`/`.mmd`
 de cada teste no diretório efêmero `build/narrativetrace` (ignorado pelo
 git, regenerado a cada execução) sem nenhuma configuração;
-`narrativetrace.output=false` desativa isso. Esse padrão não muda o que é
+`narrativetrace.output=false` desativa isso *(since 0.2.2, unreleased)*. Esse padrão não muda o que é
 ocultado nem como — todo artefato passa pelo mesmo `ValueRenderer` e pela
 mesma lista de negação descrita abaixo, quer a gravação tenha sido ativada
 por padrão ou explicitamente. Veja o
@@ -174,7 +174,12 @@ anotações](guia-de-anotacoes.md).
 - **O artefato estrutural `.nt` não tem nenhum valor de runtime.**
   Apenas nomes, hierarquia de chamadas e tipos de resultado — superfície
   zero para prompt injection, e isso é um property test (ADR-002), não
-  uma política que alguém poderia esquecer de aplicar.
+  uma política que alguém poderia esquecer de aplicar. O cabeçalho
+  `scenario:` dele está coberto por isso: uma invocação de um
+  `@ParameterizedTest` é titulada `<método> #<índice>`, nunca o nome
+  exibido no qual um template `name = "…"` interpolou seus argumentos *(since 0.2.2, unreleased)*.
+  Como o artefato se *chama* é outra questão — veja a não garantia
+  abaixo.
 - **O caminho de análise em buffer pode descartar eventos, mas sempre
   reporta a perda.** Ele nunca bloqueia quem chama e nunca cresce além
   do seu limite; uma captura que perdeu eventos imprime a contagem em
@@ -198,6 +203,18 @@ anotações](guia-de-anotacoes.md).
   interpreta exatamente `packages`, `loggerName`, `level` e
   `loggingJars` — só inclusão, nada para recortar uma exceção de dentro
   de um pacote incluído.
+- **Nenhuma ocultação dos *nomes* dos testes.** O nome exibido de um teste
+  é texto escrito por quem desenvolve, e um template
+  `@ParameterizedTest(name = "find {0}")` interpola seus argumentos nele.
+  Esse nome chega ao *nome de arquivo* do artefato
+  (`equipment_can_be_found-002-find_tent.md` — o rótulo em forma de slug é
+  o que distingue duas invocações em disco), ao `manifest.json` da
+  execução e ao título dos artefatos que carregam valores. Nenhuma lista
+  de negação é consultada para qualquer um deles: aqui um nome é um
+  identificador, não um valor capturado. Mantenha segredos fora dos
+  templates de nome exibido — o cabeçalho do `.nt` livre de valores é o
+  único lugar em que isso é resolvido para você, por não usar o nome
+  exibido de forma alguma.
 - **Ainda sem suporte a Android ou GraalVM native-image.** Detalhes
   completos, incluindo *por que* Android é um "não" em vez de um "ainda
   não", em [Guia de instalação §

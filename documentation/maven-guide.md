@@ -147,7 +147,7 @@ out and every trace still captures, it just captures `arg0` instead of
 ## Surefire: wiring trace output
 
 The JUnit 5 extension writes trace files by default — no
-`narrativetrace.output` setting needed to turn it on. What a Maven build
+`narrativetrace.output` setting needed to turn it on *(since 0.2.2, unreleased)*. What a Maven build
 does need is redirecting `narrativetrace.outputDir`, for the reason below.
 This guide wires it on Surefire directly, since the point of a Maven-native
 recipe is showing the Maven-native mechanism (the same properties also work

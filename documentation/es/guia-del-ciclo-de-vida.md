@@ -1,4 +1,4 @@
-<!-- source: documentation/lifecycle-guide.md blob 180992319f06 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/lifecycle-guide.md blob 9919ee976581 | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace a lo largo del ciclo de desarrollo
 
 [English](../lifecycle-guide.md) | **Español** | [简体中文](../zh-CN/生命周期指南.md)
@@ -32,7 +32,7 @@ no existe infraestructura de larga vida.
   JUnit 5 en el classpath (descubierta por ServiceLoader; las reglas de
   JUnit 4 se declaran explícitamente), cada prueba escribe su traza como
   artefacto revisable por defecto — sin necesidad de configurar nada,
-  `narrativetrace.output=false` lo desactiva:
+  `narrativetrace.output=false` lo desactiva *(since 0.2.2, unreleased)*:
   `build/narrativetrace/traces/<ClaseDeTest>/<test>.md` más un `.json`
   canónico y un diagrama Mermaid por escenario. El [plugin de
   Gradle](guia-del-plugin-de-gradle.md) cablea las dependencias, el flag

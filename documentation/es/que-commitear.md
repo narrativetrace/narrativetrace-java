@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob b434ea65deac | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob b4f6e9e1ffe1 | translated: 2026-09-12 | reviewed: - -->
 # Qué commitear
 
 [English](../what-to-commit.md) | **Español** | [Português](../pt-BR/o-que-commitar.md) | [简体中文](../zh-CN/应提交的内容.md)
@@ -8,7 +8,7 @@ describen una ejecución, y baselines revisadas que describen un contrato
 pretendido. Commitea el segundo tipo, no el primero.
 
 Todo artefacto de tiempo de prueba se escribe por defecto en el directorio
-efímero `build/narrativetrace` — sin necesidad de configuración,
+efímero `build/narrativetrace` *(since 0.2.2, unreleased)* — sin necesidad de configuración,
 `narrativetrace.output=false` lo desactiva (ver la
 [Guía de Configuración](guia-de-configuracion.md)). Efímero es la clave: vive
 bajo `build/`, así que nunca necesita la disciplina de la que trata esta

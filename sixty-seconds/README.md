@@ -1,6 +1,6 @@
 # Sixty Seconds
 
-This module **is** [`documentation/first-10-minutes.md`](../documentation/first-10-minutes.md),
+This module **is** [`documentation/sixty-seconds.md`](../documentation/sixty-seconds.md),
 "See a trace in 60 seconds" — not an illustration of it. Every file under `src/main/java` is
 embedded verbatim into that page (`snippetCheck`/`snippetSync` in the root `build.gradle.kts`, the
 same mechanism `translationCheck` already uses for translated code blocks), and `SixtySecondsTest`

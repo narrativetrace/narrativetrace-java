@@ -12,6 +12,7 @@ import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.core.output.ArtifactIdentity;
 import ai.narrativetrace.core.output.NarrativeApproval;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
@@ -168,13 +169,15 @@ public class NarrativeTraceRule extends TestWatcher {
         description.getTestClass() != null
             ? description.getTestClass().getName()
             : description.getClassName();
-    var approvedFile =
-        NarrativeApproval.approvedFile(approvedDir, testClassName, description.getMethodName());
+    var identity = ArtifactIdentity.ofMethod(testClassName, description.getMethodName());
+    var approvedFile = NarrativeApproval.approvedFile(approvedDir, identity);
     try {
+      // The baseline is a structural artifact: titled the value-free way, so the label
+      // Parameterized appends to a method name stays out of it.
       var note =
           NarrativeApproval.verify(
               trace,
-              ScenarioFramer.humanize(description.getMethodName()),
+              identity.structuralScenario(description.getMethodName()),
               approvedFile,
               context.traceLoss());
       if (!note.isEmpty()) {

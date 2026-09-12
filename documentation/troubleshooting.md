@@ -20,9 +20,31 @@ tasks.withType<JavaCompile> {
 The Gradle plugin adds this automatically — this only matters for a manual
 setup.
 
+## `Cannot create Launcher without at least one TestEngine`, or `Could not start Gradle Test Executor 1: Failed to load JUnit Platform`
+
+**Cause:** `useJUnitPlatform()` needs both a JUnit 5 engine and
+`org.junit.platform:junit-platform-launcher` on the test runtime classpath.
+Gradle 8 supplies a version of the launcher itself when only the engine is
+declared — a deprecated behaviour it warns about on every run — and Gradle 9
+removes that auto-management outright, so the test *process* fails before any
+engine, extension, or test class runs. Reproduced against a real Gradle 9.0.0
+build: the second message above is its exact wording.
+
+**Fix:**
+
+```kotlin
+dependencies {
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+}
+```
+
+The Gradle plugin adds both automatically *(since 0.2.2, unreleased)* — this only matters for a manual
+setup.
+
 ## No trace output files
 
-**Cause:** output writes by default to `build/narrativetrace`, so a missing
+**Cause:** output writes by default *(since 0.2.2, unreleased)* to `build/narrativetrace`, so a missing
 file usually means one of: `narrativetrace.output=false` is set somewhere
 (`junit-platform.properties`, a system property, or the Gradle plugin's
 `enabled.set(false)`); the trace was empty because no call went through a

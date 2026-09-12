@@ -55,6 +55,12 @@ object SnippetSupport {
      * (any `documentation/<lang>/` directory, `i18n`) and build/hidden directories — the same
      * "English pages only" scope `snippetSync` writes to. Mirrors are never touched here;
      * `translationCheck` is what flags their code blocks going stale against the English source.
+     *
+     * <p>`documentation/llms.txt` is included too, despite its extension: it is the first thing an
+     * agent reads, its "Install and first trace" block is the same install/run/output triple the
+     * 60-second page shows, and an untracked copy of that triple would drift from the real one
+     * silently — the one file this mechanism must not silently skip over an extension technicality.
+     * It carries no translations, so it is never a language-directory concern.
      */
     fun englishMarkdownFiles(repoRoot: File): List<File> {
         val languageDirs =
@@ -62,10 +68,11 @@ object SnippetSupport {
                 .filter { it.isDirectory && it.name != "i18n" }
                 .map { it.canonicalFile }
                 .toSet()
+        val llmsTxt = repoRoot.resolve("documentation/llms.txt").canonicalFile
         return repoRoot.walkTopDown()
             .onEnter { dir -> dir == repoRoot || (dir.name != "build" && !dir.name.startsWith(".")) }
             .onEnter { dir -> dir.canonicalFile !in languageDirs }
-            .filter { it.isFile && it.extension == "md" }
+            .filter { it.isFile && (it.extension == "md" || it.canonicalFile == llmsTxt) }
             .filter { OPEN_MARKER.containsMatchIn(it.readText()) }
             .toList()
     }

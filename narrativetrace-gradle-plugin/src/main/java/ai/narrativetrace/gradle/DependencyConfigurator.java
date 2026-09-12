@@ -31,6 +31,24 @@ final class DependencyConfigurator {
   private static final String JUNIT_JUPITER_ENGINE =
       "org.junit.jupiter:junit-jupiter-engine:5.11.4";
 
+  /**
+   * The JUnit Platform launcher the plugin puts on the test runtime classpath alongside {@link
+   * #JUNIT_JUPITER_ENGINE}, for {@code testFramework = "junit5"}.
+   *
+   * <p>Gradle 8 supplies a version of this itself when only an engine is declared (a deprecated
+   * behaviour it warns about on every run); Gradle 9 removes that auto-management outright, and
+   * {@code useJUnitPlatform()} then fails the test *process* before any engine, extension, or test
+   * class ever runs — confirmed against a real Gradle 9.0.0 run: "Could not start Gradle Test
+   * Executor 1: Failed to load JUnit Platform." Declaring the launcher ourselves makes the plugin's
+   * one-line setup Gradle-9-proof rather than riding on a warned-about default.
+   *
+   * <p>Pinned to the release this build already resolves the launcher to (see the root {@code
+   * build.gradle.kts} comment above {@code pitestJunitBom}), the same lockstep the engine version
+   * follows.
+   */
+  private static final String JUNIT_PLATFORM_LAUNCHER =
+      "org.junit.platform:junit-platform-launcher:1.11.4";
+
   private DependencyConfigurator() {}
 
   record ResolvedDependency(String configuration, String artifact) {}
@@ -120,9 +138,9 @@ final class DependencyConfigurator {
   }
 
   /**
-   * The test-framework module, plus — for JUnit 5 only — the platform engine that {@code
-   * useJUnitPlatform()} needs at run time. JUnit 4 gets no engine: the plugin does not switch it
-   * onto the platform, and {@code narrativetrace-junit4} already brings {@code junit:junit}.
+   * The test-framework module, plus — for JUnit 5 only — the platform engine and launcher that
+   * {@code useJUnitPlatform()} needs at run time. JUnit 4 gets neither: the plugin does not switch
+   * it onto the platform, and {@code narrativetrace-junit4} already brings {@code junit:junit}.
    */
   private static void addTestFrameworkDep(
       List<ResolvedDependency> deps, String testFramework, String version) {
@@ -132,6 +150,7 @@ final class DependencyConfigurator {
     }
     deps.add(new ResolvedDependency("testImplementation", gav("narrativetrace-junit5", version)));
     deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_JUPITER_ENGINE));
+    deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_PLATFORM_LAUNCHER));
   }
 
   private static void addModuleDeps(

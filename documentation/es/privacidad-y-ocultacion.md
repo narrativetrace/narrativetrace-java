@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 270717ac0aff | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob f1658f8ad5f8 | translated: 2026-09-12 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -13,7 +13,7 @@ frente a lo que no promete en absoluto.
 extensión de JUnit 5 y la integración de JUnit 4 escriben los artefactos
 `.md`/`.json`/`.mmd` de cada prueba en el directorio efímero
 `build/narrativetrace` (ignorado por git, regenerado en cada ejecución) sin
-necesidad de configuración; `narrativetrace.output=false` lo desactiva. Ese
+necesidad de configuración; `narrativetrace.output=false` lo desactiva *(since 0.2.2, unreleased)*. Ese
 valor por defecto no cambia qué se oculta ni cómo — cada artefacto pasa por
 el mismo `ValueRenderer` y la misma lista de denegación descrita más abajo,
 tanto si la escritura se activó por defecto como si se activó
@@ -175,7 +175,12 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
 - **El artefacto `.nt` estructural no tiene ningún valor de runtime.**
   Solo nombres, jerarquía de llamadas y tipos de resultado — cero
   superficie de inyección de prompts, y eso es un property test
-  (ADR-002), no una política que alguien pueda olvidar aplicar.
+  (ADR-002), no una política que alguien pueda olvidar aplicar. Su
+  cabecera `scenario:` está cubierta por eso: una invocación de un
+  `@ParameterizedTest` se titula `<método> #<índice>`, nunca el nombre
+  visible en el que una plantilla `name = "…"` interpoló sus argumentos *(since 0.2.2, unreleased)*.
+  Cómo se *llama* el artefacto es otra cuestión — consulta la no-garantía
+  de más abajo.
 - **La vía de análisis en buffer puede descartar eventos, pero siempre
   informa de la pérdida.** Nunca bloquea al llamador y nunca crece más
   allá de su límite; una captura que perdió eventos imprime el recuento en
@@ -199,6 +204,18 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
 - **Todavía sin lista de exclusión para el agente.** `AgentConfig` parsea
   exactamente `packages`, `loggerName`, `level` y `loggingJars` — solo
   inclusión, nada para tallar una excepción dentro de un paquete incluido.
+- **Ninguna ocultación de los *nombres* de los tests.** El nombre visible
+  de un test es texto escrito por quien desarrolla, y una plantilla
+  `@ParameterizedTest(name = "find {0}")` interpola sus argumentos en él.
+  Ese nombre llega al *nombre de archivo* del artefacto
+  (`equipment_can_be_found-002-find_tent.md` — la etiqueta en forma de
+  slug es lo que distingue dos invocaciones en disco), al `manifest.json`
+  de la ejecución y al encabezado de los artefactos que llevan valores.
+  Para ninguno de ellos se consulta una lista de denegación: aquí un
+  nombre es un identificador, no un valor capturado. Mantén los secretos
+  fuera de las plantillas de nombre visible — la cabecera del `.nt` libre
+  de valores es el único sitio donde esto se resuelve por ti, al no usar
+  el nombre visible en absoluto.
 - **Sin soporte de Android o de imagen nativa de GraalVM hoy.** Detalle
   completo, incluido *por qué* Android es un "no" y no un "todavía no", en
   [Guía de instalación § Compatibilidad](guia-de-instalacion.md#compatibilidad).

@@ -12,7 +12,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed. `narrativetrace.output=false` turns it off along with every other trace artifact.
+With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed *(since 0.2.2, unreleased)*. `narrativetrace.output=false` turns it off along with every other trace artifact.
 
 ## What gets scored
 

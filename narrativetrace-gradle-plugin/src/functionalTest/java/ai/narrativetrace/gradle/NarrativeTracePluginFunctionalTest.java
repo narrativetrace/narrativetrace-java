@@ -66,7 +66,8 @@ class NarrativeTracePluginFunctionalTest {
             + "}\n"
             + "tasks.register(\"checkClarity\") {\n"
             + "    doLast {\n"
-            + "        val ext = project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
             + "        println(\"MIN_SCORE: \" + ext.clarity.minScore.get())\n"
             + "        println(\"MAX_HIGH: \" + ext.clarity.maxHighIssues.get())\n"
             + "    }\n"
@@ -242,7 +243,8 @@ class NarrativeTracePluginFunctionalTest {
             + "}\n"
             + "tasks.register(\"checkModules\") {\n"
             + "    doLast {\n"
-            + "        val ext = project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
             + "        println(\"SLF4J: \" + ext.modules.slf4j.get())\n"
             + "        println(\"MICROMETER: \" + ext.modules.micrometer.get())\n"
             + "        println(\"SERVLET: \" + ext.modules.servlet.get())\n"
@@ -274,7 +276,8 @@ class NarrativeTracePluginFunctionalTest {
             + "}\n"
             + "tasks.register(\"checkAgent\") {\n"
             + "    doLast {\n"
-            + "        val ext = project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
             + "        println(\"PACKAGES: \" + ext.agent.packages.get())\n"
             + "    }\n"
             + "}\n");
@@ -465,7 +468,8 @@ class NarrativeTracePluginFunctionalTest {
             + "}\n"
             + "tasks.register(\"checkAgentPackages\") {\n"
             + "    doLast {\n"
-            + "        val ext = project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
             + "        println(\"PACKAGES: \" + ext.agent.packages.get())\n"
             + "    }\n"
             + "}\n");
@@ -500,7 +504,8 @@ class NarrativeTracePluginFunctionalTest {
             + "tasks.register(\"checkTestConfig\") {\n"
             + "    doLast {\n"
             + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-            + "        println(\"FORMAT: \" + testTask.systemProperties[\"narrativetrace.format\"])\n"
+            + "        println(\"FORMAT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.format\"])\n"
             + "    }\n"
             + "}\n");
 
@@ -533,7 +538,8 @@ class NarrativeTracePluginFunctionalTest {
         "tasks.register(\"checkTestConfig\") {\n"
             + "    doLast {\n"
             + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-            + "        println(\"FORMAT: \" + testTask.systemProperties[\"narrativetrace.format\"])\n"
+            + "        println(\"FORMAT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.format\"])\n"
             + "    }\n"
             + "}\n");
 
@@ -577,8 +583,10 @@ class NarrativeTracePluginFunctionalTest {
         "tasks.register(\"checkTestConfig\") {\n"
             + "    doLast {\n"
             + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-            + "        println(\"SYS_OUTPUT: \" + testTask.systemProperties[\"narrativetrace.output\"])\n"
-            + "        println(\"SYS_DIR: \" + testTask.systemProperties[\"narrativetrace.outputDir\"])\n"
+            + "        println(\"SYS_OUTPUT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.output\"])\n"
+            + "        println(\"SYS_DIR: \" +"
+            + " testTask.systemProperties[\"narrativetrace.outputDir\"])\n"
             + "    }\n"
             + "}\n");
 
@@ -630,8 +638,10 @@ class NarrativeTracePluginFunctionalTest {
     return "tasks.register(\"checkGlossaryConfig\") {\n"
         + "    doLast {\n"
         + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-        + "        println(\"SYS_GLOSSARY: \" + testTask.systemProperties[\"narrativetrace.glossary\"])\n"
-        + "        println(\"SYS_GLOSSARY_DIR: \" + testTask.systemProperties[\"narrativetrace.glossaryDir\"])\n"
+        + "        println(\"SYS_GLOSSARY: \" +"
+        + " testTask.systemProperties[\"narrativetrace.glossary\"])\n"
+        + "        println(\"SYS_GLOSSARY_DIR: \" +"
+        + " testTask.systemProperties[\"narrativetrace.glossaryDir\"])\n"
         + "    }\n"
         + "}\n";
   }
@@ -690,8 +700,10 @@ class NarrativeTracePluginFunctionalTest {
     return "tasks.register(\"checkApprovalConfig\") {\n"
         + "    doLast {\n"
         + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-        + "        println(\"SYS_APPROVAL: \" + testTask.systemProperties[\"narrativetrace.approval\"])\n"
-        + "        println(\"SYS_APPROVED_DIR: \" + testTask.systemProperties[\"narrativetrace.approvedDir\"])\n"
+        + "        println(\"SYS_APPROVAL: \" +"
+        + " testTask.systemProperties[\"narrativetrace.approval\"])\n"
+        + "        println(\"SYS_APPROVED_DIR: \" +"
+        + " testTask.systemProperties[\"narrativetrace.approvedDir\"])\n"
         + "    }\n"
         + "}\n";
   }
@@ -706,7 +718,8 @@ class NarrativeTracePluginFunctionalTest {
             + "tasks.register(\"checkTestConfig\") {\n"
             + "    doLast {\n"
             + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-            + "        println(\"SYS_DIR: \" + testTask.systemProperties[\"narrativetrace.outputDir\"])\n"
+            + "        println(\"SYS_DIR: \" +"
+            + " testTask.systemProperties[\"narrativetrace.outputDir\"])\n"
             + "    }\n"
             + "}\n");
 
@@ -765,7 +778,8 @@ class NarrativeTracePluginFunctionalTest {
             + "tasks.register(\"checkTestConfig\") {\n"
             + "    doLast {\n"
             + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
-            + "        println(\"SYS_OUTPUT: \" + testTask.systemProperties[\"narrativetrace.output\"])\n"
+            + "        println(\"SYS_OUTPUT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.output\"])\n"
             + "    }\n"
             + "}\n");
 
@@ -891,8 +905,7 @@ class NarrativeTracePluginFunctionalTest {
   void clarityCheckEnforcesMaxHighIssues(@TempDir Path projectDir) throws IOException {
     writeBuildFile(projectDir, "narrativeTrace { clarity { maxHighIssues.set(0) } }\n");
     var json =
-        "{\"version\":\"1.0\",\"scenarios\":["
-            + "{\"name\":\"Test\",\"overallScore\":0.90"
+        "{\"version\":\"1.0\",\"scenarios\":[{\"name\":\"Test\",\"overallScore\":0.90"
             + ",\"methodNameScore\":0.90,\"classNameScore\":0.90"
             + ",\"parameterNameScore\":0.90,\"structuralScore\":0.90,\"cohesionScore\":0.90"
             + ",\"issues\":[{\"category\":\"param-name\",\"element\":\"x\""
@@ -1269,11 +1282,45 @@ class NarrativeTracePluginFunctionalTest {
         .contains("RUNTIME_DEP: org.junit.jupiter:junit-jupiter-engine:5.11.4");
   }
 
+  /**
+   * Gradle 8 supplies a version of the launcher itself when only the engine is declared (a
+   * deprecated behaviour it warns about every run); Gradle 9 removes that auto-management, and
+   * {@code useJUnitPlatform()} then fails the test process before any engine or extension runs
+   * ("Could not start Gradle Test Executor 1: Failed to load JUnit Platform" — reproduced against a
+   * real Gradle 9.0.0 run). The plugin must declare the launcher itself rather than ride on that
+   * warned-about default.
+   */
+  @Test
+  void aJunit5ProjectDeclaresThePlatformLauncherOnTheTestRuntimeClasspath(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, listTestRuntimeOnlyTask());
+
+    var result = runGradle(projectDir, "listRuntimeDeps");
+
+    assertThat(result.getOutput())
+        .contains("RUNTIME_DEP: org.junit.platform:junit-platform-launcher:1.11.4");
+  }
+
+  @Test
+  void aJunit4ProjectGetsNoPlatformLauncherEither(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n"
+            + "    testFramework.set(\"junit4\")\n"
+            + "}\n"
+            + listTestRuntimeOnlyTask());
+
+    var result = runGradle(projectDir, "listRuntimeDeps");
+
+    assertThat(result.getOutput()).doesNotContain("junit-platform-launcher");
+  }
+
   private String listTestRuntimeOnlyTask() {
     return "tasks.register(\"listRuntimeDeps\") {\n"
         + "    doLast {\n"
         + "        configurations.getByName(\"testRuntimeOnly\").dependencies.forEach {\n"
-        + "            println(\"RUNTIME_DEP: \" + it.group + \":\" + it.name + \":\" + it.version)\n"
+        + "            println(\"RUNTIME_DEP: \" + it.group + \":\" + it.name + \":\" +"
+        + " it.version)\n"
         + "        }\n"
         + "    }\n"
         + "}\n";

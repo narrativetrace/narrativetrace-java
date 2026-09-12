@@ -53,10 +53,16 @@ writes `<outputDir>/manifest.json`: one row per traced scenario naming
 its test, its invocation number and every file it owns. Read that when
 you know the scenario and want the file.
 
-> The `scenario:` header is a display name, and a parameterized test's
-> display-name template interpolates arguments into it. Call bodies stay
-> value-free; the header and the filename do not. Do not interpolate a
-> secret into a display-name template.
+> An invocation's `scenario:` header is **not** its display name *(since 0.2.2, unreleased)*. A
+> `@ParameterizedTest(name = …)` template interpolates arguments into the
+> display name, so this artifact — the value-free one — is titled by the
+> method and the invocation number instead: `Equipment can be found #2`.
+> A method that runs once keeps the display name it always had, so no
+> committed baseline moves. The *filename* still carries the slugged
+> label, because that is what tells two invocations apart on disk, and
+> `manifest.json` — an index over the value-carrying artifacts too —
+> names the scenario as the runner displayed it. Keep secrets out of
+> display-name templates.
 
 ## Content
 
@@ -74,7 +80,9 @@ scenario: Weekend trip settles with three transfers
 ```
 
 - **Header:** `scenario: <humanized test name>` + blank line. Nothing
-  else — no result, no trace ids/names, no dates.
+  else — no result, no trace ids/names, no dates. One invocation of a
+  method that runs more than once is `scenario: <humanized method name>
+  #<index>` — a display-name template's arguments never reach it.
 - **Call line:** `ClassName.methodName(paramName, paramName)` — names
   only, capture order, two-space indent per depth.
 - **Outcome kinds:** non-void return ` → value`; void: nothing (the

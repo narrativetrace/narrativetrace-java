@@ -195,7 +195,7 @@ Features:
 - Per-test `NarrativeContext` via parameter injection
 - Automatic failure trace printing to console
 - Scenario name derived from test method name (`customerPlacesOrder` → "Customer places order")
-- Writes `.md`, `.json`, `.mmd` per test by default, plus a suite-level `clarity-report.md` — set `narrativetrace.output=false` to opt out
+- Writes `.md`, `.json`, `.mmd` per test by default *(since 0.2.2, unreleased)*, plus a suite-level `clarity-report.md` — set `narrativetrace.output=false` to opt out
 
 ### Option D: JUnit 4 Auto Context + Trace Output
 
@@ -399,6 +399,7 @@ dashboards, and team discussion.
 
 | Module | When to add it |
 |---|---|
+| `narrativetrace-api` | Never — arrives transitively with `narrativetrace-core`; depend on it directly only when you ship a library that implements an SPI without needing the runtime |
 | `narrativetrace-core` | Always required |
 | `narrativetrace-proxy` | Interface-based tracing via JDK proxies |
 | `narrativetrace-junit5` | JUnit 5 extension and trace file emission |

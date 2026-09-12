@@ -165,7 +165,7 @@ The JUnit extension uses `ExtensionContext.getConfigurationParameter()`, which r
 
 | Property | Values | Default |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2, unreleased)* |
 | `narrativetrace.outputDir` | Any writable path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -329,10 +329,14 @@ the JSON export, the diagram, the structural artifact, and the committed
 `.approved.nt` baseline beside them.
 
 > A `@ParameterizedTest(name = ...)` template interpolates arguments into
-> the display name, and the display name reaches both the artifact
-> *filename* and the `scenario:` header of the value-free `.nt` artifact.
-> Call bodies are still value-free; the name is not. Do not interpolate a
-> secret into a display-name template.
+> the display name, so the value-free `.nt` artifact is not titled with
+> it: an invocation's `scenario:` header is `<humanized method name>
+> #<index>` (`Equipment can be found #2`), and a method that runs once
+> keeps the display name it always had *(since 0.2.2, unreleased)*. The artifact *filename* and
+> `manifest.json` do carry the display name — the filename is what tells
+> two invocations apart on disk, and the manifest indexes the
+> value-carrying artifacts as well. Keep secrets out of display-name
+> templates.
 
 When `format=markdown`, the extension also writes per test:
 

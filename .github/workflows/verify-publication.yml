@@ -9,7 +9,7 @@
 # What it proves, every night, from a cold environment: the latest released
 # version still resolves from the REAL Maven Central and Gradle Plugin Portal
 # (no mavenLocal, isolated Gradle user home), and the exact one-service-one-
-# test recipe documentation/first-10-minutes.md teaches still builds and
+# test recipe documentation/sixty-seconds.md teaches still builds and
 # writes its trace file. In other words: a first-time adopter's day one still
 # works. scripts/verify-publication.sh holds all the logic; this file only
 # schedules it (the same thin-CI rule ci.yml cites).

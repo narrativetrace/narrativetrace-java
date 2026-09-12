@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob f6d93be29ca8 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 0f1d0f473132 | translated: 2026-09-12 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -168,7 +168,7 @@ A extensão do JUnit usa `ExtensionContext.getConfigurationParameter()`, que res
 
 | Propriedade | Valores | Padrão |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2, unreleased)* |
 | `narrativetrace.outputDir` | Qualquer caminho com permissão de escrita | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -334,10 +334,14 @@ trace, a exportação JSON, o diagrama, o artefato estrutural e a baseline
 `.approved.nt` commitada ao lado deles.
 
 > Um template `@ParameterizedTest(name = ...)` interpola argumentos no
-> nome exibido, e esse nome chega tanto ao *nome de arquivo* do artefato
-> quanto ao cabeçalho `scenario:` do artefato `.nt` livre de valores. Os
-> corpos das chamadas continuam sem valores; o nome não. Não interpole um
-> segredo em um template de nome exibido.
+> nome exibido, então o artefato `.nt` livre de valores não é titulado com
+> ele: o cabeçalho `scenario:` de uma invocação é `<nome humanizado do
+> método> #<índice>` (`Equipment can be found #2`), e um método que roda
+> uma única vez mantém o nome exibido que sempre teve *(since 0.2.2, unreleased)*. O *nome de arquivo*
+> do artefato e o `manifest.json` carregam sim o nome exibido — o nome de
+> arquivo é o que distingue duas invocações em disco, e o manifesto indexa
+> também os artefatos com valores. Mantenha segredos fora dos templates de
+> nome exibido.
 
 Quando `format=markdown`, a extensão também escreve, por teste:
 

@@ -78,6 +78,59 @@ class InvocationArtifactTest {
         .contains("structural/ParameterizedFixture/equipment_can_be_found-002-find_tent.nt");
   }
 
+  /**
+   * The value-free artifact is value-free in its header too: {@code @ParameterizedTest(name = "find
+   * {0}")} interpolates the argument into the display name, and the structural artifact names the
+   * method and the invocation instead. The file name still carries the label — that is what tells
+   * the invocations apart on disk.
+   */
+  @Test
+  void theStructuralArtifactOfAnInvocationNamesTheMethodNotItsArgument(@TempDir Path outputDir)
+      throws IOException {
+    runSuite(outputDir, ParameterizedFixture.class);
+
+    var structural =
+        Files.readString(
+            outputDir.resolve(
+                "structural/ParameterizedFixture/equipment_can_be_found-002-find_tent.nt"));
+    assertThat(structural).startsWith("scenario: Equipment can be found #2\n");
+    assertThat(structural).doesNotContain("TENT");
+  }
+
+  /** The committed baseline is a structural artifact too, so it is titled the same way. */
+  @Test
+  void theApprovalBaselineOfAnInvocationIsTitledTheSameValueFreeWay(
+      @TempDir Path outputDir, @TempDir Path approvedDir) throws IOException {
+    System.setProperty("narrativetrace.approval", "true");
+    System.setProperty("narrativetrace.approvedDir", approvedDir.toString());
+    try {
+      runSuite(outputDir, ParameterizedFixture.class);
+    } finally {
+      System.clearProperty("narrativetrace.approval");
+      System.clearProperty("narrativetrace.approvedDir");
+    }
+
+    var received =
+        Files.readString(
+            approvedDir.resolve(
+                "ParameterizedFixture/equipment_can_be_found-002-find_tent.received.nt"));
+    assertThat(received).startsWith("scenario: Equipment can be found #2\n");
+    assertThat(received).doesNotContain("TENT");
+  }
+
+  /** The Markdown narrative is the value-carrying artifact, so it keeps the display name. */
+  @Test
+  void theNarrativeOfAnInvocationStillCarriesItsDisplayName(@TempDir Path outputDir)
+      throws IOException {
+    runSuite(outputDir, ParameterizedFixture.class);
+
+    assertThat(
+            Files.readString(
+                outputDir.resolve(
+                    "traces/ParameterizedFixture/equipment_can_be_found-002-find_tent.md")))
+        .contains("find TENT");
+  }
+
   @Test
   void anOrdinaryTestMethodKeepsItsUndecoratedArtifactName(@TempDir Path outputDir)
       throws IOException {

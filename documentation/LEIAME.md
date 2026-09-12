@@ -13,7 +13,7 @@ páginas sem arquivo correspondente aqui — está em
 
 | Documento | O que cobre |
 |---|---|
-| [Veja um trace em 60 segundos](pt-BR/primeiros-10-minutos.md) | Um `main` simples, uma chamada, um trace no seu terminal — sem instruções de log, sem framework de teste, executado de verdade contra os artefatos publicados |
+| [Veja um trace em 60 segundos](pt-BR/sessenta-segundos.md) | Um `main` simples, uma chamada, um trace no seu terminal — sem instruções de log, sem framework de teste, executado de verdade contra os artefatos publicados |
 | [Experiência de Desenvolvimento](pt-BR/experiencia-de-desenvolvimento.md) | De um projeto vazio à primeira narrativa: configuração em uma linha, artefatos por teste, o lançador de demo, builds compostos locais, a ocultação como parte do fluxo de trabalho |
 | [Guia de Instalação](pt-BR/guia-de-instalacao.md) | Dependências, os cinco caminhos de integração (proxy JDK, Spring, Micronaut, JUnit 5/4, agente Java), configuração da saída de traces, matriz de compatibilidade |
 | [Escolhendo uma Integração](pt-BR/escolhendo-uma-integracao.md) | Qual módulo você realmente precisa: um diagrama de decisão mais as ressalvas de cada um dos cinco caminhos de integração |

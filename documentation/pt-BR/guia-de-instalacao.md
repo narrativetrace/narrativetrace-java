@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob cc4473269fe0 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 3002688c6121 | translated: 2026-09-12 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -220,7 +220,7 @@ Funcionalidades:
 - Impressão automática do trace de falha no console
 - Nome do cenário derivado do nome do método de teste (`customerPlacesOrder`
   → "Customer places order")
-- Grava `.md`, `.json`, `.mmd` por teste por padrão, além de um
+- Grava `.md`, `.json`, `.mmd` por teste por padrão *(since 0.2.2, unreleased)*, além de um
   `clarity-report.md` no nível da suíte — defina `narrativetrace.output=false`
   para desativar
 
@@ -442,6 +442,7 @@ O `traceId` em hex continua sendo o identificador de referência. `traceName`
 
 | Módulo | Quando adicioná-lo |
 |---|---|
+| `narrativetrace-api` | Nunca — chega de forma transitiva com `narrativetrace-core`; dependa dele diretamente somente quando você publicar uma biblioteca que implemente uma SPI sem precisar do runtime |
 | `narrativetrace-core` | Sempre obrigatório |
 | `narrativetrace-proxy` | Tracing baseado em interface via proxies JDK |
 | `narrativetrace-junit5` | Extensão do JUnit 5 e emissão de arquivos de trace |

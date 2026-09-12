@@ -440,11 +440,14 @@ public class NarrativeTraceExtension
     }
     var approvedDir =
         Path.of(configParam(extensionContext, "narrativetrace.approvedDir", "src/test/narratives"));
-    var approvedFile =
-        NarrativeApproval.approvedFile(approvedDir, artifactIdentity(extensionContext));
+    var identity = artifactIdentity(extensionContext);
+    var approvedFile = NarrativeApproval.approvedFile(approvedDir, identity);
     try {
+      // The baseline is a structural artifact, so it is titled the value-free way the generated
+      // one is — an argument interpolated into a display name reaches neither.
       var note =
-          NarrativeApproval.verify(trace, ScenarioFramer.humanize(displayName), approvedFile, loss);
+          NarrativeApproval.verify(
+              trace, identity.structuralScenario(displayName), approvedFile, loss);
       if (!note.isEmpty()) {
         System.out.println("  Approval: " + note);
       }

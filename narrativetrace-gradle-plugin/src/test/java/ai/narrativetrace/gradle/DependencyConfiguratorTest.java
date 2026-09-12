@@ -79,6 +79,23 @@ class DependencyConfiguratorTest {
   }
 
   @Test
+  void junit5BringsThePlatformLauncherOnTheTestRuntimeClasspath() {
+    var deps =
+        DependencyConfigurator.resolve(
+            "proxy", "junit5", "test", false, false, false, false, VERSION);
+
+    // Gradle 8 supplies this itself when only the engine is declared (a deprecated default);
+    // Gradle 9 does not, and useJUnitPlatform() then fails the test *process* before any engine
+    // or extension runs: "Could not start Gradle Test Executor 1: Failed to load JUnit Platform."
+    // — reproduced against a real Gradle 9.0.0 run. Declaring the launcher ourselves makes the
+    // one-line setup Gradle-9-proof instead of riding on the warned-about auto-management.
+    assertThat(deps)
+        .contains(
+            new DependencyConfigurator.ResolvedDependency(
+                "testRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.11.4"));
+  }
+
+  @Test
   void junit4TestFramework() {
     var deps =
         DependencyConfigurator.resolve(
@@ -86,9 +103,10 @@ class DependencyConfiguratorTest {
 
     assertThat(deps).contains(dep("testImplementation", "narrativetrace-junit4"));
     assertThat(deps).noneMatch(d -> d.artifact().contains("junit5"));
-    // JUnit 4 is not switched onto the platform, so an engine would be dead weight — and
-    // narrativetrace-junit4 already brings junit:junit.
+    // JUnit 4 is not switched onto the platform, so an engine (or launcher) would be dead
+    // weight — and narrativetrace-junit4 already brings junit:junit.
     assertThat(deps).noneMatch(d -> d.artifact().contains("junit-jupiter-engine"));
+    assertThat(deps).noneMatch(d -> d.artifact().contains("junit-platform-launcher"));
     assertThat(deps).noneMatch(d -> "testRuntimeOnly".equals(d.configuration()));
   }
 

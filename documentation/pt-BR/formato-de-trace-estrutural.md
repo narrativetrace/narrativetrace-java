@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 752b803add4d | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob d3646cf3f74a | translated: 2026-09-12 | reviewed: - -->
 # Formato de trace estrutural (`.nt`)
 
 [English](../structural-trace-format.md) | [Español](../es/formato-de-traza-estructural.md) | **Português** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -60,10 +60,16 @@ também escreve `<outputDir>/manifest.json`: uma linha por cenário
 rastreado nomeando seu teste, seu número de invocação e cada arquivo que
 lhe pertence. Leia isso quando você conhece o cenário e quer o arquivo.
 
-> O cabeçalho `scenario:` é um nome exibido, e o template de nome exibido
-> de um teste parametrizado interpola argumentos nele. Os corpos das
-> chamadas continuam sem valores; o cabeçalho e o nome de arquivo não.
-> Não interpole um segredo em um template de nome exibido.
+> O cabeçalho `scenario:` de uma invocação **não** é o nome exibido dela *(since 0.2.2, unreleased)*.
+> Um template `@ParameterizedTest(name = …)` interpola argumentos no nome
+> exibido, então este artefato — o que não carrega valores — é titulado
+> pelo método e pelo número da invocação: `Equipment can be found #2`. Um
+> método que roda uma única vez mantém o nome exibido que sempre teve, de
+> modo que nenhuma baseline commitada se move. O *nome de arquivo*
+> continua carregando o rótulo em forma de slug, porque é isso que
+> distingue duas invocações em disco, e o `manifest.json` — um índice que
+> cobre também os artefatos com valores — nomeia o cenário como o runner
+> o exibiu. Mantenha segredos fora dos templates de nome exibido.
 
 ## Conteúdo
 
@@ -81,7 +87,10 @@ scenario: Weekend trip settles with three transfers
 ```
 
 - **Cabeçalho:** `scenario: <humanized test name>` + linha em branco. Nada
-  mais — sem resultado, sem ids/nomes de trace, sem datas.
+  mais — sem resultado, sem ids/nomes de trace, sem datas. Uma invocação
+  de um método que roda mais de uma vez é `scenario: <nome humanizado do
+  método> #<índice>`: os argumentos de um template de nome exibido nunca
+  chegam até ele.
 - **Linha de chamada:** `ClassName.methodName(paramName, paramName)` —
   apenas nomes, na ordem de captura, com dois espaços de indentação
   por nível de profundidade.

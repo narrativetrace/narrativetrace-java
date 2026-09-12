@@ -212,7 +212,7 @@ NarrativeTrace consists of 18 modules. Most projects need only 2-3.
 
 | Module | Artifact | Purpose |
 |--------|----------|---------|
-| `narrativetrace-api` | `ai.narrativetrace:narrativetrace-api` | The contract you compile against: annotations, the event model, `TraceTree`, and the SPIs (`TraceEventListener`, `ReportContributor`, `TraceExporter`, `NarrativeRenderer`, `RequestContextProvider`). **Zero dependencies**, by rule — see [api-surface.md](api-surface.md). Arrives transitively with core; name it directly only when you ship a library that implements an SPI without needing the runtime. |
+| `narrativetrace-api` | `ai.narrativetrace:narrativetrace-api` | The contract you compile against: annotations, the event model, `TraceTree`, and the SPIs (`TraceEventListener`, `ReportContributor`, `TraceExporter`, `NarrativeRenderer`, `RequestContextProvider`). **Zero dependencies**, by rule — see [api-surface.md](api-surface.md). Arrives transitively with `narrativetrace-core`; depend on it directly only when you ship a library that implements an SPI without needing the runtime. |
 | `narrativetrace-core` | `ai.narrativetrace:narrativetrace-core` | The runtime: context, pipeline, renderers, config resolution, export. Zero *third-party* dependencies; depends on `narrativetrace-api` and exposes it to consumers. |
 | `narrativetrace-proxy` | `ai.narrativetrace:narrativetrace-proxy` | JDK dynamic proxy for interface-based tracing. Depends on core. |
 
@@ -655,7 +655,7 @@ The annotated method must be public, no-arg, and return String.
 
 | Property | Values | Default |
 |----------|--------|---------|
-| `narrativetrace.output` | `true`/`false` | `true` |
+| `narrativetrace.output` | `true`/`false` | `true` *(since 0.2.2, unreleased)* |
 | `narrativetrace.outputDir` | path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.level` | `OFF`, `ERRORS`, `SUMMARY`, `NARRATIVE`, `DETAIL` | `DETAIL` |
@@ -811,7 +811,7 @@ Features:
 - Automatic failure reporting: prints the structural delta against the last green run (summary + readable diff) when a baseline exists, the full trace otherwise; trace paths print as `file://` links
 - Scenario names derived from test method names
 - Writes by default (markdown format): `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (non-green runs compare against it, never overwrite it; a rejected approval counts as non-green, so a rejected structure never poisons the baseline). `narrativetrace.output=false` opts out
-- Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline
+- Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline. The value-free `.nt` header is titled `<humanized method> #<index>` (`Equipment can be found #2`), never the display name a `name = "…"` template interpolated arguments into; a method that runs once keeps the display name it always had *(since 0.2.2, unreleased)*
 - Suite-level clarity report, run manifest (`manifest.json` — scenario → file index over every artifact written, with the invocation number) and console summary after all tests; the summary ends with `Since last green: …`, the one-line structural delta
 - Approval mode (`narrativetrace.approval=true`): a passing test whose structure differs from its committed `src/test/narratives/<Class>/<scenario>.approved.nt` baseline fails with a readable diff; the Gradle `approveNarratives` task promotes reviewed `.received.nt` files
 

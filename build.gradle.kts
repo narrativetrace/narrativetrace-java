@@ -180,16 +180,33 @@ tasks.register("translationCheck") {
 
 // Rule 8 (docs as tests), layer 1: a quickstart's code and output are embedded from a project the
 // build compiles, tests and runs — never typed into the page. `sixty-seconds` IS
-// documentation/first-10-minutes.md; its one test writes the byte-stable artifact the page's
+// documentation/sixty-seconds.md; its one test writes the byte-stable artifact the page's
 // output block embeds. Depending on that test (rather than only reading whatever happens to be on
 // disk) is what makes `snippetCheck` a docs-as-tests gate instead of a docs-as-whatever-was-left-
 // in-build check.
+// Docs-vs-published-gate design note, part (a): the git-ignored cache PublishedVersionSupport
+// reads/writes, shared by snippetCheck (read-only) and snippetSync (the only writer).
+val publishedVersionCacheFile =
+    layout.buildDirectory.file("narrativetrace-publish-cache/published-version.txt")
+
 tasks.register("snippetCheck") {
     description = "Verifies embedded doc code/output blocks match their source files (docs as tests, rule 8)"
     group = "verification"
     dependsOn(":sixty-seconds:test")
+    val repoVersion = providers.gradleProperty("narrativetraceVersion")
+    val cacheFileProvider = publishedVersionCacheFile
     doLast {
-        val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir)
+        val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir).toMutableList()
+        // The published-version half is read-only here — never a fetch — so this task never
+        // fails merely because the current run is offline (thin-CI convention, docs-vs-
+        // published-gate design note 1.1 item 2): the repo-version half of the committed banner
+        // is always checked against gradle.properties; the published-version half only when a
+        // fresh (<1h) cache is already on disk. With no fresh cache, any of the three well-formed
+        // banner shapes is accepted.
+        val cache = ai.narrativetrace.build.PublishedVersionSupport.readCache(cacheFileProvider.get().asFile)
+        val llmsTxt = rootDir.resolve("documentation/llms.txt")
+        val actual = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
+        problems += ai.narrativetrace.build.PublishedVersionSupport.bannerProblems(actual, repoVersion.get(), cache)
         if (problems.isNotEmpty()) {
             throw GradleException(
                 "Snippet check failed — an embedded doc block drifted from its source; " +
@@ -209,12 +226,25 @@ tasks.register("snippetSync") {
     description = "Rewrites embedded doc code/output blocks to match their source files (English pages only)"
     group = "verification"
     dependsOn(":sixty-seconds:test")
+    val repoVersion = providers.gradleProperty("narrativetraceVersion")
+    val cacheFileProvider = publishedVersionCacheFile
     doLast {
         val changed = ai.narrativetrace.build.SnippetSupport.sync(rootDir)
         if (changed.isEmpty()) {
             println("snippetSync: already in sync")
         } else {
             changed.forEach { println(it) }
+        }
+        // Best-effort network refresh — the only place this build makes that call. A registry
+        // hiccup falls back to whatever was already cached (or null); never thrown, never a
+        // build failure on its own.
+        val cache = ai.narrativetrace.build.PublishedVersionSupport.refreshCache(cacheFileProvider.get().asFile)
+        val line = ai.narrativetrace.build.PublishedVersionSupport.llmsTxtLine(repoVersion.get(), cache)
+        val llmsTxt = rootDir.resolve("documentation/llms.txt")
+        val before = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
+        ai.narrativetrace.build.LlmsTxtBannerSupport.writeLine(llmsTxt, line)
+        if (before != line) {
+            println("snippetSync: documentation/llms.txt banner -> ${ai.narrativetrace.build.PublishedVersionSupport.stripCacheAgeComment(line)}")
         }
     }
 }
@@ -340,7 +370,7 @@ val mutationExemptModules: Map<String, String> = mapOf(
     "narrativetrace-junit4-example" to
         "demo/consumer code for narrativetrace-junit4 — proven by being executed, not by mutants",
     "sixty-seconds" to
-        "the 60-second tutorial embedded into documentation/first-10-minutes.md — proven by " +
+        "the 60-second tutorial embedded into documentation/sixty-seconds.md — proven by " +
             "being executed (its own test, snippetCheck), not by mutants",
     "narrativetrace-benchmarks" to
         "JMH harness — source lives in src/jmh, not src/main; no assertable invariants to mutate",

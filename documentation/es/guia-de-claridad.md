@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 500fd784f720 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob d48b3ebbdbb8 | translated: 2026-09-12 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -14,7 +14,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Con JUnit 5, los informes de claridad se generan automáticamente por defecto — sin necesidad de código, sin necesidad de configuración. `narrativetrace.output=false` lo desactiva junto con el resto de artefactos de traza.
+Con JUnit 5, los informes de claridad se generan automáticamente por defecto — sin necesidad de código, sin necesidad de configuración *(since 0.2.2, unreleased)*. `narrativetrace.output=false` lo desactiva junto con el resto de artefactos de traza.
 
 ## Qué se puntúa
 

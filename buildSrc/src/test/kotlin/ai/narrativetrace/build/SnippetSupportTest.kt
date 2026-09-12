@@ -75,27 +75,41 @@ class SnippetSupportTest {
     fun englishMarkdownFilesFindsAMarkedPageAtTheRepoRoot() {
         writeSource("sixty-seconds/src/main/java/com/example/orders/Main.java", "class Main {}\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->", "class Main {}")
         )
 
         val found = SnippetSupport.englishMarkdownFiles(repo)
 
         assertEquals(1, found.size, found.toString())
-        assertTrue(found.single().path.endsWith("first-10-minutes.md"))
+        assertTrue(found.single().path.endsWith("sixty-seconds.md"))
+    }
+
+    @Test
+    fun englishMarkdownFilesIncludesLlmsTxtDespiteItsExtension() {
+        writeSource("sixty-seconds/src/main/java/com/example/orders/Main.java", "class Main {}\n")
+        writeDoc(
+            "documentation/llms.txt",
+            page("<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->", "class Main {}")
+        )
+
+        val found = SnippetSupport.englishMarkdownFiles(repo)
+
+        assertEquals(1, found.size, found.toString())
+        assertTrue(found.single().path.endsWith("llms.txt"))
     }
 
     @Test
     fun englishMarkdownFilesSkipsTranslatedMirrors() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         val content = page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")
-        writeDoc("documentation/first-10-minutes.md", content)
-        writeDoc("documentation/es/primeros-10-minutos.md", content)
+        writeDoc("documentation/sixty-seconds.md", content)
+        writeDoc("documentation/es/sesenta-segundos.md", content)
 
         val found = SnippetSupport.englishMarkdownFiles(repo)
 
         assertEquals(1, found.size, found.toString())
-        assertTrue(found.single().path.contains("first-10-minutes.md") && !found.single().path.contains("/es/"))
+        assertTrue(found.single().path.contains("sixty-seconds.md") && !found.single().path.contains("/es/"))
     }
 
     // ---------------------------------------------------------------------------------------
@@ -106,7 +120,7 @@ class SnippetSupportTest {
     fun checkAcceptsAPageThatMatchesItsSourceExactly() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")
         )
 
@@ -117,21 +131,21 @@ class SnippetSupportTest {
     fun checkReportsADriftedBlockNamingBothPaths() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main { /* changed */ }\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")
         )
 
         val problems = SnippetSupport.check(repo)
 
         assertEquals(1, problems.size, problems.toString())
-        assertTrue(problems.single().contains("documentation/first-10-minutes.md"), problems.single())
+        assertTrue(problems.single().contains("documentation/sixty-seconds.md"), problems.single())
         assertTrue(problems.single().contains("sixty-seconds/src/main/java/Main.java"), problems.single())
     }
 
     @Test
     fun checkReportsAMissingSourceInsteadOfThrowing() {
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Gone.java -->", "class Gone {}")
         )
 
@@ -164,7 +178,7 @@ class SnippetSupportTest {
             """.trimIndent() + "\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/src/main/java/Main.java -->",
                 "// src/main/java/Main.java\npackage com.example.orders;\n\nclass Main {}"
@@ -183,7 +197,7 @@ class SnippetSupportTest {
                 "echo hello\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/deploy.sh -->", "echo hello", lang = "bash")
         )
 
@@ -205,7 +219,7 @@ class SnippetSupportTest {
                 "class Main {}\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/src/main/java/Main.java -->",
                 "// src/main/java/Main.java\npackage com.example.orders;\n\nclass Main {}"
@@ -232,7 +246,7 @@ class SnippetSupportTest {
             """.trimIndent() + "\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/src/main/resources/logback.xml -->",
                 "<!-- src/main/resources/logback.xml -->\n<configuration/>",
@@ -251,7 +265,7 @@ class SnippetSupportTest {
             "<!-- src/main/resources/logback.xml -->\n<configuration/>\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/resources/logback.xml -->", "<configuration/>", lang = "xml")
         )
 
@@ -266,7 +280,7 @@ class SnippetSupportTest {
         )
         // The page is missing the tutorial's own path-comment line — a real drift, not a header.
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/src/main/java/Main.java -->",
                 "package com.example.orders;\n\nclass Main {}"
@@ -280,7 +294,7 @@ class SnippetSupportTest {
     fun checkComparesUnchangedWhenTheSourceHasNoHeaderAtAll() {
         writeSource("sixty-seconds/src/main/java/Main.java", "package com.example.orders;\n\nclass Main {}\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "package com.example.orders;\n\nclass Main {}")
         )
 
@@ -305,9 +319,9 @@ class SnippetSupportTest {
             class Main { /* changed */ }
             """.trimIndent() + "\n"
         )
-        val doc = repo.resolve("documentation/first-10-minutes.md")
+        val doc = repo.resolve("documentation/sixty-seconds.md")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/src/main/java/Main.java -->",
                 "// src/main/java/Main.java\npackage com.example.orders;\n\nclass Main {}"
@@ -326,7 +340,7 @@ class SnippetSupportTest {
     fun checkMasksDurationOnBothSidesBeforeComparing() {
         writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "placeOrder(...) — 17ms\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=duration -->",
                 "placeOrder(...) — 3ms",
@@ -341,7 +355,7 @@ class SnippetSupportTest {
     fun checkStillFailsUnderMaskingWhenSomethingOtherThanDurationChanged() {
         writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "placeOrder(other) — 17ms\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=duration -->",
                 "placeOrder(...) — 3ms",
@@ -356,7 +370,7 @@ class SnippetSupportTest {
     fun checkReportsAnUnknownMask() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java mask=timestamp -->", "class Main {}")
         )
 
@@ -379,7 +393,7 @@ class SnippetSupportTest {
             """.trimIndent() + "\n"
         )
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java region=body -->", "class Main {}")
         )
 
@@ -393,9 +407,9 @@ class SnippetSupportTest {
     @Test
     fun syncRewritesADriftedBlockToMatchTheSource() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main { /* changed */ }\n")
-        val doc = repo.resolve("documentation/first-10-minutes.md")
+        val doc = repo.resolve("documentation/sixty-seconds.md")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")
         )
 
@@ -410,8 +424,8 @@ class SnippetSupportTest {
     fun syncLeavesAnAlreadyInSyncPageUntouched() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         val content = page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")
-        val doc = repo.resolve("documentation/first-10-minutes.md")
-        writeDoc("documentation/first-10-minutes.md", content)
+        val doc = repo.resolve("documentation/sixty-seconds.md")
+        writeDoc("documentation/sixty-seconds.md", content)
         val before = doc.lastModified()
 
         val changed = SnippetSupport.sync(repo)
@@ -423,9 +437,9 @@ class SnippetSupportTest {
     @Test
     fun syncCopiesTheRealDurationEvenUnderAMaskedMarker() {
         writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "placeOrder(...) — 17ms\n")
-        val doc = repo.resolve("documentation/first-10-minutes.md")
+        val doc = repo.resolve("documentation/sixty-seconds.md")
         writeDoc(
-            "documentation/first-10-minutes.md",
+            "documentation/sixty-seconds.md",
             page(
                 "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=duration -->",
                 "placeOrder(...) — 3ms",
@@ -444,11 +458,11 @@ class SnippetSupportTest {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main { /* changed */ }\n")
         val marker = "<!-- snippet: sixty-seconds/src/main/java/Main.java -->"
         val stale = page(marker, "class Main {}")
-        writeDoc("documentation/first-10-minutes.md", stale)
-        writeDoc("documentation/es/primeros-10-minutos.md", stale)
+        writeDoc("documentation/sixty-seconds.md", stale)
+        writeDoc("documentation/es/sesenta-segundos.md", stale)
 
         SnippetSupport.sync(repo)
 
-        assertTrue(repo.resolve("documentation/es/primeros-10-minutos.md").readText().contains("class Main {}"))
+        assertTrue(repo.resolve("documentation/es/sesenta-segundos.md").readText().contains("class Main {}"))
     }
 }

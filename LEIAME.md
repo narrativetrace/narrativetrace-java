@@ -1,11 +1,11 @@
-<!-- source: README.md blob 4225a897a862 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: README.md blob e391298242ad | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
 
 ## Comece aqui
 
-[Veja um trace em 60 segundos](documentation/first-10-minutes.md) — um aplicativo de console, uma execução, e o trace aparece no seu terminal.
+[Veja um trace em 60 segundos](documentation/sixty-seconds.md) — um aplicativo de console, uma execução, e o trace aparece no seu terminal.
 
 ## Demo
 
@@ -257,7 +257,7 @@ instalação](documentation/pt-BR/guia-de-instalacao.md).
 
 Quer ver isso fora de um teste — um `main` simples, uma chamada, um trace no
 seu terminal? → [Veja um trace em 60
-segundos](documentation/pt-BR/primeiros-10-minutos.md) percorre exatamente
+segundos](documentation/pt-BR/sessenta-segundos.md) percorre exatamente
 esse caminho do início ao fim, executado de verdade contra os artefatos
 publicados, com a saída real colada tal como saiu.
 
@@ -340,7 +340,7 @@ integração](documentation/pt-BR/escolhendo-uma-integracao.md).
 
 | Módulo | Você precisa dele quando... |
 |--------|------------------------------|
-| `narrativetrace-api` | O contrato somente de compilação: anotações, modelo de eventos e SPIs. Normalmente você o obtém de forma transitiva com `core` — dependa dele sozinho se você é autor de uma biblioteca que publica contra o contrato. |
+| `narrativetrace-api` | O contrato somente de compilação: anotações, modelo de eventos e SPIs. Chega de forma transitiva com `core`; dependa dele diretamente somente quando você publicar uma biblioteca que implemente uma SPI sem precisar do runtime. |
 | `narrativetrace-core` | Sempre necessário. Contexto de execução, pipeline, renderizadores, configuração e exportação. Zero dependências em tempo de execução. |
 | `narrativetrace-proxy` | Usa tracing com proxy JDK (o mais comum). |
 | `narrativetrace-junit5` | Auto-tracing em testes JUnit 5. |
@@ -517,7 +517,7 @@ de fontes rico em Javadoc
 
 Comece por aqui:
 
-- [Veja um trace em 60 segundos](documentation/pt-BR/primeiros-10-minutos.md) — o caminho mais curto até um trace real: um arquivo, uma execução, saída real colada tal como saiu
+- [Veja um trace em 60 segundos](documentation/pt-BR/sessenta-segundos.md) — o caminho mais curto até um trace real: um arquivo, uma execução, saída real colada tal como saiu
 - [Guia de instalação](documentation/pt-BR/guia-de-instalacao.md) — dependências, todos os caminhos de integração, como a captura funciona, configuração da saída de traces
 - [Escolhendo uma integração](documentation/pt-BR/escolhendo-uma-integracao.md) — qual módulo você precisa, como um diagrama de decisão
 - [Guia de configuração](documentation/pt-BR/guia-de-configuracao.md) — níveis de tracing, configuração de JUnit/Gradle/Spring/Micronaut/SLF4J

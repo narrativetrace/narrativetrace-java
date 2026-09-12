@@ -1,6 +1,74 @@
 # NarrativeTrace
 
+<!-- docs-vs-published -->
+*(Docs and published both at 0.2.1.)* <!-- published-version cache age: 0m -->
+<!-- /docs-vs-published -->
+
 > Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
+
+## Install and first trace (copy this)
+
+Java 17+, Gradle 8.0+ (see "Before you start" for a fresh directory with no `./gradlew` yet):
+
+```kotlin
+// build.gradle.kts
+plugins { java; application }
+repositories { mavenCentral() }
+dependencies {
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
+}
+tasks.withType<JavaCompile> { options.compilerArgs.add("-parameters") }
+application { mainClass.set("com.example.orders.Main") }
+```
+
+Optional, zero-code step 2 — traces also flow to your logger, `Main.java` below never changes:
+add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.1")` and
+`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")`, plus a `logback.xml`.
+
+(`OrderService`/`DefaultOrderService` — a one-method interface and its trivial implementation —
+omitted for length; full listing in [sixty-seconds.md](sixty-seconds.md#2-the-program).)
+
+<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->
+```java
+// src/main/java/com/example/orders/Main.java
+package com.example.orders;
+
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.core.render.IndentedTextRenderer;
+import ai.narrativetrace.proxy.NarrativeTraceProxy;
+
+public class Main {
+  public static void main(String[] args) {
+    var context = new ThreadLocalNarrativeContext();
+    OrderService service =
+        NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
+
+    service.placeOrder("C-1234", "SKU-KB", 2);
+
+    System.out.println(new IndentedTextRenderer().render(context.captureTrace()));
+    context.reset();
+  }
+}
+```
+<!-- /snippet -->
+
+```bash
+./gradlew run
+```
+
+<!-- snippet: sixty-seconds/build/narrativetrace/sixty-seconds/see-a-trace.txt mask=duration -->
+```text
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 18ms
+```
+<!-- /snippet -->
+
+## Before you start
+
+- JUnit 5 fails with an unhelpful error without `org.junit.platform:junit-platform-launcher` on `testRuntimeOnly` — the `ai.narrativetrace` Gradle plugin adds it for you *(since 0.2.2, unreleased)*; manual setup still needs the line yourself.
+- Annotations (`@Narrated`, `@NotTraced`, `@OnError`, `@NarrativeSummary`) live in `ai.narrativetrace.api.annotation`.
+- An empty directory has no `./gradlew` — run `gradle wrapper` once before `./gradlew run`.
+- Test trace output is on by default *(since 0.2.2, unreleased)*; `narrativetrace.output=false` opts out.
 
 NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
 
@@ -10,7 +78,8 @@ We asked AI agents to build a Java claims service with NarrativeTrace and write 
 - "The always-on name-based deny-list is a genuinely nice piece of design: naming a parameter `paymentToken` gets you redaction for free, and I could prove it in a test." — Claude Sonnet, 2026-09-11
 - "The trace of a failed payment made missing compensation immediately visible, and approval testing caught an extra call that ordinary value assertions accepted." — GPT-6, 2026-09-08
 - "Wrapping a service interface with `NarrativeTraceProxy.trace()` automatically captures all calls, parameters, return values, and durations without any code changes to the service itself." — Claude Haiku, 2026-09-11
-What they stumbled on, so you need not: the JUnit Platform launcher must be on the test runtime classpath (`testRuntimeOnly("org.junit.platform:junit-platform-launcher")`) or the extension fails with an unhelpful error; the annotations live in `ai.narrativetrace.api.annotation`; test trace output used to be off by default — since 2026-09-11 it is on (`narrativetrace.output=false` opts out); an empty directory has no Gradle wrapper — run `gradle wrapper` once before `./gradlew run`.
+
+What they stumbled on is covered in "Before you start" above.
 
 ## Docs
 
@@ -24,13 +93,13 @@ All published modules include source JARs with Javadoc written for LLM consumpti
 To access detailed API context, resolve the sources classifier from Maven Central:
 
 Gradle (sources auto-downloaded by IDEs):
-  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.0") }
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.1") }
 
 Maven:
   mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
 
 Direct download (any module):
-  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.0/narrativetrace-core-0.2.0-sources.jar
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.1/narrativetrace-core-0.2.1-sources.jar
 
 Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
 narrativetrace-junit4, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,

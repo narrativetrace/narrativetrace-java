@@ -689,10 +689,45 @@ public final class ValueRenderer {
 
   /** The declared instance fields both object paths print, in declaration order. */
   private static Field[] introspectableFields(Class<?> clazz) {
-    return Arrays.stream(clazz.getDeclaredFields())
-        .filter(f -> !Modifier.isStatic(f.getModifiers()) && !f.isSynthetic())
-        .toArray(Field[]::new);
+    return INTROSPECTABLE_FIELDS.get(clazz);
   }
+
+  /**
+   * Per-class cache of {@link #introspectableFields}'s own computation: {@code getDeclaredFields()}
+   * hands back a freshly copied array on every call, and the filtering stream built on top of it
+   * built its own pipeline every time, both for a fact that never changes for a given class. Both
+   * object paths ({@link #renderObject}, {@link #renderStructuredObject}) share one cached array
+   * per class instead of repeating the copy and the stream on every render.
+   *
+   * <p><b>@llmNote</b> Deliberately narrow: only the member list is cached here. {@code
+   * setAccessible} and the per-field {@code @NotTraced} read stay exactly where they were, inside
+   * {@link #fieldValue}/{@link #structuredFieldValue}'s existing per-render, per-field try/catch.
+   * Both are documented single-field failure points (see their {@code @edgeCase} notes) — a class
+   * whose one field cannot be made accessible, or whose one field's annotation is malformed, still
+   * renders every other field and marks only that slot {@code <error: Type>}. Folding either into
+   * this cache would mean a first-render failure is captured by {@code computeValue} before any
+   * field's turn to render, discarding every field's value for the whole class rather than the one
+   * field that actually failed — a behaviour change this cache exists to avoid. The array itself
+   * carries no such risk: {@code getDeclaredFields()} was never guarded here either, so a class
+   * this cannot introspect throws exactly as it always did — {@link ClassValue} does not cache an
+   * exception, so the next render recomputes and throws again, reaching the same top-level {@code
+   * catch (Throwable)} it always reached.
+   *
+   * <p><b>@edgeCase</b> The {@link Field} instances themselves are now shared across threads and
+   * renders rather than freshly copied per call. {@code Field.setAccessible} is idempotent and
+   * {@code Field.get} is safe for concurrent reads of different target objects through the same
+   * {@link Field}, which is the same sharing reflective-caching libraries rely on; nothing here
+   * mutates the array or a field's declared metadata.
+   */
+  private static final ClassValue<Field[]> INTROSPECTABLE_FIELDS =
+      new ClassValue<>() {
+        @Override
+        protected Field[] computeValue(Class<?> clazz) {
+          return Arrays.stream(clazz.getDeclaredFields())
+              .filter(f -> !Modifier.isStatic(f.getModifiers()) && !f.isSynthetic())
+              .toArray(Field[]::new);
+        }
+      };
 
   private String render(Object value, RenderWalk walk) {
     var scalar = renderScalar(value);

@@ -16,7 +16,7 @@
 #      day and a half of polling for what is, in practice, one release event).
 #   2. A consumer smoke test — a throwaway project applying `id("ai.narrativetrace") version
 #      <version>` from the real Gradle Plugin Portal, with the exact one-service-one-test
-#      recipe `documentation/first-10-minutes.md` documents and this repository's own
+#      recipe `documentation/sixty-seconds.md` documents and this repository's own
 #      functional tests exercise. Built with an isolated Gradle user home and no mavenLocal:
 #      resolution must come from the real remote repositories, or the test is theater.
 #
@@ -267,7 +267,7 @@ poll_artifacts() {  # version
 }
 
 # ---------------------------------------------------------------------------------------
-# Consumer smoke test — the exact recipe documentation/first-10-minutes.md documents and
+# Consumer smoke test — the exact recipe documentation/sixty-seconds.md documents and
 # proves works: one service interface, one implementation, one JUnit 5 test wrapping it with
 # NarrativeTraceProxy. Real mode resolves the plugin from the Gradle Plugin Portal and the
 # libraries from Maven Central; --local-rehearsal resolves both from mavenLocal() instead.

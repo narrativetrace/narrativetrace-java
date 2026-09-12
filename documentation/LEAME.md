@@ -13,7 +13,7 @@ publicada completa — incluidas páginas sin fichero aquí — está en
 
 | Documento | Qué cubre |
 |---|---|
-| [Ve una traza en 60 segundos](es/primeros-10-minutos.md) | Un `main` sencillo, una llamada, una traza en tu terminal — sin sentencias de log, sin framework de pruebas, ejecutado de verdad contra los artefactos publicados |
+| [Ve una traza en 60 segundos](es/sesenta-segundos.md) | Un `main` sencillo, una llamada, una traza en tu terminal — sin sentencias de log, sin framework de pruebas, ejecutado de verdad contra los artefactos publicados |
 | [Experiencia de desarrollo](es/experiencia-de-desarrollo.md) | De un proyecto vacío a tu primera narrativa: configuración en una línea, artefactos por prueba, el lanzador de la demo, builds compuestos locales, la ocultación como parte del flujo de trabajo |
 | [Guía de instalación](es/guia-de-instalacion.md) | Dependencias, las cinco vías de integración (proxy JDK, Spring, Micronaut, JUnit 5/4, agente Java), configuración de la salida de trazas, matriz de compatibilidad |
 | [Eligiendo una integración](es/eligiendo-una-integracion.md) | Qué módulo necesitas en realidad: un diagrama de decisión más las salvedades de cada una de las cinco vías de conexión |

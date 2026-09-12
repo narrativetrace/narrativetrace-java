@@ -1,6 +1,6 @@
 # See a trace in 60 seconds
 
-[English](first-10-minutes.md) | [Español](es/primeros-10-minutos.md) | [Português](pt-BR/primeiros-10-minutos.md) | [简体中文](zh-CN/前10分钟.md)
+[English](sixty-seconds.md) | [Español](es/sesenta-segundos.md) | [Português](pt-BR/sessenta-segundos.md) | [简体中文](zh-CN/60秒.md)
 
 No log statements, no test framework, no file to open afterward: a plain
 Java `main`, one call, and the trace appears in your terminal. Everything
@@ -111,7 +111,7 @@ gradle wrapper
 
 <!-- snippet: sixty-seconds/build/narrativetrace/sixty-seconds/see-a-trace.txt mask=duration -->
 ```text
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 18ms
 ```
 <!-- /snippet -->
 

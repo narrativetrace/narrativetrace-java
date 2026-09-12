@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob c331818784be | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 43f2124e9828 | translated: 2026-09-12 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -25,9 +25,32 @@ tasks.withType<JavaCompile> {
 O plugin do Gradle adiciona isso automaticamente — isso só importa para
 uma configuração manual.
 
+## `Cannot create Launcher without at least one TestEngine`, ou `Could not start Gradle Test Executor 1: Failed to load JUnit Platform`
+
+**Causa:** `useJUnitPlatform()` precisa, no classpath de execução dos
+testes, tanto de um engine do JUnit 5 quanto de
+`org.junit.platform:junit-platform-launcher`. O Gradle 8 fornece ele mesmo
+uma versão do launcher quando só o engine é declarado — um comportamento
+obsoleto sobre o qual ele avisa em toda execução — e o Gradle 9 remove essa
+gestão automática por completo, então o *processo* de teste falha antes de
+qualquer engine, extensão ou classe de teste rodar. Reproduzido contra uma
+build real do Gradle 9.0.0: a segunda mensagem acima é o texto exato dela.
+
+**Correção:**
+
+```kotlin
+dependencies {
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+}
+```
+
+O plugin do Gradle adiciona os dois automaticamente *(since 0.2.2, unreleased)* — isso só importa para
+uma configuração manual.
+
 ## Nenhum arquivo de saída de trace
 
-**Causa:** a saída é gravada por padrão em `build/narrativetrace`, então um
+**Causa:** a saída é gravada por padrão *(since 0.2.2, unreleased)* em `build/narrativetrace`, então um
 arquivo ausente geralmente significa uma destas: `narrativetrace.output=false`
 está definido em algum lugar (`junit-platform.properties`, uma propriedade de
 sistema, ou `enabled.set(false)` no plugin do Gradle); o trace estava vazio

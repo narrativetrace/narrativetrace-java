@@ -1,7 +1,7 @@
-<!-- source: documentation/first-10-minutes.md blob eceafda0660b | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 8583f9a642a7 | translated: 2026-09-12 | reviewed: - -->
 # Veja um trace em 60 segundos
 
-[English](../first-10-minutes.md) | Español | **Português** | [简体中文](../zh-CN/前10分钟.md)
+[English](../sixty-seconds.md) | Español | **Português** | [简体中文](../zh-CN/60秒.md)
 
 Sem instruções de log, sem framework de teste, sem arquivo para abrir
 depois: um `main` de Java simples, uma chamada, e o trace aparece no seu

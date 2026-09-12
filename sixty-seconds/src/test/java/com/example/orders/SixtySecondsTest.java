@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Proves documentation/first-10-minutes.md's "See a trace in 60 seconds" tutorial: the exact call
+ * Proves documentation/sixty-seconds.md's "See a trace in 60 seconds" tutorial: the exact call
  * {@code Main} makes, run through the real {@link NarrativeTraceProxy}, produces the narrative the
  * page shows (rule 8, docs as tests).
  *

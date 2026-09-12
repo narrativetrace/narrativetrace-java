@@ -4,7 +4,7 @@
 
 ## Start here
 
-[See a trace in 60 seconds](documentation/first-10-minutes.md) — a console app, one run, and the trace is in your terminal.
+[See a trace in 60 seconds](documentation/sixty-seconds.md) — a console app, one run, and the trace is in your terminal.
 
 ## Demo
 
@@ -245,7 +245,7 @@ dependencies — see the [Installation Guide](documentation/installation-guide.m
 
 Want to see this outside a test — a plain `main`, one call, a trace printed
 to your terminal? → [See a trace in 60
-seconds](documentation/first-10-minutes.md) is that path end to end, run for
+seconds](documentation/sixty-seconds.md) is that path end to end, run for
 real against the published artifacts, with the real output pasted in.
 
 ### Which artifact answers which question
@@ -321,7 +321,7 @@ for picking one is in
 
 | Module | You need it when... |
 |--------|---------------------|
-| `narrativetrace-api` | The compile-only contract: annotations, event model and SPIs. You usually get it transitively with `core` — depend on it alone when you are a library author publishing against the contract. |
+| `narrativetrace-api` | The compile-only contract: annotations, event model and SPIs. Arrives transitively with `core`; depend on it directly only when you ship a library that implements an SPI without needing the runtime. |
 | `narrativetrace-core` | Always required. Runtime context, pipeline, renderers, config and export. Zero runtime dependencies. |
 | `narrativetrace-proxy` | Using JDK proxy tracing (most common). |
 | `narrativetrace-junit5` | Auto-tracing in JUnit 5 tests. |
@@ -481,7 +481,7 @@ single-file reference, and every published module ships a Javadoc-rich source ja
 
 Start here:
 
-- [See a trace in 60 seconds](documentation/first-10-minutes.md) — the smallest path to a real trace: one file, one run, real output pasted in
+- [See a trace in 60 seconds](documentation/sixty-seconds.md) — the smallest path to a real trace: one file, one run, real output pasted in
 - [Installation Guide](documentation/installation-guide.md) — dependencies, every integration path, how capture works, trace output setup
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which module you need, as a decision diagram
 - [Configuration Guide](documentation/configuration-guide.md) — tracing levels, JUnit/Gradle/Spring/Micronaut/SLF4J config

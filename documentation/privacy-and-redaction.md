@@ -9,7 +9,7 @@ claim at all.
 **Test-time trace output writes by default** — the JUnit 5 extension and the
 JUnit 4 integration write each test's `.md`/`.json`/`.mmd` artifacts to the
 ephemeral `build/narrativetrace` (gitignored, regenerated every run) with no
-configuration needed; `narrativetrace.output=false` opts out. That default
+configuration needed; `narrativetrace.output=false` opts out *(since 0.2.2, unreleased)*. That default
 does not change what gets redacted or how — every artifact still goes
 through the same `ValueRenderer` and the same deny-list described below,
 whether writing was on by default or turned on explicitly. See the
@@ -151,7 +151,11 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
 - **The structural `.nt` artifact has no runtime values at all.** Names,
   call hierarchy and outcome kinds only — zero prompt-injection surface,
   and that is a property test (ADR-002), not a policy someone could forget
-  to apply.
+  to apply. Its `scenario:` header is covered by that: one invocation of a
+  `@ParameterizedTest` is titled `<method> #<index>`, never the display
+  name a `name = "…"` template interpolated its arguments into *(since 0.2.2, unreleased)*. What the
+  artifact is *called* is a different question — see the non-guarantee
+  below.
 - **The buffered analysis path may shed events, but it always reports
   loss.** It never blocks the caller and never grows past its bound; a
   capture that lost events prints the count in its own footer rather than
@@ -172,6 +176,16 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
 - **No agent exclude list yet.** `AgentConfig` parses exactly `packages`,
   `loggerName`, `level` and `loggingJars` — inclusion only, nothing to
   carve an exception out of an included package.
+- **No redaction of test *names*.** A test's display name is
+  developer-authored text, and a `@ParameterizedTest(name = "find {0}")`
+  template interpolates its arguments into it. That name reaches the
+  artifact *filename* (`equipment_can_be_found-002-find_tent.md` — the
+  slugged label is what tells two invocations apart on disk), the run's
+  `manifest.json`, and the heading of the value-carrying artifacts. No
+  deny-list is consulted for any of them: a name is an identifier here,
+  not a captured value. Keep secrets out of display-name templates —
+  the value-free `.nt` header is the one place this is handled for you,
+  by not using the display name at all.
 - **No Android or GraalVM native-image support today.** Full detail,
   including *why* Android is a "no" rather than a "not yet," in
   [Installation Guide § Compatibility](installation-guide.md#compatibility).

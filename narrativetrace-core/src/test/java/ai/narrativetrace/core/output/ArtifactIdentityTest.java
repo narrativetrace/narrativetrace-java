@@ -128,6 +128,60 @@ class ArtifactIdentityTest {
         .isLessThanOrEqualTo(255 - 16);
   }
 
+  /**
+   * The value-free artifact's header is value-free too. A {@code @ParameterizedTest} name template
+   * interpolates arguments into the display name, so the structural header names the method and the
+   * invocation instead — never what the invocation ran with.
+   */
+  @Test
+  void anInvocationsStructuralTitleNamesTheMethodAndIndexNeverItsArguments() {
+    var identity =
+        ArtifactIdentity.ofInvocation(
+            "com.example.CatalogTest", "equipmentCanBeFound", 2, "find TENT");
+
+    assertThat(identity.structuralScenario("find TENT")).isEqualTo("Equipment can be found #2");
+  }
+
+  /** Nothing that exists today moves: a method that runs once keeps the header it always had. */
+  @Test
+  void anOrdinaryMethodsStructuralTitleIsStillItsDisplayName() {
+    var identity = ArtifactIdentity.ofMethod("T", "customerPlacesOrder");
+
+    assertThat(identity.structuralScenario("Customer places an order"))
+        .isEqualTo("Customer places an order");
+    assertThat(identity.structuralScenario("customerPlacesOrder()"))
+        .isEqualTo("Customer places order");
+  }
+
+  /**
+   * JUnit 4's {@code Parameterized} runner spells one invocation {@code equipmentCanBeFound[KAYAK]}
+   * and hands that to the integration as both the method name and the display name. A Java method
+   * name cannot contain a bracket, so the label is the runner's and stays out of the header — while
+   * the artifact name keeps it, because that is what tells the two invocations apart on disk.
+   */
+  @Test
+  void aRunnerLabelAppendedToTheMethodNameNeverReachesTheStructuralTitle() {
+    var identity = ArtifactIdentity.ofMethod("T", "equipmentCanBeFound[KAYAK]");
+
+    assertThat(identity.structuralScenario("equipmentCanBeFound[KAYAK]"))
+        .isEqualTo("Equipment can be found");
+    assertThat(identity.fileSlug()).isEqualTo("equipment_can_be_found_kayak_");
+  }
+
+  /** A display name the developer wrote is prose, not a runner label, however it is spelled. */
+  @Test
+  void aDisplayNameOfItsOwnIsNeverMistakenForARunnerLabel() {
+    var identity = ArtifactIdentity.ofMethod("T", "findsIt");
+
+    assertThat(identity.structuralScenario("finds it [fast]")).isEqualTo("finds it [fast]");
+  }
+
+  @Test
+  void anAbsentDisplayNameLeavesTheMethodToNameTheScenario() {
+    assertThat(ArtifactIdentity.ofMethod("T", "findsIt").structuralScenario(null))
+        .isEqualTo("Finds it");
+  }
+
   @Test
   void everyPerTestArtifactOfOneInvocationSharesItsName() {
     var identity = ArtifactIdentity.ofInvocation("com.example.CatalogTest", "finds", 2, "TENT");

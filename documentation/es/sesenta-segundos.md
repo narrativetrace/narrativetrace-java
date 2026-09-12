@@ -1,7 +1,7 @@
-<!-- source: documentation/first-10-minutes.md blob eceafda0660b | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 8583f9a642a7 | translated: 2026-09-12 | reviewed: - -->
 # Ve una traza en 60 segundos
 
-[English](../first-10-minutes.md) | **Español** | [Português](../pt-BR/primeiros-10-minutos.md) | [简体中文](../zh-CN/前10分钟.md)
+[English](../sixty-seconds.md) | **Español** | [Português](../pt-BR/sessenta-segundos.md) | [简体中文](../zh-CN/60秒.md)
 
 Sin sentencias de log, sin framework de pruebas, sin archivo que abrir
 después: un `main` de Java sencillo, una llamada, y la traza aparece en tu

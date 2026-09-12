@@ -5,7 +5,7 @@
  * Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
  * years from publication; Change License: Apache-2.0
  */
-// "sixty-seconds" IS documentation/first-10-minutes.md, "See a trace in 60 seconds": every
+// "sixty-seconds" IS documentation/sixty-seconds.md, "See a trace in 60 seconds": every
 // src/main/java file below is embedded verbatim into the page (snippetCheck/snippetSync, root
 // build.gradle.kts, next to translationCheck) and its one test proves the call the page shows
 // actually produces the narrative the page claims — rule 8 (docs as tests).
@@ -59,7 +59,7 @@ tasks.register<JavaExec>("runWithLogger") {
     group = "application"
     description =
         "Runs Main via the SLF4J/Logback-wired classpath " +
-            "(first-10-minutes.md \"Send it to your logger\")"
+            "(sixty-seconds.md \"Send it to your logger\")"
     mainClass.set("com.example.orders.Main")
     classpath = sourceSets["main"].output + loggerRuntime
 }

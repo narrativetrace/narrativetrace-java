@@ -102,4 +102,49 @@ public record ArtifactIdentity(
   public String fileSlug() {
     return OutputDirectoryResolver.toFileSlug(methodName, invocationIndex, invocationLabel);
   }
+
+  /**
+   * The scenario title the value-free artifacts carry — a title no runtime value can reach.
+   *
+   * <p>INTENT: The structural {@code .nt} artifact promises names, call hierarchy and outcome kinds
+   * and nothing else, and its header used to be the display name. A {@code @ParameterizedTest(name
+   * = ...)} template interpolates <em>arguments</em> into that display name, so one invocation's
+   * value-free artifact opened with {@code scenario: find TENT} — a runtime value, in the one
+   * artifact whose whole point is carrying none (2026-09-08 agent evaluation). An invocation is
+   * therefore titled by what the developer wrote (the method) and by which run it was (the index),
+   * never by what it ran with.
+   *
+   * <p><b>@llmNote</b> Cross-port contract, and the rule is exactly two lines:
+   *
+   * <ul>
+   *   <li>An invocation is {@code <humanized method> #<index>} — {@code Equipment can be found #2}.
+   *   <li>A method that runs once keeps its display name, so every committed baseline stays
+   *       byte-identical. When the caller has no display name of its own — it passed the method
+   *       name, as the JUnit 4 rule does — a label the runner appended to that method name ({@code
+   *       equipmentCanBeFound[KAYAK]}) is dropped, since a Java method name can never contain a
+   *       bracket and the text after one is the runner's, not the developer's.
+   * </ul>
+   *
+   * <p>The <em>file</em> name is a separate question and deliberately keeps the label: it is what
+   * tells two invocations apart on disk. See the record's own naming rule above.
+   *
+   * @param displayName the runner's display name for this test; {@code null} means there is none
+   */
+  public String structuralScenario(String displayName) {
+    if (isInvocation()) {
+      return ScenarioFramer.humanize(bareMethodName()) + " #" + invocationIndex;
+    }
+    return ScenarioFramer.humanize(
+        displayName == null || displayName.equals(methodName) ? bareMethodName() : displayName);
+  }
+
+  /**
+   * The method's own name, without a label a test runner appended to it: JUnit 4's {@code
+   * Parameterized} spells one invocation {@code equipmentCanBeFound[KAYAK]}, and a Java method name
+   * can never contain a bracket, so everything from the first one belongs to the runner.
+   */
+  private String bareMethodName() {
+    var bracket = methodName.indexOf('[');
+    return bracket < 0 ? methodName : methodName.substring(0, bracket);
+  }
 }
