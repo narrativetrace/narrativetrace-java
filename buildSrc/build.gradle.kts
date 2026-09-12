@@ -18,6 +18,13 @@ dependencies {
     implementation("info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.19.0")
     implementation("com.diffplug.spotless:spotless-plugin-gradle:7.0.2")
     implementation("jdepend:jdepend:2.9.1")
+    // CPD (Copy/Paste Detector) ships inside PMD's own distribution — no separate plugin.
+    // `pmd-java` pulls `pmd-core` transitively, giving buildSrc the `net.sourceforge.pmd.cpd`
+    // API (CpdAnalysis/CPDConfiguration) directly, the same way jdepend above is used as a
+    // plain library rather than through a Gradle plugin. Pinned to the same version the
+    // `pmd` extension below configures for every subproject (see `toolVersion` there) so the
+    // duplication report and the PMD lint gate always analyse with one PMD release.
+    implementation("net.sourceforge.pmd:pmd-java:7.8.0")
     implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.10")
     implementation("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.1.10-1.0.29")
     // OSV-Scanner needs a manifest of this project's actual resolved dependency

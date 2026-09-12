@@ -308,6 +308,20 @@ val mutationThresholdFloors: Map<String, Int> = mapOf(
 val mutationAgentModules = setOf("narrativetrace-agent")
 
 /**
+ * The JUnit Platform release this build's test suites already resolve to (every
+ * mutationTestedModules/mutationAgentModules module declares `org.junit.jupiter:junit-jupiter:5.11.4`,
+ * which aligns transitively to `org.junit.platform:junit-platform-launcher:1.11.4`). PIT's `pitest`
+ * configuration resolves independently of `testRuntimeClasspath`: `pitest-junit5-plugin` pulls its
+ * own transitive `junit-platform-launcher` (1.9.2, via its own older `junit-bom` import), a version
+ * nothing else in the build ever requests, so it is never in the offline cache the rest of the build
+ * populates — the nightly `--offline` job failed `:narrativetrace-api:pitest` and
+ * `:narrativetrace-agent:pitest` on exactly this resolution for two consecutive nights (2026-09-12).
+ * Importing this same BOM into the `pitest` configuration below raises its launcher constraint to
+ * the version the build already has, so online and `--offline` resolve identically.
+ */
+val pitestJunitBom = "org.junit:junit-bom:5.11.4"
+
+/**
  * Every other subproject, with the one-line reason it is not mutation-tested (yet, or ever).
  * Keyed by leaf module name, except the whole `narrativetrace-examples` tree (the parent plus its
  * six `narrativetrace-examples:*` children), which `mutationAccounting` folds into the single
@@ -514,6 +528,78 @@ tasks.register("pmdReport") {
     doLast {
         val violations = ai.narrativetrace.build.PmdViolationSupport.collectViolationsFromProjects(subprojects)
         ai.narrativetrace.build.PmdViolationSupport.printReport(violations)
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Duplication detection (PMD CPD) — a report every commit, a ratchet against a committed baseline,
+// never a fixed percentage. See documentation/duplication.md for the floor/ratchet/exemption rules
+// this pair of tasks enforces; that doc is the one to update if either changes.
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Token floor (owner ruling 2026-09-12): below this, CPD's matches are noise — a handful of tokens
+ * two unrelated methods share by coincidence — rather than a genuine structural copy. Identifiers
+ * and literals are always ignored (see `DuplicationReportSupport.runCpd`), so what clears this floor
+ * is shape, not text.
+ */
+val duplicationMinTokens = 60
+
+/**
+ * Every subproject's conventional Java source directories, read straight off disk rather than
+ * through each subproject's `SourceSetContainer` — this task is registered before the `subprojects
+ * {}` block below applies `java-library`, so the extension those directories would otherwise come
+ * from does not exist yet at this point in the script. No subproject in this build customises its
+ * source directories (grep for `srcDirs`/`sourceSets {}` finds none), so the convention is exact.
+ */
+fun duplicationSourceDirs(sourceSet: String): List<File> =
+    subprojects.map { it.projectDir.resolve("src/$sourceSet/java") }
+
+tasks.register("duplicationReport") {
+    description = "Runs PMD CPD over every module's main and test sources; writes XML, duplication.json, and a summary line"
+    group = "verification"
+    val reportsDir = layout.buildDirectory.dir("reports/duplication")
+    val mainDirs = duplicationSourceDirs("main")
+    val testDirs = duplicationSourceDirs("test")
+    inputs.files(mainDirs.filter { it.isDirectory })
+    inputs.files(testDirs.filter { it.isDirectory })
+    val jsonFile = reportsDir.map { it.file("duplication.json") }
+    outputs.file(jsonFile)
+    outputs.file(reportsDir.map { it.file("main.xml") })
+    outputs.file(reportsDir.map { it.file("test.xml") })
+    doLast {
+        val dir = reportsDir.get().asFile
+        dir.mkdirs()
+        val main = ai.narrativetrace.build.DuplicationReportSupport.runCpd(
+            mainDirs, duplicationMinTokens, rootDir, dir.resolve("main.xml")
+        )
+        val test = ai.narrativetrace.build.DuplicationReportSupport.runCpd(
+            testDirs, duplicationMinTokens, rootDir, dir.resolve("test.xml")
+        )
+        val scan = ai.narrativetrace.build.DuplicationScanResult(duplicationMinTokens, main, test)
+        ai.narrativetrace.build.DuplicationReportSupport.writeJson(scan, jsonFile.get().asFile)
+        println(ai.narrativetrace.build.DuplicationReportSupport.summaryLine(scan))
+    }
+}
+
+tasks.register("duplicationCheck") {
+    description = "Ratchets main-tree duplication against config/duplication/baseline.properties (test tree is reported only, never gates)"
+    group = "verification"
+    dependsOn(":duplicationReport")
+    doLast {
+        val jsonFile = layout.buildDirectory.file("reports/duplication/duplication.json").get().asFile
+        val scan = ai.narrativetrace.build.DuplicationReportSupport.readJson(jsonFile)
+        val baseline = ai.narrativetrace.build.DuplicationCheckSupport.readBaseline(
+            rootProject.file("config/duplication/baseline.properties")
+        )
+        val exemptions = ai.narrativetrace.build.DuplicationCheckSupport.readExemptions(
+            rootProject.file("config/duplication/exemptions.txt")
+        )
+        val result = ai.narrativetrace.build.DuplicationCheckSupport.decide(scan.main, baseline, exemptions)
+        println(result.message)
+        if (!result.passed) {
+            throw GradleException(result.message)
+        }
     }
 }
 
@@ -999,11 +1085,15 @@ subprojects {
             dependsOn(":baselineFreshnessCheck")
             dependsOn(":mutationAccounting")
             dependsOn(":snippetCheck")
+            dependsOn(":duplicationCheck")
         }
     }
 
     if (name in mutationTestedModules) {
         apply(plugin = "info.solidsoft.pitest")
+        dependencies {
+            "pitest"(platform(pitestJunitBom))
+        }
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
             junit5PluginVersion = "1.2.1"
@@ -1032,6 +1122,9 @@ subprojects {
     // job, both isolated from the `mutationTestedModules`/`pitest`/`mutation` tier the same way.
     if (name in mutationAgentModules) {
         apply(plugin = "info.solidsoft.pitest")
+        dependencies {
+            "pitest"(platform(pitestJunitBom))
+        }
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
             junit5PluginVersion = "1.2.1"

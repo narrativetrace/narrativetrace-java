@@ -40,6 +40,7 @@ above — each language's index lists that language's translated guides.
 | [Clarity Guide](clarity-guide.md) | The five-dimension scoring model, the NLP components behind it, JUnit integration and the `clarityCheck` gate |
 | [Feature Guide](feature-guide.md) | The canonical catalog: every feature, its tier, its implementation, its status |
 | [Structural Trace Format](structural-trace-format.md) | The value-free `.nt` artifact behind delta reporting and approval testing — the cross-platform format spec |
+| [Duplication Detection](duplication.md) | PMD CPD over main/test sources: the 60-token floor, the ratchet against a committed baseline (not a fixed percentage), and how to read or exempt a finding |
 
 ## Design and rationale
 

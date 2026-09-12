@@ -1,0 +1,18 @@
+# Duplication exemptions — default-deny: an unclassified cluster over the 60-token floor is a
+# finding, not exempt. Every entry here is a `globA :: globB` pair (java.nio.file glob syntax,
+# matched against the repo-root-relative path CPD reports), with a `#` reason directly above it —
+# see documentation/duplication.md. A cluster is exempt only when every one of its occurrences
+# matches one of the pair's two globs.
+
+# ValueRenderer renders a value two ways on purpose — a flat one-line form and a structured
+# multi-line form — and keeps them as deliberately parallel code paths rather than one shared
+# abstraction, so CPD's structural match between the two sections is expected, not a copy to
+# remove. (Both sides of the pair name the same file: the twin sections are two ranges inside one
+# file, not two files.)
+narrativetrace-core/src/main/java/ai/narrativetrace/core/render/ValueRenderer.java :: narrativetrace-core/src/main/java/ai/narrativetrace/core/render/ValueRenderer.java
+
+# Data tables, not logic (owner ruling 2026-09-12): the clarity module's word-list dictionaries
+# are rows of structurally identical entries, so with literals ignored every row matches every
+# other row and one 393-token shape recurs hundreds of times. Exempt the dictionaries against each
+# other; a cluster that reaches outside them (e.g. into TraceNamer) stays a finding.
+narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/*Dictionary.java :: narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/*Dictionary.java

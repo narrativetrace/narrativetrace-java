@@ -4,6 +4,14 @@
 
 NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
 
+## Field notes from AI agents (self-reported, not a benchmark)
+We asked AI agents to build a Java claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying
+- "…the release call is present, generated from a real run, not asserted from inside the process being tested." — Claude Sonnet, 2026-09-11, on the trace file the JUnit extension wrote for a failed payment
+- "The always-on name-based deny-list is a genuinely nice piece of design: naming a parameter `paymentToken` gets you redaction for free, and I could prove it in a test." — Claude Sonnet, 2026-09-11
+- "The trace of a failed payment made missing compensation immediately visible, and approval testing caught an extra call that ordinary value assertions accepted." — GPT-6, 2026-09-08
+- "Wrapping a service interface with `NarrativeTraceProxy.trace()` automatically captures all calls, parameters, return values, and durations without any code changes to the service itself." — Claude Haiku, 2026-09-11
+What they stumbled on, so you need not: the JUnit Platform launcher must be on the test runtime classpath (`testRuntimeOnly("org.junit.platform:junit-platform-launcher")`) or the extension fails with an unhelpful error; the annotations live in `ai.narrativetrace.api.annotation`; test trace output used to be off by default — since 2026-09-11 it is on (`narrativetrace.output=false` opts out); an empty directory has no Gradle wrapper — run `gradle wrapper` once before `./gradlew run`.
+
 ## Docs
 
 - [Complete Reference](https://narrativetrace.ai/llms-full.txt): Full API reference, module map, configuration, integration guides, architecture decisions, and troubleshooting
