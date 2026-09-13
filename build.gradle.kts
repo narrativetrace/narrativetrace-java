@@ -96,6 +96,51 @@ tasks.register("licensingCheck") {
  */
 val LICENSED_CONFIGURATIONS = setOf("api", "implementation", "compileOnly", "runtimeOnly")
 
+/**
+ * `git ls-files`, one relative path per line — the private tree's own notion of "committed",
+ * independent of anything `.gitignore`d under `build/` that happens to sit on disk. A non-zero
+ * exit is a hard failure (never a silent empty list): a gate that quietly checks nothing when git
+ * is unavailable is exactly the "graceful skip that never proves it ran" class of gap the family's
+ * 2026-09 release retrospective ruled out.
+ */
+fun gitTrackedFiles(rootDir: File): List<String> {
+    val process = ProcessBuilder("git", "ls-files").directory(rootDir).redirectErrorStream(true).start()
+    val output = process.inputStream.bufferedReader().readText()
+    val exitCode = process.waitFor()
+    if (exitCode != 0) {
+        throw GradleException("git ls-files failed (exit $exitCode): $output")
+    }
+    return output.lines().filter { it.isNotBlank() }
+}
+
+// 2026-09-13 family finding (dotnet): a NuGet package icon carried an embedded C2PA provenance
+// chunk naming the AI vendor, shipped in every published package, invisible to
+// scripts/publish-public.sh's trace/secrets gates because their content scan is `grep -riIE` and
+// `-I` skips binary files outright. That script now also re-scans staged binaries with `grep -a`
+// (see PublishPublicScriptTest.BinaryAssetScan) — a publish-time, gated-word-only catch. This task
+// is the stronger, structural, per-commit rule: no committed image ANYWHERE in the repo may carry
+// a text metadata chunk (iTXt/tEXt/zTXt/XMP/C2PA) at all, gated word or not, so the private tree
+// stays clean at the source rather than relying on the publish gate alone. Cheap and build-free —
+// a handful of small files, no compile dependency — so it rides every commit like licensingCheck
+// above rather than waiting for a publish dry run to surface it.
+tasks.register("assetMetadataCheck") {
+    description = "Fails when a committed image anywhere in the repo carries embedded text metadata (iTXt/tEXt/zTXt/XMP/C2PA)"
+    group = "verification"
+    doLast {
+        val imageFiles = gitTrackedFiles(rootDir)
+            .filter { ai.narrativetrace.build.AssetMetadataSupport.isCoveredImage(it) }
+            .map { rootDir.resolve(it) }
+        val problems = ai.narrativetrace.build.AssetMetadataSupport.check(rootDir, imageFiles)
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "Asset metadata check failed (${problems.size} committed image(s) carry embedded text metadata):\n" +
+                    problems.joinToString("\n")
+            )
+        }
+        println("assetMetadataCheck: ${imageFiles.size} committed image(s) checked, none carry embedded text metadata")
+    }
+}
+
 /** `licensing.properties` keys drop the leading colon: `narrativetrace-examples:ecommerce`. */
 fun moduleKey(project: Project): String = project.path.removePrefix(":")
 
@@ -1179,6 +1224,7 @@ subprojects {
             dependsOn(":translationCheck")
             dependsOn(":demoWiringCheck")
             dependsOn(":licensingCheck")
+            dependsOn(":assetMetadataCheck")
             dependsOn(":baselineFreshnessCheck")
             dependsOn(":mutationAccounting")
             dependsOn(":snippetCheck")
