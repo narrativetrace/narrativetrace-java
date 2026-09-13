@@ -14,5 +14,53 @@ narrativetrace-core/src/main/java/ai/narrativetrace/core/render/ValueRenderer.ja
 # Data tables, not logic (owner ruling 2026-09-12): the clarity module's word-list dictionaries
 # are rows of structurally identical entries, so with literals ignored every row matches every
 # other row and one 393-token shape recurs hundreds of times. Exempt the dictionaries against each
-# other; a cluster that reaches outside them (e.g. into TraceNamer) stays a finding.
+# other; a cluster that reaches outside them (e.g. into TraceNamer, covered by the TraceNamer pair
+# below) stays a finding. Known gap (no *Data-file split exists in Java today, so this glob still
+# covers each dictionary's own logic alongside its table, not only the rows): VerbDictionary's
+# categorize() and RoleSuffixDictionary's classify() are the same contains()-chain shape and
+# cluster up to 93 tokens under this exemption; AbbreviationDictionary's entry/tierScore/lookup/
+# projectExpansionOf and CollocationDictionary's preferredVerbs/isPreferred do not currently
+# cluster with anything but would also pass unexamined. Splitting each file's table into a *Data
+# type is the fix that makes this glob mean only what it says.
 narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/*Dictionary.java :: narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/*Dictionary.java
+
+# Word tables, not logic (owner ruling 2026-09-12): TraceNamer's ADJECTIVES/NOUNS/VERBS String[]
+# tables are rows of structurally identical literals once literals are ignored, and the three
+# tables in this file match each other. Exempt them against themselves; the LOGIC in TraceNamer
+# remains a finding whenever it clusters with anything that is not one of these tables or the
+# clarity dictionaries below — a cluster is exempt only when every occurrence matches the pair.
+narrativetrace-core/src/main/java/ai/narrativetrace/core/render/TraceNamer.java :: narrativetrace-core/src/main/java/ai/narrativetrace/core/render/TraceNamer.java
+
+# Word tables, not logic (owner ruling 2026-09-12): the same TraceNamer tables recur against the
+# clarity dictionaries' rows once literals are ignored — both are word lists at heart. Exempt
+# TraceNamer against the dictionaries specifically; the LOGIC in TraceNamer remains a finding
+# whenever it clusters with anything outside this pair and the self-pair above (e.g. into
+# GenericTokenDetector) — a cluster is exempt only when every occurrence matches the pair.
+narrativetrace-core/src/main/java/ai/narrativetrace/core/render/TraceNamer.java :: narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/*Dictionary.java
+
+# Data rows, not logic — GenericTokenDetector's MEANINGLESS_PLACEHOLDERS / VAGUE_WORDS /
+# TYPED_GENERIC_WORDS tiers are Set.of(...) word lists, the same content shape as the clarity
+# dictionaries' rows; GenericTokenDetector is exempt by content shape here (owner ruling
+# 2026-09-12), not by the *Dictionary filename pattern. Known gap: this pair also covers
+# GenericTokenDetector.detect()'s contains()-chain, which clusters with VerbDictionary.categorize()
+# and RoleSuffixDictionary.classify() up to 93 tokens (the same chain noted as a gap in the
+# dictionaries pair above) — real logic duplication currently masked by this exemption, left for a
+# later pass rather than widening scope here.
+narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/GenericTokenDetector.java :: narrativetrace-clarity/src/main/java/ai/narrativetrace/clarity/{GenericTokenDetector,*Dictionary}.java
+
+# Wide-record builder, not logic (owner ruling 2026-09-12): CanonicalEntry's Builder is one public
+# setter per component (38 fields) so additive schema evolution never rewrites a call site; with
+# identifiers ignored every setter matches every other setter. One public setter per component is
+# public API — collapsing it would change the API, not remove duplication.
+narrativetrace-core/src/main/java/ai/narrativetrace/core/export/CanonicalEntry.java :: narrativetrace-core/src/main/java/ai/narrativetrace/core/export/CanonicalEntry.java
+
+# Wide-record builder, not logic (owner ruling 2026-09-12): SpanContext's Builder is the same
+# one-setter-per-component shape as CanonicalEntry's, in the api module. One public setter per
+# component is public API — collapsing it would change the API, not remove duplication.
+narrativetrace-api/src/main/java/ai/narrativetrace/api/event/SpanContext.java :: narrativetrace-api/src/main/java/ai/narrativetrace/api/event/SpanContext.java
+
+# Wide-record builder, not logic (owner ruling 2026-09-12): CanonicalEntry's and SpanContext's
+# Builder setters match each other once identifiers are ignored — the same shape, across the
+# narrativetrace-api / narrativetrace-core module boundary. One public setter per component is
+# public API on both sides — collapsing it would change the API, not remove duplication.
+narrativetrace-core/src/main/java/ai/narrativetrace/core/export/CanonicalEntry.java :: narrativetrace-api/src/main/java/ai/narrativetrace/api/event/SpanContext.java

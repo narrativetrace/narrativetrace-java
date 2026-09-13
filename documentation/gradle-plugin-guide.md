@@ -385,7 +385,7 @@ narrativeTrace {
 
 `./gradlew check` fails if any scenario has clarity below 0.80 or any HIGH issues.
 
-### Approval-tested narratives
+### Narrative approval traces
 
 ```kotlin
 narrativeTrace {

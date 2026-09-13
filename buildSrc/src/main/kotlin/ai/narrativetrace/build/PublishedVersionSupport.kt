@@ -17,7 +17,7 @@ import java.net.URL
  * checkout describe behaviour Maven Central has actually shipped, so an AI agent (or a human)
  * reading `llms.txt` never has to guess which side of a release it is looking at.
  *
- * <p>Three inputs, three outputs:
+ * <p>Four inputs, one line:
  * <ul>
  *   <li>the repo's own version ([SnippetSupport]'s caller reads it from
  *       {@code gradle.properties#narrativetraceVersion}, the same property
@@ -27,7 +27,11 @@ import java.net.URL
  *       presence on Central implies the release as a whole landed (multi-artifact repos use one
  *       bellwether rather than polling all eighteen for one banner line);</li>
  *   <li>a git-ignored cache under {@code build/}, refreshed at most once an hour, so repeated local
- *       builds do not hammer Central.</li>
+ *       builds do not hammer Central;</li>
+ *   <li>the count of {@code *(since X.Y.Z, unreleased)*} markers across the runtime's English docs
+ *       ([countUnreleasedMarkers]) — the repo version stays at the last published number until
+ *       {@code --tag} bumps it (docs-vs-published-gate design note, item 8), so without this the
+ *       "both at X" shape would wrongly imply nothing is ahead of the published release.</li>
  * </ul>
  *
  * <p>Network access happens in exactly one place, [fetchLatestPublishedVersion], called only by
@@ -57,24 +61,44 @@ object PublishedVersionSupport {
     private val LATEST_TAG = Regex("""<latest>\s*([^<\s]+)\s*</latest>""")
     private val TRAILING_COMMENT = Regex("""\s*<!--.*-->\s*$""")
 
-    // The three shapes llmsTxtLine ever emits — parseBannerLine is llmsTxtLine's inverse, so
+    // The three shapes llmsTxtLine ever emits, each with an optional "; N behaviour(s) marked
+    // unreleased" clause (design note item 8) — parseBannerLine is llmsTxtLine's inverse, so
     // bannerProblems can read back whatever is actually committed instead of demanding a byte-exact
     // match against a line only a live fetch could have produced.
-    private val BOTH_AT = Regex("""^\*\(Docs and published both at (.+)\.\)\*$""")
-    private val DESCRIBE_PUBLISHED = Regex("""^\*\(These docs describe (.+); published is (.+)\.\)\*$""")
-    private val DESCRIBE_UNKNOWN = Regex("""^\*\(These docs describe (.+); published: unknown offline\.\)\*$""")
+    private val UNRELEASED_CLAUSE = """(?:; (\d+) behaviours? marked unreleased)?"""
+    private val BOTH_AT = Regex("""^\*\(Docs and published both at (.+?)$UNRELEASED_CLAUSE\.\)\*$""")
+    private val DESCRIBE_PUBLISHED =
+        Regex("""^\*\(These docs describe (.+?); published is (.+?)$UNRELEASED_CLAUSE\.\)\*$""")
+    private val DESCRIBE_UNKNOWN =
+        Regex("""^\*\(These docs describe (.+?); published: unknown offline$UNRELEASED_CLAUSE\.\)\*$""")
+
+    // The marker `llmsTxtLine`'s "N behaviours marked unreleased" clause is counting —
+    // documentation-*.md's inline `*(since X.Y.Z, unreleased)*` — kept identical to
+    // `scripts/publish-public.sh`'s own matching regex so the two can never silently disagree.
+    private val UNRELEASED_MARKER = Regex("""\(since \d+\.\d+\.\d+, unreleased\)\*""")
 
     /** One successful lookup: the version Central served, and when this cache entry was written. */
     data class CacheEntry(val version: String, val fetchedAtEpochMillis: Long)
 
-    /** A banner line, decomposed back into the two facts it cites. [citedPublishedVersion] is
-     * null for the "unknown offline" shape, which cites no published version at all. */
-    private data class ParsedBanner(val citedRepoVersion: String, val citedPublishedVersion: String?)
+    /** A banner line, decomposed back into the facts it cites. [citedPublishedVersion] is null for
+     * the "unknown offline" shape, which cites no published version at all. [citedUnreleasedCount]
+     * is 0 when the line carries no "marked unreleased" clause at all — indistinguishable from a
+     * line that cites a genuine zero, which is exactly right: zero is the one count that is never
+     * written with a clause (see [unreleasedClause]). */
+    private data class ParsedBanner(
+        val citedRepoVersion: String,
+        val citedPublishedVersion: String?,
+        val citedUnreleasedCount: Int,
+    )
 
     private fun parseBannerLine(line: String): ParsedBanner? =
-        BOTH_AT.find(line)?.let { ParsedBanner(it.groupValues[1], it.groupValues[1]) }
-            ?: DESCRIBE_PUBLISHED.find(line)?.let { ParsedBanner(it.groupValues[1], it.groupValues[2]) }
-            ?: DESCRIBE_UNKNOWN.find(line)?.let { ParsedBanner(it.groupValues[1], null) }
+        BOTH_AT.find(line)?.let {
+            ParsedBanner(it.groupValues[1], it.groupValues[1], it.groupValues[2].toIntOrNull() ?: 0)
+        } ?: DESCRIBE_PUBLISHED.find(line)?.let {
+            ParsedBanner(it.groupValues[1], it.groupValues[2], it.groupValues[3].toIntOrNull() ?: 0)
+        } ?: DESCRIBE_UNKNOWN.find(line)?.let {
+            ParsedBanner(it.groupValues[1], null, it.groupValues[2].toIntOrNull() ?: 0)
+        }
 
     /**
      * Asks Maven Central for `narrativetrace-core`'s `maven-metadata.xml` and reads its
@@ -155,19 +179,31 @@ object PublishedVersionSupport {
      *   <li>versions equal: "Docs and published both at X";</li>
      *   <li>versions differ: "These docs describe X; published is Y".</li>
      * </ul>
-     * A trailing HTML comment records the cache's age at generation time so staleness is visible
+     * Each shape gets [unreleasedClause] appended when [unreleasedCount] is positive — "; N
+     * behaviour(s) marked unreleased" — right before the closing `.)*` (design note item 8: the
+     * repo version sits at the last published number until `--tag` bumps it, so "both at X" alone
+     * would wrongly read as "nothing ahead of the published release"). Zero is never written as a
+     * clause at all, so today's line is byte-identical to before this feature existed.
+     *
+     * <p>A trailing HTML comment records the cache's age at generation time so staleness is visible
      * without ever being silent — strip it with [stripCacheAgeComment] before comparing two
      * renderings of this line, or the comparison flakes on wall-clock.
      */
-    fun llmsTxtLine(repoVersion: String, cache: CacheEntry?, now: Long = System.currentTimeMillis()): String {
+    fun llmsTxtLine(
+        repoVersion: String,
+        cache: CacheEntry?,
+        unreleasedCount: Int = 0,
+        now: Long = System.currentTimeMillis(),
+    ): String {
+        val clause = unreleasedClause(unreleasedCount)
         if (cache == null) {
-            return "*(These docs describe $repoVersion; published: unknown offline.)*"
+            return "*(These docs describe $repoVersion; published: unknown offline$clause.)*"
         }
         val body =
             if (cache.version == repoVersion) {
-                "*(Docs and published both at $repoVersion.)*"
+                "*(Docs and published both at $repoVersion$clause.)*"
             } else {
-                "*(These docs describe $repoVersion; published is ${cache.version}.)*"
+                "*(These docs describe $repoVersion; published is ${cache.version}$clause.)*"
             }
         val ageMinutes = ((now - cache.fetchedAtEpochMillis).coerceAtLeast(0)) / 60_000
         return "$body <!-- published-version cache age: ${ageMinutes}m -->"
@@ -178,12 +214,47 @@ object PublishedVersionSupport {
     fun stripCacheAgeComment(line: String): String = line.replace(TRAILING_COMMENT, "").trim()
 
     /**
+     * Counts every {@code *(since X.Y.Z, unreleased)*} marker across the runtime's English docs:
+     * everything under {@code documentation/} (translated mirrors — any
+     * {@code documentation/<lang>/} directory, plus {@code i18n} — excluded, same scope
+     * [SnippetSupport.englishMarkdownFiles] uses) and {@code README.md} at the repo root.
+     * {@code documentation/llms.txt} and {@code documentation/llms-full.md} fall out of that walk
+     * with no special-casing needed.
+     *
+     * <p>Pure file scan, no network — unlike the published-version half of the banner, this is
+     * always available and so, per the design note (item 8), always checked by `snippetCheck`
+     * regardless of cache freshness.
+     */
+    fun countUnreleasedMarkers(repoRoot: File): Int {
+        val documentation = repoRoot.resolve("documentation")
+        val languageDirs = documentation.listFiles().orEmpty()
+            .filter { it.isDirectory && it.name != "i18n" }
+            .map { it.canonicalFile }
+            .toSet()
+        val docFiles = documentation.walkTopDown()
+            .onEnter { dir -> dir == documentation || dir.canonicalFile !in languageDirs }
+            .filter { it.isFile && (it.extension == "md" || it.name == "llms.txt") }
+        val readme = repoRoot.resolve("README.md").takeIf { it.isFile }
+        return (docFiles.toList() + listOfNotNull(readme))
+            .sumOf { UNRELEASED_MARKER.findAll(it.readText()).count() }
+    }
+
+    /** The clause `llmsTxtLine` appends for [count] behaviours marked unreleased — empty for zero,
+     * the one count [countUnreleasedMarkers] returns that is never written as a clause at all
+     * (design note item 8: "count 0 ... the line is unchanged"). Singular "behaviour" for one. */
+    private fun unreleasedClause(count: Int): String =
+        if (count <= 0) "" else "; $count behaviour${if (count == 1) "" else "s"} marked unreleased"
+
+    /**
      * `snippetCheck`'s verdict on the committed `llms.txt` banner — the read-only half of the
-     * docs-vs-published-gate design (note 1.1, item 2). Two independent facts, each checked only
+     * docs-vs-published-gate design (note 1.1, item 2). Three independent facts, each checked only
      * when it can be checked without a network call:
      * <ul>
      *   <li>the repo-version half is deterministic ({@code gradle.properties#narrativetraceVersion})
      *       and is always checked, regardless of cache state;</li>
+     *   <li>the unreleased-marker-count half ([unreleasedCount], from [countUnreleasedMarkers]) is
+     *       equally deterministic (a pure file scan, no network) and is likewise always checked
+     *       (design note item 8) — never gated on cache freshness;</li>
      *   <li>the published-version half is checked only when [cache] is a fresh (&lt;1h) entry —
      *       [PublishedVersionSupport.readCache] already returns null for a stale or absent file, so
      *       a caller that always passes its result through here cannot tell "never fetched" from
@@ -194,10 +265,17 @@ object PublishedVersionSupport {
      *
      * @param actualLineRaw whatever [LlmsTxtBannerSupport.currentLine] returned for the committed
      *   file — a trailing cache-age comment, if present, is stripped before any comparison here.
+     * @param unreleasedCount the current, real count from [countUnreleasedMarkers] — never a value
+     *   read back off the banner itself.
      * @return one ready-to-print problem line per issue found, each already naming the file and
      *   the `snippetSync` remedy; the empty list when the banner is fine.
      */
-    fun bannerProblems(actualLineRaw: String?, repoVersion: String, cache: CacheEntry?): List<String> {
+    fun bannerProblems(
+        actualLineRaw: String?,
+        repoVersion: String,
+        cache: CacheEntry?,
+        unreleasedCount: Int = 0,
+    ): List<String> {
         val prefix = "documentation/llms.txt: docs-vs-published banner"
         val actual = actualLineRaw?.let(::stripCacheAgeComment)
             ?: return listOf("$prefix marker pair is missing; run snippetSync")
@@ -209,8 +287,12 @@ object PublishedVersionSupport {
             problems += "$prefix cites repo version '${parsed.citedRepoVersion}' but " +
                 "gradle.properties#narrativetraceVersion is '$repoVersion'; run snippetSync"
         }
+        if (parsed.citedUnreleasedCount != unreleasedCount) {
+            problems += "$prefix cites ${parsed.citedUnreleasedCount} behaviour(s) marked unreleased " +
+                "but the docs currently mark $unreleasedCount; run snippetSync"
+        }
         if (cache != null) {
-            val expected = stripCacheAgeComment(llmsTxtLine(repoVersion, cache))
+            val expected = stripCacheAgeComment(llmsTxtLine(repoVersion, cache, unreleasedCount))
             if (actual != expected) {
                 problems += "$prefix is stale (expected '$expected', found '$actual'); run snippetSync"
             }

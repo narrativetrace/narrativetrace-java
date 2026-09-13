@@ -30,7 +30,6 @@ import ai.narrativetrace.glossary.GlossaryHarvester;
 import ai.narrativetrace.glossary.TermNormalizer;
 import ai.narrativetrace.security.corpus.HostileCorpus;
 import ai.narrativetrace.security.oracle.Formats;
-import ai.narrativetrace.security.oracle.Oracles;
 import java.util.List;
 import java.util.Map;
 import net.jqwik.api.Arbitraries;
@@ -89,7 +88,12 @@ class ScannerPropertyTest {
   void aTraceOfHostileIdentifiersProducesAParseableClarityReport() {
     for (var hostile : HostileCorpus.strings()) {
       var tree = treeNamed(hostile.value());
-      var result = Oracles.withinBudget("clarity " + hostile.id(), () -> analyzer.analyze(tree));
+      // Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are never test inputs —
+      // this used to run through the removed Oracles.withinBudget hang detector. Dropped outright
+      // rather than replaced: the score-range and JSON-well-formedness assertions below are the
+      // real properties this call was ever guarding, with no output-size or hang risk of their
+      // own.
+      var result = analyzer.analyze(tree);
 
       assertThat(result.overallScore()).isBetween(0.0, 1.0);
       var json = new ClarityJsonExporter().export(Map.of("scenario", result));

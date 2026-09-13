@@ -8,6 +8,7 @@
 package ai.narrativetrace.security.corpus;
 
 import ai.narrativetrace.api.annotation.NarrativeSummary;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,9 +22,11 @@ import java.util.Map;
  * redaction, and an exception raised inside instrumentation must not carry the value out in its
  * message.
  *
- * <p><b>@llmNote</b> {@link Blocking} sleeps for a bounded time rather than forever. A test that
- * hangs reports nothing; a test that takes 250 ms and blows a 5 s budget reports which input did
- * it.
+ * <p><b>@llmNote</b> {@link Blocking} sleeps for a bounded time rather than forever, on purpose: a
+ * hung test reports nothing, however long the corpus run is given. Nothing here asserts a
+ * wall-clock bound on it (family release rule 3, 2026-09-13: wall-clock, GC and scheduler are never
+ * test inputs) — the property this fixture still exercises is that a slow {@code toString()} is
+ * walked like any other, with redaction intact, not that it finishes within some budget.
  */
 public final class HostileMembers {
 
@@ -65,7 +68,7 @@ public final class HostileMembers {
     }
   }
 
-  /** A {@code toString} that blocks, bounded, so the time budget is what fails. */
+  /** A {@code toString} that blocks briefly rather than forever, so a hostile run still ends. */
   public record Blocking(HostileGraphs.Secret held) {
     @Override
     public String toString() {
@@ -338,6 +341,69 @@ public final class HostileMembers {
     @NarrativeSummary
     public String describe() {
       throw new IllegalStateException("cannot summarise " + held.secret());
+    }
+  }
+
+  /**
+   * A deny-listed field name whose value is a platform type the renderer would otherwise trust to
+   * stringify itself — the {@code platform-type-name-redacted} row.
+   *
+   * <p><b>@llmNote</b> The name axis and the platform-type carve-out are two different questions:
+   * this record proves the first is asked, and answered, before the second is ever consulted. A
+   * renderer that reached the carve-out first would print the URI's own text — sentinel included —
+   * because {@link java.net.URI} is exactly the kind of type the carve-out exists to trust.
+   */
+  public record NamedPlatformValue(URI password) {}
+
+  /**
+   * A user class named after a platform type ({@link java.util.Date}) but defined by application
+   * code — the {@code platform-lookalike-walked} row.
+   *
+   * <p><b>@llmNote</b> Deliberately not {@code java.util.Date} itself. Trust is decided by defining
+   * class loader, per {@code ValueRenderer.PLATFORM_DEFINED}, never by a class's own simple name —
+   * a name-based test would have trusted this class's {@code toString()} and printed the field it
+   * hides.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection
+  public static final class Date {
+
+    private final String username = "ada";
+    private final String password;
+
+    Date(String password) {
+      this.password = password;
+    }
+
+    @Override
+    public String toString() {
+      return "Date{username=" + username + ", password=" + password + "}";
+    }
+  }
+
+  /**
+   * A user subclass of a platform type ({@link java.util.Date}) — the {@code
+   * platform-subclass-walked} row.
+   *
+   * <p><b>@llmNote</b> The most-derived type's own defining loader decides trust, never an
+   * ancestor's: this class is application-loaded even though its superclass is not, so it must be
+   * walked exactly like {@link Date} above, not trusted merely because {@code extends Date} reaches
+   * a platform type one step up.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection
+  public static final class ApplicationDate extends java.util.Date {
+
+    private static final long serialVersionUID = 1L;
+
+    private final String password;
+
+    ApplicationDate(String password) {
+      super(0L);
+      this.password = password;
+    }
+
+    @Override
+    public String toString() {
+      return "ApplicationDate{password=" + password + "}";
     }
   }
 

@@ -12,6 +12,7 @@ import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.spi.NamedTrace;
 import ai.narrativetrace.api.spi.ReportContributor;
+import ai.narrativetrace.api.spi.RunListener;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.clarity.ClarityAnalyzer;
 import ai.narrativetrace.clarity.ClarityIssue;
@@ -24,6 +25,7 @@ import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.output.ArtifactIdentity;
 import ai.narrativetrace.core.output.NarrativeApproval;
+import ai.narrativetrace.core.output.RunIdentity;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
 import ai.narrativetrace.core.output.ScenarioManifest;
@@ -33,8 +35,7 @@ import ai.narrativetrace.core.output.TraceTestSupport;
 import ai.narrativetrace.core.pipeline.PipelineBootstrap;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.core.spi.ExtensionRegistry;
-import ai.narrativetrace.diagrams.MermaidSequenceDiagramRenderer;
-import ai.narrativetrace.diagrams.PlantUmlSequenceDiagramRenderer;
+import ai.narrativetrace.diagrams.SequenceDiagramRenderers;
 import ai.narrativetrace.glossary.ClassPackageIndex;
 import ai.narrativetrace.glossary.GlossaryVocabulary;
 import java.io.IOException;
@@ -165,6 +166,66 @@ public class NarrativeTraceExtension
     private GlossaryHarvestStep glossaryStep = GlossaryHarvestStep.disabled();
     private DomainVocabulary vocabulary = DomainVocabulary.empty();
 
+    /**
+     * This execution's own identity — generated exactly once, the moment the root store first
+     * creates this accumulator, which is exactly once per test-suite execution (2026-09-13 ruling,
+     * item 2). Every place that names the run (MDC, the console footer, {@code manifest.json}, the
+     * Markdown frontmatter of every test's document) reads THIS instance, never re-generates.
+     */
+    private final RunIdentity runIdentity = RunIdentity.generate();
+
+    /** Discovered once, alongside {@link #runIdentity} — see {@link RunListener}. */
+    private final List<RunListener> runListeners = new ExtensionRegistry().load(RunListener.class);
+
+    RunIdentity runIdentity() {
+      return runIdentity;
+    }
+
+    /**
+     * Reports this run's identity to every discovered {@link RunListener} — SLF4J's MDC, when the
+     * {@code narrativetrace-slf4j} module is on the classpath — on the thread about to execute a
+     * test. Called from every {@code beforeEach} because MDC is thread-local (see the SPI's own
+     * {@code @llmNote}); isolated per listener like {@link #contribute(ReportContributor, List)}.
+     */
+    void notifyRunStarted() {
+      for (var listener : runListeners) {
+        notifyStarted(listener);
+      }
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException") // one bad listener must not fail a test
+    private void notifyStarted(RunListener listener) {
+      try {
+        listener.runStarted(runIdentity.id(), runIdentity.name());
+      } catch (Exception e) { // NOPMD
+        System.err.println(
+            "narrative-trace: run listener "
+                + listener.getClass().getName()
+                + " failed on runStarted and was skipped ("
+                + e
+                + ")");
+      }
+    }
+
+    /**
+     * Reports the run's end to every discovered {@link RunListener}, once, isolated per listener.
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException") // one bad listener must not fail the run
+    void notifyRunEnded() {
+      for (var listener : runListeners) {
+        try {
+          listener.runEnded();
+        } catch (Exception e) { // NOPMD
+          System.err.println(
+              "narrative-trace: run listener "
+                  + listener.getClass().getName()
+                  + " failed on runEnded and was skipped ("
+                  + e
+                  + ")");
+        }
+      }
+    }
+
     /** Adds one test's loss to the suite total — each test gets a fresh context, so these sum. */
     synchronized void recordLoss(TraceLoss loss) {
       suiteLoss = suiteLoss.plus(loss);
@@ -199,6 +260,7 @@ public class NarrativeTraceExtension
 
     @Override
     public void close() {
+      notifyRunEnded();
       if (allTraces.isEmpty()) {
         return;
       }
@@ -207,7 +269,7 @@ public class NarrativeTraceExtension
           glossaryStep.run(allTraces.stream().map(Map.Entry::getValue).toList(), System.out);
       try {
         writeClarityFiles(extension, suiteIssues);
-        ScenarioManifest.write(manifestRows, outputDir);
+        ScenarioManifest.write(manifestRows, outputDir, runIdentity);
       } catch (IOException e) {
         System.err.println("Failed to write clarity report: " + e.getMessage());
       }
@@ -288,7 +350,8 @@ public class NarrativeTraceExtension
           System.out,
           tree -> new ClarityAnalyzer(vocabulary).analyze(tree).overallScore(),
           allDeltas,
-          suiteLoss);
+          suiteLoss,
+          runIdentity);
     }
   }
 
@@ -307,6 +370,10 @@ public class NarrativeTraceExtension
         configParam(extensionContext, "narrativetrace.level", TracingLevel.DETAIL.name());
     var context = newContext(levelName, bufferCapacity(extensionContext));
     extensionContext.getStore(NAMESPACE).put(CONTEXT_KEY, context);
+    // On the thread about to run the test — sequential or parallel, this always is that thread —
+    // so any discovered RunListener (SLF4J's MDC, when narrativetrace-slf4j is on the classpath)
+    // can attach the run's identity there before the test body runs (2026-09-13 ruling, item 2).
+    accumulator(extensionContext).notifyRunStarted();
   }
 
   /** Ring size for a test's context, from {@code narrativetrace.bufferCapacity}. */
@@ -465,8 +532,8 @@ public class NarrativeTraceExtension
     var identity = artifactIdentity(extensionContext);
     Optional<ScenarioDelta> delta = Optional.empty();
     try {
-      NarrativeRenderer mermaid = new MermaidSequenceDiagramRenderer()::render;
-      NarrativeRenderer plantuml = new PlantUmlSequenceDiagramRenderer()::render;
+      NarrativeRenderer mermaid = SequenceDiagramRenderers.mermaid();
+      NarrativeRenderer plantuml = SequenceDiagramRenderers.plantUml();
       delta =
           TraceTestSupport.writeTraceFile(
               identity,
@@ -480,7 +547,8 @@ public class NarrativeTraceExtension
               plantuml,
               !"true"
                   .equalsIgnoreCase(
-                      configParam(extensionContext, "narrativetrace.unfolded", "false")));
+                      configParam(extensionContext, "narrativetrace.unfolded", "false")),
+              accumulator(extensionContext).runIdentity().name());
       delta.ifPresent(d -> accumulatedDeltas(extensionContext).add(d));
       writeOptionalEntryArtifacts(extensionContext, identity, trace, outputDir);
     } catch (IOException e) {

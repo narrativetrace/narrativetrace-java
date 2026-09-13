@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob cf519cb92da0 | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 037387d9cda0 | translated: 2026-09-12 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -389,7 +389,7 @@ narrativeTrace {
 
 `./gradlew check` falha se algum cenário tiver clareza abaixo de 0.80 ou qualquer problema HIGH.
 
-### Narrativas com testes de aprovação
+### Traces de aprovação narrativa
 
 ```kotlin
 narrativeTrace {

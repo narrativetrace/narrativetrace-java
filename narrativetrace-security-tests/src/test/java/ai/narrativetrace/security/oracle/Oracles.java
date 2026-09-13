@@ -25,15 +25,18 @@ import java.util.function.Supplier;
  * string. A fixed secret is findable by a renderer that special-cases it and, worse, is findable by
  * a *test* that passes because some earlier case cleared the same string out. It also checks a
  * prefix of the token, because a partial leak through a truncating emitter is still a leak.
+ *
+ * <p>Used to carry a sixth oracle, {@code withinBudget} — a wall-clock hang detector ({@code
+ * elapsed < BUDGET_MILLIS}, a generous 10 seconds). Removed 2026-09-13 (family release rule 3:
+ * wall-clock, GC and scheduler are never test inputs): every call site wrapped a property already
+ * covered, immediately afterward in the same test, by {@link #boundedSize} — the deterministic
+ * property the timing bound stood in for — or, where that property was genuinely about parse *cost*
+ * rather than output size ({@code TraceparentParsingPropertyTest}'s hundred-thousand-field header),
+ * moved to a JMH case in the never-gated {@code narrativetrace-benchmarks} module. Sibling ports
+ * (Swift {@code 34117fa}, Python {@code 8fbf6d3}, .NET {@code 1b3c6b5}) removed the same oracle the
+ * same way.
  */
 public final class Oracles {
-
-  /**
-   * Wall-clock budget for one input through one emitter. Generous on purpose: this is a hang
-   * detector, not a benchmark. The perf tiers measure speed; this only says a narration cannot cost
-   * unbounded time in the size of its input.
-   */
-  public static final long BUDGET_MILLIS = 10_000;
 
   /**
    * Ceiling on one emitter's output. The renderer truncates strings at 200 characters and
@@ -65,17 +68,6 @@ public final class Oracles {
     var bytes = new byte[7];
     RANDOM.nextBytes(bytes);
     return "sentinel" + HexFormat.of().formatHex(bytes);
-  }
-
-  /** Runs {@code work}, failing when it takes longer than {@link #BUDGET_MILLIS}. */
-  public static <T> T withinBudget(String label, Supplier<T> work) {
-    var start = System.nanoTime();
-    var result = work.get();
-    var elapsedMillis = (System.nanoTime() - start) / 1_000_000;
-    assertThat(elapsedMillis)
-        .as("%s must cost bounded time in the size of its input", label)
-        .isLessThan(BUDGET_MILLIS);
-    return result;
   }
 
   /** Every emitter's output stays under {@link #MAX_OUTPUT_BYTES}. */

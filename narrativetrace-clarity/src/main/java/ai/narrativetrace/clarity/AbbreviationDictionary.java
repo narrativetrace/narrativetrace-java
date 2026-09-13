@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.clarity;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -266,6 +267,34 @@ public final class AbbreviationDictionary {
   public Entry lookup(String token) {
     var lower = token.toLowerCase(Locale.ROOT);
     return vocabulary.isAcceptedAbbreviation(lower) ? null : ABBREVIATIONS.get(lower);
+  }
+
+  /**
+   * Mean {@link Entry#score()} over {@code tokens}, counting a token this dictionary does not
+   * penalize as a clean {@code 1.0}.
+   *
+   * <p>INTENT: The abbreviation component of a name's score, as {@link ClassNameScorer} and {@link
+   * MethodNameScorer} both compute it — one identical stream in each until 2026-09-12. Deliberately
+   * package-private: it is the shape those scorers want, not a promise to callers outside this
+   * module.
+   *
+   * <p><b>@llmNote</b> {@link ParameterNameScorer} deliberately does <em>not</em> use this — it
+   * scores by {@link Tier} rather than by the entry's own score, because a parameter name gets more
+   * latitude for well-known shorthand than a type or a method does. Keep that asymmetry; it is the
+   * calibration, not an oversight.
+   *
+   * @param tokens the identifier's tokens; an empty list scores a clean {@code 1.0}
+   * @return the mean score in {@code [0, 1]}
+   */
+  double averageScore(List<String> tokens) {
+    return tokens.stream()
+        .mapToDouble(
+            t -> {
+              var entry = lookup(t);
+              return entry != null ? entry.score() : 1.0;
+            })
+        .average()
+        .orElse(1.0);
   }
 
   /**

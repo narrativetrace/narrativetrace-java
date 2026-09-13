@@ -355,21 +355,33 @@ When `format=markdown`, the extension also writes per test:
 
 After all tests in a class complete, the extension writes:
 
-- Run manifest: `<outputDir>/manifest.json` — one row per traced
-  scenario, in execution order, naming the test that produced it, its
-  invocation number when the method ran more than once, and every
-  artifact it owns as a path relative to `<outputDir>`. This is the
-  index to read when you know the scenario and want the file:
+- Run manifest: `<outputDir>/manifest.json` — a top-level `run` object
+  (`id`, `name` — the run's own three-word phrase, *(since 0.2.2,
+  unreleased)*, see [The run has a name](#the-run-has-a-name) below)
+  followed by one row per traced scenario, in execution order, naming
+  the test that produced it, its invocation number when the method ran
+  more than once, and every artifact it owns as a path relative to
+  `<outputDir>`. This is the index to read when you know the scenario
+  and want the file:
   ```json
   {
-    "scenario": "find TENT",
-    "testClass": "traildepot.CatalogTest",
-    "testMethod": "equipmentCanBeFound",
-    "invocation": 2,
-    "artifacts": {
-      "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
-      "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
-    }
+    "schema": "narrativetrace/scenario-manifest/1",
+    "run": {
+      "id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+      "name": "bold elk soars"
+    },
+    "scenarios": [
+      {
+        "scenario": "find TENT",
+        "testClass": "traildepot.CatalogTest",
+        "testMethod": "equipmentCanBeFound",
+        "invocation": 2,
+        "artifacts": {
+          "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
+          "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
+        }
+      }
+    ]
   }
   ```
   Only artifacts actually on disk are listed, so the row reflects the
@@ -379,6 +391,7 @@ After all tests in a class complete, the extension writes:
   structural delta against the last green run:
   ```
   NarrativeTrace — Suite complete
+    run: bold elk soars
     2 scenarios recorded
     Clarity: 100% high | 0% moderate | 0% low
     Reports: build/narrativetrace
@@ -388,6 +401,31 @@ After all tests in a class complete, the extension writes:
 A failing test's console report prints the structural delta against the
 last green artifact — summary plus readable diff — instead of the full
 trace, and links the trace file as a clickable `file://` URI.
+
+### The run has a name
+
+*(since 0.2.2, unreleased)* One run id is generated per test-suite
+execution — a W3C-shaped id, never a shared constant — and its
+three-word phrase (the same namer a trace id's name comes from) is the
+**run name**. It appears in:
+
+- the console suite footer (`run: bold elk soars`, above);
+- `manifest.json`'s top-level `run` object (`id` and `name`, above);
+- the YAML frontmatter of every Markdown trace document (`run: bold elk
+  soars`, alongside `scenario:`);
+- MDC as `runName` for the whole run (see [MDC fields](#mdc-fields)),
+  so one grep finds one run's log lines.
+
+The run name and its id are invariant-protected the same way a trace's
+own name is: they **never** reach the structural `.nt` text, an
+approved or received trace, an artifact filename, or the manifest's
+per-scenario keys — running the identical suite twice, with two
+different run names, produces byte-identical `.nt` files and delta
+output every time. A trace's own name (`trace: bold elk soars
+(a1b2c3d)` in the console renderer, `The trace bold elk soars: …` in
+prose, the phrase in the Markdown title line) is a *different* thing —
+one per trace, not one per run — and is equally absent from the `.nt`
+text.
 
 ## 3. Pure Java / Agent Configuration (`narrativetrace.properties`)
 
@@ -766,11 +804,14 @@ var context = new ThreadLocalNarrativeContext(
 
 `Slf4jTraceEventListener` sets MDC fields on each trace event. Request filters in the servlet and
 Micronaut HTTP modules also populate persistent request-scoped MDC fields before traced methods run.
+The JUnit 5 extension and the JUnit 4 rule additionally set `runName` for the whole test-suite
+execution — see below.
 
 | MDC key | Value |
 |---|---|
 | `traceId` | Raw 32-char W3C trace ID |
 | `traceName` | Deterministic three-word human-readable name derived from `traceId` |
+| `runName` | *(since 0.2.2, unreleased)* The enclosing test-suite run's own three-word phrase, set by the JUnit 5/4 integration on the thread executing each test — see [The run has a name](#the-run-has-a-name) below |
 | `spanId` | Current span ID |
 | `parentSpanId` | Parent span ID when present |
 | `service.name` | Configured service name when present |

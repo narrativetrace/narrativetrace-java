@@ -33,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to verify (default: latest v* tag)"
+        description: "Version to verify (default: the last published version — see scripts/verify-publication.sh)"
         required: false
 
 jobs:
@@ -44,27 +44,27 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          # The version under verification defaults to the latest release tag,
-          # and tags need history to be found.
+          # scripts/verify-publication.sh resolves the version to verify from the newest v* tag
+          # reachable from HEAD when the schedule omits one, and tags need history to be found.
           fetch-depth: 0
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 17
-      - name: Verify the latest release resolves and the recipe traces
-        # The dispatch input reaches the shell through the environment, never
-        # by template interpolation into the script body — the same reasoning
-        # as the SHA-pinning above: no path where outside text becomes code.
+      - name: Verify the last published release resolves and the recipe traces
+        # The dispatch input reaches the shell through the environment, never by template
+        # interpolation into the script body — the same reasoning as the SHA-pinning above: no
+        # path where outside text becomes code. When empty (the schedule's own case),
+        # scripts/verify-publication.sh resolves the version itself — the newest v* tag reachable
+        # from HEAD, else Maven Central's maven-metadata.xml <latest> — and prints which source
+        # decided. It never falls back to this checkout's own gradle.properties version: that
+        # moves on to the next -SNAPSHOT the instant a release is cut, so a scheduled run reading
+        # it would poll for artifacts that were never going to exist.
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          version="$INPUT_VERSION"
-          if [ -z "$version" ]; then
-            version="$(git tag --list 'v*' --sort=-version:refname | head -1)"
-            version="${version#v}"
+          if [ -n "$INPUT_VERSION" ]; then
+            bash scripts/verify-publication.sh "$INPUT_VERSION" --timeout=1800
+          else
+            bash scripts/verify-publication.sh --timeout=1800
           fi
-          if [ -z "$version" ]; then
-            echo "No release tag found — nothing to verify."; exit 1
-          fi
-          echo "Verifying $version"
-          bash scripts/verify-publication.sh "$version" --timeout=1800

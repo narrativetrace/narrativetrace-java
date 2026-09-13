@@ -7,6 +7,9 @@
  */
 package ai.narrativetrace.core.render;
 
+import static ai.narrativetrace.core.render.SiblingCarry.flush;
+import static ai.narrativetrace.core.render.SiblingCarry.flushToLast;
+
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.TraceNode;
@@ -49,18 +52,15 @@ public final class ProseRenderer implements NarrativeRenderer {
   private record Ctx(int depth, String leading, String trailing) {}
 
   /**
-   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link #flush}.
+   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
+   * SiblingCarry}.
    */
-  private static final class Planned {
-    final TraceNode node;
+  private static final class Planned extends PlannedSibling {
     final int depth;
-    String leading;
-    String trailing;
 
     Planned(TraceNode node, int depth, String leading) {
-      this.node = node;
+      super(node, leading);
       this.depth = depth;
-      this.leading = leading;
     }
   }
 
@@ -69,10 +69,29 @@ public final class ProseRenderer implements NarrativeRenderer {
   @Override
   public String render(TraceTree tree) {
     var sb = new StringBuilder();
+    appendTraceHeader(tree, sb);
     for (var root : tree.roots()) {
       renderTree(root, sb);
     }
     return sb.toString().stripTrailing() + LossFooter.block(tree, "");
+  }
+
+  /**
+   * Opens in this renderer's own voice — {@code "The trace bold elk soars: "} — before the first
+   * paragraph (2026-09-13 ruling, item 4). Silent when {@link TraceTree#traceId()} is {@code null}:
+   * an empty tree, or a hand-built one that opted out of identity, gets no invented name.
+   *
+   * <p><b>@llmNote</b> This is the trace's OWN name, unrelated to the test-suite run name a JUnit
+   * integration threads through the console footer and manifest — see {@link
+   * ai.narrativetrace.core.output.RunIdentity}. Neither ever reaches the structural {@code .nt}
+   * text.
+   */
+  private static void appendTraceHeader(TraceTree tree, StringBuilder sb) {
+    var traceId = tree.traceId();
+    if (traceId == null) {
+      return;
+    }
+    sb.append("The trace ").append(TraceNamer.name(traceId.value())).append(":\n\n");
   }
 
   /**
@@ -118,35 +137,13 @@ public final class ProseRenderer implements NarrativeRenderer {
         planConcurrentGroup(segment.nodes, depth, planned, carry);
       }
     }
-    flushCarryToLast(planned, carry, sb);
+    flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
       ctxOf.push(p.node, new Ctx(p.depth, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
-  }
-
-  private void flushCarryToLast(List<Planned> planned, StringBuilder carry, StringBuilder sb) {
-    if (carry.isEmpty()) {
-      return;
-    }
-    if (planned.isEmpty()) {
-      sb.append(carry);
-      return;
-    }
-    var last = planned.get(planned.size() - 1);
-    last.trailing = (last.trailing == null ? "" : last.trailing) + carry;
-  }
-
-  /** Consumes and returns {@code carry}'s text, or {@code null} when there is none to attach. */
-  private String flush(StringBuilder carry) {
-    if (carry.isEmpty()) {
-      return null;
-    }
-    var text = carry.toString();
-    carry.setLength(0);
-    return text;
   }
 
   private void planFireAndForget(

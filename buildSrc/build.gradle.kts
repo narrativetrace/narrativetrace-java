@@ -25,6 +25,9 @@ dependencies {
     // `pmd` extension below configures for every subproject (see `toolVersion` there) so the
     // duplication report and the PMD lint gate always analyse with one PMD release.
     implementation("net.sourceforge.pmd:pmd-java:7.8.0")
+    // Reads documentation/contract.yaml for contractLint (per-commit schema/anchor validation) —
+    // a plain library dependency, same "library, not a plugin" idiom as jdepend/pmd-java above.
+    implementation("org.yaml:snakeyaml:2.2")
     implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.10")
     implementation("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.1.10-1.0.29")
     // OSV-Scanner needs a manifest of this project's actual resolved dependency

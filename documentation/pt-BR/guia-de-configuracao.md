@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 0f1d0f473132 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 45e823832fd4 | translated: 2026-09-13 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -361,7 +361,10 @@ Quando `format=markdown`, a extensão também escreve, por teste:
 
 Depois que todos os testes de uma classe terminam, a extensão escreve:
 
-- Manifesto da execução: `<outputDir>/manifest.json` — uma linha por
+- Manifesto da execução: `<outputDir>/manifest.json` — um objeto `run`
+  de nível superior (`id`, `name` — a frase de três palavras própria da
+  execução, *(since 0.2.2, unreleased)*, veja [A execução tem um
+  nome](#a-execução-tem-um-nome) abaixo) seguido de uma linha por
   cenário rastreado, em ordem de execução, nomeando o teste que o
   produziu, seu número de invocação quando o método rodou mais de uma
   vez, e cada artefato que lhe pertence como caminho relativo a
@@ -369,14 +372,23 @@ Depois que todos os testes de uma classe terminam, a extensão escreve:
   arquivo:
   ```json
   {
-    "scenario": "find TENT",
-    "testClass": "traildepot.CatalogTest",
-    "testMethod": "equipmentCanBeFound",
-    "invocation": 2,
-    "artifacts": {
-      "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
-      "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
-    }
+    "schema": "narrativetrace/scenario-manifest/1",
+    "run": {
+      "id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+      "name": "bold elk soars"
+    },
+    "scenarios": [
+      {
+        "scenario": "find TENT",
+        "testClass": "traildepot.CatalogTest",
+        "testMethod": "equipmentCanBeFound",
+        "invocation": 2,
+        "artifacts": {
+          "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
+          "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
+        }
+      }
+    ]
   }
   ```
   Apenas artefatos realmente presentes em disco são listados, então a
@@ -386,6 +398,7 @@ Depois que todos os testes de uma classe terminam, a extensão escreve:
   de uma linha contra a última execução verde:
   ```
   NarrativeTrace — Suite complete
+    run: bold elk soars
     2 scenarios recorded
     Clarity: 100% high | 0% moderate | 0% low
     Reports: build/narrativetrace
@@ -395,6 +408,33 @@ Depois que todos os testes de uma classe terminam, a extensão escreve:
 O relatório no console de um teste que falha imprime o delta estrutural
 contra o último artefato verde — resumo mais diff legível — em vez do trace
 completo, e vincula o arquivo de trace como uma URI `file://` clicável.
+
+### A execução tem um nome
+
+*(since 0.2.2, unreleased)* Um id de execução é gerado por cada execução
+da suíte de teste — um id com forma W3C, nunca uma constante compartilhada
+— e sua frase de três palavras (o mesmo gerador de nomes de onde vem o
+nome de um id de trace) é o **nome da execução**. Ele aparece:
+
+- no rodapé da suíte no console (`run: bold elk soars`, acima);
+- no objeto `run` de nível superior do `manifest.json` (`id` e `name`,
+  acima);
+- no frontmatter YAML de todo documento Markdown de trace (`run: bold
+  elk soars`, ao lado de `scenario:`);
+- no MDC como `runName` para a execução inteira (veja [Campos
+  MDC](#campos-mdc)), de modo que um único grep encontra as linhas de
+  log de uma execução.
+
+O nome da execução e o seu id são protegidos pelo mesmo invariante que o
+próprio nome de um trace: **nunca** chegam ao texto estrutural `.nt`, a
+um trace aprovado ou received, ao nome de um artefato, nem às chaves por
+cenário do manifesto — rodar a mesma suíte duas vezes, com dois nomes de
+execução diferentes, produz arquivos `.nt` idênticos byte a byte e a
+mesma saída de delta todas as vezes. O próprio nome de um trace
+(`trace: bold elk soars (a1b2c3d)` no renderer de console, `O trace bold
+elk soars: …` em prosa, a frase na linha de título do Markdown) é algo
+*diferente* — um por trace, não um por execução — e está igualmente
+ausente do texto `.nt`.
 
 ## 3. Configuração para Java puro / agente (`narrativetrace.properties`)
 
@@ -780,11 +820,14 @@ var context = new ThreadLocalNarrativeContext(
 
 `Slf4jTraceEventListener` define campos MDC em cada evento de trace. Os filtros de requisição dos módulos servlet e
 Micronaut HTTP também populam campos MDC persistentes com escopo de requisição antes de os métodos traceados rodarem.
+A extensão do JUnit 5 e a regra do JUnit 4 adicionalmente definem `runName` para toda a execução
+da suíte de teste — veja abaixo.
 
 | Chave MDC | Valor |
 |---|---|
 | `traceId` | ID de trace W3C bruto de 32 caracteres |
 | `traceName` | Nome legível determinístico de três palavras derivado de `traceId` |
+| `runName` | *(since 0.2.2, unreleased)* A frase de três palavras própria da execução da suíte de teste que a envolve, definida pela integração do JUnit 5/4 na thread que executa cada teste — veja [A execução tem um nome](#a-execução-tem-um-nome) abaixo |
 | `spanId` | ID do span atual |
 | `parentSpanId` | ID do span pai quando presente |
 | `service.name` | Nome de serviço configurado quando presente |

@@ -355,7 +355,8 @@ domain-specific ones like `reserveInventory` or `customerId` score high, and
 `clarityCheck` can fail the build on a threshold you set. Still experimental.
 → [Clarity Guide](documentation/clarity-guide.md)
 
-**Narrative approval testing.** Every run compares each scenario's *structure*
+**Narrative approval traces.** This is the approval-testing idea, applied to
+traces: every run compares each scenario's *structure*
 against the last green run and ends the suite with one line:
 
 ```
@@ -498,7 +499,7 @@ Going deeper:
 - [Micronaut Integration Guide](documentation/micronaut-integration-guide.md) — bean tracing, HTTP filter, configuration properties
 - [Clarity Guide](documentation/clarity-guide.md) — scoring model, NLP components, JUnit integration
 - [Feature Guide](documentation/feature-guide.md) — canonical catalog of every feature across all platforms, with tier and status
-- [Structural Trace Format](documentation/structural-trace-format.md) — the value-free `.nt` artifact behind delta reporting and approval testing
+- [Structural Trace Format](documentation/structural-trace-format.md) — the value-free `.nt` artifact behind delta reporting and approval traces
 - [Complete Reference](documentation/llms-full.md) — API, capture internals, configuration, integration recipes, troubleshooting, in one file
 - [Domain Glossary](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — ubiquitous-language glossary harvested from traces, and translated trace views
 

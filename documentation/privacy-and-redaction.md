@@ -160,6 +160,13 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
   loss.** It never blocks the caller and never grows past its bound; a
   capture that lost events prints the count in its own footer rather than
   silently under-reporting.
+- **A trace's name and a run's name carry no data.** Both are a
+  deterministic three-word phrase derived from a random id (see
+  [Configuration Guide § The run has a name](configuration-guide.md#the-run-has-a-name)
+  *(since 0.2.2, unreleased)*) — never from anything captured — so
+  neither can leak a runtime value, and both stay out of the
+  structural `.nt` artifact for the same reason everything else in it
+  does.
 
 ## Non-guarantees
 

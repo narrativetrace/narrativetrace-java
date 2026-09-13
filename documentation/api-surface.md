@@ -79,6 +79,7 @@ admitted with their enclosing type and are not listed separately.
 | `ai.narrativetrace.api.render.NarrativeRenderer` | 2026-08-30 | The rendering contract a third party implements. |
 | `ai.narrativetrace.api.spi.NamedTrace` | 2026-08-30 | Passed to ReportContributor; part of that contract. |
 | `ai.narrativetrace.api.spi.ReportContributor` | 2026-08-30 | Discovered by ServiceLoader from outside this repository. |
+| `ai.narrativetrace.api.spi.RunListener` | 2026-09-13 | Discovered by ServiceLoader from outside this repository — the seam an optional module (`narrativetrace-slf4j`'s MDC) uses to attach a test-suite run's identity without the JUnit integration module depending on it directly. |
 | `ai.narrativetrace.api.spi.TraceEventListener` | 2026-08-30 | Discovered by ServiceLoader from outside this repository. |
 | `ai.narrativetrace.api.tree.TraceTree` | 2026-08-30 | What every renderer, exporter and analysis consumes. Gained `traceId()` on 2026-08-30 — a `default` method returning `null`, so third-party implementations keep compiling — because an exporter has to be able to name the trace a capture belongs to even when no node in it kept a span context. |
 

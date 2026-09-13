@@ -39,7 +39,7 @@ publicada completa — incluidas páginas sin fichero aquí — está en
 |---|---|
 | [Guía de claridad](es/guia-de-claridad.md) | El modelo de puntuación de cinco dimensiones, los componentes NLP detrás de él, integración con JUnit y la puerta `clarityCheck` |
 | [Guía de funcionalidades](es/guia-de-funcionalidades.md) | El catálogo canónico: cada funcionalidad, su nivel, su implementación, su estado |
-| [Formato de traza estructural](es/formato-de-traza-estructural.md) | El artefacto `.nt` libre de valores detrás del informe de deltas y las pruebas de aprobación — la especificación del formato multiplataforma |
+| [Formato de traza estructural](es/formato-de-traza-estructural.md) | El artefacto `.nt` libre de valores detrás del informe de deltas y las trazas de aprobación — la especificación del formato multiplataforma |
 
 ## Manteniendo este índice honesto
 

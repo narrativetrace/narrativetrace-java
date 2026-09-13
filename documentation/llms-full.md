@@ -908,7 +908,10 @@ var context = new ThreadLocalNarrativeContext(
 MDC keys set during logging include `traceId`, `traceName`, `spanId`, `parentSpanId`,
 `service.name`, `service.version`, `service.environment`, `host.name`, `process.pid`,
 `process.runtime.version`, plus `nt.class`, `nt.method`, `nt.depth`, `nt.package`,
-and `nt.threadVirtual` (when captured).
+and `nt.threadVirtual` (when captured). The JUnit 5 extension and JUnit 4 rule
+additionally set `runName` for the whole test-suite execution — the run's own
+three-word phrase, alongside `traceName`'s per-trace one *(since 0.2.2,
+unreleased)*; see configuration-guide.md § The run has a name.
 
 Default levels: ENTRY=TRACE, RETURN=TRACE, EXCEPTION=WARN.
 

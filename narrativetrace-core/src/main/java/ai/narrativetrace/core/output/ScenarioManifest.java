@@ -107,23 +107,55 @@ public final class ScenarioManifest {
 
   /** Writes {@code manifest.json}; writes nothing at all when the run traced no scenario. */
   public static void write(List<Entry> entries, Path outputDir) throws IOException {
+    write(entries, outputDir, null);
+  }
+
+  /**
+   * The same write, naming the test-suite run that produced it: a top-level {@code run} object
+   * ({@code id}, {@code name}) beside {@code scenarios} (2026-09-13 ruling, item 2). {@code run} is
+   * {@code null} to omit that object entirely — a caller that has not adopted {@link RunIdentity}.
+   */
+  public static void write(List<Entry> entries, Path outputDir, RunIdentity run)
+      throws IOException {
     if (entries.isEmpty()) {
       return;
     }
-    new TraceFileWriter().write(render(entries), outputDir.resolve(FILE_NAME));
+    new TraceFileWriter().write(render(entries, run), outputDir.resolve(FILE_NAME));
   }
 
-  /** The manifest document, rendered. */
+  /** The manifest document, rendered, with no run identity. */
   public static String render(List<Entry> entries) {
+    return render(entries, null);
+  }
+
+  /** The manifest document, rendered, naming {@code run} when it is not {@code null}. */
+  public static String render(List<Entry> entries, RunIdentity run) {
     var rows = new ArrayList<String>(entries.size());
     for (var entry : entries) {
       rows.add(renderEntry(entry));
     }
     return "{\n  \"schema\": \""
         + SCHEMA
-        + "\",\n  \"scenarios\": [\n"
+        + "\",\n"
+        + renderRun(run)
+        + "  \"scenarios\": [\n"
         + String.join(",\n", rows)
         + "\n  ]\n}\n";
+  }
+
+  /** The {@code "run": {...},\n} object, or empty text when {@code run} is {@code null}. */
+  private static String renderRun(RunIdentity run) {
+    if (run == null) {
+      return "";
+    }
+    return "  \"run\": {\n"
+        + "    \"id\": \""
+        + JsonEscape.escape(run.id())
+        + "\",\n"
+        + "    \"name\": \""
+        + JsonEscape.escape(run.name())
+        + "\"\n"
+        + "  },\n";
   }
 
   private static String renderEntry(Entry entry) {

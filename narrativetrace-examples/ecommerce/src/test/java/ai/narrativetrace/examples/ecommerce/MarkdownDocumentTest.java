@@ -32,7 +32,11 @@ class MarkdownDocumentTest {
     var markdown = new MarkdownRenderer().renderDocument(tree, metadata);
 
     assertFrontmatter(markdown);
-    assertThat(markdown).contains("## Trace: OrderService.placeOrder");
+    assertThat(markdown)
+        .contains(
+            "## Trace: "
+                + ai.narrativetrace.core.render.TraceNamer.name(tree.traceId().value())
+                + " — OrderService.placeOrder");
     assertThat(markdown).contains("**Scenario:** Customer places order successfully");
     assertThat(markdown).contains("**Result:** PASSED");
     assertThat(markdown).contains("### Call Flow");

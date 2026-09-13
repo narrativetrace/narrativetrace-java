@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 8583f9a642a7 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 7b3cb774230b | translated: 2026-09-13 | reviewed: - -->
 # Veja um trace em 60 segundos
 
 [English](../sixty-seconds.md) | Español | **Português** | [简体中文](../zh-CN/60秒.md)
@@ -64,17 +64,33 @@ public class DefaultOrderService implements OrderService {
 }
 ```
 
+O `Main` adota um `Traceparent` fixo — o mesmo mecanismo que um filtro de servlet usa para um
+cabeçalho de requisição de entrada — apenas para que a saída desta página sempre nomeie o mesmo
+trace. O seu próprio código nunca faz isso: uma execução real gera um id de trace aleatório a
+cada vez, e o nome de três palavras abaixo é derivado dele, nunca de um nome que você escolhe.
+
 ```java
 // src/main/java/com/example/orders/Main.java
 package com.example.orders;
 
+import ai.narrativetrace.api.event.Traceparent;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
+
+  // snippet:begin fixedTraceparent
+  // Um traceparent W3C fixo, adotado para que a saída incorporada desta página sempre nomeie o mesmo trace.
+  // Uma execução real gera um aleatório a cada vez (nunca este — é a constante própria desta DEMO,
+  // não o padrão da biblioteca) pelo mesmo mecanismo que um filtro usa para um cabeçalho de requisição de entrada.
+  static final String DEMO_TRACEPARENT = "00-a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4-a1b2c3d4a1b2c3d4-01";
+
+  // snippet:end fixedTraceparent
+
   public static void main(String[] args) {
     var context = new ThreadLocalNarrativeContext();
+    context.adoptTraceparent(Traceparent.parse(DEMO_TRACEPARENT));
     OrderService service =
         NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
@@ -106,6 +122,8 @@ gradle wrapper
 ```
 
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
 ```
 
@@ -151,7 +169,7 @@ pipeline assim que entra no classpath, então este é todo o diff:
 <configuration>
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger] - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%X{traceName}] [%X{runName}] [%logger] - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -168,10 +186,15 @@ pipeline assim que entra no classpath, então este é todo o diff:
 ```
 
 ```text
-22:24:53.632 TRACE [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
-22:24:53.637 TRACE [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
+22:24:53.632 TRACE [loose hook parks] [] [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
+22:24:53.637 TRACE [loose hook parks] [] [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms
 ```
+
+`traceName` é populado porque o `Main` adotou o trace fixo acima; `runName` está
+vazio aqui porque essa execução simples de `main()` não pertence a nenhuma
+execução de suíte de teste — ele só é populado sob as integrações do JUnit 5/4
+(veja [Guia de Configuração, §7](guia-de-configuracao.md#campos-mdc)).
 
 A duração varia como antes. O mesmo trace agora chega à biblioteca de
 logging que você já usa — Logback, escolhido aqui por ser o backend SLF4J

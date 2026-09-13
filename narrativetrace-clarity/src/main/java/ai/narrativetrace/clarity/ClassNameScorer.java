@@ -75,7 +75,7 @@ public final class ClassNameScorer {
 
     double roleSuffix = scoreRoleSuffix(lastToken);
     double prefixQuality = scorePrefixQuality(prefixTokens);
-    double abbreviation = scoreAbbreviations(tokens);
+    double abbreviation = abbreviationDictionary.averageScore(tokens);
     double tokenCount = scoreTokenCount(tokens.size());
     double morphology = scoreMorphology(lastToken);
 
@@ -111,17 +111,6 @@ public final class ClassNameScorer {
             })
         .average()
         .orElse(0.0);
-  }
-
-  private double scoreAbbreviations(List<String> tokens) {
-    return tokens.stream()
-        .mapToDouble(
-            t -> {
-              var entry = abbreviationDictionary.lookup(t);
-              return entry != null ? entry.score() : 1.0;
-            })
-        .average()
-        .orElse(1.0);
   }
 
   private double scoreTokenCount(int count) {

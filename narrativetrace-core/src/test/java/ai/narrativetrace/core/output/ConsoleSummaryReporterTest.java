@@ -9,6 +9,7 @@ package ai.narrativetrace.core.output;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.narrativetrace.api.event.TraceLoss;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +41,39 @@ class ConsoleSummaryReporterTest {
 
     assertThat(footer).contains("347 scenarios recorded");
     assertThat(footer).contains("target/narrativetrace/");
+  }
+
+  @Test
+  void formatsSuiteFooterWithoutARunLineWhenNoRunIsGiven() {
+    var reporter = new ConsoleSummaryReporter();
+
+    var footer = reporter.formatSuiteFooter(347, "target/narrativetrace/", (RunIdentity) null);
+
+    assertThat(footer).doesNotContain("run:");
+  }
+
+  @Test
+  void formatsSuiteFooterWithTheRunNameWhenARunIsGiven() {
+    var reporter = new ConsoleSummaryReporter();
+    var run = new RunIdentity("a".repeat(32), "bold elk soars");
+
+    var footer = reporter.formatSuiteFooter(18, "target/narrativetrace/", run);
+
+    assertThat(footer).contains("  run: bold elk soars\n");
+    assertThat(footer).contains("18 scenarios recorded");
+  }
+
+  @Test
+  void formatsSuiteFooterWithClarityAndTheRunName() {
+    var reporter = new ConsoleSummaryReporter();
+    var run = new RunIdentity("a".repeat(32), "bold elk soars");
+
+    var footer =
+        reporter.formatSuiteFooter(
+            5, "target/narrativetrace/", List.of(0.9, 0.8, 0.7, 0.5, 0.3), TraceLoss.none(), run);
+
+    assertThat(footer).contains("  run: bold elk soars\n");
+    assertThat(footer).contains("Clarity:");
   }
 
   @Test

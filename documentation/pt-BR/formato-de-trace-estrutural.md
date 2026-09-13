@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob d3646cf3f74a | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob dfc23f2d77b2 | translated: 2026-09-13 | reviewed: - -->
 # Formato de trace estrutural (`.nt`)
 
 [English](../structural-trace-format.md) | [Español](../es/formato-de-traza-estructural.md) | **Português** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -112,8 +112,13 @@ scenario: Weekend trip settles with three transfers
   Nomes/ids de thread nunca aparecem.
 - **Excluído por design:** todos os valores de argumento/retorno, as
   mensagens de exceção, as durações, os timestamps, a identidade de
-  thread, os ids de trace/span, os nomes de trace, os resultados de
-  execução e a narração (a narração resolvida incorpora valores; o
+  thread, os ids de trace/span, os nomes de trace, os ids de execução,
+  os nomes de execução *(since 0.2.2, unreleased — a execução também
+  tem um nome, veja [Guia de Configuração § A execução tem um
+  nome](guia-de-configuracao.md#a-execução-tem-um-nome); nunca entra
+  neste formato, em um trace aprovado ou received, no nome de um
+  artefato, nem em uma chave por cenário do manifesto)*, os resultados
+  de execução e a narração (a narração resolvida incorpora valores; o
   *template* de narração se junta quando `nt.narrationTemplate` chegar
   com a Fase 6 do glossário).
 - **Codificação:** UTF-8, LF, quebra de linha final. Os identificadores
@@ -166,7 +171,7 @@ normaliza os campos únicos antes de comparar.
 ## Garantias
 
 1. **Determinístico:** comportamento idêntico ⇒ arquivo idêntico byte
-   a byte. Isso é o que torna o artefato a baseline de testes de
+   a byte. Isso é o que torna o artefato a baseline de traces de
    aprovação e o formato de referência (golden format) dos fixtures de
    conformidade.
 2. **Livre de valores:** superfície de prompt-injection zero, zero
@@ -179,3 +184,18 @@ normaliza os campos únicos antes de comparar.
 
 Implementado neste repositório por `core: StructuralTraceRenderer`, emitido
 por `TraceTestSupport` ao lado dos companheiros `.md`/`.json`/`.mmd`.
+
+## O golden multiplataforma
+
+Um golden de conformidade para este formato é commitado como código-fonte
+Java, não como prosa: o `StructuralGoldenConformanceTest` do
+`narrativetrace-core` constrói à mão um pequeno cenário de
+FairSplit/liquidação de viagem (do mesmo jeito que o
+`StructuralTraceRendererTest` constrói árvores) e o renderiza através do
+`StructuralTraceRenderer`, afirmando igualdade byte a byte contra um recurso
+commitado, `structural-golden/negative-expense.nt`. Cada outra implementação
+do NarrativeTrace fixa seu próprio renderer estrutural contra esses mesmos
+bytes como seu próprio fixture de conformidade; o golden é gerado uma única
+vez, aqui, e uma mudança que altere os bytes renderizados falha primeiro
+neste teste — cada outra implementação então refixa seu fixture a partir do
+Java, nunca o contrário.

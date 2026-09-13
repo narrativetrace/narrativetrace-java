@@ -156,4 +156,45 @@ class DiagramTextTest {
   void preservesTextWithNoControlCharactersUnchanged() {
     assertThat(DiagramText.message("\"order-42\"")).isEqualTo("\"order-42\"");
   }
+
+  @Test
+  void identifierOfNullIsEmpty() {
+    assertThat(DiagramText.identifier(null)).isEmpty();
+  }
+
+  @Test
+  void identifierOfBlankTextStandsInAsUnnamed() {
+    // The empty string, and text that folds to nothing but spaces, both read as absent rather
+    // than as a real, blank name — the same finding the class doc records for `participant `.
+    assertThat(DiagramText.identifier("")).isEqualTo("<unnamed>");
+    assertThat(DiagramText.identifier("   ")).isEqualTo("<unnamed>");
+  }
+
+  @Test
+  void identifierDedupesADoubledPercentThatWouldOpenAMermaidComment() {
+    // "%%" opens a Mermaid comment; a lone "%" is ordinary text and must survive.
+    assertThat(DiagramText.identifier("100%% off")).isEqualTo("100% off");
+    assertThat(DiagramText.identifier("50% off")).isEqualTo("50% off");
+  }
+
+  @Test
+  void identifierTruncatesTextLongerThanTheIdentifierCap() {
+    var tooLong = "x".repeat(DiagramText.MAX_IDENTIFIER_LENGTH + 30);
+
+    var result = DiagramText.identifier(tooLong);
+
+    assertThat(result).hasSize(DiagramText.MAX_IDENTIFIER_LENGTH + 1).endsWith("…");
+  }
+
+  @Test
+  void identifierKeepsTextAtTheCapLengthUnchanged() {
+    var atCap = "y".repeat(DiagramText.MAX_IDENTIFIER_LENGTH);
+
+    assertThat(DiagramText.identifier(atCap)).isEqualTo(atCap);
+  }
+
+  @Test
+  void aliasTokenOfNullFallsBackToP() {
+    assertThat(DiagramText.aliasToken(null)).isEqualTo("P");
+  }
 }

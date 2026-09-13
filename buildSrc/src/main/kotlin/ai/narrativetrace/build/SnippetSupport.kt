@@ -28,9 +28,18 @@ import java.io.File
  * `snippet:` names a path relative to the repository root. `region=NAME` selects a `//
  * snippet:begin NAME` … `// snippet:end NAME` (or the XML/HTML equivalent, `<!-- snippet:begin
  * NAME -->` … `<!-- snippet:end NAME -->`) window inside that file instead of the whole thing.
- * `mask=duration` replaces `— \d+(\.\d+)?ms` with `— Nms` on both sides *only for the comparison*
- * — neither the source file nor the page is ever rewritten with a masked value; the page keeps
- * whatever real duration the last `snippetSync` copied over, same as it always has.
+ * `mask` takes a comma-separated list of names, each applied in turn, on both sides *only for the
+ * comparison* — neither the source file nor the page is ever rewritten with a masked value; the
+ * page keeps whatever real value the last `snippetSync` copied over, same as it always has:
+ *
+ * - `duration` replaces `— \d+(\.\d+)?ms` with `— Nms`.
+ * - `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and, where
+ *   adjacent, the 7-hex trace-id fragment — wherever a `trace:`/`run:`/`trace_name:`/`runName:`
+ *   label, a `The trace …:` prose lead-in, or a `## Trace: … —` Markdown title carries one, since
+ *   every one of those is derived from a randomly generated id and would otherwise make embedded
+ *   live output fail `snippetCheck` on every regeneration. The 60-second quickstart avoids this
+ *   mask entirely by seeding a fixed trace id instead (see `Main.java`), so its embed shows one
+ *   real, stable phrase; `mask=traceName` is for every *other* embed of live command output.
  */
 object SnippetSupport {
 
@@ -42,6 +51,14 @@ object SnippetSupport {
     private val OPTION = Regex("""(\w+)=(\S+)""")
 
     private val DURATION_MASK = Regex("""— \d+(?:\.\d+)?ms""")
+
+    // A label immediately followed by "adjective noun verb", optionally the "(1234567)" trace-id
+    // fragment — the exact shapes TraceNamer-derived text appears in across every renderer and
+    // frontmatter field this repository writes.
+    private val TRACE_LABEL_MASK =
+        Regex("""(?i)\b(trace_name|traceName|runName|run|trace):(\s*)[a-z]+ [a-z]+ [a-z]+(\s*\([0-9a-f]{7}\))?""")
+    private val TRACE_PROSE_MASK = Regex("""The trace [a-z]+ [a-z]+ [a-z]+:""")
+    private val TRACE_TITLE_MASK = Regex("""## Trace: [a-z]+ [a-z]+ [a-z]+ — """)
 
     /** Parses one `<!-- snippet: ... -->` line; null when the line is not an opening marker. */
     fun parseMarker(line: String): SnippetMarker? {
@@ -282,15 +299,36 @@ object SnippetSupport {
     // Masking (comparison only — never rewrites either side on disk)
     // ---------------------------------------------------------------------------------------
 
-    /** Applies [maskName] to both sides for comparison; null return means [maskName] is unknown. */
-    private fun mask(maskName: String?, expected: String, actual: String): Pair<String, String>? =
-        when (maskName) {
-            null -> expected to actual
-            "duration" -> maskDuration(expected) to maskDuration(actual)
+    /**
+     * Applies every name in [maskName] (comma-separated, e.g. `duration,traceName`) to both sides
+     * for comparison, in order; null return means one of the names is unknown.
+     */
+    private fun mask(maskName: String?, expected: String, actual: String): Pair<String, String>? {
+        if (maskName == null) return expected to actual
+        var e = expected
+        var a = actual
+        for (name in maskName.split(",")) {
+            val masker = maskerFor(name) ?: return null
+            e = masker(e)
+            a = masker(a)
+        }
+        return e to a
+    }
+
+    private fun maskerFor(name: String): ((String) -> String)? =
+        when (name) {
+            "duration" -> ::maskDuration
+            "traceName" -> ::maskTraceName
             else -> null
         }
 
     private fun maskDuration(content: String): String = content.replace(DURATION_MASK, "— Nms")
+
+    private fun maskTraceName(content: String): String =
+        content
+            .replace(TRACE_LABEL_MASK) { m -> "${m.groupValues[1]}:${m.groupValues[2]}NAME NAME NAME" }
+            .replace(TRACE_PROSE_MASK, "The trace NAME NAME NAME:")
+            .replace(TRACE_TITLE_MASK, "## Trace: NAME NAME NAME — ")
 
     private fun relativePath(repoRoot: File, file: File): String =
         repoRoot.toPath().relativize(file.toPath()).toString().replace('\\', '/')

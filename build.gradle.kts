@@ -206,7 +206,12 @@ tasks.register("snippetCheck") {
         val cache = ai.narrativetrace.build.PublishedVersionSupport.readCache(cacheFileProvider.get().asFile)
         val llmsTxt = rootDir.resolve("documentation/llms.txt")
         val actual = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
-        problems += ai.narrativetrace.build.PublishedVersionSupport.bannerProblems(actual, repoVersion.get(), cache)
+        // Deterministic (pure file scan), so — unlike the published-version half — this is checked
+        // every run regardless of cache freshness (docs-vs-published-gate design note item 8).
+        val unreleasedCount = ai.narrativetrace.build.PublishedVersionSupport.countUnreleasedMarkers(rootDir)
+        problems += ai.narrativetrace.build.PublishedVersionSupport.bannerProblems(
+            actual, repoVersion.get(), cache, unreleasedCount,
+        )
         if (problems.isNotEmpty()) {
             throw GradleException(
                 "Snippet check failed — an embedded doc block drifted from its source; " +
@@ -239,7 +244,8 @@ tasks.register("snippetSync") {
         // hiccup falls back to whatever was already cached (or null); never thrown, never a
         // build failure on its own.
         val cache = ai.narrativetrace.build.PublishedVersionSupport.refreshCache(cacheFileProvider.get().asFile)
-        val line = ai.narrativetrace.build.PublishedVersionSupport.llmsTxtLine(repoVersion.get(), cache)
+        val unreleasedCount = ai.narrativetrace.build.PublishedVersionSupport.countUnreleasedMarkers(rootDir)
+        val line = ai.narrativetrace.build.PublishedVersionSupport.llmsTxtLine(repoVersion.get(), cache, unreleasedCount)
         val llmsTxt = rootDir.resolve("documentation/llms.txt")
         val before = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
         ai.narrativetrace.build.LlmsTxtBannerSupport.writeLine(llmsTxt, line)
@@ -630,6 +636,40 @@ tasks.register("duplicationCheck") {
         if (!result.passed) {
             throw GradleException(result.message)
         }
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// contractLint (per commit, no network) — validates documentation/contract.yaml's shape and ties
+// it to part (a)'s since-markers. The registry-backed twin, `contractCheck`, runs contract-probe/
+// against a published version and is nightly-only (see scripts/contract-check.sh); it is
+// deliberately NOT registered here, because contract-probe/ is not `include()`d by
+// settings.gradle.kts — see documentation/contract-gate.md.
+// ------------------------------------------------------------------------------------------------
+
+tasks.register("contractLint") {
+    description = "Validates documentation/contract.yaml's schema, anchors and since-markers (no network)"
+    group = "verification"
+    val contractFile = rootProject.file("documentation/contract.yaml")
+    val docsDir = rootProject.file("documentation")
+    inputs.file(contractFile)
+    inputs.dir(docsDir)
+    doLast {
+        val document = ai.narrativetrace.build.ContractLintSupport.parse(contractFile)
+        val unreleasedVersions = ai.narrativetrace.build.SnippetSupport.englishMarkdownFiles(rootDir)
+            .flatMap { file ->
+                Regex("""\(since (\d+\.\d+\.\d+), unreleased\)\*""").findAll(file.readText())
+                    .map { it.groupValues[1] }
+            }
+            .toSet()
+        val problems = ai.narrativetrace.build.ContractLintSupport.lint(rootDir, document, unreleasedVersions)
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "contractLint: ${problems.size} problem(s) in documentation/contract.yaml:\n" +
+                    problems.joinToString("\n") { "  - $it" }
+            )
+        }
+        println("contractLint: ${document.entries.size} entries, 0 problems")
     }
 }
 
@@ -1116,6 +1156,7 @@ subprojects {
             dependsOn(":mutationAccounting")
             dependsOn(":snippetCheck")
             dependsOn(":duplicationCheck")
+            dependsOn(":contractLint")
         }
     }
 

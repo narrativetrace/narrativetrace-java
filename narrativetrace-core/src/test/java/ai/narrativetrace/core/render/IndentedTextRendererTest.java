@@ -24,6 +24,17 @@ import org.junit.jupiter.api.Timeout;
 
 class IndentedTextRendererTest {
 
+  /**
+   * The {@code trace: bold elk soars (a1b2c3d)} header every non-empty {@link
+   * ai.narrativetrace.api.tree.TraceTree} now opens with (2026-09-13 ruling, item 4) — computed
+   * from the tree's own (randomly generated, since none of these fixtures assign one) trace id, so
+   * an exact-match assertion below stays correct regardless of that randomness.
+   */
+  private static String traceHeader(ai.narrativetrace.api.tree.TraceTree tree) {
+    var id = tree.traceId().value();
+    return "trace: " + TraceNamer.name(id) + " (" + id.substring(0, 7) + ")\n\n";
+  }
+
   @org.junit.jupiter.api.Test
   void narratedLeafMethodRendersItsNarration() {
     var node =
@@ -93,7 +104,9 @@ class IndentedTextRendererTest {
     var renderer = new IndentedTextRenderer();
     var result = renderer.render(tree);
 
-    assertThat(result).isEqualTo("OrderService.placeOrder(customerId: \"C-123\") → \"order-42\"");
+    assertThat(result)
+        .isEqualTo(
+            traceHeader(tree) + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\"");
   }
 
   @Test
@@ -120,11 +133,12 @@ class IndentedTextRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            """
-            OrderService.placeOrder(customerId: "C-123")
-            ├── InventoryService.checkStock(itemId: "ITEM-1") → true
-            └── → "order-42\"\
-            """);
+            traceHeader(tree)
+                + """
+                OrderService.placeOrder(customerId: "C-123")
+                ├── InventoryService.checkStock(itemId: "ITEM-1") → true
+                └── → "order-42\"\
+                """);
   }
 
   @Test
@@ -144,7 +158,9 @@ class IndentedTextRendererTest {
     var result = new IndentedTextRenderer().render(tree);
 
     assertThat(result)
-        .isEqualTo("AuthService.login(username: \"admin\", password: [REDACTED]) → true");
+        .isEqualTo(
+            traceHeader(tree)
+                + "AuthService.login(username: \"admin\", password: [REDACTED]) → true");
   }
 
   @Test
@@ -164,7 +180,9 @@ class IndentedTextRendererTest {
     var result = new IndentedTextRenderer().render(tree);
 
     assertThat(result)
-        .isEqualTo("OrderService.placeOrder(customerId: \"C-123\") → \"order-42\" — 24ms");
+        .isEqualTo(
+            traceHeader(tree)
+                + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\" — 24ms");
   }
 
   @Test
@@ -216,7 +234,9 @@ class IndentedTextRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "PaymentService.charge(amount: 99.95) !! IllegalStateException: insufficient funds");
+            traceHeader(tree)
+                + "PaymentService.charge(amount: 99.95) !! IllegalStateException: insufficient"
+                + " funds");
   }
 
   @Test

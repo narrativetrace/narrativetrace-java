@@ -67,18 +67,34 @@ public class DefaultOrderService implements OrderService {
 ```
 <!-- /snippet -->
 
+`Main` adopts one fixed `Traceparent` — the same mechanism a servlet filter uses for an inbound
+request header — purely so this page's output always names the same trace. Your own code never
+does this: a real run generates a random trace id every time, and the three-word name below is
+derived from it, never from a name you choose.
+
 <!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->
 ```java
 // src/main/java/com/example/orders/Main.java
 package com.example.orders;
 
+import ai.narrativetrace.api.event.Traceparent;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
+
+  // snippet:begin fixedTraceparent
+  // A fixed W3C traceparent, adopted so this page's embedded output always names the same trace.
+  // A real run generates a random one every time (never this — it is this DEMO's own constant,
+  // not the library default) via the same mechanism a filter uses for an inbound request header.
+  static final String DEMO_TRACEPARENT = "00-a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4-a1b2c3d4a1b2c3d4-01";
+
+  // snippet:end fixedTraceparent
+
   public static void main(String[] args) {
     var context = new ThreadLocalNarrativeContext();
+    context.adoptTraceparent(Traceparent.parse(DEMO_TRACEPARENT));
     OrderService service =
         NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
@@ -111,7 +127,9 @@ gradle wrapper
 
 <!-- snippet: sixty-seconds/build/narrativetrace/sixty-seconds/see-a-trace.txt mask=duration -->
 ```text
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 18ms
+trace: loose hook parks (a1b2c3d)
+
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 16ms
 ```
 <!-- /snippet -->
 
@@ -157,7 +175,7 @@ moment it is on the classpath, so this is the whole diff:
 <configuration>
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger] - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%X{traceName}] [%X{runName}] [%logger] - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -175,10 +193,14 @@ moment it is on the classpath, so this is the whole diff:
 ```
 
 ```text
-22:24:53.632 TRACE [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
-22:24:53.637 TRACE [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
+22:24:53.632 TRACE [loose hook parks] [] [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
+22:24:53.637 TRACE [loose hook parks] [] [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms
 ```
+
+`traceName` is populated because `Main` adopted the fixed trace above; `runName` is
+empty here because this plain `main()` run belongs to no test-suite execution — it
+populates only under the JUnit 5/4 integrations (see [Configuration Guide, §7](configuration-guide.md#mdc-fields)).
 
 Timing varies as before. The same trace now lands in the logging library
 you already have — Logback, picked here since it's the most common SLF4J

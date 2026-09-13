@@ -83,7 +83,7 @@ public final class MethodNameScorer {
     var firstToken = tokens.get(0);
     double verbQuality = scoreVerbQuality(firstToken);
     double tokenSpecificity = scoreTokenSpecificity(tokens);
-    double abbreviation = scoreAbbreviations(tokens);
+    double abbreviation = abbreviationDictionary.averageScore(tokens);
     double tokenCount = scoreTokenCount(tokens.size());
     double morphology = scoreMorphology(firstToken);
 
@@ -114,17 +114,6 @@ public final class MethodNameScorer {
         .mapToDouble(t -> genericDetector.detect(t).score())
         .average()
         .orElse(0.0);
-  }
-
-  private double scoreAbbreviations(List<String> tokens) {
-    return tokens.stream()
-        .mapToDouble(
-            t -> {
-              var entry = abbreviationDictionary.lookup(t);
-              return entry != null ? entry.score() : 1.0;
-            })
-        .average()
-        .orElse(1.0);
   }
 
   private double scoreTokenCount(int count) {

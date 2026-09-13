@@ -7,6 +7,9 @@
  */
 package ai.narrativetrace.core.render;
 
+import static ai.narrativetrace.core.render.SiblingCarry.flush;
+import static ai.narrativetrace.core.render.SiblingCarry.flushToLast;
+
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.render.NarrativeRenderer;
@@ -25,7 +28,7 @@ import java.util.stream.Collectors;
  * method, and parameter <em>names</em>, the call hierarchy, and outcome <em>kinds</em>. No argument
  * or return values, no exception messages, no durations, no timestamps, no trace identifiers. Zero
  * runtime values means zero prompt-injection surface and zero PII, and the output is deterministic
- * byte-for-byte for identical behavior — the property that makes it the approval-testing baseline
+ * byte-for-byte for identical behavior — the property that makes it the approved-trace baseline
  * ({@code .approved.nt}) and the cross-platform conformance-fixture format.
  *
  * <p><b>@edgeCase</b> Every walk here goes through {@link TreeWalk}: a hand-built, replayed or
@@ -40,18 +43,15 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
   private record Ctx(int depth, String leading, String trailing) {}
 
   /**
-   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link #flush}.
+   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
+   * SiblingCarry}.
    */
-  private static final class Planned {
-    final TraceNode node;
+  private static final class Planned extends PlannedSibling {
     final int depth;
-    String leading;
-    String trailing;
 
     Planned(TraceNode node, int depth, String leading) {
-      this.node = node;
+      super(node, leading);
       this.depth = depth;
-      this.leading = leading;
     }
   }
 
@@ -187,35 +187,13 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
         planGroup(segment.isAsync() ? "~ async" : "~ fork", segment.nodes, depth, planned, carry);
       }
     }
-    flushCarryToLast(planned, carry, sb);
+    flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
       ctxOf.push(p.node, new Ctx(p.depth, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
-  }
-
-  private void flushCarryToLast(List<Planned> planned, StringBuilder carry, StringBuilder sb) {
-    if (carry.isEmpty()) {
-      return;
-    }
-    if (planned.isEmpty()) {
-      sb.append(carry);
-      return;
-    }
-    var last = planned.get(planned.size() - 1);
-    last.trailing = (last.trailing == null ? "" : last.trailing) + carry;
-  }
-
-  /** Consumes and returns {@code carry}'s text, or {@code null} when there is none to attach. */
-  private String flush(StringBuilder carry) {
-    if (carry.isEmpty()) {
-      return null;
-    }
-    var text = carry.toString();
-    carry.setLength(0);
-    return text;
   }
 
   private void planGroup(

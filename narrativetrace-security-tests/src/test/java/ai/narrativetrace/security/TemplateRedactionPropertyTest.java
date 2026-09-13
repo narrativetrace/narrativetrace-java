@@ -166,10 +166,11 @@ class TemplateRedactionPropertyTest {
     var sentinel = Oracles.freshSentinel();
     var values = HostileGraphs.templateValues(templateCase.values(), sentinel);
 
-    var resolved =
-        Oracles.withinBudget(
-            "template " + templateCase.id(),
-            () -> TemplateParser.resolve(templateCase.template(), values));
+    // Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are never test inputs —
+    // this used to run through the removed Oracles.withinBudget hang detector. Dropped outright
+    // rather than replaced: a resolved template's size is already bounded by ValueRenderer's own
+    // caps, asserted directly against hostile graphs in ValueRendererRedactionPropertyTest.
+    var resolved = TemplateParser.resolve(templateCase.template(), values);
 
     assertThat(resolved).as("%s: %s", templateCase.id(), templateCase.description()).isNotNull();
     assertThat(resolved)

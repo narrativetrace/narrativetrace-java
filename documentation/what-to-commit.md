@@ -16,6 +16,7 @@ delete at any time.
 | `build/narrativetrace/traces/*.md` | No | Regenerated every run; usually a CI artifact, not source |
 | `build/narrativetrace/traces/*.json` | No | Same trace as canonical JSON — regenerated every run |
 | `build/narrativetrace/diagrams/*.mmd` | No | Regenerated every run |
+| `build/narrativetrace/manifest.json` | No | Regenerated every run; its top-level `run` object (`id`, `name` — the run's own three-word phrase) names *this execution*, not a scenario, so it changes on every run even when nothing else does *(since 0.2.2, unreleased)* |
 | `build/narrativetrace/structural/*.nt` | No | The last-green *local* baseline the console delta and failure reports compare against — not the approval baseline (see below) |
 | `build/narrativetrace/clarity-report.md` | No | A generated report, not a decision — `clarityCheck` reads `clarity-results.json` next to it, also generated |
 | `src/test/narratives/<Class>/<scenario>.approved.nt` | **Yes** | The reviewed approval baseline (only exists if [approval mode](structural-trace-format.md) is on). This is the one file in the list that is a deliberate decision, not output |

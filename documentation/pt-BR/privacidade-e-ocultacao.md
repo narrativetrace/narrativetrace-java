@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob f1658f8ad5f8 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob da3110c62745 | translated: 2026-09-13 | reviewed: - -->
 # Privacidade e ocultação
 
 [English](../privacy-and-redaction.md) | Español | **Português** | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -184,6 +184,13 @@ anotações](guia-de-anotacoes.md).
   reporta a perda.** Ele nunca bloqueia quem chama e nunca cresce além
   do seu limite; uma captura que perdeu eventos imprime a contagem em
   seu próprio rodapé em vez de subnotificar silenciosamente.
+- **O nome de um trace e o nome de uma execução não carregam dado
+  algum.** Ambos são uma frase determinística de três palavras derivada
+  de um id aleatório (veja [Guia de Configuração § A execução tem um
+  nome](guia-de-configuracao.md#a-execução-tem-um-nome) *(since 0.2.2,
+  unreleased)*) — nunca a partir de nada capturado — então nenhum dos
+  dois pode vazar um valor de runtime, e ambos ficam fora do artefato
+  estrutural `.nt` pela mesma razão que tudo o mais nele fica.
 
 ## Não garantias
 

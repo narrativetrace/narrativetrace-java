@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Approval-testing over the structural narrative (ADR-002): committed {@code *.approved.nt}
+ * Approval traces over the structural narrative (ADR-002): committed {@code *.approved.nt}
  * baselines are the behavioral contract, and a run whose structure differs fails with a readable
  * diff.
  *

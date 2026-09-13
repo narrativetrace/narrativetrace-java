@@ -396,7 +396,11 @@ class MarkdownRendererTest {
     assertThat(result).startsWith("---\n");
     assertThat(result).contains("type: trace");
     assertThat(result).contains("scenario: Customer places order");
-    assertThat(result).contains("---\n\n## Trace: OrderService.placeOrder");
+    assertThat(result)
+        .contains(
+            "---\n\n## Trace: "
+                + TraceNamer.name(tree.traceId().value())
+                + " — OrderService.placeOrder");
     assertThat(result).contains("**Scenario:** Customer places order");
     assertThat(result).contains("**Duration:** 412ms | **Result:** PASSED");
     assertThat(result).contains("### Call Flow");

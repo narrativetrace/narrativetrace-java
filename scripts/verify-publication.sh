@@ -26,7 +26,17 @@
 # THIN-CI rule for the same reasoning applied to the scanners that also stay out of gates.
 #
 # Usage:
-#   scripts/verify-publication.sh <version> [options]
+#   scripts/verify-publication.sh [<version>] [options]
+#
+# <version> is optional. Omit it (as the nightly schedule does) and the LAST PUBLISHED version is
+# verified — never this checkout's own `narrativetraceVersion` from gradle.properties, which moves
+# on to the next `-SNAPSHOT` the instant a release is cut and so is never evidence of what actually
+# shipped. Resolution order, printed to stderr so the run says which one fired:
+#   1. the newest `v*` tag reachable from HEAD (`git describe --tags --abbrev=0 --match 'v*'`).
+#   2. Maven Central's own `maven-metadata.xml` <latest> for `narrativetrace-core`, when no such
+#      tag exists yet (a scratch checkout rehearsing this script before any release).
+# Pass <version> explicitly (as a manual `workflow_dispatch` does) to verify exactly that version
+# instead — the resolution above never runs when a version is given.
 #
 # Options:
 #   --dry-run           Print the coordinates and URLs that would be checked; make no network
@@ -53,9 +63,14 @@ set -euo pipefail
 # inside a sourced file $0 is the CALLER's path, not this file's — only BASH_SOURCE[0] is
 # reliable in both cases.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-REPO_ROOT="$(pwd)"
+# Overridable for VerifyPublicationScriptTest's version-resolution fixtures (same idiom as
+# LOCAL_MAVEN_REPO below): a test points this at a throwaway git repo to exercise "no v* tag
+# reachable" without touching this checkout's own tags.
+REPO_ROOT="${REPO_ROOT:-$(pwd)}"
 
-MAVEN_CENTRAL_BASE="https://repo1.maven.org/maven2"
+# Overridable for the same reason: a test points this at a local HTTP fixture to exercise the
+# maven-metadata.xml <latest> fallback without a real network call.
+MAVEN_CENTRAL_BASE="${MAVEN_CENTRAL_BASE:-https://repo1.maven.org/maven2}"
 GRADLE_PLUGIN_PORTAL_BASE="https://plugins.gradle.org/m2"
 LOCAL_MAVEN_REPO="${LOCAL_MAVEN_REPO:-$HOME/.m2/repository}"
 DEFAULT_TIMEOUT_SECONDS=7200
@@ -65,7 +80,11 @@ CURL_MAX_TIME_SECONDS=30
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/verify-publication.sh <version> [options]
+Usage: scripts/verify-publication.sh [<version>] [options]
+
+<version> is optional: omitted, the LAST PUBLISHED version is verified (newest v* tag reachable
+from HEAD, else Maven Central's maven-metadata.xml <latest> for narrativetrace-core) — never this
+checkout's own gradle.properties version. Pass it explicitly to verify exactly that version.
 
 Options:
   --dry-run           print the coordinates/URLs that would be checked; no network calls,
@@ -139,9 +158,74 @@ parse_args() {
         esac
         shift
     done
-    [ -n "$VERSION" ] || { usage >&2; echo "ERROR: missing <version>." >&2; exit 1; }
+    # VERSION left empty is not an error: main() resolves it via resolve_version (last published
+    # version) before doing anything that needs it. See the header comment and resolve_version's
+    # own comment for why the working tree's gradle.properties is never the answer.
     case "$TIMEOUT_SECONDS" in ''|*[!0-9]*) echo "ERROR: --timeout must be a whole number of seconds." >&2; exit 1 ;; esac
     case "$INTERVAL_SECONDS" in ''|*[!0-9]*) echo "ERROR: --interval must be a whole number of seconds." >&2; exit 1 ;; esac
+}
+
+# ---------------------------------------------------------------------------------------
+# Version resolution — used only when <version> was omitted. The nightly schedule
+# (.github/workflows/verify-publication.yml) always omits it, so this is what stands between a
+# routine version bump and a run that polls for artifacts that were never going to exist: this
+# checkout's own `narrativetraceVersion` (gradle.properties) is NEVER consulted here — it moves on
+# to the next `-SNAPSHOT` the instant a release is cut, so by the time the schedule next fires it
+# already names a version nothing has published yet. VERSION and VERSION_SOURCE are set by
+# resolve_version on success; main() reports VERSION_SOURCE so a run always says which source
+# decided.
+# ---------------------------------------------------------------------------------------
+
+VERSION_SOURCE=""
+
+# The newest `v*` tag reachable from HEAD, without the `v` prefix — the ordinary case: some
+# release has shipped from this history. Returns 1 (empty stdout) when none exists, e.g. a fresh
+# checkout being used to rehearse this script before the first release.
+latest_tag_version() {
+    local tag
+    tag="$(git -C "$REPO_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null)" || return 1
+    printf '%s' "${tag#v}"
+}
+
+maven_metadata_url() {  # base group artifact
+    printf '%s/%s/%s/maven-metadata.xml\n' "$1" "$(group_path "$2")" "$3"
+}
+
+# The maven-metadata.xml <latest> value for one group:artifact, or nothing (exit 1) when the
+# document itself is not reachable — reusing head_status/classify_http_status's own curl+"000"
+# idiom rather than a second way of asking "did that request actually land". The only caller,
+# resolve_version, only ever reaches this when latest_tag_version already came up empty, so a
+# missing document here just means "nothing has been published under this coordinate at all yet".
+latest_metadata_version() {  # base group artifact
+    local url status
+    url="$(maven_metadata_url "$1" "$2" "$3")"
+    status="$(head_status "$url")"
+    [ "$(classify_http_status "$status")" = "PRESENT" ] || return 1
+    curl -s -L --max-time "$CURL_MAX_TIME_SECONDS" "$url" \
+        | sed -n 's:.*<latest>\([^<]*\)</latest>.*:\1:p' | head -n1
+}
+
+# Fills VERSION and VERSION_SOURCE from the last published version: the newest reachable `v*` tag,
+# else Maven Central's `narrativetrace-core` metadata. Prints an error and returns 1 when neither
+# source answers (no tag, and Central is unreachable or the coordinate has never been published) —
+# the caller is expected to exit rather than fall through to polling for an unknown version.
+resolve_version() {
+    local tag latest
+    if tag="$(latest_tag_version)"; then
+        VERSION="$tag"
+        VERSION_SOURCE="newest v* tag reachable from HEAD (v$tag)"
+        return 0
+    fi
+    if latest="$(latest_metadata_version "$MAVEN_CENTRAL_BASE" ai.narrativetrace narrativetrace-core)" \
+        && [ -n "$latest" ]; then
+        VERSION="$latest"
+        VERSION_SOURCE="Maven Central maven-metadata.xml <latest> for ai.narrativetrace:narrativetrace-core (no v* tag found)"
+        return 0
+    fi
+    echo "ERROR: no <version> given, no v* tag reachable from HEAD, and Maven Central's" \
+        "maven-metadata.xml is unreachable for ai.narrativetrace:narrativetrace-core." \
+        "Pass <version> explicitly." >&2
+    return 1
 }
 
 # ---------------------------------------------------------------------------------------
@@ -416,6 +500,10 @@ dry_run_report() {  # version
 # ---------------------------------------------------------------------------------------
 main() {
     parse_args "$@"
+    if [ -z "$VERSION" ]; then
+        resolve_version || exit 1
+        echo ">> no <version> given — verifying the last published version: $VERSION ($VERSION_SOURCE)" >&2
+    fi
     load_checks
     [ "${#CHECK_KIND[@]}" -gt 0 ] || { echo "ERROR: printPublishedCoordinates listed no modules." >&2; exit 1; }
 

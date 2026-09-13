@@ -38,8 +38,12 @@ class TraceShapeBoundPropertyTest {
                     shape.id(),
                     () -> {
                       var tree = TraceShapes.build(shape);
-                      var outputs =
-                          Oracles.withinBudget(shape.id(), () -> Emitters.everyOutput(tree));
+                      // Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are
+                      // never test inputs — this used to run through the removed
+                      // Oracles.withinBudget hang detector. Oracles.boundedSize below, over
+                      // every emitter's output, is the deterministic property that timing
+                      // bound stood in for.
+                      var outputs = Emitters.everyOutput(tree);
 
                       Oracles.boundedSize(outputs);
                       Formats.validatesAgainstChapterTreeSchema(

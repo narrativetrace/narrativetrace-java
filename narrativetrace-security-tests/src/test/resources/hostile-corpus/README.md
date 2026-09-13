@@ -26,7 +26,7 @@ bytes are, and keep the file ASCII — every non-ASCII character is written as a
 | `strings.json` | the value renderer, every output format | hostile scalar values: control characters, bidi and zero-width, combining sequences, unpaired surrogates, template lookalikes, JSON/Mermaid/Markdown/YAML metacharacters, values up to 1 MiB |
 | `headers.json` | `Traceparent` and any other wire reader | W3C `traceparent` and `tracestate` values: wrong lengths, non-hex, all-zero ids, version `ff`, trailing garbage, embedded CRLF, oversize |
 | `templates.json` | `TemplateParser` and `RedactedPaths` | `@Narrated`/`@OnError` templates: nesting, unterminated braces, paths into redacted members at every depth, 50-segment paths, unicode identifiers |
-| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary |
+| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary, the platform-type carve-out (a trusted short value, a deny-listed name holding one, a lookalike name and a subclass that must still be walked) |
 | `injection.json` | every output format, as an AI-consumer oracle | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, markdown-link exfiltration, fence and frontmatter terminators, Mermaid label terminators, homoglyph and zero-width variants |
 | `names.json` | the artifact writers, which turn a name into a path | test class and method names: separators and parent traversal, control characters, lone surrogates, noncharacters, bidi overrides, and names past the filesystem's per-element limit in characters *and* in bytes |
 | `redaction.json` | the name deny-list and the value-shape matcher | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
@@ -83,6 +83,10 @@ or `kind`, naming a shape a stack cannot express:
 | `curatedToStringNested` | a composite with no sensitive field whose native stringification interpolates a nested composite that carries one |
 | `mapKey` | a composite carrying a deny-listed field, used as a map/dictionary **key** |
 | `throwingSummary` | a composite whose summary marker (`@NarrativeSummary` and its per-runtime equivalents) throws |
+| `platformValue` | platform-defined value types with no deny-listed field, each rendering its own short native text |
+| `platformNameRedacted` | a deny-listed field name holding a value of a platform type the renderer would otherwise trust to stringify itself |
+| `platformLookalike` | a user type named after a platform type, carrying a deny-listed field |
+| `platformSubclass` | a user subclass of a platform type, carrying a deny-listed field |
 | `manyFields` | an object with `n` fields |
 | `emptyContainers` | every empty container, nested |
 | `future` | a `Future` in the given `state` |

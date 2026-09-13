@@ -108,7 +108,18 @@ public final class ConsoleSummaryReporter {
   }
 
   public String formatSuiteFooter(int scenarioCount, String outputPath) {
+    return formatSuiteFooter(scenarioCount, outputPath, (RunIdentity) null);
+  }
+
+  /**
+   * The plain footer (no clarity breakdown), naming the enclosing test-suite run when one exists.
+   *
+   * @param run the run this suite executed as, or {@code null} outside a tracked run — see {@link
+   *     RunIdentity} (2026-09-13 ruling, item 2)
+   */
+  public String formatSuiteFooter(int scenarioCount, String outputPath, RunIdentity run) {
     return "\nNarrativeTrace — Suite complete\n"
+        + runLine(run)
         + "  "
         + scenarioCount
         + " scenarios recorded\n"
@@ -132,6 +143,16 @@ public final class ConsoleSummaryReporter {
    */
   public String formatSuiteFooter(
       int scenarioCount, String outputPath, List<Double> clarityScores, TraceLoss loss) {
+    return formatSuiteFooter(scenarioCount, outputPath, clarityScores, loss, null);
+  }
+
+  /** The same footer, naming the enclosing test-suite run when one exists (item 2). */
+  public String formatSuiteFooter(
+      int scenarioCount,
+      String outputPath,
+      List<Double> clarityScores,
+      TraceLoss loss,
+      RunIdentity run) {
     int high = 0, moderate = 0, low = 0;
     for (var score : clarityScores) {
       if (score >= 0.7) high++;
@@ -143,6 +164,7 @@ public final class ConsoleSummaryReporter {
     int moderatePct = Math.round(100f * moderate / total);
     int lowPct = Math.round(100f * low / total);
     return "\nNarrativeTrace — Suite complete\n"
+        + runLine(run)
         + "  "
         + scenarioCount
         + " scenarios recorded\n"
@@ -156,6 +178,14 @@ public final class ConsoleSummaryReporter {
         + lossLine(loss)
         + "  Reports: "
         + outputPath;
+  }
+
+  /**
+   * The run-identity line, or nothing when there is no enclosing run to name — an integration that
+   * has not adopted {@link RunIdentity} yet, or a caller rendering a footer standalone.
+   */
+  private static String runLine(RunIdentity run) {
+    return run == null ? "" : "  run: " + run.name() + "\n";
   }
 
   /**

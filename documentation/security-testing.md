@@ -53,8 +53,18 @@ target asserts from this list; every runtime implements the same seven.
    never become an application failure. Where a method declares a guard, the
    oracle is *the declared result or the declared exception, never a third
    thing*.
-2. **Bounded time and size.** A narration costs O(size) of its input. No input
-   hangs, and no input produces unbounded output.
+2. **Bounded size.** No input produces unbounded output — `Oracles.boundedSize`,
+   plus a per-target bounded-output test asserting the corpus's worst-case
+   value/graph renders within a small, deterministic ceiling. This used to
+   also carry a wall-clock half (`Oracles.withinBudget`, a 10-second hang
+   detector run around every property test's call into the renderer/emitters)
+   until it was removed 2026-09-13 (family release rule 3: wall-clock, GC and
+   scheduler are never test inputs) — every call site now asserts the
+   deterministic bounded-output property the timing bound stood in for. The
+   one genuine parse-*cost* concern that style of oracle covered (a hundred
+   thousand `traceparent` extension fields) lives instead as a JMH case in the
+   never-gated `narrativetrace-benchmarks` module
+   (`TraceparentParsingBenchmark`), never part of the per-commit gate.
 3. **Well-formedness, read back by the consumer's own parser.** JSON parses
    with a real JSON parser *and* validates against the canonical
    `chapter-tree` schema; a Mermaid diagram has one statement per line and no
@@ -119,7 +129,7 @@ JSON fixtures with a `README.md` beside them describing every case shape:
 | `strings.json` | hostile scalar values: control characters, bidi and zero-width, combining sequences, unpaired surrogates, template lookalikes, JSON/Mermaid/Markdown/YAML metacharacters, values up to 1 MiB |
 | `headers.json` | `traceparent` and `tracestate` values: wrong lengths, non-hex, all-zero ids, forbidden versions, trailing garbage, embedded CRLF |
 | `templates.json` | `@Narrated`/`@OnError` templates: nesting, unterminated braces, paths into redacted members at every depth, unicode identifiers |
-| `graphs.json` | declarative object-graph *shapes*: depth, width, cycles, self-reference, wrapper chains, throwing/blocking/recursive `toString`, a curated `toString` that interpolates a sensitive field (directly and one level down), a composite map key, a throwing `@NarrativeSummary`, huge collections |
+| `graphs.json` | declarative object-graph *shapes*: depth, width, cycles, self-reference, wrapper chains, throwing/blocking/recursive `toString`, a curated `toString` that interpolates a sensitive field (directly and one level down), a composite map key, a throwing `@NarrativeSummary`, the platform-type carve-out (trusted short value, name-redacted, lookalike, subclass), huge collections |
 | `injection.json` | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, link exfiltration, fence and frontmatter terminators, homoglyph variants |
 | `names.json` | test class and method names as the writers receive them: separators and parent traversal, control characters, lone surrogates, noncharacters, and names past the filesystem's per-element limit in characters *and* in bytes |
 

@@ -7,6 +7,9 @@
  */
 package ai.narrativetrace.core.render;
 
+import static ai.narrativetrace.core.render.SiblingCarry.flush;
+import static ai.narrativetrace.core.render.SiblingCarry.flushToLast;
+
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.TraceNode;
@@ -99,21 +102,18 @@ public final class MarkdownRenderer implements NarrativeRenderer {
       List<TraceNode> foldedSiblings) {}
 
   /**
-   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link #flush}.
+   * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
+   * SiblingCarry}.
    */
-  private static final class Planned {
-    final TraceNode node;
+  private static final class Planned extends PlannedSibling {
     final int depth;
     final String prefix;
-    String leading;
-    String trailing;
     List<TraceNode> foldedSiblings;
 
     Planned(TraceNode node, int depth, String prefix, String leading) {
-      this.node = node;
+      super(node, leading);
       this.depth = depth;
       this.prefix = prefix;
-      this.leading = leading;
     }
   }
 
@@ -127,7 +127,11 @@ public final class MarkdownRenderer implements NarrativeRenderer {
 
   public String renderDocument(TraceTree tree, TraceMetadata metadata) {
     var sb = new StringBuilder();
-    sb.append(new FrontmatterBuilder().scenario(metadata.scenario()).build(tree));
+    sb.append(
+        new FrontmatterBuilder()
+            .scenario(metadata.scenario())
+            .runName(metadata.runName())
+            .build(tree));
     renderDocumentHeader(tree, metadata, sb);
     var refs = ValueReferenceIndex.build(tree);
     renderTree(tree.roots(), sb, refs);
@@ -153,6 +157,17 @@ public final class MarkdownRenderer implements NarrativeRenderer {
   }
 
   /**
+   * The trace's own three-word phrase plus a trailing separator ({@code "bold elk soars — "}), or
+   * empty when {@link TraceTree#traceId()} is {@code null} — the frontmatter already carries the
+   * phrase (and the raw id) as {@code trace_name:}/{@code trace_id:}; this is the same phrase in
+   * the document's own title line (2026-09-13 ruling, item 4).
+   */
+  private String tracePhrasePrefix(TraceTree tree) {
+    var traceId = tree.traceId();
+    return traceId == null ? "" : TraceNamer.name(traceId.value()) + " — ";
+  }
+
+  /**
    * <b>@edgeCase</b> The scenario is caller-supplied text and the frontmatter already escapes it
    * (via {@code FrontmatterBuilder.yamlSafe}); this header escapes the same value for the Markdown
    * body — one escaping decision per sink, never a raw append. A raw scenario here forged document
@@ -165,7 +180,10 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     }
     var sig = tree.roots().get(0).signature();
     var durationMs = DurationFormat.millis(tree.durationNanos());
-    sb.append("\n## Trace: ").append(signatureText(sig)).append("\n\n");
+    sb.append("\n## Trace: ")
+        .append(tracePhrasePrefix(tree))
+        .append(signatureText(sig))
+        .append("\n\n");
     sb.append("**Scenario:** ").append(MarkdownEscape.text(metadata.scenario())).append("\n");
     sb.append("**Duration:** ")
         .append(durationMs)
@@ -222,35 +240,13 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     while (i < segments.size()) {
       i = planSegmentFrom(segments, i, depth, planned, carry);
     }
-    flushCarryToLast(planned, carry, sb);
+    flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
       ctxOf.push(p.node, new Ctx(p.depth, p.prefix, p.leading, p.trailing, p.foldedSiblings));
       result.add(p.node);
     }
     return result;
-  }
-
-  private void flushCarryToLast(List<Planned> planned, StringBuilder carry, StringBuilder sb) {
-    if (carry.isEmpty()) {
-      return;
-    }
-    if (planned.isEmpty()) {
-      sb.append(carry);
-      return;
-    }
-    var last = planned.get(planned.size() - 1);
-    last.trailing = (last.trailing == null ? "" : last.trailing) + carry;
-  }
-
-  /** Consumes and returns {@code carry}'s text, or {@code null} when there is none to attach. */
-  private String flush(StringBuilder carry) {
-    if (carry.isEmpty()) {
-      return null;
-    }
-    var text = carry.toString();
-    carry.setLength(0);
-    return text;
   }
 
   private int planSegmentFrom(
@@ -563,18 +559,8 @@ public final class MarkdownRenderer implements NarrativeRenderer {
       }
     } else if (outcome instanceof TraceOutcome.Threw t) {
       var errorIndent = "  ".repeat(depth + 1);
-      sb.append("\n\n")
-          .append(errorIndent)
-          .append("> ❌ `")
-          .append(MarkdownEscape.text(t.exception().getClass().getSimpleName()))
-          .append("`: ")
-          .append(MarkdownEscape.text(ExceptionMessage.text(t.exception())));
-      if (sig.errorContext() != null) {
-        sb.append("\n")
-            .append(errorIndent)
-            .append("> ")
-            .append(MarkdownEscape.text(sig.errorContext()));
-      }
+      sb.append("\n\n").append(errorIndent).append("> ");
+      appendThrewDetail(t, sig, errorIndent, sb);
     } else if (outcome instanceof TraceOutcome.Incomplete) {
       sb.append(" ⏳ in-flight");
     }
@@ -583,19 +569,35 @@ public final class MarkdownRenderer implements NarrativeRenderer {
   private void renderOutcomeClosing(
       TraceOutcome outcome, MethodSignature sig, int depth, StringBuilder sb) {
     if (outcome instanceof TraceOutcome.Threw t) {
-      var errorIndent = "  ".repeat(depth + 1);
-      sb.append("❌ `")
-          .append(MarkdownEscape.text(t.exception().getClass().getSimpleName()))
-          .append("`: ")
-          .append(MarkdownEscape.text(ExceptionMessage.text(t.exception())));
-      if (sig.errorContext() != null) {
-        sb.append("\n")
-            .append(errorIndent)
-            .append("> ")
-            .append(MarkdownEscape.text(sig.errorContext()));
-      }
+      appendThrewDetail(t, sig, "  ".repeat(depth + 1), sb);
     } else if (outcome instanceof TraceOutcome.Incomplete) {
       sb.append("⏳ in-flight");
+    }
+  }
+
+  /**
+   * The failure detail itself — {@code ❌ `Type`: message}, plus the {@code @Narrated} error context
+   * on its own quoted line — with no leading text of its own.
+   *
+   * <p>INTENT: A thrown outcome renders in two places, inline after a leaf call and as a parent's
+   * closing line, and the two differ only in what comes <em>before</em> this detail (the inline
+   * form opens a blockquote first). Every escaping decision inside it is therefore made once: the
+   * type name, the exception message and the error context are all attacker-reachable text in a
+   * line-oriented format.
+   *
+   * @param errorIndent indent for the error-context continuation line
+   */
+  private void appendThrewDetail(
+      TraceOutcome.Threw threw, MethodSignature sig, String errorIndent, StringBuilder sb) {
+    sb.append("❌ `")
+        .append(MarkdownEscape.text(threw.exception().getClass().getSimpleName()))
+        .append("`: ")
+        .append(MarkdownEscape.text(ExceptionMessage.text(threw.exception())));
+    if (sig.errorContext() != null) {
+      sb.append("\n")
+          .append(errorIndent)
+          .append("> ")
+          .append(MarkdownEscape.text(sig.errorContext()));
     }
   }
 

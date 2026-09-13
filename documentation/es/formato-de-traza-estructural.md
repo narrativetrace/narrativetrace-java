@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob d3646cf3f74a | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob dfc23f2d77b2 | translated: 2026-09-13 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -116,6 +116,12 @@ scenario: Weekend trip settles with three transfers
 - **Excluido por diseño:** todos los valores de argumentos/retorno, los
   mensajes de excepción, las duraciones, las marcas de tiempo, la
   identidad del hilo, los ids de traza/span, los nombres de traza, los
+  ids de ejecución, los nombres de ejecución *(since 0.2.2, unreleased —
+  la ejecución también tiene un nombre, consulta [Guía de configuración
+  § La ejecución tiene un
+  nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre); nunca
+  entra en este formato, en una traza aprobada o recibida, en el nombre
+  de un artefacto, ni en una clave por escenario del manifiesto)*, los
   resultados de ejecución y la narración (la narración resuelta incrusta
   valores; la *plantilla* de narración se sumará cuando
   `nt.narrationTemplate` llegue con la Fase 6 del glosario).
@@ -170,7 +176,7 @@ normaliza los campos únicos antes de comparar.
 
 1. **Determinista:** comportamiento idéntico ⇒ fichero idéntico byte a
    byte. Esto es lo que convierte al artefacto en la línea base de las
-   pruebas de aprobación y en el formato de referencia (golden format)
+   trazas de aprobación y en el formato de referencia (golden format)
    de los fixtures de conformidad.
 2. **Libre de valores:** superficie de prompt-injection nula, cero PII,
    tokens mínimos — seguro para entregar por defecto a un agente de IA
@@ -182,3 +188,17 @@ normaliza los campos únicos antes de comparar.
 
 Implementado en este repositorio por `core: StructuralTraceRenderer`, emitido
 por `TraceTestSupport` junto a los acompañantes `.md`/`.json`/`.mmd`.
+
+## El golden multiplataforma
+
+Un golden de conformidad para este formato está comiteado como código Java,
+no como prosa: `StructuralGoldenConformanceTest` de `narrativetrace-core`
+construye a mano un pequeño escenario de FairSplit/liquidación de viaje (de
+la misma forma en que `StructuralTraceRendererTest` construye árboles) y lo
+renderiza mediante `StructuralTraceRenderer`, afirmando igualdad byte a byte
+contra un recurso comiteado, `structural-golden/negative-expense.nt`. Cada
+otra implementación de NarrativeTrace fija su propio renderer estructural
+contra esos mismos bytes como su propio fixture de conformidad; el golden se
+genera una sola vez, aquí, y un cambio que altere los bytes renderizados
+falla primero en esta prueba — cada otra implementación vuelve a fijar
+después su fixture desde Java, nunca al revés.

@@ -102,6 +102,26 @@ public final class TraceTestSupport {
       NarrativeRenderer mermaidRenderer,
       NarrativeRenderer plantumlRenderer,
       boolean foldLoops) {
+    return renderForFormat(
+        format, trace, displayName, failed, mermaidRenderer, plantumlRenderer, foldLoops, null);
+  }
+
+  /**
+   * The same render, additionally naming the enclosing test-suite run: {@code runName} reaches only
+   * the Markdown document's frontmatter ({@code run:}), through {@link TraceMetadata} — never the
+   * structural artifact, never the delta, never any other format (2026-09-13 ruling, items 2–3).
+   *
+   * @param runName the run's three-word phrase, or {@code null} outside a tracked run
+   */
+  public static String renderForFormat(
+      String format,
+      TraceTree trace,
+      String displayName,
+      boolean failed,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName) {
     var scenario = ScenarioFramer.humanize(displayName);
     return switch (format.toLowerCase()) {
       case "text" ->
@@ -109,7 +129,7 @@ public final class TraceTestSupport {
       case "mermaid" -> mermaidRenderer.render(trace);
       case "plantuml" -> plantumlRenderer.render(trace);
       default -> {
-        var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed));
+        var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed), runName);
         var renderer = foldLoops ? new MarkdownRenderer() : MarkdownRenderer.unfolded();
         yield renderer.renderDocument(trace, metadata);
       }
@@ -198,6 +218,40 @@ public final class TraceTestSupport {
       NarrativeRenderer plantumlRenderer,
       boolean foldLoops)
       throws IOException {
+    return writeTraceFile(
+        identity,
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer,
+        foldLoops,
+        null);
+  }
+
+  /**
+   * The same write, additionally naming the enclosing test-suite run in the Markdown document's
+   * frontmatter — see {@link #renderForFormat(String, TraceTree, String, boolean,
+   * NarrativeRenderer, NarrativeRenderer, boolean, String)}.
+   *
+   * @param runName the run's three-word phrase, or {@code null} outside a tracked run
+   */
+  public static Optional<ScenarioDelta> writeTraceFile(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName)
+      throws IOException {
     if (trace.isEmpty()) {
       return Optional.empty();
     }
@@ -205,7 +259,14 @@ public final class TraceTestSupport {
     var file = resolver.traceArtifact(identity, extensionForFormat(format));
     var content =
         renderForFormat(
-            format, trace, displayName, failed, mermaidRenderer, plantumlRenderer, foldLoops);
+            format,
+            trace,
+            displayName,
+            failed,
+            mermaidRenderer,
+            plantumlRenderer,
+            foldLoops,
+            runName);
     var writer = new TraceFileWriter();
     writer.write(content, file);
     out.println(
@@ -221,7 +282,7 @@ public final class TraceTestSupport {
     }
     return Optional.of(
         writeMarkdownExtras(
-            writer, resolver, identity, displayName, trace, failed, mermaidRenderer));
+            writer, resolver, identity, displayName, trace, failed, mermaidRenderer, runName));
   }
 
   /**
@@ -293,12 +354,13 @@ public final class TraceTestSupport {
       String displayName,
       TraceTree trace,
       boolean failed,
-      NarrativeRenderer mermaidRenderer)
+      NarrativeRenderer mermaidRenderer,
+      String runName)
       throws IOException {
     writer.write(mermaidRenderer.render(trace), resolver.diagramFile(identity));
 
     var scenario = ScenarioFramer.humanize(displayName);
-    var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed));
+    var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed), runName);
     writer.write(
         new JsonExporter().exportDocument(trace, metadata),
         resolver.traceArtifact(identity, ".json"));
@@ -450,8 +512,31 @@ public final class TraceTestSupport {
       Function<TraceTree, Double> clarityScorer,
       List<ScenarioDelta> deltas,
       TraceLoss loss) {
-    printConsoleSummary(traces, outputDir, out, clarityScorer, loss);
-    var deltaLine = new ConsoleSummaryReporter().formatDeltaLine(deltas);
+    printConsoleSummary(traces, outputDir, out, clarityScorer, deltas, loss, null);
+  }
+
+  /**
+   * The same summary, naming the enclosing test-suite run in the footer (2026-09-13 ruling, item 2)
+   * — never in the delta line, which stays exactly {@link ConsoleSummaryReporter#formatDeltaLine}
+   * always produced (item 3).
+   *
+   * @param run the run this suite executed as, or {@code null} outside a tracked run
+   */
+  public static void printConsoleSummary(
+      List<Map.Entry<String, TraceTree>> traces,
+      Path outputDir,
+      PrintStream out,
+      Function<TraceTree, Double> clarityScorer,
+      List<ScenarioDelta> deltas,
+      TraceLoss loss,
+      RunIdentity run) {
+    var scores = new ArrayList<Double>();
+    for (var entry : traces) {
+      scores.add(clarityScorer.apply(entry.getValue()));
+    }
+    var reporter = new ConsoleSummaryReporter();
+    out.println(reporter.formatSuiteFooter(traces.size(), outputDir.toString(), scores, loss, run));
+    var deltaLine = reporter.formatDeltaLine(deltas);
     if (!deltaLine.isEmpty()) {
       out.println("  Since last green: " + deltaLine);
     }

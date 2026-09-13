@@ -1,4 +1,4 @@
-<!-- source: README.md blob e391298242ad | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 794d895a07b4 | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -376,7 +376,8 @@ clase y parámetro que se ejecutó: los nombres genéricos como `processData` o
 fallar el build según el umbral que fijes. Aún es experimental.
 → [Guía de claridad](documentation/es/guia-de-claridad.md)
 
-**Pruebas de aprobación narrativa.** Cada ejecución compara la *estructura* de
+**Trazas de aprobación narrativa.** Es la idea de las pruebas de aprobación,
+aplicada a trazas: cada ejecución compara la *estructura* de
 cada escenario con la última ejecución verde y cierra la suite con una línea:
 
 ```
@@ -532,7 +533,7 @@ Para profundizar:
 - [Guía de integración con Micronaut](documentation/es/guia-de-integracion-con-micronaut.md) — tracing de beans, filtro HTTP, propiedades de configuración
 - [Guía de claridad](documentation/es/guia-de-claridad.md) — modelo de puntuación, componentes NLP, integración con JUnit
 - [Guía de funcionalidades](documentation/es/guia-de-funcionalidades.md) — catálogo canónico de cada funcionalidad en todas las plataformas, con nivel y estado
-- [Formato de traza estructural](documentation/es/formato-de-traza-estructural.md) — el artefacto `.nt` libre de valores detrás del informe de deltas y las pruebas de aprobación
+- [Formato de traza estructural](documentation/es/formato-de-traza-estructural.md) — el artefacto `.nt` libre de valores detrás del informe de deltas y las trazas de aprobación
 - [Referencia completa](documentation/llms-full.md) — API, interioridades de la captura, configuración, recetas de integración y resolución de problemas, en un solo archivo (en inglés)
 - [Glosario de dominio](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — glosario de lenguaje ubicuo recolectado desde las trazas, y vistas traducidas de las trazas (en inglés)
 

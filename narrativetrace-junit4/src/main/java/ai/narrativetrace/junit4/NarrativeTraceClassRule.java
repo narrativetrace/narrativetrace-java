@@ -8,14 +8,17 @@
 package ai.narrativetrace.junit4;
 
 import ai.narrativetrace.api.event.TraceLoss;
+import ai.narrativetrace.api.spi.RunListener;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.clarity.ClarityAnalyzer;
 import ai.narrativetrace.clarity.ClarityJsonExporter;
 import ai.narrativetrace.clarity.ClarityReportRenderer;
 import ai.narrativetrace.clarity.ClarityResult;
 import ai.narrativetrace.clarity.DomainVocabulary;
+import ai.narrativetrace.core.output.RunIdentity;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.TraceTestSupport;
+import ai.narrativetrace.core.spi.ExtensionRegistry;
 import ai.narrativetrace.glossary.GlossaryVocabulary;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -64,6 +67,18 @@ public class NarrativeTraceClassRule implements TestRule {
   private static final AtomicReference<TraceLoss> GLOBAL_LOSS =
       new AtomicReference<>(TraceLoss.none());
 
+  /**
+   * This JVM's test-suite execution identity — generated once, at class load, alongside the other
+   * {@code GLOBAL_*} suite-wide state (2026-09-13 ruling, item 2). {@link #resetGlobalAccumulator}
+   * regenerates it for the same reason it clears the others: a test asserting behavior across two
+   * separate "runs" within one JVM needs two distinct identities, not one reused.
+   */
+  private static volatile RunIdentity GLOBAL_RUN_IDENTITY = RunIdentity.generate();
+
+  /** Discovered once per JVM, alongside {@link #GLOBAL_RUN_IDENTITY} — see {@link RunListener}. */
+  private static final List<RunListener> RUN_LISTENERS =
+      new ExtensionRegistry().load(RunListener.class);
+
   private final Map<String, TraceTree> accumulatedTraces = new LinkedHashMap<>();
   private final List<ScenarioDelta> accumulatedDeltas = new ArrayList<>();
   private PrintStream out = System.out;
@@ -109,6 +124,51 @@ public class NarrativeTraceClassRule implements TestRule {
   static void resetGlobalAccumulator() {
     GLOBAL_TRACES.clear();
     GLOBAL_DELTAS.clear();
+    GLOBAL_RUN_IDENTITY = RunIdentity.generate();
+  }
+
+  /** This JVM's current test-suite run identity — see {@link #GLOBAL_RUN_IDENTITY}. */
+  RunIdentity runIdentity() {
+    return GLOBAL_RUN_IDENTITY;
+  }
+
+  /**
+   * Reports the current run's identity to every discovered {@link RunListener} — SLF4J's MDC, when
+   * {@code narrativetrace-slf4j} is on the classpath — on the thread about to run a test. Isolated
+   * per listener: one that throws is reported and skipped, never fails the test.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingGenericException") // one bad listener must not fail a test
+  static void notifyRunStarted() {
+    var run = GLOBAL_RUN_IDENTITY;
+    for (var listener : RUN_LISTENERS) {
+      try {
+        listener.runStarted(run.id(), run.name());
+      } catch (Exception e) { // NOPMD
+        System.err.println(
+            "narrative-trace: run listener "
+                + listener.getClass().getName()
+                + " failed on runStarted and was skipped ("
+                + e
+                + ")");
+      }
+    }
+  }
+
+  /** Reports the run's end to every discovered {@link RunListener}, isolated per listener. */
+  @SuppressWarnings("PMD.AvoidCatchingGenericException") // one bad listener must not fail the run
+  static void notifyRunEnded() {
+    for (var listener : RUN_LISTENERS) {
+      try {
+        listener.runEnded();
+      } catch (Exception e) { // NOPMD
+        System.err.println(
+            "narrative-trace: run listener "
+                + listener.getClass().getName()
+                + " failed on runEnded and was skipped ("
+                + e
+                + ")");
+      }
+    }
   }
 
   /**
@@ -135,6 +195,7 @@ public class NarrativeTraceClassRule implements TestRule {
   }
 
   private void afterAll() {
+    notifyRunEnded();
     if (!NarrativeTraceRule.isOutputEnabled()) {
       return;
     }
@@ -164,7 +225,8 @@ public class NarrativeTraceClassRule implements TestRule {
         out,
         tree -> new ClarityAnalyzer(vocabulary).analyze(tree).overallScore(),
         GLOBAL_DELTAS,
-        GLOBAL_LOSS.getAndSet(TraceLoss.none()));
+        GLOBAL_LOSS.getAndSet(TraceLoss.none()),
+        GLOBAL_RUN_IDENTITY);
   }
 
   /**

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob f1658f8ad5f8 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob da3110c62745 | translated: 2026-09-13 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -185,6 +185,14 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
   informa de la pérdida.** Nunca bloquea al llamador y nunca crece más
   allá de su límite; una captura que perdió eventos imprime el recuento en
   su propio pie de página en lugar de subinformar en silencio.
+- **El nombre de una traza y el nombre de una ejecución no llevan ningún
+  dato.** Ambos son una frase determinista de tres palabras derivada de
+  un id aleatorio (consulta [Guía de configuración § La ejecución tiene
+  un nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre)
+  *(since 0.2.2, unreleased)*) — nunca de nada capturado — así que
+  ninguno de los dos puede filtrar un valor en tiempo de ejecución, y
+  ambos se mantienen fuera del artefacto estructural `.nt` por la misma
+  razón que todo lo demás en él.
 
 ## No-garantías
 

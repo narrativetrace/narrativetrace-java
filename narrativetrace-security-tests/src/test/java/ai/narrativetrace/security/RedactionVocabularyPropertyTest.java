@@ -63,9 +63,11 @@ class RedactionVocabularyPropertyTest {
   @ParameterizedTest
   @MethodSource("corpus")
   void everyCorpusRowGoesTheWayItDeclares(RedactionCase corpusCase) {
-    var outputs =
-        Oracles.withinBudget(
-            "every output for " + corpusCase.id(), () -> everyOutput(corpusCase.payload()));
+    // Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are never test inputs —
+    // this used to run through the removed Oracles.withinBudget hang detector. Oracles.boundedSize
+    // below, over every emitter's output, is the deterministic property that timing bound stood
+    // in for.
+    var outputs = everyOutput(corpusCase.payload());
 
     if (corpusCase.expectsRedaction()) {
       assertHiddenEverywhere(corpusCase, outputs);

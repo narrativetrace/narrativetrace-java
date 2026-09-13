@@ -7,6 +7,9 @@
  */
 package ai.narrativetrace.core.render;
 
+import static ai.narrativetrace.core.render.SiblingCarry.flush;
+import static ai.narrativetrace.core.render.SiblingCarry.flushToLast;
+
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.TraceNode;
@@ -44,20 +47,16 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
 
   /**
    * Mutable working form of {@link Prefix} while a sibling list is being planned; see {@link
-   * #flush}.
+   * SiblingCarry}.
    */
-  private static final class Planned {
-    final TraceNode node;
+  private static final class Planned extends PlannedSibling {
     final String line;
     final String cont;
-    String leading;
-    String trailing;
 
     Planned(TraceNode node, String line, String cont, String leading) {
-      this.node = node;
+      super(node, leading);
       this.line = line;
       this.cont = cont;
-      this.leading = leading;
     }
   }
 
@@ -66,10 +65,35 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
   @Override
   public String render(TraceTree tree) {
     var sb = new StringBuilder();
+    appendTraceHeader(tree, sb);
     for (var root : tree.roots()) {
       renderTree(root, sb);
     }
     return sb.toString().stripTrailing() + LossFooter.block(tree, "");
+  }
+
+  /**
+   * Opens with {@code trace: bold elk soars (a1b2c3d)} — the trace's own three-word phrase plus the
+   * first 7 hex characters of its id — so a console reader can name and locate the trace without
+   * cross-referencing a separate identifier line (2026-09-13 ruling, item 4). Silent when {@link
+   * TraceTree#traceId()} is {@code null} (an empty tree, or a hand-built one that opted out of
+   * identity): nothing here is invented.
+   *
+   * <p><b>@llmNote</b> This is the trace's OWN name, unrelated to the test-suite run name a JUnit
+   * integration threads through the console footer and manifest — see {@link
+   * ai.narrativetrace.core.output.RunIdentity}. Neither ever reaches the structural {@code .nt}
+   * text.
+   */
+  private static void appendTraceHeader(TraceTree tree, StringBuilder sb) {
+    var traceId = tree.traceId();
+    if (traceId == null) {
+      return;
+    }
+    sb.append("trace: ")
+        .append(TraceNamer.name(traceId.value()))
+        .append(" (")
+        .append(traceId.value(), 0, 7)
+        .append(")\n\n");
   }
 
   /**
@@ -119,37 +143,13 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
         renderConcurrentGroup(segment.nodes, contPrefix, carry);
       }
     }
-    flushCarryToLast(planned, carry, sb);
+    flushToLast(planned, carry, sb);
     var result = new java.util.ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
       prefixOf.push(p.node, new Prefix(p.line, p.cont, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
-  }
-
-  private void flushCarryToLast(List<Planned> planned, StringBuilder carry, StringBuilder sb) {
-    if (carry.isEmpty()) {
-      return;
-    }
-    if (planned.isEmpty()) {
-      // Nothing walked in this sibling list at all (every segment was an empty fire-and-forget or a
-      // fork) — nothing to attach to, and nothing else pending to interleave before it either.
-      sb.append(carry);
-      return;
-    }
-    var last = planned.get(planned.size() - 1);
-    last.trailing = (last.trailing == null ? "" : last.trailing) + carry;
-  }
-
-  /** Consumes and returns {@code carry}'s text, or {@code null} when there is none to attach. */
-  private String flush(StringBuilder carry) {
-    if (carry.isEmpty()) {
-      return null;
-    }
-    var text = carry.toString();
-    carry.setLength(0);
-    return text;
   }
 
   private void planFireAndForget(

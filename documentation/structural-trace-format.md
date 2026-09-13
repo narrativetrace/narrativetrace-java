@@ -101,9 +101,13 @@ scenario: Weekend trip settles with three transfers
   names/ids never appear.
 - **Excluded by design:** all argument/return values, exception
   messages, durations, timestamps, thread identity, trace/span ids,
-  trace names, run results, and narration (resolved narration embeds
-  values; the narration *template* joins when `nt.narrationTemplate`
-  lands with glossary Phase 6).
+  trace names, run ids, run names *(since 0.2.2, unreleased — the run
+  has a name too, see [Configuration Guide § The run has a
+  name](configuration-guide.md#the-run-has-a-name); it never enters
+  this format, an approved or received trace, an artifact filename, or
+  a manifest per-scenario key)*, run results, and narration (resolved
+  narration embeds values; the narration *template* joins when
+  `nt.narrationTemplate` lands with glossary Phase 6).
 - **Encoding:** UTF-8, LF, trailing newline. Identifiers pass through
   control-character sanitization.
 
@@ -152,7 +156,7 @@ runs or across runtimes normalizes the unique ones before comparing.
 ## Guarantees
 
 1. **Deterministic:** identical behavior ⇒ byte-identical file. This
-   is what makes the artifact the approval-testing baseline and the
+   is what makes the artifact the approval trace baseline and the
    conformance-fixture golden format.
 2. **Value-free:** zero prompt-injection surface, zero PII, minimal
    tokens — safe to hand to an AI agent by default (free tier's
@@ -164,3 +168,16 @@ runs or across runtimes normalizes the unique ones before comparing.
 
 Implemented in this repository by `core: StructuralTraceRenderer`, emitted by
 `TraceTestSupport` beside the `.md`/`.json`/`.mmd` companions.
+
+## The cross-platform golden
+
+A conformance golden for this format is committed as Java source, not prose:
+`narrativetrace-core`'s `StructuralGoldenConformanceTest` builds a small
+FairSplit/trip-settlement scenario by hand (the same way
+`StructuralTraceRendererTest` builds trees) and renders it through
+`StructuralTraceRenderer`, asserting byte equality against a committed
+resource, `structural-golden/negative-expense.nt`. Every other NarrativeTrace
+runtime pins its own structural renderer against those identical bytes as its
+own conformance fixture; the golden is generated once, here, and a change
+that alters the rendered bytes fails this test first — every other runtime
+then re-pins its fixture from Java, never the reverse.

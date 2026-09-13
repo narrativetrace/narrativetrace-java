@@ -118,6 +118,85 @@ class NarrativeTraceClassRuleTest {
     }
   }
 
+  /** Ruling item 2 (2026-09-13): the console footer names this run, same as JUnit 5's. */
+  @Test
+  void applyWritesTheRunNameInTheConsoleFooter(@TempDir Path tempDir) throws Throwable {
+    System.setProperty("narrativetrace.output", "true");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var classRule = new NarrativeTraceClassRule();
+      var captured = new ByteArrayOutputStream();
+      classRule.setOut(new PrintStream(captured));
+      var rule = configureTestRule(classRule);
+
+      evaluateTwoScenarios(classRule, rule);
+
+      assertThat(captured.toString()).containsPattern("(?m)^ {2}run: [a-z]+ [a-z]+ [a-z]+$");
+    } finally {
+      System.clearProperty("narrativetrace.output");
+      System.clearProperty("narrativetrace.outputDir");
+    }
+  }
+
+  /** Ruling item 2: the per-test Markdown frontmatter names the same run as the console footer. */
+  @Test
+  void applyWritesTheSameRunNameToTheFrontmatterAndTheFooter(@TempDir Path tempDir)
+      throws Throwable {
+    System.setProperty("narrativetrace.output", "true");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var classRule = new NarrativeTraceClassRule();
+      var captured = new ByteArrayOutputStream();
+      classRule.setOut(new PrintStream(captured));
+      var rule = configureTestRule(classRule);
+
+      evaluateTwoScenarios(classRule, rule);
+
+      var footerRunLine =
+          captured
+              .toString()
+              .lines()
+              .filter(l -> l.strip().startsWith("run: "))
+              .findFirst()
+              .orElseThrow();
+      var frontmatter = Files.readString(tempDir.resolve("traces/Test/customer_places_order.md"));
+      assertThat(frontmatter).contains(footerRunLine.strip());
+    } finally {
+      System.clearProperty("narrativetrace.output");
+      System.clearProperty("narrativetrace.outputDir");
+    }
+  }
+
+  /** Ruling item 3: two different runs of the identical scenario name different runs. */
+  @Test
+  void twoRunsOfTheSameScenarioGetDifferentRunNames(@TempDir Path tempDir) throws Throwable {
+    System.setProperty("narrativetrace.output", "true");
+    System.setProperty("narrativetrace.outputDir", tempDir.toString());
+    try {
+      var firstRun = new ByteArrayOutputStream();
+      var classRule = new NarrativeTraceClassRule();
+      classRule.setOut(new PrintStream(firstRun));
+      evaluateTwoScenarios(classRule, configureTestRule(classRule));
+
+      NarrativeTraceClassRule.resetGlobalAccumulator();
+      var secondRun = new ByteArrayOutputStream();
+      var secondClassRule = new NarrativeTraceClassRule();
+      secondClassRule.setOut(new PrintStream(secondRun));
+      evaluateTwoScenarios(secondClassRule, configureTestRule(secondClassRule));
+
+      var firstRunLine =
+          firstRun.toString().lines().filter(l -> l.strip().startsWith("run: ")).findFirst();
+      var secondRunLine =
+          secondRun.toString().lines().filter(l -> l.strip().startsWith("run: ")).findFirst();
+      assertThat(firstRunLine).isPresent();
+      assertThat(secondRunLine).isPresent();
+      assertThat(firstRunLine).isNotEqualTo(secondRunLine);
+    } finally {
+      System.clearProperty("narrativetrace.output");
+      System.clearProperty("narrativetrace.outputDir");
+    }
+  }
+
   @Test
   void consoleSummaryReportsTheStructuralDeltaSinceLastGreen(@TempDir Path tempDir)
       throws Throwable {

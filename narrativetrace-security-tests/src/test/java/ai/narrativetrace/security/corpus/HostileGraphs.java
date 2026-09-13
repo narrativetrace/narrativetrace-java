@@ -8,6 +8,10 @@
 package ai.narrativetrace.security.corpus;
 
 import ai.narrativetrace.api.annotation.NotTraced;
+import java.math.BigDecimal;
+import java.net.URI;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -84,6 +88,10 @@ public final class HostileGraphs {
       case "curatedToStringNested" -> new HostileMembers.CuratedToStringNested(secret(sentinel));
       case "mapKey" -> sensitiveMapKey(sentinel);
       case "throwingSummary" -> new HostileMembers.ThrowingSummary(secret(sentinel));
+      case "platformValue" -> platformValues();
+      case "platformNameRedacted" -> new HostileMembers.NamedPlatformValue(taintedUri(sentinel));
+      case "platformLookalike" -> new HostileMembers.Date(sentinel);
+      case "platformSubclass" -> new HostileMembers.ApplicationDate(sentinel);
       default -> throw new IllegalArgumentException("unknown graph kind: " + graphCase.kind());
     };
   }
@@ -263,6 +271,28 @@ public final class HostileGraphs {
     var map = new LinkedHashMap<Object, Object>();
     map.put(new HostileMembers.SensitiveKey(sentinel), "visible-value");
     return map;
+  }
+
+  /**
+   * The {@code platform-type-short-value} row: no field carries the payload, so the redaction
+   * oracle never runs against it — the oracle here is well-formedness, each value rendering its own
+   * short native text rather than a field walk into a module this class cannot open.
+   *
+   * @see HostileMembers.NamedPlatformValue for the row that pairs a platform-type value with a
+   *     deny-listed field name instead
+   */
+  private static Object platformValues() {
+    var map = new LinkedHashMap<String, Object>();
+    map.put("createdAt", Instant.EPOCH);
+    map.put("location", URI.create("https://example.test/resource"));
+    map.put("amount", new BigDecimal("19.99"));
+    map.put("scratch", Path.of("tmp", "narrativetrace"));
+    return map;
+  }
+
+  /** A URI carrying the sentinel in its path, for the field-name-redaction row. */
+  private static URI taintedUri(String sentinel) {
+    return URI.create("https://example.test/" + sentinel);
   }
 
   private static Object emptyContainers() {

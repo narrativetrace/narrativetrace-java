@@ -54,6 +54,21 @@ unclassified cluster over the floor is always a finding, never a silent
 pass. A pair with no reason above it, or a malformed pair, fails the build
 outright rather than being ignored.
 
+## Ruled exemption categories (2026-09-12)
+
+Beyond the two exemptions already in the file, three more categories of
+deliberate duplication are now exempt, all owner-ruled rather than found by a
+resolver pass: **word-table files** (word lists, `Set.of(...)` tiers, or
+`String[]` tables — data with no logic to share, exempted by content shape
+when the filename doesn't already say "dictionary"); **wide-record
+builders** (one public setter per record component, kept apart from each
+other on purpose because collapsing them would change public API, not
+remove duplication); and a documented **known gap** in the existing
+dictionary-file exemption — some of those files mix lookup logic in with
+their tables, and a handful of genuinely duplicated lookup methods currently
+ride along exempt with the data around them, named in the exemption's own
+reason line until the tables move into their own type.
+
 ## Reading the report
 
 `build/reports/duplication/duplication.json` is the normalised result (the

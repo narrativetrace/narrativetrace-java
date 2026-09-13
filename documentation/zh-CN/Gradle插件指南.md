@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob cf519cb92da0 | translated: 2026-09-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 037387d9cda0 | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -382,7 +382,7 @@ narrativeTrace {
 
 如果任一场景的清晰度低于 0.80,或存在任何 HIGH 问题,`./gradlew check` 就会失败。
 
-### 审批测试的叙事
+### 叙事审批追踪
 
 ```kotlin
 narrativeTrace {

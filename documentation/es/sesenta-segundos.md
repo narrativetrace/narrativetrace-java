@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 8583f9a642a7 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 7b3cb774230b | translated: 2026-09-13 | reviewed: - -->
 # Ve una traza en 60 segundos
 
 [English](../sixty-seconds.md) | **Español** | [Português](../pt-BR/sessenta-segundos.md) | [简体中文](../zh-CN/60秒.md)
@@ -64,17 +64,33 @@ public class DefaultOrderService implements OrderService {
 }
 ```
 
+`Main` adopta un `Traceparent` fijo — el mismo mecanismo que usa un filtro de servlet para una
+cabecera de petición entrante — únicamente para que la salida de esta página siempre nombre la
+misma traza. Tu propio código nunca hace esto: una ejecución real genera un id de traza aleatorio
+cada vez, y el nombre de tres palabras de más abajo se deriva de él, nunca de un nombre que tú elijas.
+
 ```java
 // src/main/java/com/example/orders/Main.java
 package com.example.orders;
 
+import ai.narrativetrace.api.event.Traceparent;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.proxy.NarrativeTraceProxy;
 
 public class Main {
+
+  // snippet:begin fixedTraceparent
+  // Un traceparent W3C fijo, adoptado para que la salida incrustada de esta página siempre nombre la misma traza.
+  // Una ejecución real genera uno aleatorio cada vez (nunca este — es la constante propia de esta DEMO,
+  // no el valor por defecto de la librería) mediante el mismo mecanismo que un filtro usa para una cabecera de petición entrante.
+  static final String DEMO_TRACEPARENT = "00-a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4-a1b2c3d4a1b2c3d4-01";
+
+  // snippet:end fixedTraceparent
+
   public static void main(String[] args) {
     var context = new ThreadLocalNarrativeContext();
+    context.adoptTraceparent(Traceparent.parse(DEMO_TRACEPARENT));
     OrderService service =
         NarrativeTraceProxy.trace(new DefaultOrderService(), OrderService.class, context);
 
@@ -106,6 +122,8 @@ gradle wrapper
 ```
 
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
 ```
 
@@ -151,7 +169,7 @@ pipeline en cuanto está en el classpath, así que este es todo el diff:
 <configuration>
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger] - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%X{traceName}] [%X{runName}] [%logger] - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -168,10 +186,15 @@ pipeline en cuanto está en el classpath, así que este es todo el diff:
 ```
 
 ```text
-22:24:53.632 TRACE [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
-22:24:53.637 TRACE [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
+22:24:53.632 TRACE [loose hook parks] [] [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
+22:24:53.637 TRACE [loose hook parks] [] [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms
 ```
+
+`traceName` está poblado porque `Main` adoptó la traza fija de arriba; `runName`
+está vacío aquí porque esta ejecución sencilla de `main()` no pertenece a ninguna
+ejecución de suite de test — solo se puebla bajo las integraciones de JUnit 5/4
+(véase [Guía de Configuración, §7](guia-de-configuracion.md#campos-mdc)).
 
 La duración varía como antes. La misma traza ahora llega a la biblioteca de
 logging que ya tienes — Logback, elegido aquí por ser el backend SLF4J más

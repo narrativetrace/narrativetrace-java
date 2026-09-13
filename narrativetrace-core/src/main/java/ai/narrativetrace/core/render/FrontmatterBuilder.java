@@ -21,33 +21,37 @@ import ai.narrativetrace.core.tree.TreeWalk;
 public final class FrontmatterBuilder {
 
   private String scenario;
+  private String runName;
 
   public FrontmatterBuilder scenario(String scenario) {
     this.scenario = scenario;
     return this;
   }
 
+  /**
+   * The enclosing test-suite run's three-word phrase (2026-09-13 ruling, item 2), or {@code null}
+   * to omit the field entirely — a document rendered outside a tracked run names no run.
+   *
+   * <p><b>@llmNote</b> This is the ONLY frontmatter field {@link
+   * ai.narrativetrace.core.output.RunIdentity} ever reaches: never folded into {@code scenario},
+   * never read back by {@code entry_point}/{@code trace_id}/{@code trace_name}, and never present
+   * on the structural {@code .nt} artifact at all (item 3).
+   */
+  public FrontmatterBuilder runName(String runName) {
+    this.runName = runName;
+    return this;
+  }
+
   public String build(TraceTree tree) {
     var sb = new StringBuilder("---\n");
     sb.append("type: trace\n");
+    if (runName != null) {
+      sb.append("run: ").append(yamlSafe(runName)).append("\n");
+    }
     if (scenario != null) {
       sb.append("scenario: ").append(yamlSafe(scenario)).append("\n");
     }
-    if (!tree.roots().isEmpty()) {
-      var root = tree.roots().get(0);
-      var sig = root.signature();
-      sb.append("entry_point: ")
-          .append(yamlSafe(sig.className() + "." + sig.methodName()))
-          .append("\n");
-      // The scenario's span, matching the JSON export — one number, one meaning.
-      sb.append("duration_ms: ").append(DurationFormat.millis(tree.durationNanos())).append("\n");
-      if (root.spanContext() != null) {
-        sb.append("trace_id: ").append(root.spanContext().traceId()).append("\n");
-        sb.append("trace_name: ")
-            .append(TraceNamer.name(root.spanContext().traceId().value()))
-            .append("\n");
-      }
-    }
+    appendRootFields(tree, sb);
     int methodCount = countNodes(tree);
     int errorCount = countErrors(tree);
     sb.append("method_count: ").append(methodCount).append("\n");
@@ -55,6 +59,29 @@ public final class FrontmatterBuilder {
     appendLoss(tree, sb);
     sb.append("---\n");
     return sb.toString();
+  }
+
+  /**
+   * {@code entry_point}, {@code duration_ms} and, when the root carries one, {@code
+   * trace_id}/{@code trace_name} — empty on an empty tree.
+   */
+  private static void appendRootFields(TraceTree tree, StringBuilder sb) {
+    if (tree.roots().isEmpty()) {
+      return;
+    }
+    var root = tree.roots().get(0);
+    var sig = root.signature();
+    sb.append("entry_point: ")
+        .append(yamlSafe(sig.className() + "." + sig.methodName()))
+        .append("\n");
+    // The scenario's span, matching the JSON export — one number, one meaning.
+    sb.append("duration_ms: ").append(DurationFormat.millis(tree.durationNanos())).append("\n");
+    if (root.spanContext() != null) {
+      sb.append("trace_id: ").append(root.spanContext().traceId()).append("\n");
+      sb.append("trace_name: ")
+          .append(TraceNamer.name(root.spanContext().traceId().value()))
+          .append("\n");
+    }
   }
 
   /**

@@ -9,12 +9,15 @@ package ai.narrativetrace.build;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,11 +25,13 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Unit-tests {@code scripts/verify-publication.sh} without a release: the pure coordinate/URL
  * functions (sourced, no network), argument parsing, the local-repository presence check {@code
- * --local-rehearsal} relies on, and a real {@code --dry-run} against this checkout's own build.
- * What is deliberately NOT here: a real poll against Maven Central / the Gradle Plugin Portal, and
- * a real consumer-smoke-test build — both make network calls and belong to a human running the
- * script itself against an actual release, never a per-commit gate (see the script's own header
- * comment and the publish checklist).
+ * --local-rehearsal} relies on, version resolution for an omitted {@code <version>} (a throwaway
+ * git fixture for the tag path, a loopback {@code HttpServer} fixture for the Maven Central
+ * metadata fallback — real git and real curl, no real network), and a real {@code --dry-run}
+ * against this checkout's own build. What is deliberately NOT here: a real poll against Maven
+ * Central / the Gradle Plugin Portal, and a real consumer-smoke-test build — both make real network
+ * calls and belong to a human running the script itself against an actual release, never a
+ * per-commit gate (see the script's own header comment and the publish checklist).
  */
 class VerifyPublicationScriptTest {
 
@@ -40,25 +45,48 @@ class VerifyPublicationScriptTest {
    * call.
    */
   private ScriptResult sourced(String call) throws IOException, InterruptedException {
-    return sourced(call, null);
+    return sourced(call, Map.of());
   }
 
   private ScriptResult sourced(String call, String localMavenRepo)
       throws IOException, InterruptedException {
+    Map<String, String> env =
+        localMavenRepo == null ? Map.of() : Map.of("LOCAL_MAVEN_REPO", localMavenRepo);
+    return sourced(call, env);
+  }
+
+  /**
+   * Sources the script with additional environment overrides — {@code REPO_ROOT} and {@code
+   * MAVEN_CENTRAL_BASE} are overridable the same way {@code LOCAL_MAVEN_REPO} always has been, so a
+   * test can point either at a fixture instead of this real checkout / the real Maven Central.
+   */
+  private ScriptResult sourced(String call, Map<String, String> env)
+      throws IOException, InterruptedException {
     var body = "set -e\nsource '" + SCRIPT.getAbsolutePath() + "'\n" + call + "\n";
     var command = new java.util.ArrayList<String>(List.of("bash", "-c", body));
     var processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
-    if (localMavenRepo != null) {
-      processBuilder.environment().put("LOCAL_MAVEN_REPO", localMavenRepo);
-    }
+    processBuilder.environment().putAll(env);
     return run(processBuilder);
   }
 
   private ScriptResult run(String... args) throws IOException, InterruptedException {
+    return run(Map.of(), args);
+  }
+
+  /**
+   * Runs the script for real (not sourced — {@code main()} executes) with environment overrides,
+   * the same {@code REPO_ROOT} idiom {@code sourced} uses: a test points it at a throwaway git repo
+   * so version resolution never reads this checkout's own tags.
+   */
+  private ScriptResult run(Map<String, String> env, String... args)
+      throws IOException, InterruptedException {
     var command = new java.util.ArrayList<String>();
     command.add(SCRIPT.getAbsolutePath());
     command.addAll(List.of(args));
-    return run(new ProcessBuilder(command).redirectErrorStream(true).directory(PROJECT_DIR));
+    var processBuilder =
+        new ProcessBuilder(command).redirectErrorStream(true).directory(PROJECT_DIR);
+    processBuilder.environment().putAll(env);
+    return run(processBuilder);
   }
 
   private ScriptResult run(ProcessBuilder processBuilder) throws IOException, InterruptedException {
@@ -288,15 +316,7 @@ class VerifyPublicationScriptTest {
     var result = run("--help");
 
     assertThat(result.exitCode()).isZero();
-    assertThat(result.output()).contains("Usage: scripts/verify-publication.sh <version>");
-  }
-
-  @Test
-  void missingVersionArgumentFailsWithUsageAndNonZeroExit() throws Exception {
-    var result = run();
-
-    assertThat(result.exitCode()).isNotZero();
-    assertThat(result.output()).contains("ERROR: missing <version>.");
+    assertThat(result.output()).contains("Usage: scripts/verify-publication.sh [<version>]");
   }
 
   @Test
@@ -321,6 +341,134 @@ class VerifyPublicationScriptTest {
 
     assertThat(result.exitCode()).isNotZero();
     assertThat(result.output()).contains("ERROR: unexpected extra argument '0.3.0'");
+  }
+
+  // --- version resolution when <version> is omitted ---------------------------------------
+  //
+  // The family finding this fixes: a scheduled run with no version input must never default to
+  // the working tree's own gradle.properties version — that moves on to the next -SNAPSHOT the
+  // instant a release is cut, so a run reading it polls for artifacts that were never going to
+  // exist. Every fixture below gives gradle.properties a version deliberately AHEAD of / different
+  // from the correct answer, so a resolve_version that ever consulted it would give itself away.
+
+  @Test
+  void latestTagVersionReturnsTheNewestReachableTagWithoutTheVPrefix(@TempDir Path repo)
+      throws Exception {
+    initGitRepoWithTag(repo, "v1.2.3");
+
+    var result = sourced("latest_tag_version", Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).isEqualTo("1.2.3");
+  }
+
+  @Test
+  void latestTagVersionFailsWhenNoTagIsReachable(@TempDir Path repo) throws Exception {
+    initGitRepo(repo);
+
+    // `if`, not a bare statement: under `set -e` a bare failing call would abort the sourcing
+    // shell before the echo ever ran — the same footgun resource_urls_for's own comment (above)
+    // documents.
+    var result =
+        sourced(
+            "if latest_tag_version >/dev/null 2>&1; then echo exit=0; else echo \"exit=$?\"; fi",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.output().strip()).isEqualTo("exit=1");
+  }
+
+  @Test
+  void resolveVersionWithAReachableTagUsesItAndNeverConsultsGradleProperties(@TempDir Path repo)
+      throws Exception {
+    initGitRepoWithTag(repo, "v3.4.5");
+    Files.writeString(repo.resolve("gradle.properties"), "narrativetraceVersion=99.9.9-SNAPSHOT\n");
+
+    var result =
+        sourced(
+            "resolve_version; echo \"$VERSION|$VERSION_SOURCE\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).startsWith("3.4.5|");
+    assertThat(result.output())
+        .contains("newest v* tag reachable from HEAD")
+        .doesNotContain("99.9.9");
+  }
+
+  @Test
+  void resolveVersionWithoutATagFallsBackToMavenCentralMetadataLatest(@TempDir Path repo)
+      throws Exception {
+    initGitRepo(repo);
+    Files.writeString(repo.resolve("gradle.properties"), "narrativetraceVersion=42.0.0-SNAPSHOT\n");
+    var server = startMetadataServer("2.7.1");
+    try {
+      var result =
+          sourced(
+              "resolve_version; echo \"$VERSION|$VERSION_SOURCE\"",
+              Map.of("REPO_ROOT", repo.toString(), "MAVEN_CENTRAL_BASE", server.baseUrl()));
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.output().strip()).startsWith("2.7.1|");
+      assertThat(result.output())
+          .contains("Maven Central maven-metadata.xml <latest>")
+          .contains("no v* tag found")
+          .doesNotContain("42.0.0");
+    } finally {
+      server.httpServer().stop(0);
+    }
+  }
+
+  @Test
+  void resolveVersionFailsWhenNoTagAndMetadataUnreachable(@TempDir Path repo) throws Exception {
+    initGitRepo(repo);
+
+    var result =
+        sourced(
+            "if resolve_version; then echo \"exit=0 $VERSION\"; else echo \"exit=$?\"; fi",
+            Map.of("REPO_ROOT", repo.toString(), "MAVEN_CENTRAL_BASE", "http://127.0.0.1:1"));
+
+    assertThat(result.output()).contains("exit=1").contains("ERROR:");
+  }
+
+  /**
+   * {@code --dry-run} exercises the real {@code main()} path end to end: no version on the command
+   * line, resolved via the newest {@code v*} tag reachable from HEAD, never against
+   * gradle.properties. The tag lives in a throwaway git repo built by this test, never this
+   * checkout's own history — a real release tags HEAD, so a test reading "the newest tag in this
+   * checkout" would pass today and start reading a stale answer, or nothing at all, the moment this
+   * history changes shape (a public snapshot export, a shallow clone, a squash). {@code REPO_ROOT}
+   * points {@code main()}'s own git call at the fixture the same way {@code sourced}'s fixtures
+   * above do; the fixture's stub {@code gradlew} stands in for the real build's {@code
+   * printPublishedCoordinates} task so this stays offline and independent of this checkout's own
+   * published module list too.
+   */
+  @Test
+  void noVersionArgumentWithDryRunResolvesTheNewestReachableTagFromAThrowawayRepo(
+      @TempDir Path repo) throws Exception {
+    initGitRepoWithTag(repo, "v7.8.9");
+    writeStubGradlewPrintingPublishedCoordinates(repo);
+
+    var result = run(Map.of("REPO_ROOT", repo.toString()), "--dry-run");
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output())
+        .contains("no <version> given")
+        .contains("verifying the last published version: 7.8.9")
+        .contains(
+            "LIBRARY https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/7.8.9");
+  }
+
+  /** Requirement #3 of the fix: an explicit version always wins, and resolution never runs. */
+  @Test
+  void explicitVersionArgumentBypassesResolutionEntirely() throws Exception {
+    var result = run("9.9.9-explicit", "--dry-run");
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output())
+        .doesNotContain("no <version> given")
+        .contains(
+            "LIBRARY https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/"
+                + "9.9.9-explicit");
   }
 
   /**
@@ -356,5 +504,99 @@ class VerifyPublicationScriptTest {
       props.load(in);
     }
     return props.getProperty("narrativetraceVersion");
+  }
+
+  /**
+   * A stub {@code gradlew} at the fixture repo's root, executable, that answers {@code -q
+   * printPublishedCoordinates} with a fixed coordinate list — the real task's output shape (see
+   * {@code printPublishedCoordinates} in the root {@code build.gradle.kts}) without invoking a real
+   * Gradle build. Only {@code noVersionArgumentWithDryRunResolvesTheNewestReachableTagFromA
+   * ThrowawayRepo} needs this: every other {@code run(...)} test either passes an explicit version
+   * (resolution never runs) or targets the real checkout directly.
+   */
+  private void writeStubGradlewPrintingPublishedCoordinates(Path repo) throws IOException {
+    var gradlew = repo.resolve("gradlew");
+    Files.writeString(
+        gradlew,
+        "#!/usr/bin/env bash\n"
+            + "echo 'LIBRARY ai.narrativetrace narrativetrace-core'\n"
+            + "echo 'PLUGIN ai.narrativetrace ai.narrativetrace.gradle.plugin'\n");
+    if (!gradlew.toFile().setExecutable(true)) {
+      throw new IOException("could not mark fixture gradlew executable: " + gradlew);
+    }
+  }
+
+  // --- fixtures: a throwaway git repo (usually no gradlew — only latest_tag_version /
+  // resolve_version ever run against most of these; one test above adds a stub gradlew for the
+  // full --dry-run path), and a loopback HTTP server standing in for Maven Central ------------
+
+  private void initGitRepo(Path dir) throws IOException, InterruptedException {
+    runGit(dir, "init", "-q");
+    runGit(dir, "config", "user.email", "verify-publication-test@example.com");
+    runGit(dir, "config", "user.name", "verify-publication-test");
+    runGit(dir, "config", "commit.gpgsign", "false");
+    Files.writeString(dir.resolve("seed.txt"), "seed\n");
+    runGit(dir, "add", "seed.txt");
+    runGit(dir, "commit", "-q", "-m", "seed");
+  }
+
+  private void initGitRepoWithTag(Path dir, String tag) throws IOException, InterruptedException {
+    initGitRepo(dir);
+    runGit(dir, "tag", tag);
+  }
+
+  private void runGit(Path dir, String... args) throws IOException, InterruptedException {
+    var command = new java.util.ArrayList<String>(List.of("git"));
+    command.addAll(List.of(args));
+    var process =
+        new ProcessBuilder(command).directory(dir.toFile()).redirectErrorStream(true).start();
+    var output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    var exitCode = process.waitFor();
+    if (exitCode != 0) {
+      throw new IOException(
+          "git " + String.join(" ", args) + " failed (" + exitCode + "): " + output);
+    }
+  }
+
+  private record MetadataServer(HttpServer httpServer, String baseUrl) {}
+
+  /**
+   * A loopback HTTP server serving {@code ai/narrativetrace/narrativetrace-core/maven-metadata.xml}
+   * with the given {@code <latest>} — the real curl calls {@code latest_metadata_version} makes
+   * (HEAD then GET), with no real network involved. The caller stops the server when done.
+   */
+  private MetadataServer startMetadataServer(String latestVersion) throws IOException {
+    var loopback = java.net.InetAddress.getLoopbackAddress();
+    var server = HttpServer.create(new InetSocketAddress(loopback, 0), 0);
+    var body =
+        ("<metadata>\n"
+                + "  <groupId>ai.narrativetrace</groupId>\n"
+                + "  <artifactId>narrativetrace-core</artifactId>\n"
+                + "  <versioning>\n"
+                + "    <latest>"
+                + latestVersion
+                + "</latest>\n"
+                + "    <release>"
+                + latestVersion
+                + "</release>\n"
+                + "  </versioning>\n"
+                + "</metadata>\n")
+            .getBytes(StandardCharsets.UTF_8);
+    server.createContext(
+        "/ai/narrativetrace/narrativetrace-core/maven-metadata.xml",
+        exchange -> {
+          exchange.getResponseHeaders().add("Content-Type", "application/xml");
+          exchange.sendResponseHeaders(200, body.length);
+          if ("HEAD".equals(exchange.getRequestMethod())) {
+            exchange.getResponseBody().close();
+          } else {
+            try (var responseBody = exchange.getResponseBody()) {
+              responseBody.write(body);
+            }
+          }
+        });
+    server.start();
+    return new MetadataServer(
+        server, "http://" + loopback.getHostAddress() + ":" + server.getAddress().getPort());
   }
 }

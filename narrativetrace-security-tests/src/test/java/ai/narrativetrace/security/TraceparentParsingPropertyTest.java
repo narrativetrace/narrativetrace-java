@@ -13,7 +13,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import ai.narrativetrace.api.event.Traceparent;
 import ai.narrativetrace.core.render.ValueRenderer;
 import ai.narrativetrace.security.corpus.HostileCorpus;
-import ai.narrativetrace.security.oracle.Oracles;
 import java.util.List;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -42,12 +41,20 @@ class TraceparentParsingPropertyTest {
   private static final int NUL = 0x0000;
   private static final int ARABIC_INDIC_FOUR = 0x0664;
 
+  /**
+   * Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are never test inputs — this
+   * loop used to run every case through the removed {@code Oracles.withinBudget} hang detector.
+   * Dropped outright rather than replaced: the accepted/rejected assertion below is the only
+   * property this call was ever guarding for every case but one. That one case ({@code
+   * very-long-fields}, a hundred thousand extension fields) also carried a genuine parse-*cost*
+   * concern — not reducible to a bounded-output property the way a renderer's caps are — which now
+   * lives as a JMH benchmark in the never-gated {@code narrativetrace-benchmarks} module: {@code
+   * TraceparentParsingBenchmark}.
+   */
   @Test
   void everyCorpusHeaderParsesToTheOutcomeItDeclares() {
     for (var header : HostileCorpus.traceparents()) {
-      var parsed =
-          Oracles.withinBudget(
-              "traceparent " + header.id(), () -> Traceparent.parse(header.value()));
+      var parsed = Traceparent.parse(header.value());
       if (header.accepted()) {
         assertThat(parsed).as("%s: %s", header.id(), header.description()).isNotNull();
       } else {

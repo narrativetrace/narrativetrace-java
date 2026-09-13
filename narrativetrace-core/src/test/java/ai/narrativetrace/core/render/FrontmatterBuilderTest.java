@@ -237,4 +237,35 @@ class FrontmatterBuilderTest {
     // "still counts as itself" convention every TreeWalk-bounded walker in this codebase shares.
     assertThat(frontmatter).contains("method_count: 3");
   }
+
+  private static DefaultTraceTree oneCallTree() {
+    return new DefaultTraceTree(
+        List.of(
+            new TraceNode(
+                new MethodSignature("OrderService", "placeOrder", List.of()),
+                List.of(),
+                new TraceOutcome.Returned(null),
+                1_000_000L)));
+  }
+
+  @Test
+  void includesTheRunFieldWhenARunNameIsGiven() {
+    var frontmatter = new FrontmatterBuilder().runName("bold elk soars").build(oneCallTree());
+
+    assertThat(frontmatter).contains("run: bold elk soars\n");
+  }
+
+  @Test
+  void omitsTheRunFieldWhenNoRunNameIsGiven() {
+    var frontmatter = new FrontmatterBuilder().build(oneCallTree());
+
+    assertThat(frontmatter).doesNotContain("run:");
+  }
+
+  @Test
+  void runFieldIsYamlEscapedLikeScenario() {
+    var frontmatter = new FrontmatterBuilder().runName("forged\n# heading").build(oneCallTree());
+
+    assertThat(frontmatter).contains("run: \"forged\\n# heading\"\n");
+  }
 }

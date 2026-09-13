@@ -82,7 +82,9 @@ class RendererMetadataEscapingTest {
     var rendered = indented.render(treeWith(className, methodName, paramName));
 
     assertNoRawControlPerLine(rendered);
-    assertThat(rendered.split("\n", -1)).as("one node is one line: %s", rendered).hasSize(1);
+    assertThat(stripTraceHeader(rendered).split("\n", -1))
+        .as("one node is one line: %s", rendered)
+        .hasSize(1);
   }
 
   @ParameterizedTest(name = "markdown: {0}")
@@ -106,7 +108,9 @@ class RendererMetadataEscapingTest {
     var rendered = prose.render(treeWith(className, methodName, paramName));
 
     assertNoRawControlPerLine(rendered);
-    assertThat(rendered.split("\n", -1)).as("one node is one sentence: %s", rendered).hasSize(1);
+    assertThat(stripTraceHeader(rendered).split("\n", -1))
+        .as("one node is one sentence: %s", rendered)
+        .hasSize(1);
   }
 
   @Test
@@ -123,7 +127,7 @@ class RendererMetadataEscapingTest {
     var rendered = prose.render(new DefaultTraceTree(List.of(node)));
 
     assertNoRawControlPerLine(rendered);
-    assertThat(rendered.split("\n", -1)).hasSize(1);
+    assertThat(stripTraceHeader(rendered).split("\n", -1)).hasSize(1);
   }
 
   @Test
@@ -159,6 +163,16 @@ class RendererMetadataEscapingTest {
     assertThat(indented.render(tree)).contains("OrderService.placeOrder(orderId: ");
     assertThat(markdown.render(tree)).contains("OrderService").contains("placeOrder");
     assertThat(prose.render(tree)).contains("The order service place order for orderId: ");
+  }
+
+  /**
+   * Strips the leading {@code trace: ... (...)} / {@code The trace ...:} header (2026-09-13 ruling,
+   * item 4) before a test counts lines or sentences: the header is fixed, well-formed text derived
+   * from a random trace id, unrelated to the hostile metadata under test here.
+   */
+  private static String stripTraceHeader(String rendered) {
+    var boundary = rendered.indexOf("\n\n");
+    return boundary < 0 ? rendered : rendered.substring(boundary + 2);
   }
 
   private void assertNoRawControlPerLine(String rendered) {

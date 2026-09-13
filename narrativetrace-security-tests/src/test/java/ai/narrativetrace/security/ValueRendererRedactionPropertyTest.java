@@ -58,15 +58,47 @@ class ValueRendererRedactionPropertyTest {
     }
   }
 
+  /**
+   * Replaces a removed wall-clock hang detector (family release rule 3, 2026-09-07: wall-clock, GC
+   * and scheduler are never test inputs — {@code Oracles.withinBudget} used to wrap both render
+   * calls here) with the deterministic property the timing bound stood in for: {@code
+   * ValueRenderer}'s string/collection/field/depth caps bound every hostile graph's rendered size
+   * to a small, generous ceiling regardless of the graph's own size (huge collections and deep
+   * chains included) — exactly as sensitive to a caps regression as the removed timing bound was,
+   * without depending on host load to hold.
+   */
   @Test
-  void everyHostileGraphRendersWithoutThrowingAndInBoundedTime() {
+  void everyHostileGraphRendersWithoutThrowingAndWithBoundedOutput() {
     for (var graphCase : HostileCorpus.graphs()) {
       var graph = HostileGraphs.build(graphCase, Oracles.freshSentinel());
-      Oracles.withinBudget("render " + graphCase.id(), () -> renderer.render(graph));
-      Oracles.withinBudget(
-          "renderStructured " + graphCase.id(), () -> renderer.renderStructured(graph));
+
+      var flat = renderer.render(graph);
+      var structured = String.valueOf(renderer.renderStructured(graph));
+
+      assertThat(flat.length())
+          .as(
+              "%s produced unbounded flat output (%d chars) — a cap likely broke",
+              graphCase.id(), flat.length())
+          .isLessThanOrEqualTo(MAX_SANE_FLAT_LENGTH);
+      assertThat(structured.length())
+          .as(
+              "%s produced unbounded structured output (%d chars) — a cap likely broke",
+              graphCase.id(), structured.length())
+          .isLessThanOrEqualTo(MAX_SANE_STRUCTURED_LENGTH);
     }
   }
+
+  /**
+   * A generous, deterministic ceiling for {@link ValueRenderer#render} over any corpus graph:
+   * comfortably above every legitimately-capped shape measured today (the deepest chains and widest
+   * containers stay in the low hundreds of characters once the renderer's default depth/array/field
+   * caps apply), and orders of magnitude below what a broken cap would let a huge collection or a
+   * megabyte {@code toString} produce.
+   */
+  private static final int MAX_SANE_FLAT_LENGTH = 4_000;
+
+  /** Same reasoning as {@link #MAX_SANE_FLAT_LENGTH}, sized for the structured path's overhead. */
+  private static final int MAX_SANE_STRUCTURED_LENGTH = 8_000;
 
   /**
    * A graph the renderer cannot walk must still say so in a way a reader can act on. Silence would
@@ -98,6 +130,62 @@ class ValueRendererRedactionPropertyTest {
       softly
           .assertThat(rendered)
           .as("[%s] a hand-written toString must not stand in for introspection", id)
+          .doesNotContain(sentinel)
+          .contains("[REDACTED]");
+    }
+    softly.assertAll();
+  }
+
+  /**
+   * Corpus row {@code platform-type-short-value}: no field here carries a sentinel, so the failure
+   * mode this row guards is not a leak but a regression of the carve-out itself — a platform-type
+   * value walked field-by-field instead of trusted would answer a row of {@code <error:
+   * InaccessibleObjectException>} where the JDK's own text belongs.
+   */
+  @Test
+  void aPlatformValueWithNoSensitiveFieldRendersItsOwnShortTextRatherThanAFieldWalk() {
+    var rendered =
+        renderer.render(graphNamed("platform-type-short-value", Oracles.freshSentinel()));
+
+    assertThat(rendered)
+        .as("a platform-type value must render its own short text, never a failed field walk")
+        .doesNotContain("InaccessibleObjectException")
+        .contains("1970-01-01T00:00:00Z")
+        .contains("https://example.test/resource")
+        .contains("19.99");
+  }
+
+  /**
+   * Corpus row {@code platform-type-name-redacted}: a deny-listed field name must redact its value
+   * before the platform-type carve-out is ever asked whether that value's own text may stand —
+   * trusted stringification is not a bypass of name-based redaction.
+   */
+  @Test
+  void aDenyListedNameRedactsAPlatformValueBeforeTrustIsEverConsulted() {
+    var sentinel = Oracles.freshSentinel();
+    var rendered = renderer.render(graphNamed("platform-type-name-redacted", sentinel));
+
+    assertThat(rendered)
+        .as("a deny-listed field name must redact even a trusted platform-type value")
+        .doesNotContain(sentinel)
+        .contains("[REDACTED]");
+  }
+
+  /**
+   * Corpus rows {@code platform-lookalike-walked} and {@code platform-subclass-walked}: identity is
+   * decided by defining class loader, never by a class's own name or by its superclass, so both are
+   * walked and redacted like any other user type.
+   */
+  @Test
+  void aPlatformNameOrSupertypeNeverBorrowsTrust() {
+    var softly = new org.assertj.core.api.SoftAssertions();
+    for (var id : java.util.List.of("platform-lookalike-walked", "platform-subclass-walked")) {
+      var sentinel = Oracles.freshSentinel();
+      var rendered = renderer.render(graphNamed(id, sentinel));
+
+      softly
+          .assertThat(rendered)
+          .as("[%s] a class's own name or supertype must not stand in for its defining loader", id)
           .doesNotContain(sentinel)
           .contains("[REDACTED]");
     }
@@ -268,8 +356,11 @@ class ValueRendererRedactionPropertyTest {
 
   private void assertContained(GraphCase graphCase, String sentinel) {
     var graph = HostileGraphs.build(graphCase, sentinel);
-    var outputs =
-        Oracles.withinBudget("every output for " + graphCase.id(), () -> everyOutput(graph));
+    // Family release rule 3 (2026-09-07): wall-clock, GC and scheduler are never test inputs —
+    // this used to run through the removed Oracles.withinBudget hang detector. Oracles.boundedSize
+    // below, over every emitter's output, is the deterministic property that timing bound stood
+    // in for.
+    var outputs = everyOutput(graph);
 
     Oracles.containsNoSentinel(outputs, sentinel);
     Oracles.boundedSize(outputs);

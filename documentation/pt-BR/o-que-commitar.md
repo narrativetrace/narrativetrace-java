@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob b4f6e9e1ffe1 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 7ca435987e68 | translated: 2026-09-13 | reviewed: - -->
 # O que commitar
 
 [English](../what-to-commit.md) | Español | **Português** | [简体中文](../zh-CN/应提交的内容.md)
@@ -20,6 +20,7 @@ qualquer momento.
 | `build/narrativetrace/traces/*.md` | Não | Regenerado a cada execução; geralmente um artefato de CI, não código-fonte |
 | `build/narrativetrace/traces/*.json` | Não | O mesmo trace como JSON canônico — regenerado a cada execução |
 | `build/narrativetrace/diagrams/*.mmd` | Não | Regenerado a cada execução |
+| `build/narrativetrace/manifest.json` | Não | Regenerado a cada execução; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta execução*, não um cenário, então muda a cada execução mesmo quando mais nada muda *(since 0.2.2, unreleased)* |
 | `build/narrativetrace/structural/*.nt` | Não | A baseline *local* do último verde contra a qual o delta do console e os relatórios de falha comparam — não é a baseline de aprovação (veja abaixo) |
 | `build/narrativetrace/clarity-report.md` | Não | Um relatório gerado, não uma decisão — o `clarityCheck` lê o `clarity-results.json` ao lado dele, também gerado |
 | `src/test/narratives/<Class>/<scenario>.approved.nt` | **Sim** | A baseline de aprovação revisada (só existe se o [modo de aprovação](formato-de-trace-estrutural.md) estiver ativo). Este é o único arquivo da lista que é uma decisão deliberada, não uma saída |

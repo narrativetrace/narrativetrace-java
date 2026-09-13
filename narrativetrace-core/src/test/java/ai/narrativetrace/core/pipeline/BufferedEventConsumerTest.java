@@ -43,12 +43,18 @@ class BufferedEventConsumerTest {
     assertThat(consumer.events()).containsExactly(event);
   }
 
+  /**
+   * {@code close()} interrupts the drain thread and joins it (bounded, 2 s) before returning, so
+   * {@code consumerAlive()} is already settled the instant this call returns — no sleep needed nor,
+   * per family release rule 3 (2026-09-07: wall-clock, GC and scheduler are never test inputs),
+   * wanted: a fixed sleep here would only add flake risk under load with no property it protects
+   * that {@code close()}'s own join does not already guarantee.
+   */
   @Test
-  void closeStopsConsumerThread() throws InterruptedException {
+  void closeStopsConsumerThread() {
     consumer = new BufferedEventConsumer(4);
 
     consumer.close();
-    Thread.sleep(50);
 
     assertThat(consumer.consumerAlive()).isFalse();
   }
@@ -429,7 +435,7 @@ class BufferedEventConsumerTest {
   @Test
   void closeRestoresInterruptFlagWithActiveConsumer() throws InterruptedException {
     consumer = new BufferedEventConsumer(4);
-    awaitDrainThread();
+    awaitThreadPresent("narrative-trace-consumer");
     Thread closer =
         new Thread(
             () -> {
@@ -445,7 +451,7 @@ class BufferedEventConsumerTest {
   @Test
   void consumerStartsWatchdogAutomatically() throws InterruptedException {
     consumer = new BufferedEventConsumer(4);
-    Thread.sleep(50);
+    awaitThreadPresent("narrative-trace-watchdog");
 
     Thread watchdogThread = findThread("narrative-trace-watchdog");
 
@@ -453,14 +459,20 @@ class BufferedEventConsumerTest {
     assertThat(watchdogThread.isDaemon()).isTrue();
   }
 
+  /**
+   * {@code close()}'s watchdog teardown is {@code scheduler.shutdownNow()}, which signals the
+   * executor's worker thread but does not join it — so the thread's actual disappearance is a real
+   * race, unlike {@link #closeStopsConsumerThread()}'s drain thread. Polling for presence, then
+   * absence, replaces two fixed sleeps that used to guess how long each side of that race takes.
+   */
   @Test
   void watchdogIsClosedWhenConsumerCloses() throws InterruptedException {
     consumer = new BufferedEventConsumer(4);
-    Thread.sleep(50);
+    awaitThreadPresent("narrative-trace-watchdog");
     assertThat(findThread("narrative-trace-watchdog")).isNotNull();
 
     consumer.close();
-    Thread.sleep(100);
+    awaitThreadAbsent("narrative-trace-watchdog");
 
     assertThat(findThread("narrative-trace-watchdog")).isNull();
   }
@@ -500,10 +512,18 @@ class BufferedEventConsumerTest {
     assertThat(drainThread.isAlive()).isFalse();
   }
 
-  private static void awaitDrainThread() throws InterruptedException {
+  /** Polls until a thread of the given name is visible, instead of guessing how long to sleep. */
+  private static void awaitThreadPresent(String name) throws InterruptedException {
     long deadline = System.currentTimeMillis() + 2000;
-    while (findThread("narrative-trace-consumer") == null
-        && System.currentTimeMillis() < deadline) {
+    while (findThread(name) == null && System.currentTimeMillis() < deadline) {
+      Thread.sleep(5);
+    }
+  }
+
+  /** The mirror of {@link #awaitThreadPresent}: polls until a named thread has gone. */
+  private static void awaitThreadAbsent(String name) throws InterruptedException {
+    long deadline = System.currentTimeMillis() + 2000;
+    while (findThread(name) != null && System.currentTimeMillis() < deadline) {
       Thread.sleep(5);
     }
   }

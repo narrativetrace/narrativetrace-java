@@ -26,6 +26,16 @@ class ProseRendererTest {
 
   private final ProseRenderer renderer = new ProseRenderer();
 
+  /**
+   * The {@code The trace bold elk soars:} header every non-empty {@link
+   * ai.narrativetrace.api.tree.TraceTree} now opens with (2026-09-13 ruling, item 4) — computed
+   * from the tree's own (randomly generated, since none of these fixtures assign one) trace id, so
+   * an exact-match assertion below stays correct regardless of that randomness.
+   */
+  private static String traceHeader(ai.narrativetrace.api.tree.TraceTree tree) {
+    return "The trace " + TraceNamer.name(tree.traceId().value()) + ":\n\n";
+  }
+
   @Test
   void renders_simple_leaf_with_return() {
     var node =
@@ -41,7 +51,9 @@ class ProseRendererTest {
     var result = renderer.render(tree);
 
     assertThat(result)
-        .isEqualTo("The order service place order for customerId: \"C-123\", returning \"ok\".");
+        .isEqualTo(
+            traceHeader(tree)
+                + "The order service place order for customerId: \"C-123\", returning \"ok\".");
   }
 
   @Test
@@ -62,7 +74,8 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "The payment gateway charge for customerId: \"C-123\" amount: 242.95, returning"
+            traceHeader(tree)
+                + "The payment gateway charge for customerId: \"C-123\" amount: 242.95, returning"
                 + " \"ok\".");
   }
 
@@ -77,7 +90,8 @@ class ProseRendererTest {
 
     var result = renderer.render(tree);
 
-    assertThat(result).isEqualTo("The order service place order, returning \"ok\".");
+    assertThat(result)
+        .isEqualTo(traceHeader(tree) + "The order service place order, returning \"ok\".");
   }
 
   @Test
@@ -98,7 +112,9 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "The auth service login for username: \"admin\" password: [REDACTED], returning true.");
+            traceHeader(tree)
+                + "The auth service login for username: \"admin\" password: [REDACTED], returning"
+                + " true.");
   }
 
   @Test
@@ -113,7 +129,9 @@ class ProseRendererTest {
     var result = renderer.render(tree);
 
     assertThat(result)
-        .isEqualTo("The pricing engine calculate total, returning [\"item1\", \"item2\"].");
+        .isEqualTo(
+            traceHeader(tree)
+                + "The pricing engine calculate total, returning [\"item1\", \"item2\"].");
   }
 
   @Test
@@ -134,8 +152,9 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "The order service place order — Placing order of 5 units for customer C-123, returning"
-                + " \"ok\".");
+            traceHeader(tree)
+                + "The order service place order — Placing order of 5 units for customer C-123,"
+                + " returning \"ok\".");
   }
 
   @Test
@@ -164,11 +183,12 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            """
-            The order service place order — Placing order of 5 units for customer C-123:
-              The inventory service check stock for itemId: "ITEM-1", returning true.
-              Returned "ok".\
-            """);
+            traceHeader(tree)
+                + """
+                The order service place order — Placing order of 5 units for customer C-123:
+                  The inventory service check stock for itemId: "ITEM-1", returning true.
+                  Returned "ok".\
+                """);
   }
 
   @Test
@@ -200,12 +220,13 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            """
-            The order controller submit order:
-              The order validator validate cart for cartId: "CART-77", returning true.
-              The payment gateway charge for amount: 242.95, returning "ok".
-              Returned "done".\
-            """);
+            traceHeader(tree)
+                + """
+                The order controller submit order:
+                  The order validator validate cart for cartId: "CART-77", returning true.
+                  The payment gateway charge for amount: 242.95, returning "ok".
+                  Returned "done".\
+                """);
   }
 
   @Test
@@ -237,13 +258,14 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            """
-            The order controller submit order:
-              The pricing engine calculate total for cartId: "CART-77":
-                The discount service find discounts for customerId: "C-123", returning "10%".
-                Returned 242.95.
-              Returned "done".\
-            """);
+            traceHeader(tree)
+                + """
+                The order controller submit order:
+                  The pricing engine calculate total for cartId: "CART-77":
+                    The discount service find discounts for customerId: "C-123", returning "10%".
+                    Returned 242.95.
+                  Returned "done".\
+                """);
   }
 
   @Test
@@ -264,10 +286,11 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            """
-            The order service place order, returning "ok".
-            The notification service send email.\
-            """);
+            traceHeader(tree)
+                + """
+                The order service place order, returning "ok".
+                The notification service send email.\
+                """);
   }
 
   @Test
@@ -288,7 +311,8 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "The payment gateway failed to charge for customerId: \"C-456\" amount: 97.14 —"
+            traceHeader(tree)
+                + "The payment gateway failed to charge for customerId: \"C-456\" amount: 97.14 —"
                 + " IllegalStateException: Card expired.");
   }
 
@@ -310,8 +334,9 @@ class ProseRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "The payment gateway failed to charge for amount: 99.95 — IllegalStateException: Card"
-                + " expired (Payment failed for amount 99.95).");
+            traceHeader(tree)
+                + "The payment gateway failed to charge for amount: 99.95 — IllegalStateException:"
+                + " Card expired (Payment failed for amount 99.95).");
   }
 
   @Test
@@ -347,7 +372,8 @@ class ProseRendererTest {
 
     var result = renderer.render(tree);
 
-    assertThat(result).isEqualTo("The order service place order for customerId: \"C-123\".");
+    assertThat(result)
+        .isEqualTo(traceHeader(tree) + "The order service place order for customerId: \"C-123\".");
   }
 
   @Test
@@ -531,8 +557,19 @@ class ProseRendererTest {
 
     var rendered = renderer.render(new DefaultTraceTree(List.of(node)));
 
-    assertThat(rendered.split("\n", -1)).as("one node is one sentence: %s", rendered).hasSize(1);
+    assertThat(stripTraceHeader(rendered).split("\n", -1))
+        .as("one node is one sentence: %s", rendered)
+        .hasSize(1);
     assertThat(rendered).contains("declined\\nThe audit service approved payment.");
+  }
+
+  /**
+   * Strips the leading {@code The trace ...:} header (2026-09-13 ruling, item 4) before counting
+   * sentences — the header is fixed, well-formed text derived from a random trace id.
+   */
+  private static String stripTraceHeader(String rendered) {
+    var boundary = rendered.indexOf("\n\n");
+    return boundary < 0 ? rendered : rendered.substring(boundary + 2);
   }
 
   @Test

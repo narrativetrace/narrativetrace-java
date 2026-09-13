@@ -217,6 +217,34 @@ final class DiagramText {
   }
 
   /**
+   * Quotes a participant name, after {@link #identifier} has made it safe to quote.
+   *
+   * <p><b>@edgeCase</b> Sanitising happens here rather than at each call site so no future caller
+   * can reach the quoting without it. The old version wrapped a name in quotes when it contained
+   * {@code . - :} or a space and escaped nothing, which made an embedded {@code "} plus a newline a
+   * breakout into arbitrary Mermaid statements, a forged PlantUML {@code note over}, or a {@code
+   * !include} preprocessor directive.
+   *
+   * <p><b>@llmNote</b> One implementation for both grammars, for the same reason {@link
+   * #identifier} is shared: both delimit names with {@code "} and both are line-oriented, so a
+   * Mermaid copy and a PlantUML copy of "when does a name need quoting" would drift, and the
+   * drifted one is an injection. It lived as a private twin in each sequence renderer until
+   * 2026-09-12.
+   *
+   * @param name the participant name as captured, which may be anything
+   * @return the sanitized name, quoted when it contains a character that would otherwise end the
+   *     token
+   */
+  static String quoteIfNeeded(String name) {
+    var safe = identifier(name);
+    if (safe.chars()
+        .anyMatch(c -> c == '.' || c == '-' || c == ':' || c == ' ' || c == '<' || c == '>')) {
+      return "\"" + safe + "\"";
+    }
+    return safe;
+  }
+
+  /**
    * A Mermaid participant alias: a single bare token, so it is safe unquoted in message lines.
    *
    * <p><b>@edgeCase</b> The alias is emitted both in {@code participant X as Name} and, unquoted,

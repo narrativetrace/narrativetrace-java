@@ -11,6 +11,7 @@ import ai.narrativetrace.core.export.JsonEscape;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * JSON exporter for clarity results.
@@ -62,20 +63,38 @@ public final class ClarityJsonExporter {
       List<Map.Entry<String, ClarityResult>> results, List<ClarityIssue> suiteIssues) {
     var sb = new StringBuilder();
     sb.append("{\"version\":\"1.2\",\"scenarios\":[");
+    appendJoined(
+        sb, results, (out, entry) -> appendScenario(out, entry.getKey(), entry.getValue()));
+    sb.append("],\"suiteIssues\":[");
+    appendJoined(sb, suiteIssues, this::appendIssue);
+    sb.append("]}");
+    return sb.toString();
+  }
 
+  /**
+   * Writes {@code items} as the <em>body</em> of a JSON array: each item through {@code writer},
+   * separated by a single comma, with no brackets of its own — the caller has already opened the
+   * array and closes it afterwards.
+   *
+   * <p>INTENT: Scenarios, issues and element notes were three copies of the same
+   * comma-between-but-not-before loop, each with its own {@code first} flag. One loop, three
+   * writers.
+   *
+   * @param <T> the item type
+   * @param sb the buffer being built, positioned just after the opening bracket
+   * @param items the items to write, in order; an empty list writes nothing at all
+   * @param writer appends one item's JSON object
+   */
+  private <T> void appendJoined(
+      StringBuilder sb, List<T> items, BiConsumer<StringBuilder, T> writer) {
     boolean first = true;
-    for (var entry : results) {
+    for (var item : items) {
       if (!first) {
         sb.append(',');
       }
       first = false;
-      appendScenario(sb, entry.getKey(), entry.getValue());
+      writer.accept(sb, item);
     }
-
-    sb.append("],\"suiteIssues\":[");
-    appendIssues(sb, suiteIssues);
-    sb.append("]}");
-    return sb.toString();
   }
 
   private void appendScenario(StringBuilder sb, String name, ClarityResult result) {
@@ -87,21 +106,10 @@ public final class ClarityJsonExporter {
     sb.append(",\"structuralScore\":").append(formatScore(result.structuralScore()));
     sb.append(",\"cohesionScore\":").append(formatScore(result.cohesionScore()));
     sb.append(",\"issues\":[");
-    appendIssues(sb, result.issues());
+    appendJoined(sb, result.issues(), this::appendIssue);
     sb.append("],\"elements\":[");
-    appendElements(sb, result.elementNotes());
+    appendJoined(sb, result.elementNotes(), this::appendElement);
     sb.append("]}");
-  }
-
-  private void appendElements(StringBuilder sb, List<ElementNote> notes) {
-    boolean firstNote = true;
-    for (var note : notes) {
-      if (!firstNote) {
-        sb.append(',');
-      }
-      firstNote = false;
-      appendElement(sb, note);
-    }
   }
 
   private void appendElement(StringBuilder sb, ElementNote note) {
@@ -110,17 +118,6 @@ public final class ClarityJsonExporter {
     sb.append(",\"score\":").append(formatScore(note.score()));
     sb.append(",\"note\":\"").append(escapeJson(note.note())).append('"');
     sb.append('}');
-  }
-
-  private void appendIssues(StringBuilder sb, List<ClarityIssue> issues) {
-    boolean firstIssue = true;
-    for (var issue : issues) {
-      if (!firstIssue) {
-        sb.append(',');
-      }
-      firstIssue = false;
-      appendIssue(sb, issue);
-    }
   }
 
   private void appendIssue(StringBuilder sb, ClarityIssue issue) {

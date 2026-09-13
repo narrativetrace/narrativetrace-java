@@ -54,7 +54,11 @@ class TraceFileOutputTest {
     var content = Files.readString(filePath);
     assertThat(content).startsWith("---\n");
     assertThat(content).contains("type: trace");
-    assertThat(content).contains("## Trace: OrderService.placeOrder");
+    assertThat(content)
+        .contains(
+            "## Trace: "
+                + ai.narrativetrace.core.render.TraceNamer.name(tree.traceId().value())
+                + " — OrderService.placeOrder");
     assertThat(content).contains("**OrderService.placeOrder**");
   }
 

@@ -367,6 +367,72 @@ class SnippetSupportTest {
     }
 
     @Test
+    fun checkMasksTheTraceNameLabelOnBothSidesBeforeComparing() {
+        writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "trace: rare relic tells (b4bd61b)\n\nplaceOrder(...)\n")
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=traceName -->",
+                "trace: bold elk soars (a1b2c3d)\n\nplaceOrder(...)",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
+    fun checkMasksTheProseTraceLeadInAndTheMarkdownTitlePhrase() {
+        writeSource(
+            "sixty-seconds/build/narrativetrace/see-a-trace.txt",
+            "The trace rare relic tells: placeOrder(...)\n## Trace: rare relic tells — Order.place()\n",
+        )
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=traceName -->",
+                "The trace bold elk soars: placeOrder(...)\n## Trace: bold elk soars — Order.place()",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
+    fun checkStillFailsUnderTraceNameMaskingWhenSomethingElseChanged() {
+        writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "trace: rare relic tells (b4bd61b)\n\nplaceOrder(other)\n")
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=traceName -->",
+                "trace: bold elk soars (a1b2c3d)\n\nplaceOrder(...)",
+                lang = "text"
+            )
+        )
+
+        assertEquals(1, SnippetSupport.check(repo).size)
+    }
+
+    @Test
+    fun checkAppliesMultipleCommaSeparatedMasksInOrder() {
+        writeSource(
+            "sixty-seconds/build/narrativetrace/see-a-trace.txt",
+            "trace: rare relic tells (b4bd61b)\n\nplaceOrder(...) — 17ms\n",
+        )
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/build/narrativetrace/see-a-trace.txt mask=duration,traceName -->",
+                "trace: bold elk soars (a1b2c3d)\n\nplaceOrder(...) — 3ms",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
     fun checkReportsAnUnknownMask() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         writeDoc(

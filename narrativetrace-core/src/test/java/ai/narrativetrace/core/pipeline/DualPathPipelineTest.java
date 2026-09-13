@@ -121,13 +121,19 @@ class DualPathPipelineTest {
     assertThat(buffered.events()).containsExactly(event);
   }
 
+  /**
+   * {@code DualPathPipeline.close()} calls the best-effort consumer's own {@code close()}
+   * synchronously, which interrupts and joins (bounded, 2 s) its drain thread before returning — so
+   * {@code consumerAlive()} is already settled the instant this call returns. No sleep needed nor,
+   * per family release rule 3 (2026-09-07: wall-clock, GC and scheduler are never test inputs),
+   * wanted.
+   */
   @Test
-  void closeStopsBestEffortConsumer() throws InterruptedException {
+  void closeStopsBestEffortConsumer() {
     buffered = new BufferedEventConsumer(4);
     pipeline = new DualPathPipeline(null, buffered);
 
     pipeline.close();
-    Thread.sleep(50);
 
     assertThat(buffered.consumerAlive()).isFalse();
   }

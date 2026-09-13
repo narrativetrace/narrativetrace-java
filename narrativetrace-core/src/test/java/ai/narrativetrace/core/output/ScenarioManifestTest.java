@@ -140,6 +140,48 @@ class ScenarioManifestTest {
     assertThat(outputDir.resolve("manifest.json")).doesNotExist();
   }
 
+  @Test
+  void omitsTheRunObjectWhenNoRunIdentityIsGiven() {
+    var entry =
+        new ScenarioManifest.Entry(
+            "finds", ArtifactIdentity.ofMethod("T", "finds"), Map.of("trace", "traces/T/finds.md"));
+
+    var manifest = ScenarioManifest.render(List.of(entry));
+
+    assertThat(manifest).doesNotContain("\"run\"");
+  }
+
+  @Test
+  void namesTheRunTopLevelWhenARunIdentityIsGiven() {
+    var entry =
+        new ScenarioManifest.Entry(
+            "finds", ArtifactIdentity.ofMethod("T", "finds"), Map.of("trace", "traces/T/finds.md"));
+    var run = new RunIdentity("a".repeat(32), "bold elk soars");
+
+    var manifest = ScenarioManifest.render(List.of(entry), run);
+
+    assertThat(manifest).contains("\"run\": {\n    \"id\": \"" + "a".repeat(32) + "\",\n");
+    assertThat(manifest).contains("\"name\": \"bold elk soars\"");
+    // Top-level, alongside "scenarios" — not folded into any scenario row.
+    assertThat(manifest.indexOf("\"run\"")).isLessThan(manifest.indexOf("\"scenarios\""));
+  }
+
+  @Test
+  void twoDifferentRunIdentitiesNeverChangeAScenarioRow() {
+    var entry =
+        new ScenarioManifest.Entry(
+            "finds", ArtifactIdentity.ofMethod("T", "finds"), Map.of("trace", "traces/T/finds.md"));
+    var runOne = new RunIdentity("a".repeat(32), "bold elk soars");
+    var runTwo = new RunIdentity("b".repeat(32), "shy owl waits");
+
+    var manifestOne = ScenarioManifest.render(List.of(entry), runOne);
+    var manifestTwo = ScenarioManifest.render(List.of(entry), runTwo);
+
+    var scenariosOne = manifestOne.substring(manifestOne.indexOf("\"scenarios\""));
+    var scenariosTwo = manifestTwo.substring(manifestTwo.indexOf("\"scenarios\""));
+    assertThat(scenariosOne).isEqualTo(scenariosTwo);
+  }
+
   private static void write(Path file) throws IOException {
     Files.createDirectories(file.getParent());
     Files.writeString(file, "x");

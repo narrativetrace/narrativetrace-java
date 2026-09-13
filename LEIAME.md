@@ -1,4 +1,4 @@
-<!-- source: README.md blob e391298242ad | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 794d895a07b4 | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -375,7 +375,8 @@ pontuam baixo, nomes específicos do domínio como `reserveInventory` ou
 segundo o limiar que você definir. Ainda é experimental.
 → [Guia de clareza](documentation/pt-BR/guia-de-clareza.md)
 
-**Testes de aprovação narrativa.** Cada execução compara a *estrutura* de
+**Traces de aprovação narrativa.** Esta é a ideia dos testes de aprovação,
+aplicada a traces: cada execução compara a *estrutura* de
 cada cenário com a última execução verde e encerra a suíte com uma linha:
 
 ```
@@ -534,7 +535,7 @@ Para se aprofundar:
 - [Guia de integração com Micronaut](documentation/pt-BR/guia-de-integracao-com-micronaut.md) — tracing de beans, filtro HTTP, propriedades de configuração
 - [Guia de clareza](documentation/pt-BR/guia-de-clareza.md) — modelo de pontuação, componentes de NLP, integração com JUnit
 - [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md) — catálogo canônico de cada funcionalidade em todas as plataformas, com tier e status
-- [Formato de trace estrutural](documentation/pt-BR/formato-de-trace-estrutural.md) — o artefato `.nt` livre de valores por trás do relatório de deltas e dos testes de aprovação
+- [Formato de trace estrutural](documentation/pt-BR/formato-de-trace-estrutural.md) — o artefato `.nt` livre de valores por trás do relatório de deltas e dos traces de aprovação
 - [Referência completa](documentation/llms-full.md) (em inglês) — API, interioridades da captura, configuração, receitas de integração, solução de problemas, em um único arquivo
 - [Glossário de domínio](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — glossário de linguagem ubíqua coletado a partir dos traces, e visões traduzidas de traces (em inglês)
 

@@ -4,10 +4,12 @@ build/
 !buildSrc/*.kts
 !*-build-tests/
 !gradle/wrapper/gradle-wrapper.jar
+!contract-probe/gradle/wrapper/gradle-wrapper.jar
 
 *.class
 *.jar
 !gradle/wrapper/*.jar
+!contract-probe/gradle/wrapper/*.jar
 
 target/
 

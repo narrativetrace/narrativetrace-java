@@ -19,8 +19,7 @@ import ai.narrativetrace.core.output.ScenarioFramer;
 import ai.narrativetrace.core.output.TemplateWarningCollector;
 import ai.narrativetrace.core.output.TraceTestSupport;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
-import ai.narrativetrace.diagrams.MermaidSequenceDiagramRenderer;
-import ai.narrativetrace.diagrams.PlantUmlSequenceDiagramRenderer;
+import ai.narrativetrace.diagrams.SequenceDiagramRenderers;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -60,8 +59,8 @@ public class NarrativeTraceRule extends TestWatcher {
   private NarrativeTraceClassRule classRule;
   private PrintStream out = System.out;
   private PrintStream err = System.err;
-  private NarrativeRenderer mermaidRenderer = new MermaidSequenceDiagramRenderer()::render;
-  private NarrativeRenderer plantumlRenderer = new PlantUmlSequenceDiagramRenderer()::render;
+  private NarrativeRenderer mermaidRenderer = SequenceDiagramRenderers.mermaid();
+  private NarrativeRenderer plantumlRenderer = SequenceDiagramRenderers.plantUml();
 
   /**
    * Returns the current test's {@link NarrativeContext}.
@@ -96,6 +95,11 @@ public class NarrativeTraceRule extends TestWatcher {
   protected void starting(Description description) {
     context = newContext(System.getProperty("narrativetrace.level", TracingLevel.DETAIL.name()));
     testFailed = false;
+    // Only when linked to a class rule: a lone @Rule with no aggregator names no run, the same
+    // way it produces no console footer or manifest today (2026-09-13 ruling, item 2).
+    if (classRule != null) {
+      NarrativeTraceClassRule.notifyRunStarted();
+    }
   }
 
   /**
@@ -239,10 +243,10 @@ public class NarrativeTraceRule extends TestWatcher {
             : description.getClassName();
     var testMethodName = description.getMethodName();
     try {
+      var identity = ArtifactIdentity.ofMethod(testClassName, testMethodName);
       var delta =
           TraceTestSupport.writeTraceFile(
-              testClassName,
-              testMethodName,
+              identity,
               testMethodName,
               trace,
               verdictFailed,
@@ -250,7 +254,9 @@ public class NarrativeTraceRule extends TestWatcher {
               out,
               format,
               mermaidRenderer,
-              plantumlRenderer);
+              plantumlRenderer,
+              true,
+              classRule == null ? null : classRule.runIdentity().name());
       if (classRule != null) {
         delta.ifPresent(classRule::accumulateDelta);
       }
