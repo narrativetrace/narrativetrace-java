@@ -1,4 +1,4 @@
-<!-- source: README.md blob 794d895a07b4 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 37b48688751d | translated: 2026-09-13 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -534,6 +534,7 @@ Para profundizar:
 - [Guía de claridad](documentation/es/guia-de-claridad.md) — modelo de puntuación, componentes NLP, integración con JUnit
 - [Guía de funcionalidades](documentation/es/guia-de-funcionalidades.md) — catálogo canónico de cada funcionalidad en todas las plataformas, con nivel y estado
 - [Formato de traza estructural](documentation/es/formato-de-traza-estructural.md) — el artefacto `.nt` libre de valores detrás del informe de deltas y las trazas de aprobación
+- [Habilidades de agente](documentation/es/habilidades-de-agente.md) — `add-narrative-tracing` y `narrativetrace-doctor`, instalables hoy mediante `.claude/skills/{add-narrative-tracing,doctor}/` o el aviso siempre activo de `AGENTS.md`
 - [Referencia completa](documentation/llms-full.md) — API, interioridades de la captura, configuración, recetas de integración y resolución de problemas, en un solo archivo (en inglés)
 - [Glosario de dominio](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — glosario de lenguaje ubicuo recolectado desde las trazas, y vistas traducidas de las trazas (en inglés)
 

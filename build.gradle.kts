@@ -321,6 +321,7 @@ tasks.register("demoWiringCheck") {
  */
 val mutationTestedModules = setOf(
     "narrativetrace-api",
+    "narrativetrace-cli",
     "narrativetrace-core",
     "narrativetrace-proxy",
     "narrativetrace-clarity",
@@ -368,6 +369,11 @@ val pitestJunitBom = "org.junit:junit-bom:5.11.4"
  * by being executed, not by mutants — so it never reaches this map or `mutationAccounting`.
  */
 val mutationExemptModules: Map<String, String> = mapOf(
+    "narrativetrace-skills" to
+        "typed skill catalogue + renderers; proven by Tier A lints and the Tier A2 oracle replay" +
+            " (narrativetrace-skills/src/test/.../replay), which nests real ./gradlew invocations" +
+            " via GradleRunner — unsuited to per-mutant re-execution. DEFERRED — candidate once" +
+            " the replay's slow paths are isolated from the classes pitest would re-test",
     "narrativetrace-examples" to
         "demo/consumer code (this module and its narrativetrace-examples:* children) — proven by " +
             "being executed (acceptance/dockerTest), not by mutants",
@@ -1143,6 +1149,27 @@ subprojects {
                             "**/PlantUmlImageRenderer.class"
                         )
                     }
+                })
+            }
+            if (project.name == "narrativetrace-cli") {
+                // Main is a single delegating line (System.exit(Cli.run(...))) — testing it means
+                // actually calling System.exit from inside the test JVM, which is worse than the
+                // line it would cover. Cli.run() carries every branch worth a unit test.
+                classDirectories.setFrom(classDirectories.files.map { dir ->
+                    fileTree(dir) { exclude("**/Main.class") }
+                })
+            }
+            if (project.name == "narrativetrace-skills") {
+                // EvalRunner is the Tier B trial runner's untestable integration glue — real
+                // subprocess and filesystem orchestration (scaffolding a fixture, driving a
+                // subscription CLI, running a grader script) that a unit test would have to fake so
+                // thoroughly it stops testing anything. Every decision worth a unit test (arg
+                // parsing, fixture resolution, quota, ledger row shape, platform command templates)
+                // lives in a plain class EvalRunner only calls, and those carry full coverage.
+                // Mirrors the narrativetrace-cli Main.class exclusion above, and the TypeScript
+                // reference's own evals/run.ts, which carries no test of its own for the same reason.
+                classDirectories.setFrom(classDirectories.files.map { dir ->
+                    fileTree(dir) { exclude("**/evals/EvalRunner.class") }
                 })
             }
         }

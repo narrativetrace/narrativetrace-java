@@ -78,6 +78,19 @@ object SnippetSupport {
      * 60-second page shows, and an untracked copy of that triple would drift from the real one
      * silently — the one file this mechanism must not silently skip over an extension technicality.
      * It carries no translations, so it is never a language-directory concern.
+     *
+     * <p>Every `SKILL.md` under `.claude/skills/` (any depth beneath it) is included too, despite
+     * living under a dot-directory this walk otherwise never enters: those pages are BUILD OUTPUT
+     * (`ClaudeSkillRenderer`, rendered from the typed catalogue in `narrativetrace-skills`), and a
+     * catalogue step can itself be a snippet sourced from a real fixture file
+     * (`StepBody.SnippetStep`) the exact same way a documentation page embeds one — the one
+     * directory this mechanism must not silently skip over a naming convention aimed at every OTHER
+     * dot-directory (`.git`, `.gradle`, `.idea`, …).
+     *
+     * <p>Both directory-entry conditions below are folded into ONE `onEnter` callback rather than
+     * chained as two: `FileTreeWalk.onEnter` replaces the walk's callback, it does not compose with
+     * one already set, so `.onEnter(a).onEnter(b)` silently keeps only `b` — a second call here would
+     * quietly undo the dot-directory/`build` exclusion, not add to it.
      */
     fun englishMarkdownFiles(repoRoot: File): List<File> {
         val languageDirs =
@@ -86,9 +99,20 @@ object SnippetSupport {
                 .map { it.canonicalFile }
                 .toSet()
         val llmsTxt = repoRoot.resolve("documentation/llms.txt").canonicalFile
+        val claudeSkillsDir = repoRoot.resolve(".claude/skills").canonicalFile
+        fun onPathToClaudeSkills(dir: File): Boolean {
+            val path = dir.canonicalFile.toPath()
+            val skillsPath = claudeSkillsDir.toPath()
+            return path.startsWith(skillsPath) || skillsPath.startsWith(path)
+        }
         return repoRoot.walkTopDown()
-            .onEnter { dir -> dir == repoRoot || (dir.name != "build" && !dir.name.startsWith(".")) }
-            .onEnter { dir -> dir.canonicalFile !in languageDirs }
+            .onEnter { dir ->
+                val allowed =
+                    dir == repoRoot ||
+                        onPathToClaudeSkills(dir) ||
+                        (dir.name != "build" && !dir.name.startsWith("."))
+                allowed && dir.canonicalFile !in languageDirs
+            }
             .filter { it.isFile && (it.extension == "md" || it.canonicalFile == llmsTxt) }
             .filter { OPEN_MARKER.containsMatchIn(it.readText()) }
             .toList()

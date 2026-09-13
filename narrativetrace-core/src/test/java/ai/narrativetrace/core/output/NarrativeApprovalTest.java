@@ -38,7 +38,10 @@ class NarrativeApprovalTest {
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("No approved narrative for scenario \"trip settles\"")
         .hasMessageContaining(dir.resolve("OrderTest/trip_settles.received.nt").toString())
-        .hasMessageContaining("approveNarratives");
+        .hasMessageContaining("approveNarratives")
+        // Discovery Channel 3 (self-advertising outputs): every doctor-detectable library error
+        // names the skill by its canonical, platform-neutral form, never slash syntax.
+        .hasMessageContaining("→ narrativetrace-doctor skill");
 
     var received = dir.resolve("OrderTest/trip_settles.received.nt");
     assertThat(received).exists();
@@ -72,7 +75,8 @@ class NarrativeApprovalTest {
         .hasMessageContaining("Narrative changed against the approved baseline")
         .hasMessageContaining("-1 call Ledger.record")
         .hasMessageContaining("-  - Ledger.record()")
-        .hasMessageContaining("approveNarratives");
+        .hasMessageContaining("approveNarratives")
+        .hasMessageContaining("→ narrativetrace-doctor skill");
 
     var received = dir.resolve("OrderTest/trip_settles.received.nt");
     assertThat(received).exists();

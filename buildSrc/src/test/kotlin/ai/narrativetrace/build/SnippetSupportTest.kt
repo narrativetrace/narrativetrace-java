@@ -100,6 +100,32 @@ class SnippetSupportTest {
     }
 
     @Test
+    fun englishMarkdownFilesIncludesClaudeSkillMdDespiteTheDotDirectory() {
+        writeSource("sixty-seconds/src/main/java/com/example/orders/Main.java", "class Main {}\n")
+        writeDoc(
+            ".claude/skills/add-narrative-tracing/SKILL.md",
+            page("<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->", "class Main {}")
+        )
+
+        val found = SnippetSupport.englishMarkdownFiles(repo)
+
+        assertEquals(1, found.size, found.toString())
+        assertTrue(found.single().path.endsWith(".claude/skills/add-narrative-tracing/SKILL.md"))
+    }
+
+    @Test
+    fun englishMarkdownFilesStillSkipsOtherDotDirectories() {
+        writeDoc(
+            ".git/SKILL.md",
+            page("<!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->", "class Main {}")
+        )
+
+        val found = SnippetSupport.englishMarkdownFiles(repo)
+
+        assertEquals(emptyList<File>(), found)
+    }
+
+    @Test
     fun englishMarkdownFilesSkipsTranslatedMirrors() {
         writeSource("sixty-seconds/src/main/java/Main.java", "class Main {}\n")
         val content = page("<!-- snippet: sixty-seconds/src/main/java/Main.java -->", "class Main {}")

@@ -61,6 +61,33 @@
   </Match>
 
   <!--
+    ai.narrativetrace.skills.evals.EvalRunner/TierPrecondition run a real subprocess by design:
+    EvalRunner is the Tier B trial runner (skill-harness-design.md §4.3), an operator-run tool,
+    never invoked automatically or by the check gate, whose whole job is to launch the subscription
+    CLI (claude, codex, or gemini) the operator names on their own command line, with the exact
+    agent command the operator chose (a platform preset or an explicit agent-command-flag override)
+    and the grader script committed with the case. The "attacker" a command-injection finding
+    worries about IS the operator invoking their own tool with their own arguments, the same shape
+    as make, xargs, or any CI runner that shells out to a caller-supplied command.
+    TierPrecondition.runViaProcessBuilder's command list is either the fixed gradlew invocation
+    TierPrecondition#command() builds, or a real subprocess in its own unit test (true/false),
+    never externally supplied.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.skills.evals.EvalRunner"/>
+    <Or>
+      <Method name="runGrader"/>
+      <Method name="runShell"/>
+    </Or>
+    <Bug pattern="COMMAND_INJECTION"/>
+  </Match>
+  <Match>
+    <Class name="ai.narrativetrace.skills.evals.TierPrecondition"/>
+    <Method name="runViaProcessBuilder"/>
+    <Bug pattern="COMMAND_INJECTION"/>
+  </Match>
+
+  <!--
     ClaimsServlet.doGet writes the response with
     response.setContentType("text/plain") before println — compliant
     browsers do not execute script served as text/plain, so reflected XSS

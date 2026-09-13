@@ -84,7 +84,9 @@ public final class NarrativeApproval {
                       + receivedFile
                       + "\nReview it and approve via the approveNarratives task (or rename it to "
                       + approvedFile.getFileName()
-                      + ")."));
+                      + ")."
+                      + " A stale .received.nt left after you resolve this is exactly what the"
+                      + " approval-traces check catches → narrativetrace-doctor skill"));
     }
     var baseline = Files.readString(approvedFile);
     if (loss.any()) {
@@ -100,7 +102,9 @@ public final class NarrativeApproval {
               + delta.diff()
               + "Received: "
               + receivedFile
-              + "\nIf this change is intended, approve it via the approveNarratives task.");
+              + "\nIf this change is intended, approve it via the approveNarratives task."
+              + " A stale .received.nt left after you resolve this is exactly what the"
+              + " approval-traces check catches → narrativetrace-doctor skill");
     }
     Files.deleteIfExists(receivedFile);
     return "";

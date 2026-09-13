@@ -24,6 +24,7 @@ publicada completa — incluidas páginas sin fichero aquí — está en
 | [La canalización de eventos de doble ruta](es/canalizacion-de-doble-ruta.md) | El contrato de la canalización por defecto: la ruta síncrona de narración durable ante caídas, la ruta con búfer que nunca bloquea, la pérdida contada, y la ocultación en captura aguas arriba de ambas |
 | [Qué commitear](es/que-commitear.md) | Qué ficheros generados son artefactos de CI y cuáles son baselines revisadas que commiteas |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → solución para los modos de fallo que la gente realmente encuentra, desde parámetros `arg0` hasta un agente silencioso |
+| [Habilidades de agente](es/habilidades-de-agente.md) | Las dos skills cargables por un agente — `add-narrative-tracing` y `narrativetrace-doctor` — cómo se construyen, y cómo instalarlas en tu propio proyecto |
 
 ## Integración con frameworks
 

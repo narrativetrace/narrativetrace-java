@@ -34,6 +34,7 @@ nmcpSettings {
 rootProject.name = "narrativetrace-java"
 
 include("narrativetrace-api")
+include("narrativetrace-cli")
 include("narrativetrace-core")
 include("narrativetrace-proxy")
 include("narrativetrace-junit5")
@@ -64,4 +65,5 @@ include("narrativetrace-opentelemetry")
 include("narrativetrace-micronaut")
 include("narrativetrace-micronaut-http")
 include("narrativetrace-jcstress")
+include("narrativetrace-skills")
 include("sixty-seconds")

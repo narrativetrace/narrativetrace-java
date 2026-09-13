@@ -1,7 +1,7 @@
 # NarrativeTrace
 
 <!-- docs-vs-published -->
-*(Docs and published both at 0.2.1; 20 behaviours marked unreleased.)* <!-- published-version cache age: 0m -->
+*(Docs and published both at 0.2.1; 23 behaviours marked unreleased.)* <!-- published-version cache age: 0m -->
 <!-- /docs-vs-published -->
 
 > Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
@@ -75,7 +75,7 @@ public class Main {
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 16ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 18ms
 ```
 <!-- /snippet -->
 
@@ -99,6 +99,7 @@ What they stumbled on is covered in "Before you start" above.
 
 ## Docs
 
+- [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over the `narrativetrace-cli` `doctor` verb, installable today via `.claude/skills/{add-narrative-tracing,doctor}/` or the always-on `AGENTS.md` pointer *(since 0.2.2, unreleased)*
 - [Complete Reference](https://narrativetrace.ai/llms-full.txt): Full API reference, module map, configuration, integration guides, architecture decisions, and troubleshooting
 - [Javadoc](https://javadoc.io/doc/ai.narrativetrace): API documentation for all published modules
 - [GitHub](https://github.com/narrativetrace/narrativetrace-java): Source code repository

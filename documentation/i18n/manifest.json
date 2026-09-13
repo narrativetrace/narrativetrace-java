@@ -166,6 +166,14 @@
     {
       "source": "documentation/maven-guide.md",
       "translations": {}
+    },
+    {
+      "source": "documentation/agent-skills.md",
+      "translations": {
+        "es": "habilidades-de-agente.md",
+        "zh-CN": "智能体技能.md",
+        "pt-BR": "habilidades-de-agente.md"
+      }
     }
   ]
 }

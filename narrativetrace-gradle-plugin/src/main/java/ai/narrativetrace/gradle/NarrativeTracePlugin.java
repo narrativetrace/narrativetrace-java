@@ -58,6 +58,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
               registerClarityScanTask(project, extension);
               registerGlossaryScanTask(project, extension);
               registerApproveNarrativesTask(project, extension);
+              registerNarrativeTraceDoctorTask(project, extension);
             });
 
     project.afterEvaluate(
@@ -307,6 +308,30 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                           e);
                     }
                   });
+            });
+  }
+
+  /**
+   * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
+   * (`.claude/skills/{doctor,add-narrative-tracing}/SKILL.md`) — runs the free CLI's eleven doctor
+   * checks against this project, in-process, and writes the JSON report to the extension's own
+   * output directory. Not gated on {@code enabled}: diagnosing a misconfigured install is exactly
+   * the case where the plugin's own tracing behaviour should not stand in the way.
+   */
+  private void registerNarrativeTraceDoctorTask(
+      Project project, NarrativeTraceExtension extension) {
+    project
+        .getTasks()
+        .register(
+            "narrativetraceDoctor",
+            NarrativeTraceDoctorTask.class,
+            task -> {
+              task.setDescription(
+                  "Runs the read-only NarrativeTrace doctor against this project and writes its"
+                      + " JSON report. Never fails the build on findings.");
+              task.setGroup("verification");
+              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getReportFile().set(extension.getOutputDir().file("doctor-report.json"));
             });
   }
 

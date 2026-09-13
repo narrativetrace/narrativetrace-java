@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# narrativetrace — thin launcher for the free-tier CLI (today: the `doctor` verb).
+# Locates this module's built jar and runs it under the current JVM. Zero network, read-only.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JAR="$(ls "$DIR"/build/libs/narrativetrace-cli-*.jar 2>/dev/null | grep -Ev -- '-sources\.jar$|-javadoc\.jar$' | head -n1 || true)"
+
+if [ -z "$JAR" ]; then
+  echo "narrativetrace: no build/libs/narrativetrace-cli-*.jar found — run" \
+       "'./gradlew :narrativetrace-cli:jar' first" >&2
+  exit 2
+fi
+
+exec java -jar "$JAR" "$@"

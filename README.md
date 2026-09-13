@@ -500,6 +500,7 @@ Going deeper:
 - [Clarity Guide](documentation/clarity-guide.md) — scoring model, NLP components, JUnit integration
 - [Feature Guide](documentation/feature-guide.md) — canonical catalog of every feature across all platforms, with tier and status
 - [Structural Trace Format](documentation/structural-trace-format.md) — the value-free `.nt` artifact behind delta reporting and approval traces
+- [Agent Skills](documentation/agent-skills.md) — `add-narrative-tracing` and `narrativetrace-doctor`, installable today via `.claude/skills/{add-narrative-tracing,doctor}/` or the always-on `AGENTS.md` pointer
 - [Complete Reference](documentation/llms-full.md) — API, capture internals, configuration, integration recipes, troubleshooting, in one file
 - [Domain Glossary](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — ubiquitous-language glossary harvested from traces, and translated trace views
 

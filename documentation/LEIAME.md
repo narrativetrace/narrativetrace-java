@@ -24,6 +24,7 @@ páginas sem arquivo correspondente aqui — está em
 | [O pipeline de eventos de caminho duplo](pt-BR/pipeline-de-caminho-duplo.md) | O contrato do pipeline padrão: o caminho síncrono de narração durável a quedas, o caminho com buffer que nunca bloqueia, a perda contada, e a ocultação na captura a montante de ambos |
 | [O Que Commitar](pt-BR/o-que-commitar.md) | Quais arquivos gerados são artefatos de CI e quais são baselines revisadas que você deve commitar |
 | [Solução de Problemas](pt-BR/solucao-de-problemas.md) | Sintoma → causa → correção para os modos de falha que as pessoas realmente encontram, de parâmetros `arg0` a um agente silencioso |
+| [Habilidades de agente](pt-BR/habilidades-de-agente.md) | As duas skills carregáveis por agente — `add-narrative-tracing` e `narrativetrace-doctor` — como são construídas, e como instalá-las no seu próprio projeto |
 
 ## Integração com frameworks
 

@@ -15,6 +15,14 @@ plugins {
 
 
 dependencies {
+    // narrativetraceDoctor (NarrativeTraceDoctorTask) calls the free CLI's doctor classes
+    // in-process — a project dependency baked into this plugin's own published jar at build time,
+    // not an external coordinate resolved when the task runs. narrativetrace-cli takes zero
+    // dependencies of its own (licensing.properties: open; FREE may depend on OPEN), so this adds
+    // no further transitive resolution for an adopter applying the plugin, and needs no network
+    // access to run the task itself.
+    implementation(project(":narrativetrace-cli"))
+
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
 }

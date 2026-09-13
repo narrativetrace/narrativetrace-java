@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Trigger cases (skill-harness-design.md §4.3): must fire on the positive phrasings, must stay
+# quiet on the negative ones. Gates on rate, target >=90% (harness §5). Phrasings mined (never
+# invented) from the add-narrative-tracing skill's own description text and
+# documentation/installation-guide.md's own framing of a not-yet-installed project.
+
+positive:
+  - "add narrative tracing to my service"
+  - "install narrativetrace"
+  - "get a trace in sixty seconds"
+  - "wrap this class so I can see a trace"
+  - "send my traces to my logger"
+  - "set up narrativetrace in this project"
+  - "how do I get started with narrativetrace"
+  - "this project has no narrativetrace yet, help me add it"
+  - "hook narrativetrace up to logback"
+  - "trace this service and show me the output"
+
+# The doctor's own positive set (diagnosing an existing install is that skill's job, not this
+# one's), plus another skill's job or no skill's job at all. Must NOT fire.
+negative:
+  - "check my narrativetrace setup"
+  - "is narrativetrace broken"
+  - "why isn't anything being traced"
+  - "parameters show as arg0, arg1"
+  - "no trace output files"
+  - "narrativetrace doctor"
+  - "approval mode wrote a stale .received.nt file"
+  - "make my tests produce narrative traces"
+  - "generate a sequence diagram for this PR"
+  - "upgrade narrativetrace to the latest version"

@@ -1213,6 +1213,51 @@ class NarrativeTracePluginFunctionalTest {
         .contains("MAIN_CLASS: ai.narrativetrace.glossary.GlossaryAwareClarityScannerMain");
   }
 
+  @Test
+  void narrativetraceDoctorTaskIsRegistered(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, "tasks", "--group", "verification");
+
+    assertThat(result.getOutput()).contains("narrativetraceDoctor");
+  }
+
+  @Test
+  void narrativetraceDoctorWritesAWellFormedJsonReport(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
+    var reportFile = projectDir.resolve("build/narrativetrace/doctor-report.json");
+    assertThat(reportFile).exists();
+    var json = Files.readString(reportFile);
+    assertThat(json).contains("\"findings\"").contains("\"exitCode\"");
+  }
+
+  @Test
+  void narrativetraceDoctorNeverFailsTheBuildOnFindings(@TempDir Path projectDir)
+      throws IOException {
+    // An otherwise-untouched project has plenty to find (no source, no test framework wired) —
+    // exactly the case the task must survive without failing the build.
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
+  }
+
+  @Test
+  void narrativetraceDoctorHonoursACustomOutputDir(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir, "narrativeTrace {\n    outputDir.set(layout.buildDirectory.dir(\"nt\"))\n}\n");
+
+    runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(projectDir.resolve("build/nt/doctor-report.json")).exists();
+  }
+
   private String scenarioJson(String name, double score) {
     return String.format(
         "{\"name\":\"%s\",\"overallScore\":%.2f"

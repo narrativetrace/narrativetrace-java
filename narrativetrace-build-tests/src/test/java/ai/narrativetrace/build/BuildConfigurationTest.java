@@ -65,6 +65,7 @@ class BuildConfigurationTest {
 
     assertThat(printed)
         .contains("LIBRARY ai.narrativetrace narrativetrace-api")
+        .contains("LIBRARY ai.narrativetrace narrativetrace-cli")
         .contains("LIBRARY ai.narrativetrace narrativetrace-core")
         .contains("LIBRARY ai.narrativetrace narrativetrace-proxy")
         .contains("LIBRARY ai.narrativetrace narrativetrace-clarity")
@@ -80,8 +81,9 @@ class BuildConfigurationTest {
         .contains("LIBRARY ai.narrativetrace narrativetrace-micronaut-http")
         .contains("LIBRARY ai.narrativetrace narrativetrace-opentelemetry")
         .contains("LIBRARY ai.narrativetrace narrativetrace-junit4")
-        .contains("LIBRARY ai.narrativetrace narrativetrace-junit5");
-    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(17);
+        .contains("LIBRARY ai.narrativetrace narrativetrace-junit5")
+        .contains("LIBRARY ai.narrativetrace narrativetrace-skills");
+    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(19);
   }
 
   @Test
