@@ -1,4 +1,4 @@
-<!-- source: README.md blob 37b48688751d | translated: 2026-09-13 | reviewed: - -->
+<!-- source: README.md blob 1e7db2d20138 | translated: 2026-09-13 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -415,7 +415,7 @@ equipe vai compartilhar. O que isso significa, em uma única tela:
 
 | Garantia | Como ela se sustenta |
 |---|---|
-| **A ocultação é incondicional** | `@NotTraced` e a lista de negação baseada em nome (`password`, `token`, `cvv`, `ssn`, …) se aplicam a todo caminho de saída publicado — traces de teste, artefatos de CI, logs de container, narração do agente. Nenhum estágio, flag ou propriedade os desativa (decisão do proprietário, 2026-08-16). Isso sobrevive a qualquer wrapper, em qualquer profundidade (`Optional`, `Future`, `AtomicReference`, `Map.Entry`) e a uma chave de `Map` composta; o `toString()` próprio de um tipo nunca é confiável enquanto o tipo tiver campos, então um personalizado não consegue imprimir além de uma ocultação; e um template `{param.path}` que nomeia um membro oculto resolve para `[REDACTED]`. |
+| **A ocultação é incondicional** | `@NotTraced` e a lista de negação baseada em nome (`password`, `token`, `cvv`, `ssn`, …) se aplicam a todo caminho de saída publicado — traces de teste, artefatos de CI, logs de container, narração do agente. Nenhum estágio, flag ou propriedade os desativa (decisão do proprietário, 2026-08-16). A lista de negação compara apenas pelo nome do campo ou parâmetro, então uma classe que seu próprio código define é coberta exatamente como uma nativa — sem anotação ou registro. Isso sobrevive a qualquer wrapper, em qualquer profundidade (`Optional`, `Future`, `AtomicReference`, `Map.Entry`) e a uma chave de `Map` composta; o `toString()` próprio de um tipo nunca é confiável enquanto o tipo tiver campos, então um personalizado não consegue imprimir além de uma ocultação; e um template `{param.path}` que nomeia um membro oculto resolve para `[REDACTED]`. |
 | **O artefato seguro para IA não guarda nenhum valor** | O arquivo estrutural `.nt` contém apenas nomes, hierarquia e tipos de resultado. Nada para ocultar, zero superfície de prompt injection — e isso é um teste de propriedade, não uma política. |
 | **Falhas de tracing não podem derrubar sua aplicação** | O registro é isolado de exceções em todos os caminhos, e os dois consumidores do pipeline engolem seus próprios erros. Um `toString()` que lança exceção, um buffer cheio ou um appender quebrado nunca mudam o que seu método retorna ou lança. |
 | **O uso de recursos é limitado** | O caminho de análise com buffer é um anel de tamanho fixo (65.536 slots por padrão, `narrativetrace.buffer.capacity`) que descarta em vez de bloquear — e avisa disso: uma captura que perdeu eventos imprime a contagem no seu próprio rodapé. A renderização de valores é limitada em tamanho de string, tamanho de coleção, largura de objeto e profundidade de aninhamento. |

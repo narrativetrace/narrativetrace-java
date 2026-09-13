@@ -85,6 +85,7 @@ OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) 
 - Annotations (`@Narrated`, `@NotTraced`, `@OnError`, `@NarrativeSummary`) live in `ai.narrativetrace.api.annotation`.
 - An empty directory has no `./gradlew` — run `gradle wrapper` once before `./gradlew run`.
 - Test trace output is on by default *(since 0.2.2, unreleased)*; `narrativetrace.output=false` opts out.
+- `ThreadLocalNarrativeContext` is thread-local, not request- or trace-scoped — crossing a thread needs an explicit `ContextSnapshot`, the Micrometer accessor, or a request-scoped filter; see the [context propagation strategies table](configuration-guide.md#context-propagation-strategies).
 
 NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
 

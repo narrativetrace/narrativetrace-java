@@ -10,6 +10,7 @@ package ai.narrativetrace.contract;
 import ai.narrativetrace.contract.probes.ApprovalDefaultProbe;
 import ai.narrativetrace.contract.probes.BufferCapacityDefaultProbe;
 import ai.narrativetrace.contract.probes.EntryPointProbe;
+import ai.narrativetrace.contract.probes.FieldNameRedactionOnCustomClassProbe;
 import ai.narrativetrace.contract.probes.LauncherAddedByPluginProbe;
 import ai.narrativetrace.contract.probes.ManifestJsonProbe;
 import ai.narrativetrace.contract.probes.NativeStringificationNotTrustedProbe;
@@ -142,6 +143,8 @@ public final class ContractRunner {
       case "probed-approval-default" -> ApprovalDefaultProbe.observe();
       case "probed-manifest-json" -> ManifestJsonProbe.observe();
       case "probed-parameter-name-redaction" -> ParameterNameRedactionProbe.observe();
+      case "probed-field-name-redaction-on-custom-class" ->
+          FieldNameRedactionOnCustomClassProbe.observe();
       case "config-shape-slf4j-zero-code" -> Slf4jZeroCodeAttachProbe.observe();
       case "probed-output-default" -> OutputDefaultProbe.observe();
       case "config-shape-launcher-added-by-plugin" ->

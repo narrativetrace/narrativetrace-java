@@ -6,6 +6,13 @@ is the row-by-row version of that contract: what redacts, where it does and
 does not reach, and what NarrativeTrace guarantees versus what it does not
 claim at all.
 
+**A field or parameter named `token`, `password`, `secret`, `apiKey` (and
+their multilingual equivalents) is redacted on any class — including one
+your own code defines, with no annotation and no configuration — by the
+always-on name deny-list described in
+[What the deny-list catches, and what outranks it](#what-the-deny-list-catches-and-what-outranks-it)
+below.**
+
 **Test-time trace output writes by default** — the JUnit 5 extension and the
 JUnit 4 integration write each test's `.md`/`.json`/`.mmd` artifacts to the
 ephemeral `build/narrativetrace` (gitignored, regenerated every run) with no

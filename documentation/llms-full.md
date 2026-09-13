@@ -345,6 +345,25 @@ var context = new ThreadLocalNarrativeContext(config);
 config.setLevel(TracingLevel.ERRORS);
 ```
 
+### Context propagation strategies
+
+The name only tells you the storage — a `ThreadLocal`-backed call stack —
+not the trade-off: a trace follows exactly one thread by default, so
+anything that hops threads (an executor, a request-per-thread servlet
+container reusing a pooled thread, a reactive scheduler) needs one of the
+patterns below layered on top of the same single `NarrativeContext`
+implementation. There is no separate context class per pattern, and no
+`ScopedValue`-backed one — that option is unshipped; `ThreadLocalNarrativeContext`
+already works with virtual threads today because each virtual thread gets
+its own `ThreadLocal` slot like any other thread.
+
+| Strategy | What it propagates across | When it loses context | Picked by default |
+|---|---|---|---|
+| Same-thread (`ThreadLocalNarrativeContext` used directly) | Nothing extra — the traced call chain has to stay on the thread that opened it | The instant work hops threads (an executor, `CompletableFuture.supplyAsync`, a bare `new Thread()`) without an explicit snapshot | Every integration — it is the one implementation the strategies below build on |
+| Manual snapshot (`context.snapshot()` + `ContextSnapshot.wrap(...)`/`activate()`) | Any thread hop the caller wraps explicitly — platform or virtual threads alike | Any hop the caller forgets to wrap; there is no automatic interception | `ForkGroup`/`FireAndForgetGroup` use it internally; otherwise opt-in |
+| Micrometer (`narrativetrace-micrometer`'s `NarrativeTraceThreadLocalAccessor`, registered with `ContextRegistry`) | Reactor operators, `@Async` methods, and executors Micrometer's own context-propagation wraps | Anything outside what Micrometer instruments — a raw thread or an executor it was never told to decorate | Opt-in module (`modules.micrometer`); never auto-attached |
+| Request-scoped reset (`narrativetrace-servlet`'s `NarrativeTraceFilter`, direct or via `narrativetrace-spring-web`) | Nothing new by itself — resets the same context at request boundaries so a pooled thread can't carry one request's stack into the next | A thread hop still inside one request needs snapshot or Micrometer propagation too | Opt-in module (`modules.servlet`/`modules.springWeb`); Micronaut ships its own reactive filter instead |
+
 ### TracingLevel (enum)
 
 Controls trace capture verbosity. Ordered by increasing detail:

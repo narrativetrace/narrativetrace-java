@@ -98,6 +98,14 @@ entries:
     documented_default: "[REDACTED]"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/ParameterNameRedactionProbe.java"
 
+  - id: probed-field-name-redaction-on-custom-class
+    kind: probed-default
+    page: "documentation/privacy-and-redaction.md#privacy-and-redaction"
+    claim: "a field named token inside a class your own code defines is redacted at capture by name alone, with no annotation and regardless of the declaring class"
+    since: "0.1.0"
+    documented_default: "[REDACTED]"
+    probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/FieldNameRedactionOnCustomClassProbe.java"
+
   - id: config-shape-slf4j-zero-code
     kind: config-shape
     page: "documentation/configuration-guide.md#7-slf4j-configuration"

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 45e823832fd4 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 94a4314c5bfd | translated: 2026-09-13 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -155,6 +155,26 @@ Se admite cambiar el nivel en runtime:
 ```java
 config.setLevel(TracingLevel.ERRORS);
 ```
+
+### Estrategias de propagación de contexto
+
+El nombre solo te dice el almacenamiento — una pila de llamadas respaldada
+por `ThreadLocal` — no la contrapartida: por defecto, una traza sigue
+exactamente un hilo, así que cualquier cosa que salte de hilo (un executor,
+un contenedor de servlets que reutiliza un hilo agrupado por solicitud, un
+scheduler reactivo) necesita uno de los patrones siguientes, superpuesto
+sobre la misma implementación única de `NarrativeContext`. No existe una
+clase de contexto distinta por patrón, ni una respaldada por `ScopedValue` —
+esa opción no se ha lanzado; `ThreadLocalNarrativeContext` ya funciona hoy
+con hilos virtuales porque cada hilo virtual obtiene su propia ranura
+`ThreadLocal`, igual que cualquier otro hilo.
+
+| Estrategia | Qué propaga entre hilos | Cuándo pierde el contexto | Se elige por defecto |
+|---|---|---|---|
+| Mismo hilo (`ThreadLocalNarrativeContext` usado directamente) | Nada extra — la cadena de llamadas trazada debe permanecer en el hilo que la abrió | En el instante en que el trabajo salta de hilo (un executor, `CompletableFuture.supplyAsync`, un `new Thread()` sin más) sin un snapshot explícito | Toda integración — es la única implementación sobre la que se apoyan las estrategias siguientes |
+| Snapshot manual (`context.snapshot()` + `ContextSnapshot.wrap(...)`/`activate()`) | Cualquier salto de hilo que el llamador envuelva explícitamente — hilos de plataforma o virtuales por igual | Cualquier salto que el llamador olvide envolver; no hay interceptación automática | `ForkGroup`/`FireAndForgetGroup` lo usan internamente; en el resto de los casos es opcional |
+| Micrometer (`NarrativeTraceThreadLocalAccessor` de `narrativetrace-micrometer`, registrado con `ContextRegistry`) | Operadores de Reactor, métodos `@Async` y los executors que la propagación de contexto propia de Micrometer envuelve | Todo lo que quede fuera de lo que Micrometer instrumenta — un hilo crudo o un executor al que nunca se le dijo que lo decorara | Módulo opcional (`modules.micrometer`); nunca se adjunta automáticamente |
+| Reinicio con alcance de solicitud (`NarrativeTraceFilter` de `narrativetrace-servlet`, directo o vía `narrativetrace-spring-web`) | Nada nuevo por sí mismo — reinicia el mismo contexto en los límites de la solicitud para que un hilo agrupado no arrastre la pila de una solicitud a la siguiente | Un salto de hilo dentro de la misma solicitud sigue necesitando snapshot o propagación de Micrometer | Módulo opcional (`modules.servlet`/`modules.springWeb`); Micronaut trae su propio filtro reactivo |
 
 ## 2. Configuración de JUnit 5 (`junit-platform.properties`)
 

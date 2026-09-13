@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 45e823832fd4 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 94a4314c5bfd | translated: 2026-09-13 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -155,6 +155,26 @@ Mudanças de nível em tempo de execução são suportadas:
 ```java
 config.setLevel(TracingLevel.ERRORS);
 ```
+
+### Estratégias de propagação de contexto
+
+O nome só diz o armazenamento — uma pilha de chamadas baseada em
+`ThreadLocal` — não o trade-off: por padrão, um trace segue exatamente uma
+thread, então qualquer coisa que pule de thread (um executor, um contêiner
+de servlet que reutiliza uma thread do pool por requisição, um scheduler
+reativo) precisa de um dos padrões abaixo, sobreposto à mesma implementação
+única de `NarrativeContext`. Não existe uma classe de contexto separada por
+padrão, nem uma baseada em `ScopedValue` — essa opção não foi lançada;
+`ThreadLocalNarrativeContext` já funciona hoje com threads virtuais porque
+cada thread virtual recebe seu próprio slot `ThreadLocal`, como qualquer
+outra thread.
+
+| Estratégia | O que propaga entre threads | Quando perde o contexto | Escolhida por padrão |
+|---|---|---|---|
+| Mesma thread (`ThreadLocalNarrativeContext` usado diretamente) | Nada além disso — a cadeia de chamadas rastreada precisa permanecer na thread que a abriu | No instante em que o trabalho pula de thread (um executor, `CompletableFuture.supplyAsync`, um `new Thread()` cru) sem um snapshot explícito | Toda integração — é a única implementação sobre a qual as estratégias abaixo se apoiam |
+| Snapshot manual (`context.snapshot()` + `ContextSnapshot.wrap(...)`/`activate()`) | Qualquer salto de thread que o chamador envolva explicitamente — threads de plataforma ou virtuais, tanto faz | Qualquer salto que o chamador esqueça de envolver; não há interceptação automática | `ForkGroup`/`FireAndForgetGroup` o usam internamente; do contrário é opcional |
+| Micrometer (`NarrativeTraceThreadLocalAccessor` do `narrativetrace-micrometer`, registrado no `ContextRegistry`) | Operadores do Reactor, métodos `@Async` e os executors que a própria propagação de contexto do Micrometer envolve | Tudo fora do que o Micrometer instrumenta — uma thread crua ou um executor que nunca foi instruído a decorar | Módulo opt-in (`modules.micrometer`); nunca anexado automaticamente |
+| Reset com escopo de requisição (`NarrativeTraceFilter` do `narrativetrace-servlet`, direto ou via `narrativetrace-spring-web`) | Nada novo por si só — reseta o mesmo contexto nos limites da requisição para que uma thread do pool não carregue a pilha de uma requisição para a próxima | Um salto de thread ainda dentro de uma requisição continua precisando de snapshot ou propagação via Micrometer | Módulo opt-in (`modules.servlet`/`modules.springWeb`); o Micronaut traz seu próprio filtro reativo |
 
 ## 2. Configuração do JUnit 5 (`junit-platform.properties`)
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob da3110c62745 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 0457dd4ad750 | translated: 2026-09-13 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -8,6 +8,13 @@ va a compartir — artefactos de CI, baselines commiteadas, líneas de log de
 producción. Esta página es la versión fila por fila de ese contrato: qué se
 oculta, hasta dónde llega y hasta dónde no, y qué garantiza NarrativeTrace
 frente a lo que no promete en absoluto.
+
+**Un campo o parámetro llamado `token`, `password`, `secret`, `apiKey` (y
+sus equivalentes en otros idiomas) se oculta en cualquier clase — incluida
+una que defina tu propio código, sin anotaciones ni configuración —
+mediante la lista de denegación por nombre, siempre activa, descrita en
+[Qué atrapa la lista de denegación, y qué la supera](#qué-atrapa-la-lista-de-denegación-y-qué-la-supera)
+más abajo.**
 
 **La salida de trazas en tiempo de prueba se escribe por defecto** — la
 extensión de JUnit 5 y la integración de JUnit 4 escriben los artefactos
