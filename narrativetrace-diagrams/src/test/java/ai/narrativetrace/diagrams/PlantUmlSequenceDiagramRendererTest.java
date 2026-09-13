@@ -143,6 +143,43 @@ class PlantUmlSequenceDiagramRendererTest {
   }
 
   @Test
+  void rendersParticipantThatIsABareReservedWordInQuotes() {
+    // "end" is a PlantUML sequence-diagram keyword too (plantuml.com/sequence-diagram); a bare
+    // "participant end" / "end -> end: run()" is what the fix in DiagramText#quoteIfNeeded closes.
+    var node =
+        new TraceNode(
+            new MethodSignature("end", "run", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var diagram = renderer.render(tree);
+
+    assertThat(diagram).contains("participant \"end\"");
+    assertThat(diagram).contains("\"end\" -> \"end\": run()");
+    assertThat(diagram).doesNotContain("participant end\n");
+  }
+
+  @Test
+  void rendersParticipantThatIsAMermaidOnlyReservedWordInQuotesToo() {
+    // "over" is a Mermaid sequence-diagram keyword, not a PlantUML one — quoteIfNeeded is shared
+    // by both grammars and applies the union of their hazards, so PlantUML quotes it too (harmless
+    // here, and consistent with #identifier's own union-of-hazards design).
+    var node =
+        new TraceNode(
+            new MethodSignature("over", "run", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var diagram = renderer.render(tree);
+
+    assertThat(diagram).contains("participant \"over\"");
+  }
+
+  @Test
   void rendersIncompleteOutcomeAsHnoteOver() {
     var node =
         new TraceNode(

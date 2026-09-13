@@ -61,24 +61,24 @@
   </Match>
 
   <!--
-    ai.narrativetrace.skills.evals.EvalRunner/TierPrecondition run a real subprocess by design:
-    EvalRunner is the Tier B trial runner (skill-harness-design.md §4.3), an operator-run tool,
-    never invoked automatically or by the check gate, whose whole job is to launch the subscription
-    CLI (claude, codex, or gemini) the operator names on their own command line, with the exact
-    agent command the operator chose (a platform preset or an explicit agent-command-flag override)
-    and the grader script committed with the case. The "attacker" a command-injection finding
-    worries about IS the operator invoking their own tool with their own arguments, the same shape
-    as make, xargs, or any CI runner that shells out to a caller-supplied command.
+    ai.narrativetrace.skills.evals.EvalTrial/TierPrecondition run a real subprocess by design:
+    EvalTrial is the Tier B trial runner's scaffold/drive/grade flow (skill-harness-design.md
+    §4.3), invoked by the operator-run EvalRunner, never invoked automatically or by the check
+    gate, whose whole job is to launch the subscription CLI (claude, codex, or gemini) the operator
+    names on their own command line, with the exact agent command the operator chose (a platform
+    preset or an explicit agent-command-flag override) and the grader script committed with the
+    case. The "attacker" a command-injection finding worries about IS the operator invoking their
+    own tool with their own arguments, the same shape as make, xargs, or any CI runner that shells
+    out to a caller-supplied command. EvalTrial.REAL_PROCESS_RUNNER's argv is always built by
+    AgentArgv from that same operator-controlled agent command template, or is the fixed grader
+    invocation (`sh verify.sh`) — never a shell string, and never externally supplied beyond what
+    the operator already typed on their own command line.
     TierPrecondition.runViaProcessBuilder's command list is either the fixed gradlew invocation
     TierPrecondition#command() builds, or a real subprocess in its own unit test (true/false),
     never externally supplied.
   -->
   <Match>
-    <Class name="ai.narrativetrace.skills.evals.EvalRunner"/>
-    <Or>
-      <Method name="runGrader"/>
-      <Method name="runShell"/>
-    </Or>
+    <Class name="ai.narrativetrace.skills.evals.EvalTrial"/>
     <Bug pattern="COMMAND_INJECTION"/>
   </Match>
   <Match>

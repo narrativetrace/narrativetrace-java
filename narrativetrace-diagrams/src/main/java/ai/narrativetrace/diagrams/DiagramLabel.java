@@ -59,6 +59,18 @@ final class DiagramLabel {
   }
 
   /**
+   * As {@link #quotedIdentifier}, but also quoted when the identifier is itself a bare grammar
+   * keyword — the label a PLAIN-mode participant declaration or arrow endpoint uses, in either
+   * grammar. Never use this for an alias-mode "as" display name; {@link #quotedIdentifier} is the
+   * right call there. See {@link DiagramText#plainModeToken}.
+   *
+   * @param raw the metadata field as captured, which may be anything
+   */
+  static DiagramLabel plainToken(String raw) {
+    return new DiagramLabel(DiagramText.plainModeToken(raw));
+  }
+
+  /**
    * The message text for a return arrow — a checkmark for void, a count-plus-noun summary for a
    * collection, or a folded and truncated scalar. See {@link DiagramText#returnMessage}.
    */

@@ -197,4 +197,82 @@ class DiagramTextTest {
   void aliasTokenOfNullFallsBackToP() {
     assertThat(DiagramText.aliasToken(null)).isEqualTo("P");
   }
+
+  @Test
+  void aliasTokenSuffixesAClassNameThatIsABareMermaidReservedWord() {
+    // Before this fix, a class named "end" yielded the alias "end" unchanged — a bare token
+    // Mermaid's grammar reserves for closing a loop/alt/opt/rect/critical/box block, which the
+    // parser rejects rather than renders.
+    assertThat(DiagramText.aliasToken("end")).isEqualTo("end_");
+    assertThat(DiagramText.aliasToken("participant")).isEqualTo("participant_");
+    assertThat(DiagramText.aliasToken("loop")).isEqualTo("loop_");
+    assertThat(DiagramText.aliasToken("note")).isEqualTo("note_");
+  }
+
+  @Test
+  void aliasTokenReservedWordMatchIsCaseInsensitive() {
+    // Mermaid's sequenceDiagram.jison declares "%options case-insensitive" for its whole lexer.
+    assertThat(DiagramText.aliasToken("END")).isEqualTo("END_");
+    assertThat(DiagramText.aliasToken("End")).isEqualTo("End_");
+  }
+
+  @Test
+  void aliasTokenLeavesAnOrdinaryWordThatMerelyContainsAReservedWordAlone() {
+    // A word boundary check would be the wrong fix here: the whole token must equal the reserved
+    // word, not merely contain it as a substring.
+    assertThat(DiagramText.aliasToken("endpoint")).isEqualTo("endpoint");
+    assertThat(DiagramText.aliasToken("noteworthy")).isEqualTo("noteworthy");
+  }
+
+  @Test
+  void plainModeTokenQuotesABareMermaidReservedWord() {
+    // Before this fix (quoteIfNeeded, the function plain mode used): "end" returned unchanged — no
+    // ". - : < > " space" character to trigger quoting — a bare token both Mermaid's participant
+    // declaration and its arrow lines reserve for closing a loop/alt/opt/rect/critical/box block.
+    assertThat(DiagramText.plainModeToken("end")).isEqualTo("\"end\"");
+    assertThat(DiagramText.plainModeToken("participant")).isEqualTo("\"participant\"");
+    assertThat(DiagramText.plainModeToken("loop")).isEqualTo("\"loop\"");
+    assertThat(DiagramText.plainModeToken("note")).isEqualTo("\"note\"");
+    assertThat(DiagramText.plainModeToken("title")).isEqualTo("\"title\"");
+  }
+
+  @Test
+  void plainModeTokenQuotesABarePlantUmlOnlyReservedWord() {
+    // "boundary" is not a Mermaid sequence-diagram keyword, but it is a PlantUML participant-type
+    // keyword (plantuml.com/sequence-diagram) — plainModeToken is shared by both grammars and
+    // applies the union of their hazards, the same design already documented for #identifier.
+    assertThat(DiagramText.plainModeToken("boundary")).isEqualTo("\"boundary\"");
+    assertThat(DiagramText.plainModeToken("skinparam")).isEqualTo("\"skinparam\"");
+  }
+
+  @Test
+  void plainModeTokenReservedWordMatchIsCaseInsensitive() {
+    assertThat(DiagramText.plainModeToken("END")).isEqualTo("\"END\"");
+    assertThat(DiagramText.plainModeToken("End")).isEqualTo("\"End\"");
+  }
+
+  @Test
+  void plainModeTokenLeavesAnOrdinaryWordThatMerelyContainsAReservedWordAlone() {
+    // Same word-boundary correctness as aliasToken: the whole identifier must equal the reserved
+    // word, not merely contain it as a substring.
+    assertThat(DiagramText.plainModeToken("endpoint")).isEqualTo("endpoint");
+    assertThat(DiagramText.plainModeToken("noteworthy")).isEqualTo("noteworthy");
+  }
+
+  @Test
+  void plainModeTokenStillQuotesOnASpecialCharacterUnrelatedToReservedWords() {
+    // Regression guard: the pre-existing trigger (". - : < > " space") must survive the new check.
+    assertThat(DiagramText.plainModeToken("com.example.OrderService"))
+        .isEqualTo("\"com.example.OrderService\"");
+    assertThat(DiagramText.plainModeToken("OrderService")).isEqualTo("OrderService");
+  }
+
+  @Test
+  void quoteIfNeededDeliberatelyLeavesABareReservedWordUnquoted() {
+    // quoteIfNeeded is also used for Mermaid alias mode's "as DisplayName" text, which is never
+    // itself a bare grammar token — MermaidSequenceDiagramRendererTest pins that a reserved-word
+    // class name keeps its unescaped display name there. plainModeToken (above) is the function
+    // for an actual participant/arrow token; quoteIfNeeded must NOT gain the reserved-word check.
+    assertThat(DiagramText.quoteIfNeeded("end")).isEqualTo("end");
+  }
 }

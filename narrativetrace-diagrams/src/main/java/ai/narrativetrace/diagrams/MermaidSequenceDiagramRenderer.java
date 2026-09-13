@@ -48,11 +48,11 @@ public final class MermaidSequenceDiagramRenderer implements NarrativeRenderer {
     sb.append(grammar.header());
 
     for (var participant : SequenceParticipants.collect(tree.roots())) {
-      sb.append(grammar.participant(DiagramLabel.quotedIdentifier(participant)));
+      sb.append(grammar.participant(DiagramLabel.plainToken(participant)));
     }
 
     for (var root : tree.roots()) {
-      SequenceWalk.render(root, grammar, DiagramLabel::quotedIdentifier, sb);
+      SequenceWalk.render(root, grammar, DiagramLabel::plainToken, sb);
     }
 
     sb.append(grammar.footer());

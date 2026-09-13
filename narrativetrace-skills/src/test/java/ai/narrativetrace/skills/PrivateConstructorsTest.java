@@ -25,10 +25,13 @@ import ai.narrativetrace.skills.catalogue.CatalogueIndex;
 import ai.narrativetrace.skills.catalogue.DoctorCommands;
 import ai.narrativetrace.skills.catalogue.NarrativeTraceDoctorSkill;
 import ai.narrativetrace.skills.catalogue.ProListings;
+import ai.narrativetrace.skills.evals.AgentArgv;
 import ai.narrativetrace.skills.evals.CaseFixture;
 import ai.narrativetrace.skills.evals.EvalRunner;
 import ai.narrativetrace.skills.evals.PromotionRenderer;
 import ai.narrativetrace.skills.evals.QuotaMarkdown;
+import ai.narrativetrace.skills.evals.RepoRoot;
+import ai.narrativetrace.skills.evals.SporadicPolicy;
 import ai.narrativetrace.skills.evals.TierPrecondition;
 import ai.narrativetrace.skills.lint.Lints;
 import ai.narrativetrace.skills.render.AgentsMdRenderer;
@@ -62,6 +65,9 @@ class PrivateConstructorsTest {
     TierPrecondition.class,
     PromotionRenderer.class,
     EvalRunner.class,
+    RepoRoot.class,
+    AgentArgv.class,
+    SporadicPolicy.class,
   };
 
   @Test

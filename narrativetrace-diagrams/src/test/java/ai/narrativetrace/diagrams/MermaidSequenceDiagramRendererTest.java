@@ -260,6 +260,27 @@ class MermaidSequenceDiagramRendererTest {
   }
 
   @Test
+  void renderWithAliasesSuffixesAClassNameThatIsABareMermaidReservedWord() {
+    var node =
+        new TraceNode(
+            new MethodSignature("end", "run", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var diagram = renderer.renderWithAliases(tree);
+
+    // Before this fix: "participant end as end" and "end->>end: run()" — a bare "end" alias
+    // Mermaid's grammar reserves for closing a loop/alt/opt/rect/critical/box block, rejected by
+    // the parser rather than rendered. The display name after "as" is unaffected: it is never used
+    // as a bare token, so it may stay the reserved word itself.
+    assertThat(diagram).contains("participant end_ as end");
+    assertThat(diagram).contains("end_->>end_: run()");
+    assertThat(diagram).doesNotContain("participant end as end");
+  }
+
+  @Test
   void renderWithAliasesDeduplicatesCollidingAliases() {
     var child =
         new TraceNode(
@@ -298,6 +319,28 @@ class MermaidSequenceDiagramRendererTest {
     assertThat(diagram).contains("participant \"com.example.OrderService\"");
     assertThat(diagram)
         .contains("\"com.example.OrderService\"->>\"com.example.OrderService\": placeOrder()");
+  }
+
+  @Test
+  void rendersParticipantThatIsABareReservedWordInQuotes() {
+    // Before this fix: "participant end" and "end->>end: run()" — a bare "end" token Mermaid's
+    // grammar reserves for closing a loop/alt/opt/rect/critical/box block, rejected by the parser
+    // rather than rendered. Unlike alias mode's underscore suffix, plain mode keeps the exact class
+    // name as the visible token, just quoted — quoteIfNeeded's existing mechanism for any other
+    // grammar-breaking character.
+    var node =
+        new TraceNode(
+            new MethodSignature("end", "run", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var diagram = renderer.render(tree);
+
+    assertThat(diagram).contains("participant \"end\"");
+    assertThat(diagram).contains("\"end\"->>\"end\": run()");
+    assertThat(diagram).doesNotContain("participant end\n");
   }
 
   @Test

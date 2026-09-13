@@ -38,7 +38,7 @@ class HostileCorpusTest {
 
   @Test
   void everyFixtureLoadsWithCases() {
-    assertThat(HostileCorpus.strings()).hasSizeGreaterThan(50);
+    assertThat(HostileCorpus.strings()).hasSizeGreaterThan(70);
     assertThat(HostileCorpus.injections()).hasSizeGreaterThan(30);
     assertThat(HostileCorpus.traceparents()).hasSizeGreaterThan(30);
     assertThat(HostileCorpus.tracestates()).hasSizeGreaterThan(5);

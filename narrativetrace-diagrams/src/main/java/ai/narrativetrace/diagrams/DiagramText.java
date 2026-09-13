@@ -9,6 +9,7 @@ package ai.narrativetrace.diagrams;
 
 import ai.narrativetrace.api.event.RenderedValue;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -237,12 +238,154 @@ final class DiagramText {
    */
   static String quoteIfNeeded(String name) {
     var safe = identifier(name);
-    if (safe.chars()
-        .anyMatch(c -> c == '.' || c == '-' || c == ':' || c == ' ' || c == '<' || c == '>')) {
-      return "\"" + safe + "\"";
-    }
-    return safe;
+    return needsQuotingForACharacter(safe) ? "\"" + safe + "\"" : safe;
   }
+
+  /**
+   * As {@link #quoteIfNeeded}, but ALSO quotes when the whole (sanitized) name is a bare grammar
+   * keyword — safe wherever the identifier is used AS the grammar token itself: a PLAIN-mode
+   * participant declaration or arrow endpoint, in either grammar.
+   *
+   * <p><b>@edgeCase</b> Deliberately a separate function from {@link #quoteIfNeeded}, not a
+   * universal change to it: Mermaid's alias mode reuses {@link #quoteIfNeeded} for the
+   * human-readable display name after {@code as} ({@code participant X as DisplayName}), which is
+   * never itself used as a bare token and is documented (see {@code
+   * MermaidSequenceDiagramRenderer}'s alias-mode test) to keep a reserved word unescaped there —
+   * changing {@link #quoteIfNeeded} itself would have silently re-quoted that display name too, an
+   * unrelated behavior change to already-shipped, already-tested output.
+   *
+   * @param name the participant name as captured, which may be anything
+   * @return the sanitized name, quoted when it contains a character that would otherwise end the
+   *     token, or when the whole name is a bare grammar keyword
+   */
+  static String plainModeToken(String name) {
+    var safe = identifier(name);
+    return needsQuotingForACharacter(safe) || isSequenceDiagramReservedWord(safe)
+        ? "\"" + safe + "\""
+        : safe;
+  }
+
+  private static boolean needsQuotingForACharacter(String safe) {
+    return safe.chars()
+        .anyMatch(c -> c == '.' || c == '-' || c == ':' || c == ' ' || c == '<' || c == '>');
+  }
+
+  /**
+   * True when {@code token}, compared case-insensitively as a WHOLE, is a bare keyword either
+   * grammar reserves — never merely contains one as a substring ({@code endpoint} is an ordinary
+   * name).
+   */
+  private static boolean isSequenceDiagramReservedWord(String token) {
+    var lower = token.toLowerCase(Locale.ROOT);
+    return MERMAID_RESERVED_ALIASES.contains(lower) || PLANTUML_RESERVED_WORDS.contains(lower);
+  }
+
+  /**
+   * Mermaid sequence-diagram keywords a bare alias token must never collide with, matched
+   * case-insensitively — the grammar declares {@code %options case-insensitive}.
+   *
+   * <p><b>@llmNote</b> Sourced from every single-word literal lexer rule in {@code
+   * sequenceDiagram.jison} (mermaid-js/mermaid, {@code develop} branch, verified 2026-09-13):
+   * {@code "loop" { ...; return 'loop'; }} and its siblings for {@code box}, {@code participant},
+   * {@code actor}, {@code create}, {@code destroy}, {@code rect}, {@code opt}, {@code alt}, {@code
+   * else}, {@code par}, {@code par_over}, {@code and}, {@code critical}, {@code option}, {@code
+   * break}, {@code end}, {@code links}, {@code link}, {@code properties}, {@code details}, {@code
+   * over}, {@code note}, {@code activate}, {@code deactivate}, {@code autonumber}, {@code off}, and
+   * the diagram-opening {@code sequenceDiagram} itself. {@code title} is included defensively: its
+   * lexer rule only fires when the keyword is followed by same-line text ({@code
+   * "title"\s[^#\n;]+}), so a bare {@code title} alias does not collide against today's grammar,
+   * but a future revision could drop that requirement and a suffixed alias costs nothing. Words the
+   * grammar only recognizes as part of a multi-word phrase ({@code "left of"}, {@code "right of"})
+   * are absent — {@link #aliasToken} can never produce a token containing a space.
+   */
+  private static final Set<String> MERMAID_RESERVED_ALIASES =
+      Set.of(
+          "sequencediagram",
+          "participant",
+          "actor",
+          "create",
+          "destroy",
+          "box",
+          "loop",
+          "rect",
+          "opt",
+          "alt",
+          "else",
+          "par",
+          "par_over",
+          "and",
+          "critical",
+          "option",
+          "break",
+          "end",
+          "links",
+          "link",
+          "properties",
+          "details",
+          "over",
+          "note",
+          "activate",
+          "deactivate",
+          "autonumber",
+          "off",
+          "title");
+
+  /**
+   * PlantUML sequence-diagram keywords a bare (unquoted) participant/arrow token risks colliding
+   * with, matched case-insensitively.
+   *
+   * <p><b>@llmNote</b> Sourced from plantuml.com/sequence-diagram (verified 2026-09-13): the
+   * participant-type keywords ({@code participant}, {@code actor}, {@code boundary}, {@code
+   * control}, {@code entity}, {@code database}, {@code collections}, {@code queue}), the
+   * block/control keywords ({@code alt}, {@code else}, {@code opt}, {@code loop}, {@code par},
+   * {@code break}, {@code critical}, {@code group}, {@code end}), the messaging keywords ({@code
+   * note}, {@code ref}, {@code activate}, {@code deactivate}, {@code destroy}, {@code create},
+   * {@code return}), and the structural keywords ({@code box}, {@code title}, {@code header},
+   * {@code footer}, {@code newpage}, {@code autonumber}, {@code hide}, {@code show}, {@code
+   * skinparam}, {@code mainframe}, {@code partition}). PlantUML's own docs demonstrate quoting as
+   * the documented escape for exactly this collision ({@code participant "I have a really\nlong
+   * name" as L}, {@code "Bob()" -> "This is very\nlong" as Long} — quoting works in a message/arrow
+   * line, not only a declaration), which is why {@link #quoteIfNeeded} closes this with the same
+   * quoting mechanism it already uses for special characters, rather than {@link #aliasToken}'s
+   * suffix.
+   */
+  private static final Set<String> PLANTUML_RESERVED_WORDS =
+      Set.of(
+          "participant",
+          "actor",
+          "boundary",
+          "control",
+          "entity",
+          "database",
+          "collections",
+          "queue",
+          "alt",
+          "else",
+          "opt",
+          "loop",
+          "par",
+          "break",
+          "critical",
+          "group",
+          "end",
+          "note",
+          "ref",
+          "activate",
+          "deactivate",
+          "destroy",
+          "create",
+          "return",
+          "box",
+          "title",
+          "header",
+          "footer",
+          "newpage",
+          "autonumber",
+          "hide",
+          "show",
+          "skinparam",
+          "mainframe",
+          "partition");
 
   /**
    * A Mermaid participant alias: a single bare token, so it is safe unquoted in message lines.
@@ -253,8 +396,15 @@ final class DiagramText {
    * to {@code P} when nothing survives. A class name with no uppercase letters keeps its historical
    * alias: {@code scheduler} stays {@code scheduler}.
    *
+   * <p><b>@edgeCase</b> A class literally named {@code end} or {@code participant} used to yield
+   * that word, unchanged, as its own alias — a bare token Mermaid's grammar reserves for closing a
+   * block ({@code end}) or opening a declaration ({@code participant}), which the parser rejects
+   * outright rather than rendering. A token that collides with {@link #MERMAID_RESERVED_ALIASES},
+   * case-insensitively, gets a trailing {@code _}: {@code end} becomes {@code end_}. Found by a
+   * cross-port participant-alias review, 2026-09-13.
+   *
    * @param raw the candidate alias
-   * @return a non-empty token safe to emit unquoted
+   * @return a non-empty token safe to emit unquoted, and never a bare Mermaid keyword
    */
   static String aliasToken(String raw) {
     if (raw == null) {
@@ -267,7 +417,11 @@ final class DiagramText {
         sb.append(c);
       }
     }
-    return sb.length() == 0 ? "P" : sb.toString();
+    if (sb.length() == 0) {
+      return "P";
+    }
+    var token = sb.toString();
+    return MERMAID_RESERVED_ALIASES.contains(token.toLowerCase(Locale.ROOT)) ? token + "_" : token;
   }
 
   /**

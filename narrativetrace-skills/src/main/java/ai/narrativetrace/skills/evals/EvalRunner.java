@@ -20,8 +20,11 @@ package ai.narrativetrace.skills.evals;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -32,12 +35,16 @@ import java.util.List;
  * the requested agent CLI against the prompt with the catalogue loaded, runs the case's grader, and
  * appends one row to {@code ledger/runs.jsonl}.
  *
- * <p>This class is the untestable integration glue — real subprocess and filesystem orchestration —
- * deliberately excluded from the module's jacoco coverage gate the same way {@code
- * narrativetrace-cli}'s {@code Main} is: every decision worth a unit test (arg parsing, fixture
- * resolution, the quota decision, the ledger row shape, the platform command templates) lives in a
- * plain class this one only calls. Mirrors the TypeScript reference's {@code evals/run.ts}, which
- * carries no test of its own for the same reason.
+ * <p>This class is the thin CLI entry point — argument parsing, the trial loop, temp-directory
+ * lifecycle and stdout progress lines — deliberately excluded from the module's jacoco coverage
+ * gate the same way {@code narrativetrace-cli}'s {@code Main} is. Every decision worth a unit test
+ * (arg parsing, repo-root resolution, argv-safe agent commands, the per-trial scaffold/drive/grade/
+ * ledger flow, the sporadic-lane precondition, the quota decision, the ledger row shape, the
+ * platform command templates) lives in a plain, injectable class this one only calls: {@link
+ * RepoRoot}, {@link AgentArgv}, {@link EvalTrial}, {@link SporadicPolicy}, {@link CaseFixture},
+ * {@link QuotaMarkdown}, {@link TierPrecondition}, {@link Platform}, {@link RunLedgerRow}. Mirrors
+ * the TypeScript reference's {@code evals/run.ts}, which carries no test of its own for the same
+ * reason.
  */
 public final class EvalRunner {
 
@@ -45,15 +52,10 @@ public final class EvalRunner {
 
   public static void main(String[] args) throws IOException, InterruptedException {
     EvalRunnerArgs parsed = EvalRunnerArgs.parse(args);
-    Path repoRoot = repoRoot();
+    Path repoRoot = RepoRoot.locate();
     Path ledgerDir = repoRoot.resolve("narrativetrace-skills/ledger");
     Path runsPath = ledgerDir.resolve("runs.jsonl");
     Path quotaPath = ledgerDir.resolve("quota.md");
-
-    if (parsed.platform().isSporadic()) {
-      TierPrecondition.assertDeterministicTiersGreen(
-          repoRoot, TierPrecondition::runViaProcessBuilder);
-    }
 
     Path caseDir =
         repoRoot
@@ -61,18 +63,56 @@ public final class EvalRunner {
             .resolve(parsed.skill())
             .resolve(parsed.caseName());
     String prompt = readPrompt(caseDir);
+    Path fixtureDir = repoRoot.resolve(CaseFixture.fixtureFor(caseDir));
+    String agentCommand =
+        parsed
+            .agentCommandOverride()
+            .orElse(parsed.platform().presetAgentCommand(parsed.model(), parsed.skill()));
+    logWhenNoAgentCommand(agentCommand);
 
+    EvalTrial trial = new EvalTrial(EvalTrial.REAL_PROCESS_RUNNER, Clock.systemUTC(), runsPath);
     List<QuotaSpendRow> sessionSpend = new ArrayList<>();
-    for (int trial = 1; trial <= parsed.trials(); trial++) {
+    for (int t = 1; t <= parsed.trials(); t++) {
       if (parsed.platform().isSporadic()) {
-        assertQuotaAvailable(quotaPath, parsed.platform(), sessionSpend);
+        SporadicPolicy.beforeTrial(
+            parsed.platform(),
+            repoRoot,
+            TierPrecondition::runViaProcessBuilder,
+            mergedQuotaLedger(quotaPath, sessionSpend),
+            LocalDate.now());
       }
-      boolean pass = runOneTrial(parsed, repoRoot, caseDir, prompt, trial, runsPath);
-      System.out.println(
-          "trial " + trial + "/" + parsed.trials() + ": " + (pass ? "pass" : "fail"));
+      boolean pass =
+          runOneTrial(trial, parsed, repoRoot, fixtureDir, caseDir, prompt, agentCommand, t);
+      System.out.println("trial " + t + "/" + parsed.trials() + ": " + (pass ? "pass" : "fail"));
       if (parsed.platform().isSporadic()) {
         sessionSpend.add(recordSporadicSpend(quotaPath, parsed));
       }
+    }
+  }
+
+  private static boolean runOneTrial(
+      EvalTrial trial,
+      EvalRunnerArgs args,
+      Path repoRoot,
+      Path fixtureDir,
+      Path caseDir,
+      String prompt,
+      String agentCommand,
+      int trialNumber)
+      throws IOException, InterruptedException {
+    Path scratch = Files.createTempDirectory("nt-eval-");
+    try {
+      return trial.run(
+          args, repoRoot, fixtureDir, caseDir, scratch, prompt, agentCommand, trialNumber);
+    } finally {
+      deleteRecursively(scratch);
+    }
+  }
+
+  private static void logWhenNoAgentCommand(String agentCommand) {
+    if (agentCommand == null) {
+      System.out.println(
+          "(no --agent-command given — skipping the agent step, grading the fixture as-is)");
     }
   }
 
@@ -84,50 +124,15 @@ public final class EvalRunner {
     return Files.readString(promptPath);
   }
 
-  private static boolean runOneTrial(
-      EvalRunnerArgs args, Path repoRoot, Path caseDir, String prompt, int trial, Path runsPath)
-      throws IOException, InterruptedException {
-    String fixture = CaseFixture.fixtureFor(caseDir);
-    Path scratch = Files.createTempDirectory("nt-eval-");
-    try {
-      copyRecursively(repoRoot.resolve(fixture), scratch);
-      String agentCommand =
-          args.agentCommandOverride()
-              .orElse(args.platform().presetAgentCommand(args.model(), args.skill()));
-      if (agentCommand != null) {
-        runShell(agentCommand.replace("{prompt}", prompt), scratch);
-      } else {
-        System.out.println(
-            "(no --agent-command given — skipping the agent step, grading the fixture as-is)");
-      }
-      boolean pass = runGrader(caseDir, scratch, repoRoot);
-      appendLedgerRow(
-          runsPath,
-          new RunLedgerRow(
-              java.time.Instant.now().toString(),
-              args.skill(),
-              args.caseName(),
-              args.platform(),
-              args.model(),
-              trial,
-              pass));
-      return pass;
-    } finally {
-      deleteRecursively(scratch);
-    }
-  }
-
-  private static void assertQuotaAvailable(
-      Path quotaPath, Platform platform, List<QuotaSpendRow> sessionSpend) throws IOException {
+  /**
+   * The on-disk allowance table plus every spend row already on disk, plus this run's own so far.
+   */
+  private static QuotaLedger mergedQuotaLedger(Path quotaPath, List<QuotaSpendRow> sessionSpend)
+      throws IOException {
     QuotaLedger onDisk = QuotaMarkdown.parse(Files.readString(quotaPath));
     List<QuotaSpendRow> spend = new ArrayList<>(onDisk.spend());
     spend.addAll(sessionSpend);
-    QuotaDecision decision =
-        QuotaMarkdown.checkQuota(
-            new QuotaLedger(onDisk.allowances(), spend), platform, LocalDate.now());
-    if (!decision.allowed()) {
-      throw new IllegalStateException(decision.reason());
-    }
+    return new QuotaLedger(onDisk.allowances(), spend);
   }
 
   private static QuotaSpendRow recordSporadicSpend(Path quotaPath, EvalRunnerArgs args)
@@ -141,72 +146,8 @@ public final class EvalRunner {
             args.caseName(),
             QuotaMarkdown.isoWeek(now));
     Files.writeString(
-        quotaPath,
-        QuotaMarkdown.appendedSpendRowLine(row),
-        java.nio.file.StandardOpenOption.APPEND);
+        quotaPath, QuotaMarkdown.appendedSpendRowLine(row), StandardOpenOption.APPEND);
     return row;
-  }
-
-  private static void appendLedgerRow(Path runsPath, RunLedgerRow row) throws IOException {
-    Files.writeString(runsPath, row.toJsonLine() + "\n", java.nio.file.StandardOpenOption.APPEND);
-  }
-
-  private static boolean runGrader(Path caseDir, Path cwd, Path repoRoot)
-      throws IOException, InterruptedException {
-    Path grader = caseDir.resolve("graders").resolve("verify.sh");
-    ProcessBuilder builder =
-        new ProcessBuilder("sh", grader.toAbsolutePath().toString())
-            .directory(cwd.toFile())
-            .inheritIO();
-    cliJarPath(repoRoot)
-        .ifPresent(jar -> builder.environment().put("NARRATIVETRACE_CLI_JAR", jar.toString()));
-    return builder.start().waitFor() == 0;
-  }
-
-  /**
-   * The built, zero-dependency `narrativetrace-cli` jar a grader invokes directly — `./gradlew
-   * :narrativetrace-cli:jar` must have run first; empty when it hasn't.
-   */
-  private static java.util.Optional<Path> cliJarPath(Path repoRoot) throws IOException {
-    Path libsDir = repoRoot.resolve("narrativetrace-cli/build/libs");
-    if (!Files.isDirectory(libsDir)) {
-      return java.util.Optional.empty();
-    }
-    try (var stream = Files.list(libsDir)) {
-      return stream
-          .filter(p -> p.getFileName().toString().matches("narrativetrace-cli-.*\\.jar"))
-          .findFirst();
-    }
-  }
-
-  private static void runShell(String command, Path cwd) throws IOException, InterruptedException {
-    Process process =
-        new ProcessBuilder("sh", "-c", command).directory(cwd.toFile()).inheritIO().start();
-    int exit = process.waitFor();
-    if (exit != 0) {
-      throw new IOException("agent command exited " + exit + ": " + command);
-    }
-  }
-
-  private static Path repoRoot() {
-    // narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals -> repo root, but at
-    // runtime this class lives on a built classpath, not in source form — the repo root is instead
-    // wherever the process was launched from, exactly like `./gradlew` itself.
-    return Path.of("").toAbsolutePath();
-  }
-
-  private static void copyRecursively(Path source, Path target) throws IOException {
-    try (var stream = Files.walk(source)) {
-      for (Path path : (Iterable<Path>) stream::iterator) {
-        Path dest = target.resolve(source.relativize(path));
-        if (Files.isDirectory(path)) {
-          Files.createDirectories(dest);
-        } else {
-          Files.createDirectories(dest.getParent());
-          Files.copy(path, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
-      }
-    }
   }
 
   private static void deleteRecursively(Path root) throws IOException {
@@ -215,7 +156,7 @@ public final class EvalRunner {
     }
     try (var stream = Files.walk(root)) {
       stream
-          .sorted(java.util.Comparator.reverseOrder())
+          .sorted(Comparator.reverseOrder())
           .forEach(
               path -> {
                 try {
