@@ -64,3 +64,19 @@ narrativetrace-api/src/main/java/ai/narrativetrace/api/event/SpanContext.java ::
 # narrativetrace-api / narrativetrace-core module boundary. One public setter per component is
 # public API on both sides — collapsing it would change the API, not remove duplication.
 narrativetrace-core/src/main/java/ai/narrativetrace/core/export/CanonicalEntry.java :: narrativetrace-api/src/main/java/ai/narrativetrace/api/event/SpanContext.java
+
+# Same-direction escape-on-write logic, duplicated across a zero-dependency boundary rather than by
+# neglect (owner ruling 2026-09-13, resolver-flagged pair): DoctorRender.quote() hand-rolls the same
+# RFC 8259 control-character switch as JsonEscape.escape() because narrativetrace-cli takes zero
+# runtime dependencies by contract, the same contract narrativetrace-api holds, enforced by
+# ArchitectureTest.java, and has no dependency on narrativetrace-core (JsonEscape's module) or on
+# any module at all to fold into; there is no "lowest module both depend on" because the cli module
+# depends on nothing. Folding would mean adding cli's first-ever runtime dependency to remove an
+# 84-token clone, which trades an architectural invariant for a duplication metric. Not quite
+# byte-identical either: DoctorRender's switch omits the two named escapes for backspace and
+# form-feed that JsonEscape has, so those two control characters fall through to DoctorRender's
+# generic below-0x20 branch and come out as a numeric unicode escape instead of the short named
+# escape JsonEscape emits for them; both spellings are valid JSON, and Finding free-text is not
+# expected to carry raw backspace or form-feed, so this is left as a cosmetic divergence rather than
+# a bug to chase, and is not a reason to fold the two modules' JSON writers together.
+narrativetrace-core/src/main/java/ai/narrativetrace/core/export/JsonEscape.java :: narrativetrace-cli/src/main/java/ai/narrativetrace/cli/doctor/DoctorRender.java
