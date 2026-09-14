@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 37d12f1c146f | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob cef7fbb67bc1 | translated: 2026-09-14 | reviewed: - -->
 # Qué commitear
 
 [English](../what-to-commit.md) | **Español** | [Português](../pt-BR/o-que-commitar.md) | [简体中文](../zh-CN/应提交的内容.md)
@@ -27,7 +27,7 @@ en cualquier momento.
 | `src/test/narratives/<Class>/<scenario>.received.nt` | No | Se escribe cuando hay un desajuste de aprobación, o cuando todavía no existe ninguna baseline. Revísalo, ejecuta `./gradlew approveNarratives` para promoverlo, y luego bórralo o deja que la tarea lo elimine — nunca commitees el propio fichero received |
 | `src/test/narratives/<Class>/<scenario>.incomplete.nt` | No | Se escribe en lugar de `.received.nt` cuando la propia ejecución quedó incompleta (pérdida de mejor esfuerzo, o un ámbito asíncrono rechazado). `approveNarratives` lo ignora por nombre a propósito — consulta [Formato de traza estructural](formato-de-traza-estructural.md) |
 | `glossary.json` / `glossary.md` | **Sí**, si se usa la recolección del glosario | Se commitea en la raíz del repositorio mediante `glossaryScan` / `glossary.set(true)`; el fichero commiteado es lo que leen de vuelta la puntuación de claridad y las comprobaciones de vocabulario. "Un fichero, un flujo de revisión" |
-| `.claude/skills/**/SKILL.md`, la sección `<!-- narrativetrace:skills:* -->` de `AGENTS.md` | **Sí** *(since 0.2.2, unreleased)* | Salida de compilación del catálogo tipado de `narrativetrace-skills`, no salida de una ejecución de pruebas — se commitea igual que `glossary.json`: se regenera, se revisa en los diffs, y se comprueba contra la deriva (`RenderDriftTest`, conectada a `./gradlew check`) en vez de editarse a mano |
+| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, la sección `<!-- narrativetrace:skills:* -->` de `AGENTS.md` | **Sí** *(since 0.2.2, unreleased)* | Salida de compilación del catálogo tipado de `narrativetrace-skills`, no salida de una ejecución de pruebas — se commitea igual que `glossary.json`: se regenera, se revisa en los diffs, y se comprueba contra la deriva (`RenderDriftTest`, conectada a `./gradlew check`) en vez de editarse a mano |
 
 Todo bajo `build/` ya está cubierto por el `.gitignore` que se distribuye
 (`build/` es la primera línea). `src/test/narratives/` no lo está — los

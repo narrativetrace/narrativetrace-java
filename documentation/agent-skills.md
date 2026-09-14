@@ -27,32 +27,44 @@ Either path ends at the doctor — it owns diagnosis from there. A later skill w
 ## Installing them
 
 - **Claude Code**: rendered `SKILL.md` files live at
-  [`.claude/skills/doctor/`](../.claude/skills/doctor/SKILL.md) and
+  [`.claude/skills/narrativetrace-doctor/`](../.claude/skills/narrativetrace-doctor/SKILL.md) and
   [`.claude/skills/add-narrative-tracing/`](../.claude/skills/add-narrative-tracing/SKILL.md) in
   this repository. Copy either directory into your own project's `.claude/skills/<name>/` and
   Claude picks it up on its own, invokable by name (`narrativetrace-doctor` /
   `add-narrative-tracing`) directly.
+- **Codex**: the same catalogue also renders
+  [`.agents/skills/narrativetrace-doctor/`](../.agents/skills/narrativetrace-doctor/SKILL.md) and
+  [`.agents/skills/add-narrative-tracing/`](../.agents/skills/add-narrative-tracing/SKILL.md) — the
+  repo-checked-in layout Codex CLI documents for a project's own skills. Its frontmatter carries
+  only `name` and `description` (Codex documents no `when_to_use` or `allowed-tools` keys); the
+  page body is otherwise identical. Copy either directory into your own project's
+  `.agents/skills/<name>/` and Codex discovers it the same way.
 - **Any agent, any platform**: every agent that reads `AGENTS.md` sees the always-on pointer this
   repository's own `AGENTS.md` carries between its `<!-- narrativetrace:skills:start -->` markers
   — both skills' names and descriptions, so an agent that never thought to look still knows they
   exist.
-- **Codex and Gemini** run against the same catalogue on a sporadic, quota-guarded schedule (see
-  [Tier B — LLM trials](../narrativetrace-skills/evals/README.md)) rather than every commit; a
-  packaged installer for either platform is on the roadmap but not built yet — today, copying the
-  rendered files is the path.
+- **Gemini** runs against the same catalogue on a sporadic, quota-guarded schedule (see
+  [Tier B — LLM trials](../narrativetrace-skills/evals/README.md)) rather than every commit; it has
+  no rendered layout of its own yet — copying the Claude or Codex files above is the closest path
+  today.
 
 ## How they're built
 
 Neither skill is ever hand-edited. `narrativetrace-skills/src/main/java/ai/narrativetrace/skills/catalogue/AddNarrativeTracingSkill.java`
 and `.../NarrativeTraceDoctorSkill.java` are the two sources of truth; their typed steps render
-`.claude/skills/add-narrative-tracing/SKILL.md`, `.claude/skills/doctor/SKILL.md`, and this
-repository's own `AGENTS.md` section — a drift test (`RenderDriftTest`, wired into `./gradlew
-check`) fails the build the moment any of the three drifts from the typed source. A second suite
-(`SkillReplayer`, Tier A2) mechanically replays every command and machine-checkable `verify` a
-step names against the `sixty-seconds` fixture, today, deterministic, no LLM — green means the
-instructions are literally executable right now, not merely plausible prose. A Tier A lint keeps
-private planning-note citations, this repository's own Pro sibling, CI config filenames, and git
-SHAs out of both pages: rationale sentences ship, the citation naming the source does not.
+`.claude/skills/add-narrative-tracing/SKILL.md`, `.claude/skills/narrativetrace-doctor/SKILL.md`,
+the Codex mirrors at `.agents/skills/add-narrative-tracing/SKILL.md` and
+`.agents/skills/narrativetrace-doctor/SKILL.md`, and this repository's own `AGENTS.md` section — a
+drift test (`RenderDriftTest`, wired into `./gradlew check`) fails the build the moment any of the
+five drifts from the typed source. A skill's rendered `name:` is always its canonical name, never a
+shortened "claude segment" — a repo-checked-in `.claude/skills/` or `.agents/skills/` directory is a
+flat namespace with no plugin prefix to hide behind, so the name must be globally self-identifying
+on its own. A second suite (`SkillReplayer`, Tier A2) mechanically replays every command and
+machine-checkable `verify` a step names against the `sixty-seconds` fixture, today, deterministic,
+no LLM — green means the instructions are literally executable right now, not merely plausible
+prose. A Tier A lint keeps private planning-note citations, this repository's own Pro sibling, CI
+config filenames, and git SHAs out of both pages: rationale sentences ship, the citation naming the
+source does not.
 
 ## See also
 

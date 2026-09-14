@@ -41,15 +41,15 @@ tasks.withType<Test> {
     dependsOn(":narrativetrace-cli:jar", ":sixty-seconds:testClasses")
 }
 
-// Regenerates .claude/skills/*/SKILL.md and the AGENTS.md managed section from the typed
-// catalogue (RenderMain) — the drift check RenderDriftTest gates on every `./gradlew check`.
-// Never hand-edit the rendered files; run this and commit its output instead
+// Regenerates .claude/skills/*/SKILL.md, .agents/skills/*/SKILL.md, and the AGENTS.md managed
+// section from the typed catalogue (RenderMain) — the drift check RenderDriftTest gates on every
+// `./gradlew check`. Never hand-edit the rendered files; run this and commit its output instead
 // (documentation/what-to-commit.md).
 tasks.register<JavaExec>("renderSkills") {
     group = "documentation"
     description =
-        "Regenerates .claude/skills/*/SKILL.md and the AGENTS.md managed section from the typed" +
-            " catalogue"
+        "Regenerates .claude/skills/*/SKILL.md, .agents/skills/*/SKILL.md, and the AGENTS.md" +
+            " managed section from the typed catalogue"
     mainClass.set("ai.narrativetrace.skills.render.RenderMain")
     classpath = sourceSets["main"].runtimeClasspath
     args(rootProject.projectDir.absolutePath)

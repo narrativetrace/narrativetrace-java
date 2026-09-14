@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob dd3b3ab7e75b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob cf12bc9356c1 | translated: 2026-09-14 | reviewed: - -->
 # Habilidades de agente
 
 *(since 0.2.2, unreleased)*
@@ -32,35 +32,48 @@ solo puede pedirte que añadas).
 ## Instalarlas
 
 - **Claude Code**: los ficheros `SKILL.md` renderizados viven en
-  [`.claude/skills/doctor/`](../../.claude/skills/doctor/SKILL.md) y
+  [`.claude/skills/narrativetrace-doctor/`](../../.claude/skills/narrativetrace-doctor/SKILL.md) y
   [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md)
   en este repositorio. Copia cualquiera de los dos directorios en el `.claude/skills/<nombre>/` de
   tu propio proyecto y Claude la reconoce por sí solo, invocable por su nombre
   (`narrativetrace-doctor` / `add-narrative-tracing`) directamente.
+- **Codex**: el mismo catálogo también renderiza
+  [`.agents/skills/narrativetrace-doctor/`](../../.agents/skills/narrativetrace-doctor/SKILL.md) y
+  [`.agents/skills/add-narrative-tracing/`](../../.agents/skills/add-narrative-tracing/SKILL.md) —
+  la disposición que Codex CLI documenta para las habilidades propias de un proyecto. Su
+  frontmatter lleva solo `name` y `description` (Codex no documenta claves `when_to_use` ni
+  `allowed-tools`); el cuerpo de la página es idéntico. Copia cualquiera de los dos directorios en
+  el `.agents/skills/<nombre>/` de tu propio proyecto y Codex la reconoce del mismo modo.
 - **Cualquier agente, cualquier plataforma**: todo agente que lea `AGENTS.md` ve el aviso siempre
   activo que el propio `AGENTS.md` de este repositorio lleva entre sus marcadores
   `<!-- narrativetrace:skills:start -->` — el nombre y la descripción de ambas habilidades, de modo
   que un agente que nunca pensó en buscarlas igualmente sepa que existen.
-- **Codex y Gemini** se ejecutan contra el mismo catálogo con una cadencia esporádica y limitada
-  por cuota (ver [Tier B — pruebas con LLM](../../narrativetrace-skills/evals/README.md)) en lugar
-  de en cada commit; un instalador empaquetado para cualquiera de las dos plataformas está en la
-  hoja de ruta pero aún no se ha construido — hoy, copiar los ficheros renderizados es el camino.
+- **Gemini** se ejecuta contra el mismo catálogo con una cadencia esporádica y limitada por cuota
+  (ver [Tier B — pruebas con LLM](../../narrativetrace-skills/evals/README.md)) en lugar de en cada
+  commit; todavía no tiene una disposición propia renderizada — copiar los ficheros de Claude o
+  Codex de arriba es, por ahora, el camino más cercano.
 
 ## Cómo se construyen
 
 Ninguna de las dos habilidades se edita nunca a mano.
 `narrativetrace-skills/src/main/java/ai/narrativetrace/skills/catalogue/AddNarrativeTracingSkill.java`
 y `.../NarrativeTraceDoctorSkill.java` son las dos fuentes de la verdad; sus pasos tipados
-renderizan `.claude/skills/add-narrative-tracing/SKILL.md`, `.claude/skills/doctor/SKILL.md`, y la
-sección propia de `AGENTS.md` de este repositorio — una prueba de deriva (`RenderDriftTest`,
-conectada a `./gradlew check`) hace fallar la compilación en cuanto cualquiera de las tres se
-desvía de la fuente tipada. Una segunda suite (`SkillReplayer`, Tier A2) reproduce mecánicamente
-cada comando y cada `verify` comprobable por máquina que un paso nombra contra el fixture
-`sixty-seconds`, hoy mismo, de forma determinista, sin LLM — que esté en verde significa que las
-instrucciones son literalmente ejecutables ahora mismo, no solo prosa plausible. Un lint de Nivel A
-mantiene fuera de ambas páginas las citas a notas de planificación privadas, al hermano Pro de este
-repositorio, a nombres de ficheros de CI y a hashes de git: las frases de razonamiento se publican,
-la cita que nombra la fuente no.
+renderizan `.claude/skills/add-narrative-tracing/SKILL.md`,
+`.claude/skills/narrativetrace-doctor/SKILL.md`, sus espejos de Codex en
+`.agents/skills/add-narrative-tracing/SKILL.md` y
+`.agents/skills/narrativetrace-doctor/SKILL.md`, y la sección propia de `AGENTS.md` de este
+repositorio — una prueba de deriva (`RenderDriftTest`, conectada a `./gradlew check`) hace fallar
+la compilación en cuanto cualquiera de las cinco se desvía de la fuente tipada. El `name:`
+renderizado de una habilidad es siempre su nombre canónico, nunca un "segmento de claude"
+abreviado — un directorio `.claude/skills/` o `.agents/skills/` incluido en el propio repositorio
+es un espacio de nombres plano, sin prefijo de plugin tras el que esconderse, así que el nombre
+debe autoidentificarse globalmente por sí solo. Una segunda suite (`SkillReplayer`, Tier A2)
+reproduce mecánicamente cada comando y cada `verify` comprobable por máquina que un paso nombra
+contra el fixture `sixty-seconds`, hoy mismo, de forma determinista, sin LLM — que esté en verde
+significa que las instrucciones son literalmente ejecutables ahora mismo, no solo prosa plausible.
+Un lint de Nivel A mantiene fuera de ambas páginas las citas a notas de planificación privadas, al
+hermano Pro de este repositorio, a nombres de ficheros de CI y a hashes de git: las frases de
+razonamiento se publican, la cita que nombra la fuente no.
 
 ## Ver también
 

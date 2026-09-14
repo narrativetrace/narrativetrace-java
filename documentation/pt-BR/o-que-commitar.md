@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 37d12f1c146f | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob cef7fbb67bc1 | translated: 2026-09-14 | reviewed: - -->
 # O que commitar
 
 [English](../what-to-commit.md) | Español | **Português** | [简体中文](../zh-CN/应提交的内容.md)
@@ -27,7 +27,7 @@ qualquer momento.
 | `src/test/narratives/<Class>/<scenario>.received.nt` | Não | Escrito quando há divergência na aprovação, ou quando ainda não existe baseline. Revise-o, rode `./gradlew approveNarratives` para promovê-lo, depois apague-o ou deixe a task removê-lo — nunca faça commit do arquivo received em si |
 | `src/test/narratives/<Class>/<scenario>.incomplete.nt` | Não | Escrito no lugar de `.received.nt` quando a própria execução foi incompleta (perda de melhor esforço, ou um escopo assíncrono recusado). O `approveNarratives` o ignora pelo nome de propósito — veja [Formato de trace estrutural](formato-de-trace-estrutural.md) |
 | `glossary.json` / `glossary.md` | **Sim**, se a coleta do glossário for usada | Commitado na raiz do repositório por `glossaryScan` / `glossary.set(true)`; o arquivo commitado é o que a pontuação de clareza e as verificações de vocabulário leem de volta. "Um arquivo, um workflow de revisão" |
-| `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` do `AGENTS.md` | **Sim** *(since 0.2.2, unreleased)* | Saída de build do catálogo tipado do `narrativetrace-skills`, não saída de uma execução de teste — commitado do mesmo jeito que o `glossary.json`: regenerado, revisado nos diffs, e checado contra deriva (`RenderDriftTest`, ligado ao `./gradlew check`) em vez de editado à mão |
+| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` do `AGENTS.md` | **Sim** *(since 0.2.2, unreleased)* | Saída de build do catálogo tipado do `narrativetrace-skills`, não saída de uma execução de teste — commitado do mesmo jeito que o `glossary.json`: regenerado, revisado nos diffs, e checado contra deriva (`RenderDriftTest`, ligado ao `./gradlew check`) em vez de editado à mão |
 
 Tudo dentro de `build/` já está coberto pelo `.gitignore` distribuído
 (`build/` é a primeira linha). `src/test/narratives/` não está — os

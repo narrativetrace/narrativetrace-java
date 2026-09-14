@@ -25,9 +25,18 @@ public final class RenderPaths {
 
   private RenderPaths() {}
 
-  /** {@code .claude/skills/<claudeSegment>/SKILL.md} — the Claude plugin discovers it here. */
+  /** {@code .claude/skills/<canonicalName>/SKILL.md} — Claude Code discovers it here. */
   public static Path claudeSkillMd(Path repoRoot, Skill skill) {
-    return repoRoot.resolve(".claude/skills/" + skill.claudeSegment() + "/SKILL.md");
+    return repoRoot.resolve(".claude/skills/" + skill.canonicalName() + "/SKILL.md");
+  }
+
+  /**
+   * {@code .agents/skills/<canonicalName>/SKILL.md} — the repo-scope path Codex CLI documents for a
+   * checked-in skill (see {@link CodexSkillRenderer}'s class doc for the verified citation); NOT
+   * {@code .codex/skills}, which OpenAI's own docs name only as the per-user home-directory scope.
+   */
+  public static Path codexSkillMd(Path repoRoot, Skill skill) {
+    return repoRoot.resolve(".agents/skills/" + skill.canonicalName() + "/SKILL.md");
   }
 
   public static Path agentsMd(Path repoRoot) {

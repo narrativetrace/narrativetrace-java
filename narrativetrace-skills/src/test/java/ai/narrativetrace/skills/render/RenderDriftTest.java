@@ -57,6 +57,16 @@ class RenderDriftTest {
     assertThat(readText(onDisk)).isEqualTo(ClaudeSkillRenderer.render(skill));
   }
 
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("skills")
+  void renderedCodexSkillMdMatchesTheTypedCatalogue(Skill skill) {
+    Path onDisk = RenderPaths.codexSkillMd(REPO_ROOT, skill);
+    assertThat(onDisk)
+        .as(onDisk + " must exist — run the skills renderer and commit its output")
+        .exists();
+    assertThat(readText(onDisk)).isEqualTo(CodexSkillRenderer.render(skill));
+  }
+
   @Test
   void agentsMdManagedSectionMatchesTheTypedCatalogue() {
     Path agentsMd = RenderPaths.agentsMd(REPO_ROOT);

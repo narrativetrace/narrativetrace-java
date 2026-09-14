@@ -40,6 +40,11 @@ class RenderMainTest {
       Path rendered = RenderPaths.claudeSkillMd(repoRoot, skill);
       assertThat(rendered).exists();
       assertThat(Files.readString(rendered)).isEqualTo(ClaudeSkillRenderer.render(skill, repoRoot));
+
+      Path codexRendered = RenderPaths.codexSkillMd(repoRoot, skill);
+      assertThat(codexRendered).exists();
+      assertThat(Files.readString(codexRendered))
+          .isEqualTo(CodexSkillRenderer.render(skill, repoRoot));
     }
     assertThat(Files.readString(repoRoot.resolve("AGENTS.md")))
         .contains(AgentsMdRenderer.BEGIN_MARKER)
@@ -55,6 +60,7 @@ class RenderMainTest {
     RenderMain.main(new String[] {repoRoot.toString()});
 
     assertThat(RenderPaths.claudeSkillMd(repoRoot, CatalogueIndex.ALL.get(0))).exists();
+    assertThat(RenderPaths.codexSkillMd(repoRoot, CatalogueIndex.ALL.get(0))).exists();
   }
 
   /**

@@ -39,7 +39,6 @@ class LintsTest {
   private static Skill skillWithDescription(String description) {
     return new Skill(
         "narrativetrace-x",
-        "x",
         SkillClass.MECHANICAL,
         description,
         null,
@@ -79,7 +78,6 @@ class LintsTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "d",
             null,
@@ -97,7 +95,6 @@ class LintsTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "d",
             null,
@@ -118,7 +115,6 @@ class LintsTest {
     Skill offending =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "d",
             null,
@@ -135,7 +131,6 @@ class LintsTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "d",
             null,
@@ -198,7 +193,6 @@ class LintsTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "clean description",
             "clean when-to-use",

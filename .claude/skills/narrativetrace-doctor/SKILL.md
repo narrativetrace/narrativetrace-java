@@ -1,5 +1,5 @@
 ---
-name: doctor
+name: narrativetrace-doctor
 description: "Diagnoses a NarrativeTrace Java install and configuration. Use when nothing is being traced, no build/narrativetrace output appears, the JUnit 5 extension never seems to run, parameter names render as arg0/arg1, or you are not sure NarrativeTrace is wired up correctly. Checks the JDK and JUnit Jupiter versions, the launcher on testRuntimeOnly, narrativetrace.output, whether NarrativeTraceExtension is actually registered, whether any sink receives what is traced, whether -parameters degraded parameter names, whether redaction is proven in a test, and stale .received.nt approval files. Read-only — makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it."
 when_to_use: "Non-obvious triggers: a build that traces nothing without any visible error; parameter names printed as arg0/arg1; a stale .received.nt left after an approval mismatch."
 allowed-tools: ./gradlew, git, find

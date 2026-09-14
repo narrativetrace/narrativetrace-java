@@ -32,7 +32,6 @@ class SkillTest {
   private Skill minimal(List<SkillStep> steps) {
     return new Skill(
         "narrativetrace-example",
-        "example",
         SkillClass.MECHANICAL,
         "A description.",
         null,
@@ -50,7 +49,6 @@ class SkillTest {
             () ->
                 new Skill(
                     " ",
-                    "seg",
                     SkillClass.MECHANICAL,
                     "d",
                     null,
@@ -61,29 +59,12 @@ class SkillTest {
                     List.of()))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
-            () ->
-                new Skill(
-                    "name",
-                    " ",
-                    SkillClass.MECHANICAL,
-                    "d",
-                    null,
-                    "fx",
-                    steps,
-                    List.of(),
-                    List.of(),
-                    List.of()))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(
-            () ->
-                new Skill(
-                    "name", "seg", null, "d", null, "fx", steps, List.of(), List.of(), List.of()))
+            () -> new Skill("name", null, "d", null, "fx", steps, List.of(), List.of(), List.of()))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
             () ->
                 new Skill(
                     "name",
-                    "seg",
                     SkillClass.MECHANICAL,
                     " ",
                     null,
@@ -97,7 +78,6 @@ class SkillTest {
             () ->
                 new Skill(
                     "name",
-                    "seg",
                     SkillClass.MECHANICAL,
                     "d",
                     null,
@@ -125,7 +105,6 @@ class SkillTest {
     Skill skill =
         new Skill(
             "name",
-            "seg",
             SkillClass.MECHANICAL,
             longDescription,
             null,

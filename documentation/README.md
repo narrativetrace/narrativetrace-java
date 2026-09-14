@@ -57,7 +57,8 @@ above — each language's index lists that language's translated guides.
 ## For AI agents and tools
 
 - [Agent Skills](agent-skills.md) — `add-narrative-tracing` and `narrativetrace-doctor`,
-  installable today via `.claude/skills/{add-narrative-tracing,doctor}/` or the always-on
+  installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`,
+  `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex, or the always-on
   `AGENTS.md` pointer.
 - [`llms.txt`](llms.txt) — machine-readable index following the
   [llmstxt.org](https://llmstxt.org) convention.

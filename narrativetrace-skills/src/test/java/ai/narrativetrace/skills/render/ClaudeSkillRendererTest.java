@@ -40,7 +40,6 @@ class ClaudeSkillRendererTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "A description with a \"quote\" and a \\backslash.",
             "When to use it.",
@@ -53,7 +52,7 @@ class ClaudeSkillRendererTest {
 
     String rendered = ClaudeSkillRenderer.render(skill);
 
-    assertThat(rendered).startsWith("---\nname: x\n");
+    assertThat(rendered).startsWith("---\nname: narrativetrace-x\n");
     assertThat(rendered)
         .contains("description: \"A description with a \\\"quote\\\" and a \\\\backslash.\"\n");
     assertThat(rendered).contains("when_to_use: \"When to use it.\"\n");
@@ -211,7 +210,6 @@ class ClaudeSkillRendererTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "A description.",
             null,
@@ -230,7 +228,6 @@ class ClaudeSkillRendererTest {
     Skill skill =
         new Skill(
             "narrativetrace-x",
-            "x",
             SkillClass.MECHANICAL,
             "line one\r\nline two",
             null,
@@ -246,7 +243,6 @@ class ClaudeSkillRendererTest {
   private static Skill skillWithOneStep(String whenToUse) {
     return new Skill(
         "narrativetrace-x",
-        "x",
         SkillClass.MECHANICAL,
         "A description.",
         whenToUse,
@@ -260,7 +256,6 @@ class ClaudeSkillRendererTest {
   private static Skill skillWithSteps(List<SkillStep> steps) {
     return new Skill(
         "narrativetrace-x",
-        "x",
         SkillClass.MECHANICAL,
         "A description.",
         null,

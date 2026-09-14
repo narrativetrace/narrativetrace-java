@@ -26,11 +26,19 @@ import org.junit.jupiter.api.Test;
 class RenderPathsTest {
 
   @Test
-  void claudeSkillMdIsUnderDotClaudeSkillsBySegment() {
+  void claudeSkillMdIsUnderDotClaudeSkillsByCanonicalName() {
     var skill = CatalogueIndex.ALL.get(0);
     Path resolved = RenderPaths.claudeSkillMd(Path.of("/repo"), skill);
     assertThat(resolved)
-        .isEqualTo(Path.of("/repo/.claude/skills/" + skill.claudeSegment() + "/SKILL.md"));
+        .isEqualTo(Path.of("/repo/.claude/skills/" + skill.canonicalName() + "/SKILL.md"));
+  }
+
+  @Test
+  void codexSkillMdIsUnderDotAgentsSkillsByCanonicalName() {
+    var skill = CatalogueIndex.ALL.get(0);
+    Path resolved = RenderPaths.codexSkillMd(Path.of("/repo"), skill);
+    assertThat(resolved)
+        .isEqualTo(Path.of("/repo/.agents/skills/" + skill.canonicalName() + "/SKILL.md"));
   }
 
   @Test

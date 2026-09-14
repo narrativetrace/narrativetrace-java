@@ -80,20 +80,4 @@ class CatalogueLintsTest {
 
     assertThat(Lints.proListingStatusDisagreements(listings, featureGuideStatusByName)).isEmpty();
   }
-
-  @Test
-  void everyCanonicalNameIsGloballySelfIdentifyingOrInherentlyDescriptive() {
-    // RULED 2026-09-04: a genre-generic name (doctor, upgrade) carries the product token in its
-    // canonical name; an inherently descriptive name (add-narrative-tracing) already complies.
-    for (Skill skill : SKILLS) {
-      boolean genericSegmentAlone = skill.canonicalName().equals(skill.claudeSegment());
-      boolean carriesProductToken = skill.canonicalName().startsWith("narrativetrace-");
-      assertThat(genericSegmentAlone || carriesProductToken)
-          .as(
-              skill.canonicalName()
-                  + ": a generic segment name must carry the narrativetrace- prefix in its"
-                  + " canonical form")
-          .isTrue();
-    }
-  }
 }

@@ -313,10 +313,11 @@ public class NarrativeTracePlugin implements Plugin<Project> {
 
   /**
    * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
-   * (`.claude/skills/{doctor,add-narrative-tracing}/SKILL.md`) — runs the free CLI's eleven doctor
-   * checks against this project, in-process, and writes the JSON report to the extension's own
-   * output directory. Not gated on {@code enabled}: diagnosing a misconfigured install is exactly
-   * the case where the plugin's own tracing behaviour should not stand in the way.
+   * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free CLI's
+   * eleven doctor checks against this project, in-process, and writes the JSON report to the
+   * extension's own output directory. Not gated on {@code enabled}: diagnosing a misconfigured
+   * install is exactly the case where the plugin's own tracing behaviour should not stand in the
+   * way.
    */
   private void registerNarrativeTraceDoctorTask(
       Project project, NarrativeTraceExtension extension) {

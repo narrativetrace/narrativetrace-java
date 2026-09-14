@@ -42,7 +42,6 @@ public final class NarrativeTraceDoctorSkill {
   static Skill build() {
     return new Skill(
         "narrativetrace-doctor",
-        "doctor",
         SkillClass.MECHANICAL,
         "Diagnoses a NarrativeTrace Java install and configuration. Use when nothing is being"
             + " traced, no build/narrativetrace output appears, the JUnit 5 extension never seems"

@@ -32,7 +32,6 @@ class PromotionRendererTest {
   private static Skill skill(String canonicalName) {
     return new Skill(
         canonicalName,
-        "x",
         SkillClass.MECHANICAL,
         "d",
         null,

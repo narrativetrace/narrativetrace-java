@@ -24,8 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Regenerates every rendered artifact — the {@code SKILL.md} pages and the {@code AGENTS.md}
- * managed section — from the typed catalogue. Run via {@code ./gradlew
+ * Regenerates every rendered artifact — the Claude and Codex {@code SKILL.md} pages and the {@code
+ * AGENTS.md} managed section — from the typed catalogue. Run via {@code ./gradlew
  * :narrativetrace-skills:renderSkills}; {@code RenderDriftTest} is the drift gate this output is
  * checked against on every {@code ./gradlew check}.
  */
@@ -44,9 +44,10 @@ public final class RenderMain {
 
   static void render(Path repoRoot) throws IOException {
     for (var skill : CatalogueIndex.ALL) {
-      Path target = RenderPaths.claudeSkillMd(repoRoot, skill);
-      Files.createDirectories(target.getParent());
-      Files.writeString(target, ClaudeSkillRenderer.render(skill, repoRoot));
+      writePage(
+          RenderPaths.claudeSkillMd(repoRoot, skill), ClaudeSkillRenderer.render(skill, repoRoot));
+      writePage(
+          RenderPaths.codexSkillMd(repoRoot, skill), CodexSkillRenderer.render(skill, repoRoot));
     }
     Path agentsMd = RenderPaths.agentsMd(repoRoot);
     String onDisk = Files.readString(agentsMd);
@@ -54,5 +55,10 @@ public final class RenderMain {
         AgentsMdRenderer.splice(
             onDisk, AgentsMdRenderer.renderSection(CatalogueIndex.ALL, ProListings.ALL));
     Files.writeString(agentsMd, spliced);
+  }
+
+  private static void writePage(Path target, String content) throws IOException {
+    Files.createDirectories(target.getParent());
+    Files.writeString(target, content);
   }
 }

@@ -58,7 +58,6 @@ public final class AddNarrativeTracingSkill {
   static Skill build() {
     return new Skill(
         "add-narrative-tracing",
-        "add-narrative-tracing",
         SkillClass.GUIDED,
         "Installs NarrativeTrace into a Java project and gets it to a first trace. Use when"
             + " NarrativeTrace is not yet installed, a project needs its very first traced call,"

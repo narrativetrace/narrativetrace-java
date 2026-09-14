@@ -29,7 +29,6 @@ import java.util.Optional;
  */
 public record Skill(
     String canonicalName,
-    String claudeSegment,
     SkillClass skillClass,
     String description,
     String whenToUse,
@@ -45,9 +44,6 @@ public record Skill(
   public Skill {
     if (canonicalName == null || canonicalName.isBlank()) {
       throw new IllegalArgumentException("a Skill's canonicalName must not be blank");
-    }
-    if (claudeSegment == null || claudeSegment.isBlank()) {
-      throw new IllegalArgumentException("a Skill's claudeSegment must not be blank");
     }
     if (skillClass == null) {
       throw new IllegalArgumentException("a Skill's skillClass must not be null");

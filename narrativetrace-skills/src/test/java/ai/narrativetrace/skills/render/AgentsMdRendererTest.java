@@ -34,7 +34,6 @@ class AgentsMdRendererTest {
   private static final Skill SKILL =
       new Skill(
           "narrativetrace-x",
-          "x",
           SkillClass.MECHANICAL,
           "A description with\na newline.",
           null,
