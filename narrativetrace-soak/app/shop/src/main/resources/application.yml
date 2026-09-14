@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+server:
+  port: 8080
+
+spring:
+  application:
+    name: narrativetrace-soak-shop
+  datasource:
+    url: jdbc:h2:mem:soak;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+
+soak:
+  notify:
+    url: http://localhost:8081
+  poison:
+    field: quantity
+    value: 2000000000
+
+management:
+  endpoints:
+    enabled-by-default: false

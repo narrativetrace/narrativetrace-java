@@ -148,6 +148,47 @@ class RedactionCoverageAcrossShapesTest {
   }
 
   @Test
+  @DisplayName("ADV-2026-09-14-1: a JWT-shaped map key is masked by shape on both paths")
+  void aJwtShapedMapKeyIsMaskedByShape() {
+    assertBothPathsHide(Map.of(JWT, "ok"), JWT);
+  }
+
+  @Test
+  @DisplayName("ADV-2026-09-14-1: a PAN-shaped map key is masked by shape on both paths")
+  void aPanShapedMapKeyIsMaskedByShape() {
+    assertBothPathsHide(Map.of(PAN, "ok"), PAN);
+  }
+
+  @Test
+  @DisplayName("ADV-2026-09-14-1: a cookie-shaped map key is masked by shape on both paths")
+  void aCookieShapedMapKeyIsMaskedByShape() {
+    var cookie = "SESSION=abc123; Path=/; HttpOnly";
+
+    assertBothPathsHide(Map.of(cookie, "ok"), cookie);
+  }
+
+  @Test
+  @DisplayName(
+      "ADV-2026-09-14-1 (structured path): putStructuredEntry redacts the field NAME itself, not"
+          + " only its rendered text")
+  void putStructuredEntryRedactsTheShapeMatchedFieldNameItself() {
+    var structured = renderer.renderStructured(Map.of(JWT, "ok"));
+
+    assertThat(structured).isInstanceOf(RenderedValue.ObjectVal.class);
+    var fields = ((RenderedValue.ObjectVal) structured).fields();
+    assertThat(fields.keySet()).containsExactly(RedactionPolicy.MARKER);
+  }
+
+  @Test
+  @DisplayName("an ordinary map key is untouched by the shape check on both paths")
+  void anOrdinaryMapKeyStaysVisibleOnBothPaths() {
+    var map = Map.of("note", "hello");
+
+    assertThat(renderer.render(map)).contains("note").contains("hello");
+    assertThat(renderer.renderStructured(map).toString()).contains("note").contains("hello");
+  }
+
+  @Test
   @DisplayName("name redaction and shape masking combine without either being lost")
   void nameRedactionAndShapeMaskingCombine() {
     var mixed = Map.of("cardNumber", CANARY, "note", PAN, "city", "Zagreb");

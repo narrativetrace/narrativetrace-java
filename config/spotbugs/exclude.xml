@@ -48,6 +48,16 @@
   </Match>
 
   <!--
+    NotificationProcessor (narrativetrace-soak's notify process) uses ThreadLocalRandom to pick a
+    simulated processing delay and roll the simulated failure rate — a load-shape knob, not a
+    secret or a security decision. Same reasoning as SpanIdGenerator above.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.soak.notify.domain.NotificationProcessor"/>
+    <Bug pattern="PREDICTABLE_RANDOM"/>
+  </Match>
+
+  <!--
     ConfigResolver.loadFromClasspath opens a URL that findAllLocations
     resolved from a hardcoded classpath resource name
     ("narrativetrace.properties") via ClassLoader.getResources — a classpath

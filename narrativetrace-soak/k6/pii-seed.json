@@ -1,0 +1,62 @@
+[
+  {
+    "email": "alice.johnson@example.com",
+    "cardNumber": "4111111111111111",
+    "sessionCookie": "sess-9f1c2a4e7b3d",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.fake-signature-0001"
+  },
+  {
+    "email": "bob.smith@example.com",
+    "cardNumber": "5500000000000004",
+    "sessionCookie": "sess-2d8e6f1a9c4b",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IifQ.fake-signature-0002"
+  },
+  {
+    "email": "carla.diaz@example.com",
+    "cardNumber": "340000000000009",
+    "sessionCookie": "sess-7a1b3c5d9e2f",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjYXJsYSJ9.fake-signature-0003"
+  },
+  {
+    "email": "dmitri.orlov@example.com",
+    "cardNumber": "6011000000000004",
+    "sessionCookie": "sess-4e6a8c1b3d5f",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkbWl0cmkifQ.fake-signature-0004"
+  },
+  {
+    "email": "elena.popescu@example.com",
+    "cardNumber": "4012888888881881",
+    "sessionCookie": "sess-1c3e5a7f9b2d",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlbGVuYSJ9.fake-signature-0005"
+  },
+  {
+    "email": "farid.hassan@example.com",
+    "cardNumber": "5105105105105100",
+    "sessionCookie": "sess-8b2d4f6a1c3e",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYXJpZCJ9.fake-signature-0006"
+  },
+  {
+    "email": "grace.oconnor@example.com",
+    "cardNumber": "4222222222222",
+    "sessionCookie": "sess-6f8a1c3e5b7d",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJncmFjZSJ9.fake-signature-0007"
+  },
+  {
+    "email": "hiroshi.tanaka@example.com",
+    "cardNumber": "3530111333300000",
+    "sessionCookie": "sess-3d5f7a9c1e2b",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJoaXJvc2hpIn0.fake-signature-0008"
+  },
+  {
+    "email": "ingrid.larsen@example.com",
+    "cardNumber": "6759649826438453",
+    "sessionCookie": "sess-9e1a3c5f7b2d",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpbmdyaWQifQ.fake-signature-0009"
+  },
+  {
+    "email": "javier.morales@example.com",
+    "cardNumber": "4917610000000000",
+    "sessionCookie": "sess-2a4c6e8b1d3f",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqYXZpZXIifQ.fake-signature-0010"
+  }
+]

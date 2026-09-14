@@ -23,15 +23,32 @@ import java.util.Map;
  * chosenHash} must survive {@code senha}, or teams switch the default off and lose everything
  * rather than one field.
  *
+ * <p><b>@llmNote</b> ADV-2026-09-14-1: a value case's {@link #position} defaults to a bare
+ * top-level scalar. Every name case already places its canary behind a field name in a one-entry
+ * {@code Map} ({@link #payload()}), so without this field the corpus could only ever put a
+ * value-shaped secret where the renderer's value-shape axis was already known to look — never in a
+ * {@code Map} KEY position, which is exactly where {@code ValueRenderer.renderMapKey} was found to
+ * skip that axis. {@code "mapKey"} places {@link #value} as the key of a one-entry map instead.
+ *
  * @param id stable kebab-case identifier, quoted by a failing assertion so the case is findable
  * @param description what breaks, not what the bytes are
  * @param name the field name for a name case, {@code null} for a value case
  * @param value the value for a value case, {@code null} for a name case
  * @param canary the string planted behind {@link #name}; {@code null} for a value case
  * @param expect {@code "redacted"} or {@code "visible"}
+ * @param position {@code "mapKey"} to place a value case's {@link #value} as a map key rather than
+ *     rendering it bare; {@code null} (the default) for every other row
  */
 public record RedactionCase(
-    String id, String description, String name, String value, String canary, String expect) {
+    String id,
+    String description,
+    String name,
+    String value,
+    String canary,
+    String expect,
+    String position) {
+
+  private static final String MAP_KEY_POSITION = "mapKey";
 
   /** Whether the canary must appear in no byte of any output. */
   public boolean expectsRedaction() {
@@ -41,6 +58,11 @@ public record RedactionCase(
   /** Whether this row names a field rather than carrying a bare value. */
   public boolean isName() {
     return name != null;
+  }
+
+  /** Whether a value case places {@link #value} as a map key rather than rendering it bare. */
+  public boolean isMapKey() {
+    return MAP_KEY_POSITION.equals(position);
   }
 
   /**
@@ -53,16 +75,21 @@ public record RedactionCase(
   }
 
   /**
-   * The object to render: the value alone, or a one-entry map under the sensitive field name.
+   * The object to render: the value alone, the value as a map key, or a one-entry map under the
+   * sensitive field name.
    *
    * <p><b>@llmNote</b> A {@code Map} is the vehicle for name cases because a record component has
    * to be a compile-time identifier and these names are data — including two spellings of the same
-   * Spanish word that differ only by Unicode normalization form.
+   * Spanish word that differ only by Unicode normalization form. A value case opts into the same
+   * vehicle, as the KEY rather than the value, via {@link #isMapKey()}.
    *
    * @return the graph to hand the renderer
    */
   public Object payload() {
-    return isName() ? Map.of(name, canary) : value;
+    if (isName()) {
+      return Map.of(name, canary);
+    }
+    return isMapKey() ? Map.of(value, "visible-value") : value;
   }
 
   @Override

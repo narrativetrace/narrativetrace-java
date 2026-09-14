@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+server:
+  port: 8081
+
+spring:
+  application:
+    name: narrativetrace-soak-notify
+
+soak:
+  notify:
+    min-delay-millis: 5
+    max-delay-millis: 50
+    failure-percent: 1
+
+management:
+  endpoints:
+    enabled-by-default: false

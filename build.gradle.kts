@@ -17,7 +17,8 @@ repositories {
 apply(plugin = "org.cyclonedx.bom")
 
 val publishedModules = subprojects.filter { sub ->
-    !sub.path.startsWith(":narrativetrace-examples") && sub.name !in setOf(
+    !sub.path.startsWith(":narrativetrace-examples") &&
+        !sub.path.startsWith(":narrativetrace-soak") && sub.name !in setOf(
         "narrativetrace-benchmarks",
         "narrativetrace-build-tests",
         "narrativetrace-gradle-plugin",
@@ -422,6 +423,11 @@ val mutationExemptModules: Map<String, String> = mapOf(
     "narrativetrace-examples" to
         "demo/consumer code (this module and its narrativetrace-examples:* children) — proven by " +
             "being executed (acceptance/dockerTest), not by mutants",
+    "narrativetrace-soak" to
+        "soak harness (this module and its narrativetrace-soak:shop/:notify children) — two Spring " +
+            "Boot processes proven by the compose-orchestrated k6 smoke/two-hour run against real " +
+            "HTTP/JDBC, not by per-mutant re-execution; the poison gate, /soak/stats shape, and " +
+            "notify latency/failure configuration each carry their own unit tests (2026-09-14)",
     "narrativetrace-agent-example" to
         "demo/consumer code for narrativetrace-agent — proven by being executed, not by mutants",
     "narrativetrace-junit4-example" to
@@ -473,10 +479,12 @@ tasks.register("mutationAccounting") {
         val problems = mutableListOf<String>()
         subprojects.forEach { sub ->
             val key = moduleKey(sub)
-            val exemptKey = if (key == "narrativetrace-examples" || key.startsWith("narrativetrace-examples:")) {
-                "narrativetrace-examples"
-            } else {
-                key
+            val exemptKey = when {
+                key == "narrativetrace-examples" || key.startsWith("narrativetrace-examples:") ->
+                    "narrativetrace-examples"
+                key == "narrativetrace-soak" || key.startsWith("narrativetrace-soak:") ->
+                    "narrativetrace-soak"
+                else -> key
             }
             val memberships = listOfNotNull(
                 "mutationTestedModules".takeIf { sub.name in mutationTestedModules },
@@ -961,6 +969,7 @@ tasks.register("jdependReport") {
     group = "verification"
     val jdependModules = subprojects.filter {
         !it.path.startsWith(":narrativetrace-examples") &&
+            !it.path.startsWith(":narrativetrace-soak") &&
             it.name !in jdependPerModuleExcludedModules
     }
     dependsOn(jdependModules.map { ":${it.name}:jdepend" })
@@ -978,6 +987,7 @@ tasks.register("jdependCrossModule") {
     group = "verification"
     val crossModules = subprojects.filter {
         !it.path.startsWith(":narrativetrace-examples") &&
+            !it.path.startsWith(":narrativetrace-soak") &&
             it.name !in jdependCrossModuleExcludedModules
     }
     dependsOn(crossModules.map { ":${it.name}:classes" })
@@ -1170,7 +1180,11 @@ subprojects {
         }
     }
 
-    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds")) {
+    // "shop" and "notify" are narrativetrace-soak's two Spring Boot processes (2026-09-14):
+    // proven by the compose-orchestrated k6 smoke/two-hour run against real HTTP/JDBC, not by a
+    // 98% unit-line floor on controller/JDBC glue — see mutationExemptModules' narrativetrace-soak
+    // entry for the same reasoning applied to mutation testing.
+    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds", "shop", "notify")) {
         tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
             dependsOn(tasks.named("test"))
             val threshold = if (project.name == "narrativetrace-agent") "0.97" else "0.98"

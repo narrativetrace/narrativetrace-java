@@ -45,3 +45,8 @@ narrativetrace-examples/*/\?/
 # be named `build` (the ai.narrativetrace.build package lives under src/;
 # the bare build/ pattern above silently swallowed a test file once).
 !**/src/**/build/
+
+# narrativetrace-soak run artifacts — never committed (see narrativetrace-soak/README.md)
+narrativetrace-soak/logs/
+narrativetrace-soak/results/
+narrativetrace-soak/.soak.lock

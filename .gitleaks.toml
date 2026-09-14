@@ -15,3 +15,8 @@ useDefault = true
 description = "git-secret mapping.cfg holds a SHA-256 lookup hash, not a credential"
 targetRules = ["generic-api-key"]
 paths = ['''\.gitsecret/paths/mapping\.cfg''']
+
+[[allowlists]]
+description = "narrativetrace-soak's synthetic PII seed — fabricated JWTs (fake-signature-* payloads, no real key material) feeding the soak's default-redaction exercise; see narrativetrace-soak/README.md 'Seeded PII'. Reviewed 2026-09-14."
+targetRules = ["jwt"]
+paths = ['''narrativetrace-soak/k6/pii-seed\.json''', '''narrativetrace-soak/k6/poison\.js''']

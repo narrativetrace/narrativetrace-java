@@ -180,6 +180,27 @@ class HostileCorpusTest {
     }
   }
 
+  /**
+   * ADV-2026-09-14-1: {@code position} only ever means "as a map key", and only a value case may
+   * declare it — a name case already renders as a map, under its own field name, so a second map
+   * position on top of that would test nothing new.
+   */
+  @Test
+  void everyRedactionPositionIsWellFormed() {
+    for (var redactionCase : HostileCorpus.redactions()) {
+      if (redactionCase.position() == null) {
+        continue;
+      }
+      assertThat(redactionCase.position())
+          .as("%s declares an unknown position", redactionCase.id())
+          .isEqualTo("mapKey");
+      assertThat(redactionCase.isName())
+          .as("%s: only a value case may declare a map-key position", redactionCase.id())
+          .isFalse();
+    }
+    assertThat(HostileCorpus.redactions()).anyMatch(RedactionCase::isMapKey);
+  }
+
   @Test
   void everyDeclaredGraphShapeBuilds() {
     for (var graphCase : HostileCorpus.graphs()) {

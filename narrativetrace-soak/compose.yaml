@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Soak harness compose file — see README.md and run-soak.sh, which drives this in two phases
+# (baseline, then traced) rather than `docker compose up` directly. Images are built from
+# pre-built bootJars (see run-soak.sh's `./gradlew bootJar` step) — this file never runs Gradle.
+services:
+  notify:
+    build:
+      context: ./app/notify
+    environment:
+      TRACING_ENABLED: "${TRACING_ENABLED:-true}"
+      SOAK_LOG_DIR: /var/log/soak
+      SOAK_AGENT_PACKAGES: "ai.narrativetrace.soak.notify.domain"
+      SOAK_NOTIFY_MIN_DELAY_MILLIS: "${SOAK_NOTIFY_MIN_DELAY_MILLIS:-5}"
+      SOAK_NOTIFY_MAX_DELAY_MILLIS: "${SOAK_NOTIFY_MAX_DELAY_MILLIS:-50}"
+      SOAK_NOTIFY_FAILURE_PERCENT: "${SOAK_NOTIFY_FAILURE_PERCENT:-1}"
+    volumes:
+      - ./.agent-jar:/agent:ro
+      - ./logs/notify:/var/log/soak
+    expose:
+      - "8081"
+
+  shop:
+    build:
+      context: ./app/shop
+    depends_on:
+      - notify
+    environment:
+      TRACING_ENABLED: "${TRACING_ENABLED:-true}"
+      SOAK_LOG_DIR: /var/log/soak
+      SOAK_AGENT_PACKAGES: "ai.narrativetrace.examples.ecommerce;ai.narrativetrace.soak.shop.domain"
+      SOAK_NOTIFY_URL: "http://notify:8081"
+      SOAK_POISON_FIELD: "${SOAK_POISON_FIELD:-quantity}"
+      SOAK_POISON_VALUE: "${SOAK_POISON_VALUE:-2000000000}"
+    volumes:
+      - ./.agent-jar:/agent:ro
+      - ./logs/shop:/var/log/soak
+    ports:
+      - "8080:8080"
+    expose:
+      - "8080"
+
+  k6:
+    image: grafana/k6:latest
+    depends_on:
+      - shop
+      - notify
+    environment:
+      SHOP_BASE_URL: "http://shop:8080"
+      SOAK_PROFILE: "${SOAK_PROFILE:-smoke}"
+      SOAK_POISON_VALUE: "${SOAK_POISON_VALUE:-2000000000}"
+      SOAK_POISON_DURATION: "${SOAK_POISON_DURATION:-10m}"
+      SOAK_SUMMARY_PATH: "/results/k6-scenario-summary.json"
+      SOAK_POISON_SUMMARY_PATH: "/results/k6-poison-summary.json"
+    volumes:
+      - ./k6:/scripts:ro
+      - ./results:/results
+    working_dir: /scripts
+    entrypoint: ["sh", "-c"]
+    command:
+      - "k6 run scenario.js & k6 run poison.js & wait"
+
+  sampler:
+    image: curlimages/curl:latest
+    depends_on:
+      - shop
+    environment:
+      # Phase-specific (see run-soak.sh) — a single shared file would otherwise splice baseline
+      # and traced samples together across the container restart between phases.
+      STATS_FILE: "${STATS_FILE:-/results/stats.jsonl}"
+    volumes:
+      - ./results:/results
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          ts=$$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          line=$$(curl -sf http://shop:8080/soak/stats)
+          if [ -n "$$line" ]; then
+            echo "{\"timestamp\":\"$$ts\",\"stats\":$$line}" >> "$$STATS_FILE"
+          fi
+          sleep 30
+        done

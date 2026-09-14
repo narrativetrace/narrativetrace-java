@@ -1295,10 +1295,17 @@ public final class ValueRenderer {
    * Renders a map key through the same guarded path as any other value, so key objects honor
    * {@code @NotTraced}, the redaction deny-list, cycle detection, and bounded output. String keys
    * keep their historical bare form (no quotes) for readability.
+   *
+   * <p><b>@llmNote</b> ADV-2026-09-14-1: a {@code String} key honors the value-shape axis ({@link
+   * RedactionPolicy#shouldRedactValue}) exactly as {@link #renderScalar}'s {@code String} branch
+   * does, before falling back to {@link #sanitizeAndCap}. A JWT, PAN or session cookie used as a
+   * {@code Map} key — rather than as a value, where every other string path already asked this
+   * question — used to print in full; both {@link #renderMapEntry} and {@code putStructuredEntry}
+   * call this one method, so the fix covers the flat and structured paths together.
    */
   private String renderMapKey(Object key, RenderWalk walk) {
     if (key instanceof String s) {
-      return sanitizeAndCap(s);
+      return redactionPolicy.shouldRedactValue(s) ? RedactionPolicy.MARKER : sanitizeAndCap(s);
     }
     return render(key, walk);
   }

@@ -114,7 +114,8 @@ public final class HostileCorpus {
               text(node, "name"),
               text(node, "value"),
               text(node, "canary"),
-              text(node, "expect")));
+              text(node, "expect"),
+              text(node, "position")));
     }
     return List.copyOf(result);
   }

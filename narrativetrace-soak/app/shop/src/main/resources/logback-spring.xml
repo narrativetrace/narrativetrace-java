@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<!--
+  Recommended production logging setup (see ../../README.md "Rolling-appender configuration"):
+  synchronous RollingFileAppender, no console, a separate StatusListener log for P2's oracles.
+-->
+<configuration>
+  <property name="LOG_DIR" value="${SOAK_LOG_DIR:-logs}" />
+
+  <!-- Appender status (rollovers, open/close, errors) goes to its own file, read by run-soak.sh /
+       P2's oracles — never the console. -->
+  <statusListener class="ai.narrativetrace.soak.shop.SoakStatusListener" />
+
+  <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/shop.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/shop.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>50MB</maxFileSize>
+      <maxHistory>20</maxHistory>
+      <totalSizeCap>1000MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{ISO8601} [%thread] %-5level %logger{36} traceId=%X{traceId} spanId=%X{spanId} depth=%X{nt.depth} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- The SLF4J listener's live per-span narration (enter/exit default to TRACE, exceptions to
+       WARN — Slf4jTraceEventListener's own defaults) — TRACE here specifically, INFO everywhere
+       else, so the soak's evidence covers every span, not only the ones that error, without
+       cranking Spring/Tomcat/HikariCP to TRACE too. -->
+  <logger name="narrativetrace" level="TRACE" />
+
+  <root level="INFO">
+    <appender-ref ref="ROLLING" />
+  </root>
+</configuration>
