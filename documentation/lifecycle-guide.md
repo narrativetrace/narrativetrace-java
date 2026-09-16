@@ -30,7 +30,7 @@ long-lived infrastructure exists.
   classpath (ServiceLoader-discovered; JUnit 4 rules are declared
   explicitly), every test writes its trace as a reviewable artifact by
   default — no configuration needed, `narrativetrace.output=false` opts out
-  *(since 0.2.2, unreleased)*:
+  *(since 0.2.2)*:
   `build/narrativetrace/traces/<TestClass>/<test>.md` plus a canonical
   `.json` and a per-scenario Mermaid diagram. The [Gradle
   plugin](gradle-plugin-guide.md) wires the dependencies, the

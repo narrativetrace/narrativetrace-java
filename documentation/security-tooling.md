@@ -185,6 +185,39 @@ or their task graph is built, which `help` never triggers. A narrower task
 also works if you know exactly which configuration moved and want a smaller
 diff to review.
 
+## Pinned, checksummed scanner installs in CI
+
+Private CI does not `pip install semgrep` (whatever PyPI resolves that run)
+or download OSV-Scanner's `latest` release with no integrity check — both
+installs go through `scripts/install-scanners.sh`, which the `semgrep` and
+`osv-scan` jobs call in `before_script` (thin-CI rule: the CI YAML carries
+no scanner version, flag or threshold of its own).
+
+- **Semgrep** is installed by an exact `pip install semgrep==<version>`.
+- **OSV-Scanner** is downloaded by an exact GitHub release tag
+  (`osv-scanner_linux_amd64`), then verified with `sha256sum -c` against
+  that SAME release's own published `osv-scanner_SHA256SUMS` file before
+  the binary is ever installed or run — a checksum mismatch fails the
+  install and leaves no binary in place. The checksum is never typed into
+  the script or hardcoded anywhere in this repository: that would only move
+  the trust problem from "which URL" to "which hash to trust", not remove
+  it. The integrity guarantee is that the binary and its checksum come from
+  the same immutable, tag-pinned release.
+
+**The versions live in ONE place**: `scripts/scanner-versions.env`
+(`SEMGREP_VERSION`, `OSV_SCANNER_VERSION`). Nothing else names a version —
+`scripts/install-scanners.sh` reads it, and a developer can run the exact
+same script locally (`scripts/install-scanners.sh semgrep`,
+`scripts/install-scanners.sh osv-scanner`, or `scripts/install-scanners.sh`
+for both) to install the same pinned, verified versions CI uses.
+
+**To update a pinned version**: edit `scripts/scanner-versions.env`, commit
+the change, and let CI's next `semgrep`/`osv-scan` job run install and
+verify against the new release. For OSV-Scanner specifically, check the new
+tag's `osv-scanner_SHA256SUMS` exists on its GitHub release page before
+bumping — the install fails loudly rather than silently trusting an
+unverifiable asset if it does not.
+
 ## GitHub Actions
 
 `.github/workflows/*.yml` are already SHA-pinned to a specific commit rather

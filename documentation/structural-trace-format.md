@@ -53,7 +53,7 @@ writes `<outputDir>/manifest.json`: one row per traced scenario naming
 its test, its invocation number and every file it owns. Read that when
 you know the scenario and want the file.
 
-> An invocation's `scenario:` header is **not** its display name *(since 0.2.2, unreleased)*. A
+> An invocation's `scenario:` header is **not** its display name *(since 0.2.2)*. A
 > `@ParameterizedTest(name = …)` template interpolates arguments into the
 > display name, so this artifact — the value-free one — is titled by the
 > method and the invocation number instead: `Equipment can be found #2`.

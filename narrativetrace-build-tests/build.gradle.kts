@@ -18,4 +18,16 @@ tasks.withType<Test> {
     // branches `narrativetrace-license-packaging` chooses between.
     dependsOn(":narrativetrace-api:jar", ":narrativetrace-core:jar")
     systemProperty("narrativetrace.buildVersion", project.version.toString())
+    // TaskInputInvalidationTest drives buildSrc's typed tasks in a throwaway fixture build, which
+    // needs those classes (and what they call) on ITS build-script classpath. Taken from the
+    // classes as loaded here — buildSrc's jar and its runtime dependencies are on every build
+    // script's classpath — rather than from a path someone would have to keep in step.
+    systemProperty(
+        "buildSrcClasspath",
+        listOf(
+            ai.narrativetrace.build.JDependReportTask::class.java,
+            jdepend.framework.JDepend::class.java,
+            kotlin.Unit::class.java,
+        ).joinToString(File.pathSeparator) { File(it.protectionDomain.codeSource.location.toURI()).absolutePath }
+    )
 }

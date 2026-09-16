@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 0457dd4ad750 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob a26edd38a35f | translated: 2026-09-13 | reviewed: - -->
 # Privacidade e ocultação
 
 [English](../privacy-and-redaction.md) | Español | **Português** | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -20,7 +20,7 @@ mais abaixo.**
 JUnit 5 e a integração do JUnit 4 gravam os artefatos `.md`/`.json`/`.mmd`
 de cada teste no diretório efêmero `build/narrativetrace` (ignorado pelo
 git, regenerado a cada execução) sem nenhuma configuração;
-`narrativetrace.output=false` desativa isso *(since 0.2.2, unreleased)*. Esse padrão não muda o que é
+`narrativetrace.output=false` desativa isso *(since 0.2.2)*. Esse padrão não muda o que é
 ocultado nem como — todo artefato passa pelo mesmo `ValueRenderer` e pela
 mesma lista de negação descrita abaixo, quer a gravação tenha sido ativada
 por padrão ou explicitamente. Veja o
@@ -184,7 +184,7 @@ anotações](guia-de-anotacoes.md).
   uma política que alguém poderia esquecer de aplicar. O cabeçalho
   `scenario:` dele está coberto por isso: uma invocação de um
   `@ParameterizedTest` é titulada `<método> #<índice>`, nunca o nome
-  exibido no qual um template `name = "…"` interpolou seus argumentos *(since 0.2.2, unreleased)*.
+  exibido no qual um template `name = "…"` interpolou seus argumentos *(since 0.2.2)*.
   Como o artefato se *chama* é outra questão — veja a não garantia
   abaixo.
 - **O caminho de análise em buffer pode descartar eventos, mas sempre
@@ -194,8 +194,7 @@ anotações](guia-de-anotacoes.md).
 - **O nome de um trace e o nome de uma execução não carregam dado
   algum.** Ambos são uma frase determinística de três palavras derivada
   de um id aleatório (veja [Guia de Configuração § A execução tem um
-  nome](guia-de-configuracao.md#a-execução-tem-um-nome) *(since 0.2.2,
-  unreleased)*) — nunca a partir de nada capturado — então nenhum dos
+  nome](guia-de-configuracao.md#a-execução-tem-um-nome) *(since 0.2.2)*) — nunca a partir de nada capturado — então nenhum dos
   dois pode vazar um valor de runtime, e ambos ficam fora do artefato
   estrutural `.nt` pela mesma razão que tudo o mais nele fica.
 

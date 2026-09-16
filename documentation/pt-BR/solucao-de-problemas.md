@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 43f2124e9828 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob b67b2827aa57 | translated: 2026-09-12 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -45,12 +45,12 @@ dependencies {
 }
 ```
 
-O plugin do Gradle adiciona os dois automaticamente *(since 0.2.2, unreleased)* — isso só importa para
+O plugin do Gradle adiciona os dois automaticamente *(since 0.2.2)* — isso só importa para
 uma configuração manual.
 
 ## Nenhum arquivo de saída de trace
 
-**Causa:** a saída é gravada por padrão *(since 0.2.2, unreleased)* em `build/narrativetrace`, então um
+**Causa:** a saída é gravada por padrão *(since 0.2.2)* em `build/narrativetrace`, então um
 arquivo ausente geralmente significa uma destas: `narrativetrace.output=false`
 está definido em algum lugar (`junit-platform.properties`, uma propriedade de
 sistema, ou `enabled.set(false)` no plugin do Gradle); o trace estava vazio
@@ -193,7 +193,7 @@ nenhuma dependência de runtime própria):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.1")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.2")
 }
 ```
 

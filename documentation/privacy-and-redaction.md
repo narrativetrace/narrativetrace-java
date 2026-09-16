@@ -16,7 +16,7 @@ below.**
 **Test-time trace output writes by default** — the JUnit 5 extension and the
 JUnit 4 integration write each test's `.md`/`.json`/`.mmd` artifacts to the
 ephemeral `build/narrativetrace` (gitignored, regenerated every run) with no
-configuration needed; `narrativetrace.output=false` opts out *(since 0.2.2, unreleased)*. That default
+configuration needed; `narrativetrace.output=false` opts out *(since 0.2.2)*. That default
 does not change what gets redacted or how — every artifact still goes
 through the same `ValueRenderer` and the same deny-list described below,
 whether writing was on by default or turned on explicitly. See the
@@ -160,7 +160,7 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
   and that is a property test (ADR-002), not a policy someone could forget
   to apply. Its `scenario:` header is covered by that: one invocation of a
   `@ParameterizedTest` is titled `<method> #<index>`, never the display
-  name a `name = "…"` template interpolated its arguments into *(since 0.2.2, unreleased)*. What the
+  name a `name = "…"` template interpolated its arguments into *(since 0.2.2)*. What the
   artifact is *called* is a different question — see the non-guarantee
   below.
 - **The buffered analysis path may shed events, but it always reports
@@ -170,7 +170,7 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
 - **A trace's name and a run's name carry no data.** Both are a
   deterministic three-word phrase derived from a random id (see
   [Configuration Guide § The run has a name](configuration-guide.md#the-run-has-a-name)
-  *(since 0.2.2, unreleased)*) — never from anything captured — so
+  *(since 0.2.2)*) — never from anything captured — so
   neither can leak a runtime value, and both stay out of the
   structural `.nt` artifact for the same reason everything else in it
   does.

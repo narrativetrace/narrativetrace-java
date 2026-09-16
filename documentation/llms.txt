@@ -1,7 +1,7 @@
 # NarrativeTrace
 
 <!-- docs-vs-published -->
-*(Docs and published both at 0.2.1; 23 behaviours marked unreleased.)* <!-- published-version cache age: 0m -->
+*(These docs describe 0.2.2; published is 0.2.1.)* <!-- published-version cache age: 0m -->
 <!-- /docs-vs-published -->
 
 > Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
@@ -15,15 +15,15 @@ Java 17+, Gradle 8.0+ (see "Before you start" for a fresh directory with no `./g
 plugins { java; application }
 repositories { mavenCentral() }
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
 }
 tasks.withType<JavaCompile> { options.compilerArgs.add("-parameters") }
 application { mainClass.set("com.example.orders.Main") }
 ```
 
 Optional, zero-code step 2 — traces also flow to your logger, `Main.java` below never changes:
-add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.1")` and
+add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.2")` and
 `runtimeOnly("ch.qos.logback:logback-classic:1.5.38")`, plus a `logback.xml`.
 
 (`OrderService`/`DefaultOrderService` — a one-method interface and its trivial implementation —
@@ -75,16 +75,16 @@ public class Main {
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 18ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 19ms
 ```
 <!-- /snippet -->
 
 ## Before you start
 
-- JUnit 5 fails with an unhelpful error without `org.junit.platform:junit-platform-launcher` on `testRuntimeOnly` — the `ai.narrativetrace` Gradle plugin adds it for you *(since 0.2.2, unreleased)*; manual setup still needs the line yourself.
+- JUnit 5 fails with an unhelpful error without `org.junit.platform:junit-platform-launcher` on `testRuntimeOnly` — the `ai.narrativetrace` Gradle plugin adds it for you *(since 0.2.2)*; manual setup still needs the line yourself.
 - Annotations (`@Narrated`, `@NotTraced`, `@OnError`, `@NarrativeSummary`) live in `ai.narrativetrace.api.annotation`.
 - An empty directory has no `./gradlew` — run `gradle wrapper` once before `./gradlew run`.
-- Test trace output is on by default *(since 0.2.2, unreleased)*; `narrativetrace.output=false` opts out.
+- Test trace output is on by default *(since 0.2.2)*; `narrativetrace.output=false` opts out.
 - `ThreadLocalNarrativeContext` is thread-local, not request- or trace-scoped — crossing a thread needs an explicit `ContextSnapshot`, the Micrometer accessor, or a request-scoped filter; see the [context propagation strategies table](configuration-guide.md#context-propagation-strategies).
 
 NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
@@ -100,7 +100,7 @@ What they stumbled on is covered in "Before you start" above.
 
 ## Docs
 
-- [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over the `narrativetrace-cli` `doctor` verb, installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`, `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex, or the always-on `AGENTS.md` pointer *(since 0.2.2, unreleased)*
+- [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over the `narrativetrace-cli` `doctor` verb, installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`, `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex, or the always-on `AGENTS.md` pointer *(since 0.2.2)*
 - [Complete Reference](https://narrativetrace.ai/llms-full.txt): Full API reference, module map, configuration, integration guides, architecture decisions, and troubleshooting
 - [Javadoc](https://javadoc.io/doc/ai.narrativetrace): API documentation for all published modules
 - [GitHub](https://github.com/narrativetrace/narrativetrace-java): Source code repository
@@ -111,13 +111,13 @@ All published modules include source JARs with Javadoc written for LLM consumpti
 To access detailed API context, resolve the sources classifier from Maven Central:
 
 Gradle (sources auto-downloaded by IDEs):
-  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.1") }
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.2") }
 
 Maven:
   mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
 
 Direct download (any module):
-  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.1/narrativetrace-core-0.2.1-sources.jar
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.2/narrativetrace-core-0.2.2-sources.jar
 
 Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
 narrativetrace-junit4, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,

@@ -14,8 +14,8 @@ name: CI
 
 # Least privilege by default: no job gets a token permission it has not asked
 # for by name. Pinned actions bound *what code* runs; this bounds what that code
-# can do with the repository if one of them is ever compromised. Both jobs only
-# read the checkout, so neither overrides this.
+# can do with the repository if one of them is ever compromised. Every job only
+# reads the checkout, so none overrides this.
 permissions: {}
 
 on:
@@ -30,6 +30,9 @@ on:
     # seed corpus on every commit (seconds); this is the same targets under a
     # time budget, plus jcstress over the event pipeline.
     - cron: "17 4 * * 1"
+  # Manual trigger for the OSV-Scanner job below — mirrors the CI pipeline's
+  # web-triggered run (documentation/security-tooling.md's cadence table).
+  workflow_dispatch:
 
 jobs:
   build:
@@ -84,3 +87,40 @@ jobs:
           name: jcstress-results
           path: narrativetrace-jcstress/build/reports/jcstress/
           retention-days: 30
+
+  # Semgrep and OSV-Scanner both need network (a rule registry pull, a live
+  # vulnerability database), so neither sits in `build`'s per-push `check` —
+  # documentation/security-tooling.md has the full cadence table. Both
+  # scanners are installed by the ONE pinned, checksummed entry point
+  # (scripts/install-scanners.sh); the CI YAML carries no scanner version,
+  # flag or threshold of its own (thin-CI rule).
+  semgrep:
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip
+      - run: scripts/install-scanners.sh semgrep
+      - run: ./gradlew semgrepScan
+
+  osv-scan:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+      - run: scripts/install-scanners.sh osv-scanner
+      - run: ./gradlew osvScan

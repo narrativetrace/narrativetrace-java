@@ -142,7 +142,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.1"
+    id("ai.narrativetrace") version "0.2.2"
 }
 ```
 
@@ -196,9 +196,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.2")
 }
 ```
 
@@ -674,7 +674,7 @@ The annotated method must be public, no-arg, and return String.
 
 | Property | Values | Default |
 |----------|--------|---------|
-| `narrativetrace.output` | `true`/`false` | `true` *(since 0.2.2, unreleased)* |
+| `narrativetrace.output` | `true`/`false` | `true` *(since 0.2.2)* |
 | `narrativetrace.outputDir` | path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.level` | `OFF`, `ERRORS`, `SUMMARY`, `NARRATIVE`, `DETAIL` | `DETAIL` |
@@ -692,7 +692,7 @@ narrativetrace.format=markdown
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.1"
+    id("ai.narrativetrace") version "0.2.2"
 }
 
 narrativeTrace {
@@ -830,7 +830,7 @@ Features:
 - Automatic failure reporting: prints the structural delta against the last green run (summary + readable diff) when a baseline exists, the full trace otherwise; trace paths print as `file://` links
 - Scenario names derived from test method names
 - Writes by default (markdown format): `.md`, `.json`, `.mmd`, and the value-free structural artifact `structural/<Class>/<scenario>.nt` per test — the on-disk `.nt` is the last-green baseline (non-green runs compare against it, never overwrite it; a rejected approval counts as non-green, so a rejected structure never poisons the baseline). `narrativetrace.output=false` opts out
-- Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline. The value-free `.nt` header is titled `<humanized method> #<index>` (`Equipment can be found #2`), never the display name a `name = "…"` template interpolated arguments into; a method that runs once keeps the display name it always had *(since 0.2.2, unreleased)*
+- Per-invocation artifact identity: a method that runs more than once (`@ParameterizedTest`, `@RepeatedTest`) names each invocation `<method_slug>-<index>-<label>` (`equipment_can_be_found-002-find_tent`), so invocations never overwrite one another and each carries its own `.approved.nt` baseline. The value-free `.nt` header is titled `<humanized method> #<index>` (`Equipment can be found #2`), never the display name a `name = "…"` template interpolated arguments into; a method that runs once keeps the display name it always had *(since 0.2.2)*
 - Suite-level clarity report, run manifest (`manifest.json` — scenario → file index over every artifact written, with the invocation number) and console summary after all tests; the summary ends with `Since last green: …`, the one-line structural delta
 - Approval mode (`narrativetrace.approval=true`): a passing test whose structure differs from its committed `src/test/narratives/<Class>/<scenario>.approved.nt` baseline fails with a readable diff; the Gradle `approveNarratives` task promotes reviewed `.received.nt` files
 
@@ -929,8 +929,7 @@ MDC keys set during logging include `traceId`, `traceName`, `spanId`, `parentSpa
 `process.runtime.version`, plus `nt.class`, `nt.method`, `nt.depth`, `nt.package`,
 and `nt.threadVirtual` (when captured). The JUnit 5 extension and JUnit 4 rule
 additionally set `runName` for the whole test-suite execution — the run's own
-three-word phrase, alongside `traceName`'s per-trace one *(since 0.2.2,
-unreleased)*; see configuration-guide.md § The run has a name.
+three-word phrase, alongside `traceName`'s per-trace one *(since 0.2.2)*; see configuration-guide.md § The run has a name.
 
 Default levels: ENTRY=TRACE, RETURN=TRACE, EXCEPTION=WARN.
 

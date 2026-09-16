@@ -45,18 +45,20 @@ tasks.register<Javadoc>("aggregateJavadoc") {
     }
 }
 
+// Both files are declared sources of the ONE task that owns build/site: llms.txt used to be
+// copied inside a `doLast`, undeclared, so an edit to it left the generated copy stale while the
+// task reported UP-TO-DATE (build-automation assessment 2026-09-14, Priority 1). A second `from`
+// rather than a second Copy task because two tasks writing into the same directory are
+// overlapping outputs — Gradle cannot cache or track either cleanly — and "the site copy of the
+// LLM docs" is one artefact with one owner. Behavioural coverage: TaskInputInvalidationTest.
 tasks.register<Copy>("generateLlmsDocs") {
-    description = "Copies llms-full.md to build/site/llms-full.txt and generates llms.txt"
+    description = "Copies documentation/llms-full.md (as llms-full.txt) and documentation/llms.txt into build/site"
     group = "documentation"
-    from("documentation/llms-full.md")
-    into(layout.buildDirectory.dir("site"))
-    rename("llms-full.md", "llms-full.txt")
-    doLast {
-        val llmsTxt = file("documentation/llms.txt")
-        if (llmsTxt.exists()) {
-            llmsTxt.copyTo(layout.buildDirectory.file("site/llms.txt").get().asFile, overwrite = true)
-        }
+    from("documentation/llms-full.md") {
+        rename("llms-full.md", "llms-full.txt")
     }
+    from("documentation/llms.txt")
+    into(layout.buildDirectory.dir("site"))
 }
 
 // Licensing is a build property, not a convention: `licensing.properties` says which licence each
@@ -800,7 +802,9 @@ tasks.register("gitleaksScan") {
 // network, which is why this is not in `check` or a per-push job: wired into
 // private CI on merge-request and scheduled pipelines only. A missing binary
 // follows the scanner gate above: WARN + skipped status locally, failure in
-// CI/required mode.
+// CI/required mode. Findings fail the task (exit 1 under `scan --error`) with
+// the findings named; a scanner that could not run fails with its own message.
+// Behavioural coverage: SemgrepScanTaskTest (narrativetrace-build-tests).
 tasks.register("semgrepScan") {
     description = "Runs Semgrep's community p/java security ruleset over the source tree (needs network)"
     group = "verification"
@@ -822,19 +826,38 @@ tasks.register("semgrepScan") {
         }
         val reportFile = layout.buildDirectory.file("reports/semgrep/results.json").get().asFile
         reportFile.parentFile.mkdirs()
+        // `scan --error` is load-bearing: without `--error`, a scan WITH findings exits 0 and
+        // this task was a green build over real findings (build-automation assessment,
+        // 2026-09-14). Exit codes are classified in ScannerGateSupport (unit-tested):
+        // 0 clean, 1 findings, anything else the scanner itself failing — two different
+        // failures with two different messages, never conflated.
         val process = ProcessBuilder(
-            semgrep, "--config=p/java", "--metrics=off", "--json", "--output=${reportFile.absolutePath}"
+            semgrep, "scan", "--error", "--config=p/java", "--metrics=off", "--json",
+            "--output=${reportFile.absolutePath}"
         ).directory(rootDir).redirectErrorStream(true).start()
         val output = process.inputStream.bufferedReader().readText()
         val exitCode = process.waitFor()
         println(output)
-        if (exitCode != 0) {
-            throw GradleException(
-                "semgrepScan: Semgrep reported finding(s) — see $reportFile and the output above"
+        when (ai.narrativetrace.build.ScannerGateSupport.semgrepVerdict(exitCode)) {
+            ai.narrativetrace.build.ScannerGateSupport.ScanVerdict.FINDINGS -> {
+                val findings = ai.narrativetrace.build.ScannerGateSupport.summarizeSemgrepFindings(
+                    if (reportFile.isFile) reportFile.readText() else ""
+                )
+                throw GradleException(
+                    "semgrepScan: Semgrep reported ${findings.size} finding(s):\n" +
+                        findings.joinToString("\n") { "  $it" } +
+                        "\nFull report: $reportFile"
+                )
+            }
+            ai.narrativetrace.build.ScannerGateSupport.ScanVerdict.SCANNER_ERROR -> throw GradleException(
+                "semgrepScan: the scan itself failed (exit $exitCode) — no verdict on the code; " +
+                    "see the scanner output above"
             )
+            ai.narrativetrace.build.ScannerGateSupport.ScanVerdict.CLEAN -> {
+                ai.narrativetrace.build.ScannerGateSupport.recordRanClean(statusDir, "semgrep")
+                println("semgrepScan: clean — report at $reportFile")
+            }
         }
-        ai.narrativetrace.build.ScannerGateSupport.recordRanClean(statusDir, "semgrep")
-        println("semgrepScan: clean — report at $reportFile")
     }
 }
 
@@ -893,46 +916,16 @@ tasks.register("osvScan") {
     }
 }
 
-tasks.register("dependencyReport") {
+// A typed task (DependencyReportTask, buildSrc) whose declared input is the declared module graph:
+// the ad-hoc predecessor had an output and no inputs, which Gradle reads as "up-to-date while the
+// output file is unchanged" — a dependency bump left the report stale. The provider is read once
+// Gradle fingerprints the task, after every project is configured, so every build script's
+// declarations are in it. Behavioural coverage: TaskInputInvalidationTest.
+tasks.register<ai.narrativetrace.build.DependencyReportTask>("dependencyReport") {
     description = "Generates module dependency tree for all subprojects"
     group = "verification"
-    val outputFile = layout.buildDirectory.file("reports/dependency-graph/module-dependencies.txt")
-    outputs.file(outputFile)
-    doLast {
-        val sb = StringBuilder()
-        sb.appendLine("# Module Dependency Report")
-        sb.appendLine("# Generated: ${java.time.Instant.now()}")
-        sb.appendLine()
-        subprojects.sortedBy { it.name }.forEach { sub ->
-            sb.appendLine("## ${sub.name}")
-            val compileClasspath = sub.configurations.findByName("compileClasspath")
-            if (compileClasspath != null) {
-                val projectDeps = compileClasspath.allDependencies
-                    .filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
-                    // `dependencyProject` is deprecated for removal in Gradle 9; `path` is the
-                    // supported accessor and the name is its last segment.
-                    .map { it.path.substringAfterLast(':') }
-                    .sorted()
-                val externalDeps = compileClasspath.allDependencies
-                    .filter { it !is org.gradle.api.artifacts.ProjectDependency && it.group != null }
-                    .map { "${it.group}:${it.name}:${it.version ?: ""}" }
-                    .sorted()
-                if (projectDeps.isEmpty() && externalDeps.isEmpty()) {
-                    sb.appendLine("  (no dependencies)")
-                } else {
-                    projectDeps.forEach { sb.appendLine("  -> $it") }
-                    externalDeps.forEach { sb.appendLine("  -> $it") }
-                }
-            } else {
-                sb.appendLine("  (no compileClasspath)")
-            }
-            sb.appendLine()
-        }
-        val file = outputFile.get().asFile
-        file.parentFile.mkdirs()
-        file.writeText(sb.toString())
-        println(sb.toString())
-    }
+    modules.set(provider { subprojects.map { ai.narrativetrace.build.DependencyReportSupport.collect(it) } })
+    outputFile.set(layout.buildDirectory.file("reports/dependency-graph/module-dependencies.txt"))
 }
 
 // Modules JDepend cannot measure. The first four have no `main` source set worth
@@ -1014,6 +1007,12 @@ subprojects {
     apply(plugin = "pmd")
     apply(plugin = "com.github.spotbugs")
     apply(plugin = "com.diffplug.spotless")
+
+    // Every archive built anywhere in this repo is byte-for-byte reproducible from the same
+    // source, applied once here so a new module inherits it with zero configuration of its own —
+    // see ReproducibleArchives's own doc comment (buildSrc, build-automation assessment
+    // 2026-09-14, Priority 1/4).
+    ai.narrativetrace.build.ReproducibleArchives.apply(this)
 
     // License headers are stamped onto released sources at packaging time
     // (licensing.properties is the category map), so the working tree stays
@@ -1296,22 +1295,27 @@ subprojects {
         }
     }
 
-    if (!path.startsWith(":narrativetrace-examples") && name !in jdependPerModuleExcludedModules) {
-        tasks.register("jdepend") {
+    // Same path exclusions as jdependReport/jdependCrossModule above: the soak harness projects
+    // carry no main classes, and the typed task's @InputDirectory refuses a missing directory
+    // outright rather than writing an empty report that reads as "analysed, nothing to say".
+    if (
+        !path.startsWith(":narrativetrace-examples") &&
+        !path.startsWith(":narrativetrace-soak") &&
+        name !in jdependPerModuleExcludedModules
+    ) {
+        // A typed task (JDependReportTask, buildSrc): the analysed classes are a fingerprinted
+        // input, so a changed class reruns the analysis — the ad-hoc predecessor only ordered
+        // itself after `classes` and reused its JSON regardless. Wiring `classesDir` to
+        // compileJava's output carries the task dependency with it. `project.name`, explicitly:
+        // the predecessor captured `name` inside the registration lambda, which is the TASK's
+        // name, so every per-module report said "module":"jdepend". Behavioural coverage:
+        // TaskInputInvalidationTest.
+        tasks.register<ai.narrativetrace.build.JDependReportTask>("jdepend") {
             description = "Runs JDepend analysis and writes JSON report"
             group = "verification"
-            dependsOn(tasks.named("classes"))
-            val classesDir = file("build/classes/java/main")
-            val jsonFile = file("build/reports/jdepend/jdepend.json")
-            // Captured at configuration time: reaching for `project` inside `doLast` is deprecated
-            // and fails outright under the configuration cache.
-            val moduleName = name
-            outputs.file(jsonFile)
-            doLast {
-                val input = ai.narrativetrace.build.JDependInput(moduleName, classesDir)
-                val result = ai.narrativetrace.build.JDependReportSupport.analyze(listOf(input)).first()
-                ai.narrativetrace.build.JDependReportSupport.writeJson(result, jsonFile)
-            }
+            moduleName.set(project.name)
+            classesDir.set(tasks.named<JavaCompile>("compileJava").flatMap { it.destinationDirectory })
+            jsonFile.set(layout.buildDirectory.file("reports/jdepend/jdepend.json"))
         }
 
         tasks.register("jdependCheck") {

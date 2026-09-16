@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 7b3cb774230b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 52c2ff729cd9 | translated: 2026-09-13 | reviewed: - -->
 # Veja um trace em 60 segundos
 
 [English](../sixty-seconds.md) | Español | **Português** | [简体中文](../zh-CN/60秒.md)
@@ -25,8 +25,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
 }
 
 tasks.withType<JavaCompile> {
@@ -153,15 +153,17 @@ método (`placeOrder`), dos nomes dos parâmetros (`customerId`,
 
 Mesmo projeto, uma dependência e um arquivo de configuração — o
 `Main.java` acima não muda. O `narrativetrace-slf4j` se conecta sozinho ao
-pipeline assim que entra no classpath, então este é todo o diff:
+pipeline assim que entra no classpath; as duas linhas comentadas abaixo são
+a mudança:
 
-```diff
- dependencies {
-     implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-     implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
-+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.1")
-+    runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
- }
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.2")   // novo: conecta-se ao pipeline
+    runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // novo: o backend do SLF4J que ele precisa
+}
 ```
 
 ```xml

@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob dfc23f2d77b2 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob d51848afdc72 | translated: 2026-09-13 | reviewed: - -->
 # Formato de trace estrutural (`.nt`)
 
 [English](../structural-trace-format.md) | [Español](../es/formato-de-traza-estructural.md) | **Português** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -60,7 +60,7 @@ também escreve `<outputDir>/manifest.json`: uma linha por cenário
 rastreado nomeando seu teste, seu número de invocação e cada arquivo que
 lhe pertence. Leia isso quando você conhece o cenário e quer o arquivo.
 
-> O cabeçalho `scenario:` de uma invocação **não** é o nome exibido dela *(since 0.2.2, unreleased)*.
+> O cabeçalho `scenario:` de uma invocação **não** é o nome exibido dela *(since 0.2.2)*.
 > Um template `@ParameterizedTest(name = …)` interpola argumentos no nome
 > exibido, então este artefato — o que não carrega valores — é titulado
 > pelo método e pelo número da invocação: `Equipment can be found #2`. Um

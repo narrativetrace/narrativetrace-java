@@ -40,6 +40,72 @@ class ScannerGateSupportTest {
         assertTrue(decision.message.contains("https://example/install"))
     }
 
+    // ------------------------------------------------------------ semgrep exit-code verdict
+
+    @Test
+    fun `semgrep exit 0 is a clean scan`() {
+        assertEquals(ScannerGateSupport.ScanVerdict.CLEAN, ScannerGateSupport.semgrepVerdict(0))
+    }
+
+    @Test
+    fun `semgrep exit 1 under --error means findings`() {
+        assertEquals(ScannerGateSupport.ScanVerdict.FINDINGS, ScannerGateSupport.semgrepVerdict(1))
+    }
+
+    @Test
+    fun `any other semgrep exit code is a scanner error, never findings and never clean`() {
+        for (code in listOf(2, 3, 4, 5, 7, 8, 13, 127, -1)) {
+            assertEquals(ScannerGateSupport.ScanVerdict.SCANNER_ERROR, ScannerGateSupport.semgrepVerdict(code), "exit $code")
+        }
+    }
+
+    // ---------------------------------------------------------------- findings summary
+
+    private val twoFindings = """
+        {"results":[
+          {"check_id":"java.lang.security.audit.crypto.use-of-md5.use-of-md5",
+           "path":"src/main/java/Hash.java","start":{"line":7,"col":5},"end":{"line":7,"col":40},
+           "extra":{"message":"Detected MD5 hash algorithm which is considered insecure.","severity":"WARNING"}},
+          {"check_id":"java.lang.security.audit.command-injection-process-builder.command-injection-process-builder",
+           "path":"src/main/java/Shell.java","start":{"line":12,"col":9},"end":{"line":12,"col":60},
+           "extra":{"message":"A formatted or concatenated string was detected as input to a ProcessBuilder call.","severity":"ERROR"}}
+        ],"errors":[],"paths":{"scanned":["src/main/java/Hash.java","src/main/java/Shell.java"]}}
+    """.trimIndent()
+
+    @Test
+    fun `findings are summarised one per line as rule, path and line`() {
+        val summary = ScannerGateSupport.summarizeSemgrepFindings(twoFindings)
+
+        assertEquals(
+            listOf(
+                "java.lang.security.audit.crypto.use-of-md5.use-of-md5 — src/main/java/Hash.java:7",
+                "java.lang.security.audit.command-injection-process-builder.command-injection-process-builder — src/main/java/Shell.java:12",
+            ),
+            summary,
+        )
+    }
+
+    @Test
+    fun `an empty results array summarises to nothing`() {
+        assertEquals(emptyList<String>(), ScannerGateSupport.summarizeSemgrepFindings("""{"results":[],"errors":[]}"""))
+    }
+
+    @Test
+    fun `an unreadable report still yields a summary line rather than hiding the failure`() {
+        val summary = ScannerGateSupport.summarizeSemgrepFindings("not json at all")
+
+        assertEquals(1, summary.size)
+        assertTrue(summary.single().contains("could not be parsed"), summary.single())
+    }
+
+    @Test
+    fun `a report with no results key is reported as unreadable, not as clean`() {
+        val summary = ScannerGateSupport.summarizeSemgrepFindings("""{"errors":[]}""")
+
+        assertEquals(1, summary.size)
+        assertTrue(summary.single().contains("could not be parsed"), summary.single())
+    }
+
     // ------------------------------------------------------- ran-clean vs skipped vs never-ran
 
     @Test

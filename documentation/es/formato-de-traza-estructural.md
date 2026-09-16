@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob dfc23f2d77b2 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob d51848afdc72 | translated: 2026-09-13 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -62,7 +62,7 @@ escenario trazado que nombra su test, su número de invocación y cada
 archivo que le pertenece. Léelo cuando conozcas el escenario y quieras el
 archivo.
 
-> La cabecera `scenario:` de una invocación **no** es su nombre visible *(since 0.2.2, unreleased)*.
+> La cabecera `scenario:` de una invocación **no** es su nombre visible *(since 0.2.2)*.
 > Una plantilla `@ParameterizedTest(name = …)` interpola argumentos en el
 > nombre visible, así que este artefacto — el que no lleva valores — se
 > titula con el método y el número de invocación: `Equipment can be found

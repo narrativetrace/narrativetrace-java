@@ -24,8 +24,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
 }
 
 tasks.withType<JavaCompile> {
@@ -129,7 +129,7 @@ gradle wrapper
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 16ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 19ms
 ```
 <!-- /snippet -->
 
@@ -158,15 +158,16 @@ method name (`placeOrder`), the parameter names (`customerId`, `productId`,
 
 Same project, one dependency and one config file — `Main.java` above does
 not change. `narrativetrace-slf4j` attaches itself to the pipeline the
-moment it is on the classpath, so this is the whole diff:
+moment it is on the classpath; the two commented lines below are the change:
 
-```diff
- dependencies {
-     implementation("ai.narrativetrace:narrativetrace-core:0.2.1")
-     implementation("ai.narrativetrace:narrativetrace-proxy:0.2.1")
-+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.1")
-+    runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
- }
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.2")   // new: attaches to the pipeline
+    runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // new: the SLF4J backend it needs
+}
 ```
 
 <!-- snippet: sixty-seconds/src/main/resources/logback.xml -->
