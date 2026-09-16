@@ -14,7 +14,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * {@code probed-default}, since 0.2.2 — not exercised against 0.2.1 (the fix this proves landed
+ * {@code probed-default}, since 0.2.3 — not exercised against 0.2.1 (the fix this proves landed
  * after the tag; see documentation/privacy-and-redaction.md "When rendering a part fails"). A value
  * whose {@code @NarrativeSummary} throws must render as {@code <error: TypeName>} with the
  * exception message excluded, never the message text (a message routinely interpolates the value

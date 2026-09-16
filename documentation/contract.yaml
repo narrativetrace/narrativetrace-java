@@ -114,15 +114,15 @@ entries:
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/Slf4jZeroCodeAttachProbe.java"
 
-  # ---- claims that ship in 0.2.2, still unreleased when this contract was seeded --------------
-  # (documentation/*.md carries a matching "*(since 0.2.2, unreleased)*" marker for each of these —
+  # ---- claims that ship in 0.2.3, still unreleased when this contract was seeded --------------
+  # (documentation/*.md carries a matching "*(since 0.2.3, unreleased)*" marker for each of these —
   # contractLint fails if that marker ever loses its contract entry; contractCheck must report
   # NOT_APPLICABLE_BEFORE_SINCE for all five of these when run against the published 0.2.1.)
   - id: probed-output-default
     kind: probed-default
     page: "documentation/configuration-guide.md#2-junit-5-configuration-junit-platformproperties"
     claim: "narrativetrace.output defaults to true — test trace output writes with no configuration"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/OutputDefaultProbe.java"
 
@@ -130,7 +130,7 @@ entries:
     kind: config-shape
     page: "documentation/troubleshooting.md#cannot-create-launcher-without-at-least-one-testengine-or-could-not-start-gradle-test-executor-1-failed-to-load-junit-platform"
     claim: "the Gradle plugin adds the JUnit 5 engine and junit-platform-launcher automatically"
-    since: "0.2.2"
+    since: "0.2.3"
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/LauncherAddedByPluginProbe.java"
 
@@ -138,7 +138,7 @@ entries:
     kind: probed-default
     page: "documentation/structural-trace-format.md#artifact-identity-cross-platform-2026-09-09"
     claim: "an invocation's scenario: header names the method and invocation index, never a name = \"…\" display name"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "method-and-index"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/StructuralHeaderRuleProbe.java"
 
@@ -146,7 +146,7 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#when-rendering-a-part-fails"
     claim: "a throwing accessor renders as <error: TypeName> — the exception's message is excluded"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "<error: IllegalStateException>"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/TypedErrorMarkerProbe.java"
 
@@ -154,7 +154,7 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a class declaring instance fields is walked field by field — its own toString() is never trusted"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "field-walked-not-tostring"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/NativeStringificationNotTrustedProbe.java"
 
@@ -162,7 +162,7 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a platform type (UUID, LocalDate, Duration, URI) keeps its own toString(), unwalked"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "own-tostring-used"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/PlatformTypeCarveoutProbe.java"
 
@@ -170,7 +170,7 @@ entries:
     kind: probed-default
     page: "documentation/configuration-guide.md#the-run-has-a-name"
     claim: "the console suite footer names the run: a \"run: <phrase>\" line"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "run: bold elk soars"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/RunNameConsoleFooterProbe.java"
 
@@ -178,6 +178,6 @@ entries:
     kind: probed-default
     page: "documentation/configuration-guide.md#the-run-has-a-name"
     claim: "manifest.json carries a top-level run object (id, name) naming the run it belongs to"
-    since: "0.2.2"
+    since: "0.2.3"
     documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/RunNameManifestFieldProbe.java"

@@ -53,7 +53,7 @@ writes `<outputDir>/manifest.json`: one row per traced scenario naming
 its test, its invocation number and every file it owns. Read that when
 you know the scenario and want the file.
 
-> An invocation's `scenario:` header is **not** its display name *(since 0.2.2)*. A
+> An invocation's `scenario:` header is **not** its display name *(since 0.2.3)*. A
 > `@ParameterizedTest(name = …)` template interpolates arguments into the
 > display name, so this artifact — the value-free one — is titled by the
 > method and the invocation number instead: `Equipment can be found #2`.
@@ -101,7 +101,7 @@ scenario: Weekend trip settles with three transfers
   names/ids never appear.
 - **Excluded by design:** all argument/return values, exception
   messages, durations, timestamps, thread identity, trace/span ids,
-  trace names, run ids, run names *(since 0.2.2, unreleased — the run
+  trace names, run ids, run names *(since 0.2.3, unreleased — the run
   has a name too, see [Configuration Guide § The run has a
   name](configuration-guide.md#the-run-has-a-name); it never enters
   this format, an approved or received trace, an artifact filename, or

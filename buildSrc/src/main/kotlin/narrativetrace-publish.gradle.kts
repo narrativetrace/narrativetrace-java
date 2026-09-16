@@ -21,6 +21,17 @@ extensions.configure<JavaPluginExtension> {
     withJavadocJar()
 }
 
+// The doclet must know the house tags (`@llmNote`, `@sideEffects`, `@pattern`) before it can
+// render them; an unlisted tag is `error: unknown tag`, not a warning. See JavadocHouseTagsSupport
+// for the why and JavadocHouseTagsSupportTest (buildSrc) for the applied-convention proof.
+ai.narrativetrace.build.JavadocHouseTagsSupport.apply(project)
+
+// `check` never built javadoc before 0.2.2's Maven Central release failed on it — the release
+// workflow was the only place `javadocJar` (which every publication needs) ever ran. Wiring it
+// into `check` means an unknown tag, or any other javadoc failure, fails on the developer's
+// machine the same way it would fail the release, instead of only at release time.
+tasks.named("check") { dependsOn("javadocJar") }
+
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {

@@ -5,7 +5,7 @@ one run, and reviewed baselines that describe an intended contract. Commit
 the second kind, not the first.
 
 Every test-time artifact writes to the ephemeral `build/narrativetrace` by
-default *(since 0.2.2)* — no configuration needed, `narrativetrace.output=false` opts out
+default *(since 0.2.3)* — no configuration needed, `narrativetrace.output=false` opts out
 (see the [Configuration Guide](configuration-guide.md)). Ephemeral is the
 point: it lives under `build/`, so it never needs the discipline this page
 is about — it is already excluded, regenerated every run, and safe to
@@ -16,14 +16,14 @@ delete at any time.
 | `build/narrativetrace/traces/*.md` | No | Regenerated every run; usually a CI artifact, not source |
 | `build/narrativetrace/traces/*.json` | No | Same trace as canonical JSON — regenerated every run |
 | `build/narrativetrace/diagrams/*.mmd` | No | Regenerated every run |
-| `build/narrativetrace/manifest.json` | No | Regenerated every run; its top-level `run` object (`id`, `name` — the run's own three-word phrase) names *this execution*, not a scenario, so it changes on every run even when nothing else does *(since 0.2.2)* |
+| `build/narrativetrace/manifest.json` | No | Regenerated every run; its top-level `run` object (`id`, `name` — the run's own three-word phrase) names *this execution*, not a scenario, so it changes on every run even when nothing else does *(since 0.2.3)* |
 | `build/narrativetrace/structural/*.nt` | No | The last-green *local* baseline the console delta and failure reports compare against — not the approval baseline (see below) |
 | `build/narrativetrace/clarity-report.md` | No | A generated report, not a decision — `clarityCheck` reads `clarity-results.json` next to it, also generated |
 | `src/test/narratives/<Class>/<scenario>.approved.nt` | **Yes** | The reviewed approval baseline (only exists if [approval mode](structural-trace-format.md) is on). This is the one file in the list that is a deliberate decision, not output |
 | `src/test/narratives/<Class>/<scenario>.received.nt` | No | Written on an approval mismatch, or when no baseline exists yet. Review it, run `./gradlew approveNarratives` to promote it, then delete or let the task remove it — never commit the received file itself |
 | `src/test/narratives/<Class>/<scenario>.incomplete.nt` | No | Written instead of `.received.nt` when the run itself was incomplete (best-effort loss, or a refused async scope). `approveNarratives` ignores it by name on purpose — see [Structural Trace Format](structural-trace-format.md) |
 | `glossary.json` / `glossary.md` | **Yes**, if glossary harvesting is used | Committed at the repository root by `glossaryScan` / `glossary.set(true)`; the committed file is what clarity scoring and vocabulary checks read back. "One file, one review workflow" |
-| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, the `AGENTS.md` `<!-- narrativetrace:skills:* -->` section | **Yes** *(since 0.2.2)* | Build output from `narrativetrace-skills`' typed catalogue, not test-run output — committed the same way `glossary.json` is: regenerated, reviewed in diffs, and checked against drift (`RenderDriftTest`, wired into `./gradlew check`) rather than hand-edited |
+| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, the `AGENTS.md` `<!-- narrativetrace:skills:* -->` section | **Yes** *(since 0.2.3)* | Build output from `narrativetrace-skills`' typed catalogue, not test-run output — committed the same way `glossary.json` is: regenerated, reviewed in diffs, and checked against drift (`RenderDriftTest`, wired into `./gradlew check`) rather than hand-edited |
 
 Everything under `build/` is already covered by the shipped `.gitignore`
 (`build/` is the first line). `src/test/narratives/` is not — `.approved.nt`

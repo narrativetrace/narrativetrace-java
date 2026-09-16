@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob b67b2827aa57 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob f5d83104b8d1 | translated: 2026-09-12 | reviewed: - -->
 # Solución de problemas
 
 [English](../troubleshooting.md) | **Español** | [Português](../pt-BR/solucao-de-problemas.md) | [简体中文](../zh-CN/故障排查.md)
@@ -45,12 +45,12 @@ dependencies {
 }
 ```
 
-El plugin de Gradle añade ambos automáticamente *(since 0.2.2)* — esto solo importa para
+El plugin de Gradle añade ambos automáticamente *(since 0.2.3)* — esto solo importa para
 una configuración manual.
 
 ## No hay ficheros de salida de traza
 
-**Causa:** la salida se escribe por defecto *(since 0.2.2)* en `build/narrativetrace`, así que
+**Causa:** la salida se escribe por defecto *(since 0.2.3)* en `build/narrativetrace`, así que
 un archivo ausente suele deberse a una de estas: `narrativetrace.output=false`
 está establecido en algún sitio (`junit-platform.properties`, una propiedad
 del sistema, o `enabled.set(false)` en el plugin de Gradle); la traza estaba
@@ -190,7 +190,7 @@ dependencias de runtime propias):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.2")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.3")
 }
 ```
 

@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * {@code config-shape}, since 0.2.2 — not exercised against 0.2.1. Applies the published Gradle
+ * {@code config-shape}, since 0.2.3 — not exercised against 0.2.1. Applies the published Gradle
  * plugin in a disposable throwaway project (the same "generated project, isolated Gradle user home"
  * technique {@code scripts/verify-publication.sh}'s consumer smoke test already uses) and asks
  * Gradle for the resolved test runtime classpath — proving what a consumer's build actually

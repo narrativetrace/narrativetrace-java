@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 2dd7a72f2d4d | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 001d89f6e0da | translated: 2026-09-13 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -188,7 +188,7 @@ A extensão do JUnit usa `ExtensionContext.getConfigurationParameter()`, que res
 
 | Propriedade | Valores | Padrão |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2)* |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.3)* |
 | `narrativetrace.outputDir` | Qualquer caminho com permissão de escrita | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -357,7 +357,7 @@ trace, a exportação JSON, o diagrama, o artefato estrutural e a baseline
 > nome exibido, então o artefato `.nt` livre de valores não é titulado com
 > ele: o cabeçalho `scenario:` de uma invocação é `<nome humanizado do
 > método> #<índice>` (`Equipment can be found #2`), e um método que roda
-> uma única vez mantém o nome exibido que sempre teve *(since 0.2.2)*. O *nome de arquivo*
+> uma única vez mantém o nome exibido que sempre teve *(since 0.2.3)*. O *nome de arquivo*
 > do artefato e o `manifest.json` carregam sim o nome exibido — o nome de
 > arquivo é o que distingue duas invocações em disco, e o manifesto indexa
 > também os artefatos com valores. Mantenha segredos fora dos templates de
@@ -383,7 +383,7 @@ Depois que todos os testes de uma classe terminam, a extensão escreve:
 
 - Manifesto da execução: `<outputDir>/manifest.json` — um objeto `run`
   de nível superior (`id`, `name` — a frase de três palavras própria da
-  execução, *(since 0.2.2)*, veja [A execução tem um
+  execução, *(since 0.2.3)*, veja [A execução tem um
   nome](#a-execução-tem-um-nome) abaixo) seguido de uma linha por
   cenário rastreado, em ordem de execução, nomeando o teste que o
   produziu, seu número de invocação quando o método rodou mais de uma
@@ -431,7 +431,7 @@ completo, e vincula o arquivo de trace como uma URI `file://` clicável.
 
 ### A execução tem um nome
 
-*(since 0.2.2)* Um id de execução é gerado por cada execução
+*(since 0.2.3)* Um id de execução é gerado por cada execução
 da suíte de teste — um id com forma W3C, nunca uma constante compartilhada
 — e sua frase de três palavras (o mesmo gerador de nomes de onde vem o
 nome de um id de trace) é o **nome da execução**. Ele aparece:
@@ -776,7 +776,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.3")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.
@@ -847,7 +847,7 @@ da suíte de teste — veja abaixo.
 |---|---|
 | `traceId` | ID de trace W3C bruto de 32 caracteres |
 | `traceName` | Nome legível determinístico de três palavras derivado de `traceId` |
-| `runName` | *(since 0.2.2)* A frase de três palavras própria da execução da suíte de teste que a envolve, definida pela integração do JUnit 5/4 na thread que executa cada teste — veja [A execução tem um nome](#a-execução-tem-um-nome) abaixo |
+| `runName` | *(since 0.2.3)* A frase de três palavras própria da execução da suíte de teste que a envolve, definida pela integração do JUnit 5/4 na thread que executa cada teste — veja [A execução tem um nome](#a-execução-tem-um-nome) abaixo |
 | `spanId` | ID do span atual |
 | `parentSpanId` | ID do span pai quando presente |
 | `service.name` | Nome de serviço configurado quando presente |

@@ -21,7 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * {@code probed-default}, since 0.2.2 — not exercised against 0.2.1. An invocation's {@code
+ * {@code probed-default}, since 0.2.3 — not exercised against 0.2.1. An invocation's {@code
  * scenario:} header must name the method and invocation index, never the {@code name = "…"} display
  * name a {@code @ParameterizedTest} template interpolates arguments into
  * (structural-trace-format.md "Artifact identity").

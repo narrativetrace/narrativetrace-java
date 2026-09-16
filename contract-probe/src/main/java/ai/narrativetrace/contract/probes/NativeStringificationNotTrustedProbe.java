@@ -13,7 +13,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * {@code probed-default}, since 0.2.2 — not exercised against 0.2.1 (this repo's rule ran the
+ * {@code probed-default}, since 0.2.3 — not exercised against 0.2.1 (this repo's rule ran the
  * opposite way before 2026-09-11, documentation/privacy-and-redaction.md). A class declaring
  * instance fields must be walked field-by-field, its own curated {@code toString()} ignored, so a
  * hand-written {@code toString()} that interpolates {@code password} can never leak it at depth

@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 /**
- * {@code probed-default}, since 0.2.2: the console suite footer names the enclosing test-suite run
+ * {@code probed-default}, since 0.2.3: the console suite footer names the enclosing test-suite run
  * (configuration-guide.md § The run has a name) — {@code run: <phrase>} on its own line.
  */
 public final class RunNameConsoleFooterProbe {

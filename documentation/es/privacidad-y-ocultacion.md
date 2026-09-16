@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob a26edd38a35f | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 4189e7bb4104 | translated: 2026-09-13 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -20,7 +20,7 @@ más abajo.**
 extensión de JUnit 5 y la integración de JUnit 4 escriben los artefactos
 `.md`/`.json`/`.mmd` de cada prueba en el directorio efímero
 `build/narrativetrace` (ignorado por git, regenerado en cada ejecución) sin
-necesidad de configuración; `narrativetrace.output=false` lo desactiva *(since 0.2.2)*. Ese
+necesidad de configuración; `narrativetrace.output=false` lo desactiva *(since 0.2.3)*. Ese
 valor por defecto no cambia qué se oculta ni cómo — cada artefacto pasa por
 el mismo `ValueRenderer` y la misma lista de denegación descrita más abajo,
 tanto si la escritura se activó por defecto como si se activó
@@ -185,7 +185,7 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
   (ADR-002), no una política que alguien pueda olvidar aplicar. Su
   cabecera `scenario:` está cubierta por eso: una invocación de un
   `@ParameterizedTest` se titula `<método> #<índice>`, nunca el nombre
-  visible en el que una plantilla `name = "…"` interpoló sus argumentos *(since 0.2.2)*.
+  visible en el que una plantilla `name = "…"` interpoló sus argumentos *(since 0.2.3)*.
   Cómo se *llama* el artefacto es otra cuestión — consulta la no-garantía
   de más abajo.
 - **La vía de análisis en buffer puede descartar eventos, pero siempre
@@ -196,7 +196,7 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
   dato.** Ambos son una frase determinista de tres palabras derivada de
   un id aleatorio (consulta [Guía de configuración § La ejecución tiene
   un nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre)
-  *(since 0.2.2)*) — nunca de nada capturado — así que
+  *(since 0.2.3)*) — nunca de nada capturado — así que
   ninguno de los dos puede filtrar un valor en tiempo de ejecución, y
   ambos se mantienen fuera del artefacto estructural `.nt` por la misma
   razón que todo lo demás en él.

@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 52c2ff729cd9 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 79cbabe43f78 | translated: 2026-09-13 | reviewed: - -->
 # Ve una traza en 60 segundos
 
 [English](../sixty-seconds.md) | **Español** | [Português](../pt-BR/sessenta-segundos.md) | [简体中文](../zh-CN/60秒.md)
@@ -25,8 +25,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
 }
 
 tasks.withType<JavaCompile> {
@@ -159,9 +159,9 @@ son el cambio:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.2")   // nuevo: se conecta al pipeline
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.3")   // nuevo: se conecta al pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // nuevo: el backend de SLF4J que necesita
 }
 ```

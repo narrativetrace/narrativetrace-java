@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 2dd7a72f2d4d | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 001d89f6e0da | translated: 2026-09-13 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -188,7 +188,7 @@ La extensión de JUnit usa `ExtensionContext.getConfigurationParameter()`, que r
 
 | Propiedad | Valores | Predeterminado |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2)* |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.3)* |
 | `narrativetrace.outputDir` | Cualquier ruta con permiso de escritura | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -365,7 +365,7 @@ línea base `.approved.nt` commiteada junto a ellos.
 > titula con él: la cabecera `scenario:` de una invocación es `<nombre
 > humanizado del método> #<índice>` (`Equipment can be found #2`), y un
 > método que se ejecuta una sola vez conserva el nombre visible que
-> siempre tuvo *(since 0.2.2)*. El *nombre de archivo* del artefacto y `manifest.json` sí
+> siempre tuvo *(since 0.2.3)*. El *nombre de archivo* del artefacto y `manifest.json` sí
 > llevan el nombre visible — el nombre de archivo es lo que distingue dos
 > invocaciones en disco, y el manifiesto indexa también los artefactos con
 > valores. Mantén los secretos fuera de las plantillas de nombre visible.
@@ -390,7 +390,7 @@ Cuando terminan todos los tests de una clase, la extensión escribe:
 
 - Manifiesto de la ejecución: `<outputDir>/manifest.json` — un objeto
   `run` de nivel superior (`id`, `name` — la frase de tres palabras
-  propia de la ejecución, *(since 0.2.2)*, véase [La
+  propia de la ejecución, *(since 0.2.3)*, véase [La
   ejecución tiene un nombre](#la-ejecución-tiene-un-nombre) más abajo)
   seguido de una fila por escenario trazado, en orden de ejecución, que
   nombra el test que lo produjo, su número de invocación cuando el
@@ -439,7 +439,7 @@ clicable.
 
 ### La ejecución tiene un nombre
 
-*(since 0.2.2)* Se genera un id de ejecución por cada
+*(since 0.2.3)* Se genera un id de ejecución por cada
 ejecución de la suite de test — un id con forma W3C, nunca una constante
 compartida — y su frase de tres palabras (el mismo generador de nombres
 del que sale el nombre de un id de traza) es el **nombre de la
@@ -791,7 +791,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.3")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.
@@ -862,7 +862,7 @@ de la suite de test — véase más abajo.
 |---|---|
 | `traceId` | ID de traza W3C en bruto de 32 caracteres |
 | `traceName` | Nombre legible determinista de tres palabras derivado de `traceId` |
-| `runName` | *(since 0.2.2)* La frase de tres palabras propia de la ejecución de la suite de test que la envuelve, establecida por la integración de JUnit 5/4 en el hilo que ejecuta cada test — véase [La ejecución tiene un nombre](#la-ejecución-tiene-un-nombre) más abajo |
+| `runName` | *(since 0.2.3)* La frase de tres palabras propia de la ejecución de la suite de test que la envuelve, establecida por la integración de JUnit 5/4 en el hilo que ejecuta cada test — véase [La ejecución tiene un nombre](#la-ejecución-tiene-un-nombre) más abajo |
 | `spanId` | ID del span actual |
 | `parentSpanId` | ID del span padre cuando existe |
 | `service.name` | Nombre de servicio configurado cuando existe |

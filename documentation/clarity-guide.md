@@ -12,7 +12,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed *(since 0.2.2)*. `narrativetrace.output=false` turns it off along with every other trace artifact.
+With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed *(since 0.2.3)*. `narrativetrace.output=false` turns it off along with every other trace artifact.
 
 ## What gets scored
 
@@ -249,7 +249,7 @@ The Gradle plugin provides a `clarityCheck` task that fails the build when namin
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 
 narrativeTrace {

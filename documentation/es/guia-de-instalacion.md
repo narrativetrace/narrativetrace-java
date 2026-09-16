@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 043ec2b2ed19 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob eb9f1dc82615 | translated: 2026-09-12 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -12,7 +12,7 @@ Esta guía cubre la instalación y el cableado de NarrativeTrace Java en un proy
 
 ## Compatibilidad
 
-Versiones a fecha de 0.2.2. «Incluida» significa que el módulo depende de ella
+Versiones a fecha de 0.2.3. «Incluida» significa que el módulo depende de ella
 y Gradle la resuelve por ti; «tuya» significa que el módulo compila contra ella
 pero no depende de ella — ya la tienes, y NarrativeTrace usa la versión que
 aportes.
@@ -79,7 +79,7 @@ El plugin de Gradle se encarga de todo el cableado automáticamente — dependen
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 ```
 
@@ -126,23 +126,23 @@ Empieza con el stack mínimo y luego añade solo las integraciones que necesites
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.2")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
 
     // Integraciones opcionales
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.2")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.2")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.2")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.3")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.3")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.3")
 }
 ```
 
@@ -201,7 +201,7 @@ Características:
 - `NarrativeContext` por prueba mediante inyección de parámetros
 - Impresión automática en consola de la traza en caso de fallo
 - Nombre del escenario derivado del nombre del método de prueba (`customerPlacesOrder` → "Customer places order")
-- Escribe `.md`, `.json` y `.mmd` por prueba por defecto *(since 0.2.2)*, además de un `clarity-report.md` a nivel de suite — establece `narrativetrace.output=false` para desactivarlo
+- Escribe `.md`, `.json` y `.mmd` por prueba por defecto *(since 0.2.3)*, además de un `clarity-report.md` a nivel de suite — establece `narrativetrace.output=false` para desactivarlo
 
 ### Opción D: contexto automático de JUnit 4 + salida de trazas
 

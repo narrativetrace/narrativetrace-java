@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 7a47fe177e9c | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob a120b4005457 | translated: 2026-09-12 | reviewed: - -->
 # Guia de Clareza do NarrativeTrace Java
 
 [English](../clarity-guide.md) | [Español](../es/guia-de-claridad.md) | **Português** | [简体中文](../zh-CN/清晰度指南.md)
@@ -15,7 +15,7 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Com o JUnit 5, os relatórios de clareza são gerados automaticamente por padrão — sem necessidade de código, sem necessidade de configuração *(since 0.2.2)*. `narrativetrace.output=false` desativa isso junto com todos os outros artefatos de trace.
+Com o JUnit 5, os relatórios de clareza são gerados automaticamente por padrão — sem necessidade de código, sem necessidade de configuração *(since 0.2.3)*. `narrativetrace.output=false` desativa isso junto com todos os outros artefatos de trace.
 
 ## O que é pontuado
 
@@ -256,7 +256,7 @@ O plugin de Gradle fornece uma task `clarityCheck` que faz o build falhar quando
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 
 narrativeTrace {

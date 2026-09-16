@@ -39,12 +39,12 @@ dependencies {
 }
 ```
 
-The Gradle plugin adds both automatically *(since 0.2.2)* — this only matters for a manual
+The Gradle plugin adds both automatically *(since 0.2.3)* — this only matters for a manual
 setup.
 
 ## No trace output files
 
-**Cause:** output writes by default *(since 0.2.2)* to `build/narrativetrace`, so a missing
+**Cause:** output writes by default *(since 0.2.3)* to `build/narrativetrace`, so a missing
 file usually means one of: `narrativetrace.output=false` is set somewhere
 (`junit-platform.properties`, a system property, or the Gradle plugin's
 `enabled.set(false)`); the trace was empty because no call went through a
@@ -177,7 +177,7 @@ its own):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.2")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.2.3")
 }
 ```
 

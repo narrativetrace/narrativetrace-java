@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.2"
+    id("ai.narrativetrace") version "0.2.3"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -184,7 +184,7 @@ The JUnit extension uses `ExtensionContext.getConfigurationParameter()`, which r
 
 | Property | Values | Default |
 |---|---|---|
-| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.2)* |
+| `narrativetrace.output` | `true` / `false` | `true` *(since 0.2.3)* |
 | `narrativetrace.outputDir` | Any writable path | `build/narrativetrace` |
 | `narrativetrace.format` | `markdown`, `text`, `mermaid`, `plantuml` | `markdown` |
 | `narrativetrace.unfolded` | `true` / `false` | `false` |
@@ -351,7 +351,7 @@ the JSON export, the diagram, the structural artifact, and the committed
 > the display name, so the value-free `.nt` artifact is not titled with
 > it: an invocation's `scenario:` header is `<humanized method name>
 > #<index>` (`Equipment can be found #2`), and a method that runs once
-> keeps the display name it always had *(since 0.2.2)*. The artifact *filename* and
+> keeps the display name it always had *(since 0.2.3)*. The artifact *filename* and
 > `manifest.json` do carry the display name — the filename is what tells
 > two invocations apart on disk, and the manifest indexes the
 > value-carrying artifacts as well. Keep secrets out of display-name
@@ -375,7 +375,7 @@ When `format=markdown`, the extension also writes per test:
 After all tests in a class complete, the extension writes:
 
 - Run manifest: `<outputDir>/manifest.json` — a top-level `run` object
-  (`id`, `name` — the run's own three-word phrase, *(since 0.2.2)*, see [The run has a name](#the-run-has-a-name) below)
+  (`id`, `name` — the run's own three-word phrase, *(since 0.2.3)*, see [The run has a name](#the-run-has-a-name) below)
   followed by one row per traced scenario, in execution order, naming
   the test that produced it, its invocation number when the method ran
   more than once, and every artifact it owns as a path relative to
@@ -422,7 +422,7 @@ trace, and links the trace file as a clickable `file://` URI.
 
 ### The run has a name
 
-*(since 0.2.2)* One run id is generated per test-suite
+*(since 0.2.3)* One run id is generated per test-suite
 execution — a W3C-shaped id, never a shared constant — and its
 three-word phrase (the same namer a trace id's name comes from) is the
 **run name**. It appears in:
@@ -758,7 +758,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.3")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.
@@ -829,7 +829,7 @@ execution — see below.
 |---|---|
 | `traceId` | Raw 32-char W3C trace ID |
 | `traceName` | Deterministic three-word human-readable name derived from `traceId` |
-| `runName` | *(since 0.2.2)* The enclosing test-suite run's own three-word phrase, set by the JUnit 5/4 integration on the thread executing each test — see [The run has a name](#the-run-has-a-name) below |
+| `runName` | *(since 0.2.3)* The enclosing test-suite run's own three-word phrase, set by the JUnit 5/4 integration on the thread executing each test — see [The run has a name](#the-run-has-a-name) below |
 | `spanId` | Current span ID |
 | `parentSpanId` | Parent span ID when present |
 | `service.name` | Configured service name when present |

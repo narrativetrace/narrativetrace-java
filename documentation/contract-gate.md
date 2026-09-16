@@ -68,7 +68,7 @@ A failure names all four facts in one line, so a skim is enough:
 
 ```
 documentation/contract.yaml: probed-output-default documented default "true"
-(since 0.2.2) but ai.narrativetrace:narrativetrace-core 0.2.2 (published) reads "false"
+(since 0.2.3) but ai.narrativetrace:narrativetrace-core 0.2.3 (published) reads "false"
 ```
 
 ## `contract-probe/`
