@@ -29,7 +29,7 @@ bytes are, and keep the file ASCII — every non-ASCII character is written as a
 | `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary, the platform-type carve-out (a trusted short value, a deny-listed name holding one, a lookalike name and a subclass that must still be walked) |
 | `injection.json` | every output format, as an AI-consumer oracle | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, markdown-link exfiltration, fence and frontmatter terminators, Mermaid label terminators, homoglyph and zero-width variants |
 | `names.json` | the artifact writers, which turn a name into a path | test class and method names: separators and parent traversal, control characters, lone surrogates, noncharacters, bidi overrides, and names past the filesystem's per-element limit in characters *and* in bytes |
-| `redaction.json` | the name deny-list and the value-shape matcher | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
+| `redaction.json` | the name deny-list, the value-shape matcher and the capture path | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; four composite shapes (curated stringification, a sensitive map key, a throwing summary) replayed through a real traced call rather than the value renderer alone; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
 | `trace-shapes.json` | every recursive renderer/exporter, via `ai.narrativetrace.core.tree.TreeWalk` | declarative `TraceNode` call-tree *shapes*: a legitimate deep chain, and a hand-built cyclic child list (`TraceNode.children` is undefended) — the tree-structure counterpart to `graphs.json`'s value-graph shapes |
 
 ## Case shapes
@@ -74,6 +74,25 @@ KEY position and not only where a value ordinarily sits:
 ```json
 { "id": "shape-jwt-map-key", "description": "the same JWT, as a map KEY rather than a value", "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk", "position": "mapKey", "expect": "redacted" }
 ```
+
+A third row shape, `kind`, names one of `graphs.json`'s composite builders
+instead of a bare field or value, with its own `canary` planted where the
+composite hides it. These four rows exist *only* in `redaction.json`, never in
+`graphs.json`'s own rows, because they exercise the capture path — a real
+traced method call, parameter binding and every rendered artifact — one layer
+above where `graphs.json`'s rows are replayed straight into the value
+renderer:
+
+```json
+{ "id": "curated-tostring-top-level", "description": "a composite carrying a deny-listed field whose native toString interpolates it directly", "kind": "curatedToString", "canary": "canary-curated-tostring-top-level", "expect": "redacted" }
+```
+
+| `kind` | Built as |
+|---|---|
+| `curatedToString` | a composite carrying a deny-listed field whose native stringification interpolates it |
+| `curatedToStringNested` | a composite with no sensitive field whose native stringification interpolates a nested composite that carries one |
+| `mapKey` | a composite carrying a deny-listed field, used as a map/dictionary key |
+| `throwingSummary` | a composite whose summary marker (`@NarrativeSummary`) throws — the traced call must still succeed, and the failed part renders the typed error marker, never the exception's message |
 
 **Declarative graph** (`graphs.json`) — either `layers`, a stack of wrappers
 built outward around `payload` (index 0 is innermost, so

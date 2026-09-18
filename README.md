@@ -23,38 +23,49 @@ refactoring — not more log statements.
 
 ## The problem
 
-Half of this method is logging noise:
+Half of this method exists only to log what the other half already says:
 
+<!-- snippet: narrativetrace-examples/ecommerce/src/main/java/ai/narrativetrace/examples/ecommerce/readme/PlaceOrderService.java region=before -->
 ```java
-public OrderResult placeOrder(String customerId, String productId, int quantity) {
-    logger.info("Placing order for customer {} product {} quantity {}", customerId, productId, quantity);
+  public Order placeOrder(OrderRequest req) {
+    log.info("Placing order {}", req.id());
+    try {
+      var customer = customers.find(req.id());
+      var price = catalog.price(req.sku());
+      inventory.reserve(req.sku(), req.qty());
+      var payment = payments.charge(price);
+      var order = orders.save(customer, payment);
+      log.info("Order succeeded {}", order.id());
+      return order;
+    } catch (Exception ex) {
+      log.error("Placing order failed {}", req.id(), ex);
+      throw ex;
+    }
+  }
 
-    var inventory = inventoryService.reserve(productId, quantity);
-    logger.debug("Reserved inventory: {}", inventory);
-
-    var payment = paymentService.charge(customerId, inventory.total());
-    logger.info("Payment processed: {}", payment.transactionId());
-
-    var result = new OrderResult(payment.transactionId(), inventory.items());
-    logger.info("Order placed successfully: {}", result);
-    return result;
-}
 ```
+<!-- /snippet -->
 
-The business logic is three lines. The logging is another four. Every developer
-writes these logs differently — different messages, different levels, different
-included values. The result is inconsistent, verbose, and tangled with the code
-it describes.
+The business logic is six lines. Logging it — an entry line, a success line,
+and a catch that logs the failure before rethrowing — is another seven. Every
+developer writes these logs differently — different messages, different
+levels, different included values. The result is inconsistent, verbose, and
+tangled with the code it describes.
 
-NarrativeTrace eliminates this entirely:
+NarrativeTrace eliminates this entirely. Delete or enrich the logging
+statements:
 
+<!-- snippet: narrativetrace-examples/ecommerce/src/main/java/ai/narrativetrace/examples/ecommerce/readme/PlaceOrderService.java region=after -->
 ```java
-public OrderResult placeOrder(String customerId, String productId, int quantity) {
-    var inventory = inventoryService.reserve(productId, quantity);
-    var payment = paymentService.charge(customerId, inventory.total());
-    return new OrderResult(payment.transactionId(), inventory.items());
-}
+  public Order placeOrderNarrated(OrderRequest req) {
+    var customer = customers.find(req.id());
+    var price = catalog.price(req.sku());
+    inventory.reserve(req.sku(), req.qty());
+    var payment = payments.charge(price);
+    return orders.save(customer, payment);
+  }
 ```
+<!-- /snippet -->
 
 Pure business logic. The trace is generated from the method names, parameter
 names and return values — the information that was already there.
@@ -152,6 +163,21 @@ There is a second half to it: each test also emits an **AI-safe structural
 trace** (`structural/<Class>/<scenario>.nt`) — the call structure with every
 runtime value stripped, safe to hand to an AI tool or commit to the repository.
 See the [structural trace format](documentation/structural-trace-format.md).
+
+An empirical study, ["Do AI Coding Agents Log Like Humans? An Empirical
+Study"](https://arxiv.org/abs/2604.09409) (arXiv:2604.09409), measured this
+gap directly: across 81 repositories, agents changed logging less often than
+humans in 58.4% of them; across 4,550 agentic pull requests, only 20.7%
+touched logging at all; agents failed to comply with an explicit logging
+request 67% of the time; and when logging needed fixing afterward, humans
+wrote 72.5% of those fixes themselves, in a later commit rather than in
+review. What the paper measures is that agents neither write logging
+reliably nor follow logging instructions reliably, and that humans quietly
+repair the gap afterward. NarrativeTrace's answer is structural, not
+behavioral: the code is the log, so there is nothing for an agent to write
+or comply with, and approval traces turn observability into a deterministic
+gate on the diff — the class of guardrail the paper's own recommendations
+call for.
 
 ### How it compares
 
@@ -485,7 +511,7 @@ Start here:
 - [See a trace in 60 seconds](documentation/sixty-seconds.md) — the smallest path to a real trace: one file, one run, real output pasted in
 - [Installation Guide](documentation/installation-guide.md) — dependencies, every integration path, how capture works, trace output setup
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which module you need, as a decision diagram
-- [Configuration Guide](documentation/configuration-guide.md) — tracing levels, JUnit/Gradle/Spring/Micronaut/SLF4J config
+- [Configuration Guide](documentation/configuration-guide.md) — tracing levels, JUnit/Gradle/Spring/Micronaut/SLF4J config. The tracing level and your logger's level are two independent dials on two different pipeline paths — see the [FAQ](documentation/faq.md) if raising or lowering one isn't doing what you expect.
 - [Gradle Plugin Guide](documentation/gradle-plugin-guide.md) — DSL reference, quality gates, recipes
 - [Annotations Guide](documentation/annotations-guide.md) — `@Narrated`, `@OnError`, `@NotTraced`, `@NarrativeSummary`, `@EnableNarrativeTrace`
 

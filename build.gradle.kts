@@ -715,6 +715,7 @@ tasks.register("contractLint") {
     val docsDir = rootProject.file("documentation")
     inputs.file(contractFile)
     inputs.dir(docsDir)
+    inputs.files(rootProject.fileTree(rootDir) { include("*.md") })
     doLast {
         val document = ai.narrativetrace.build.ContractLintSupport.parse(contractFile)
         val unreleasedVersions = ai.narrativetrace.build.SnippetSupport.englishMarkdownFiles(rootDir)
@@ -723,14 +724,100 @@ tasks.register("contractLint") {
                     .map { it.groupValues[1] }
             }
             .toSet()
-        val problems = ai.narrativetrace.build.ContractLintSupport.lint(rootDir, document, unreleasedVersions)
+        val problems = ai.narrativetrace.build.ContractLintSupport.lint(rootDir, document, unreleasedVersions) +
+            ai.narrativetrace.build.ContractLintSupport.headingsWithSinceMarker(rootDir)
         if (problems.isNotEmpty()) {
             throw GradleException(
-                "contractLint: ${problems.size} problem(s) in documentation/contract.yaml:\n" +
+                "contractLint: ${problems.size} problem(s):\n" +
                     problems.joinToString("\n") { "  - $it" }
             )
         }
         println("contractLint: ${document.entries.size} entries, 0 problems")
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// commentHygiene (per commit, no network) — lints every published module's src/main/**/*.java (and
+// buildSrc's own src/main/kotlin) against the family's "rule first, history last" comment
+// convention: no audit dates, owner-ruling citations, or "the TS port does X" framing left behind
+// in a comment that ships. Mirrors the TS repo's tools/comment-hygiene.ts (read-only reference, not
+// shared code); config/comment-hygiene/allowlist.json excuses a module's tranche pending its own
+// wave, one reasoned entry per file, and a stale entry (no hit left) fails the same as a violation.
+// ------------------------------------------------------------------------------------------------
+
+tasks.register("commentHygiene") {
+    description = "Lints published-module and buildSrc source comments for audit history and port-framing"
+    group = "verification"
+    val allowlistFile = rootProject.file("config/comment-hygiene/allowlist.json")
+    val moduleNames = publishedModules.map { it.name }
+    inputs.files(publishedModules.map { it.fileTree("src/main/java") })
+    inputs.dir(rootProject.file("buildSrc/src/main/kotlin"))
+    inputs.file(allowlistFile)
+    doLast {
+        val files = ai.narrativetrace.build.CommentHygieneSupport.moduleSourceFiles(rootDir, moduleNames) +
+            ai.narrativetrace.build.CommentHygieneSupport.buildSrcSourceFiles(rootDir)
+        val hits = ai.narrativetrace.build.CommentHygieneSupport.findHits(rootDir, files)
+        val allowlist = ai.narrativetrace.build.CommentHygieneSupport.readAllowlist(allowlistFile)
+        val result = ai.narrativetrace.build.CommentHygieneSupport.lint(hits, allowlist)
+        if (result.violations.isNotEmpty()) {
+            throw GradleException(
+                "commentHygiene: ${result.violations.size} history/port-framing reference(s) left in code comments:\n" +
+                    result.violations.joinToString("\n") { "  ${it.file}:${it.line} (${it.rule}): ${it.text}" } +
+                    "\n  (add a reasoned entry to config/comment-hygiene/allowlist.json only for a module not yet swept)"
+            )
+        }
+        if (result.staleAllowlistEntries.isNotEmpty()) {
+            throw GradleException(
+                "commentHygiene: ${result.staleAllowlistEntries.size} stale allowlist entry(ies) — no hit left, remove from " +
+                    "config/comment-hygiene/allowlist.json:\n" +
+                    result.staleAllowlistEntries.joinToString("\n") { "  $it" }
+            )
+        }
+        println(
+            "commentHygiene: ${files.size} file(s) scanned, clean (${allowlist.size} module file(s) still allowlisted, pending their own wave)"
+        )
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// deepFixtureBudget (per commit, no network) — every deep-recursion/deep-graph test fixture's
+// depth is bounded by a declared budget (JUnit5 `@Timeout`), release retrospective rule 3: a test
+// whose legitimate cost scales with a large fixture must never rely on an implicit default. Java
+// twin of the TS repo's tools/deep-fixture-budget.ts and the Python repo's
+// scripts/deep_fixture_budget.py (read-only references, not shared code);
+// config/deep-fixture-budget/allowlist.json excuses a named, reasoned exception — one test, never
+// a whole file — and a stale entry (no hit left) fails the same as a violation.
+// ------------------------------------------------------------------------------------------------
+
+tasks.register("deepFixtureBudget") {
+    description = "Every deep chain/tree/graph test fixture declares its own @Timeout budget"
+    group = "verification"
+    val allowlistFile = rootProject.file("config/deep-fixture-budget/allowlist.json")
+    val moduleNames = listOf("narrativetrace-core", "narrativetrace-security-tests")
+    inputs.files(moduleNames.map { fileTree("$it/src/test/java") })
+    inputs.file(allowlistFile)
+    doLast {
+        val files = ai.narrativetrace.build.DeepFixtureBudgetSupport.moduleTestFiles(rootDir, moduleNames)
+        val hits = files.flatMap { ai.narrativetrace.build.DeepFixtureBudgetSupport.findHits(rootDir, it) }
+        val allowlist = ai.narrativetrace.build.DeepFixtureBudgetSupport.readAllowlist(allowlistFile)
+        val result = ai.narrativetrace.build.DeepFixtureBudgetSupport.lint(hits, allowlist)
+        if (result.violations.isNotEmpty()) {
+            throw GradleException(
+                "deepFixtureBudget: ${result.violations.size} deep-fixture test(s) with no @Timeout budget:\n" +
+                    result.violations.joinToString("\n") { "  ${it.file}:${it.line}: ${it.method}" } +
+                    "\n  (add @Timeout(value = ..., unit = ...) or a reasoned entry to config/deep-fixture-budget/allowlist.json)"
+            )
+        }
+        if (result.staleAllowlistEntries.isNotEmpty()) {
+            throw GradleException(
+                "deepFixtureBudget: ${result.staleAllowlistEntries.size} stale allowlist entry(ies) — no hit left, remove from " +
+                    "config/deep-fixture-budget/allowlist.json:\n" +
+                    result.staleAllowlistEntries.joinToString("\n") { "  ${it.file}: ${it.method}" }
+            )
+        }
+        println(
+            "deepFixtureBudget: ${hits.size} deep-fixture test(s) found, every one budgeted (${allowlist.size} reasoned exception(s))"
+        )
     }
 }
 
@@ -1095,7 +1182,10 @@ subprojects {
 
     tasks.named<Test>("test") {
         useJUnitPlatform {
-            excludeTags("perf")
+            // "mutation": a build test that drives a real PIT run nested (PitestFixtureOutputLocationTest)
+            // — minutes and four extra JVMs, the same cost and cadence as `:pitest` itself, so it
+            // rides the scheduled mutation job via `mutationBuildTest`, never a per-commit `check`.
+            excludeTags("perf", "mutation")
         }
     }
 
@@ -1243,6 +1333,8 @@ subprojects {
             dependsOn(":snippetCheck")
             dependsOn(":duplicationCheck")
             dependsOn(":contractLint")
+            dependsOn(":commentHygiene")
+            dependsOn(":deepFixtureBudget")
         }
     }
 

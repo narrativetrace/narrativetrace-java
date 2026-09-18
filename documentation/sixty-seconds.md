@@ -129,7 +129,7 @@ gradle wrapper
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 16ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 20ms
 ```
 <!-- /snippet -->
 

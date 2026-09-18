@@ -114,7 +114,7 @@ object SnippetSupport {
                 allowed && dir.canonicalFile !in languageDirs
             }
             .filter { it.isFile && (it.extension == "md" || it.canonicalFile == llmsTxt) }
-            .filter { OPEN_MARKER.containsMatchIn(it.readText()) }
+            .filter { file -> file.readLines().any { line -> parseMarker(line) != null } }
             .toList()
     }
 

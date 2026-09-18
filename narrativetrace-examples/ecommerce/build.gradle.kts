@@ -16,6 +16,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("org.springframework:spring-context:6.2.19")
     implementation("io.micrometer:context-propagation:1.1.2")
+    testImplementation("ch.qos.logback:logback-classic:1.5.38")
 }
 
 plugins {

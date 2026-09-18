@@ -9,6 +9,7 @@ package ai.narrativetrace.contract;
 
 import ai.narrativetrace.contract.probes.ApprovalDefaultProbe;
 import ai.narrativetrace.contract.probes.BufferCapacityDefaultProbe;
+import ai.narrativetrace.contract.probes.BufferedPathIgnoresLoggerThresholdProbe;
 import ai.narrativetrace.contract.probes.EntryPointProbe;
 import ai.narrativetrace.contract.probes.FieldNameRedactionOnCustomClassProbe;
 import ai.narrativetrace.contract.probes.LauncherAddedByPluginProbe;
@@ -17,6 +18,8 @@ import ai.narrativetrace.contract.probes.NativeStringificationNotTrustedProbe;
 import ai.narrativetrace.contract.probes.OutputDefaultProbe;
 import ai.narrativetrace.contract.probes.ParameterNameRedactionProbe;
 import ai.narrativetrace.contract.probes.PlatformTypeCarveoutProbe;
+import ai.narrativetrace.contract.probes.RunNameConsoleFooterProbe;
+import ai.narrativetrace.contract.probes.RunNameManifestFieldProbe;
 import ai.narrativetrace.contract.probes.Slf4jZeroCodeAttachProbe;
 import ai.narrativetrace.contract.probes.StructuralHeaderRuleProbe;
 import ai.narrativetrace.contract.probes.TypedErrorMarkerProbe;
@@ -26,6 +29,9 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiFunction;
 
 /**
  * INTENT: The standalone runner behind {@code contract-probe} (docs-vs-published-gate §2) — reads
@@ -39,7 +45,72 @@ import java.util.Locale;
  */
 public final class ContractRunner {
 
+  /**
+   * Entry id → the probe that answers it. A map rather than a {@code switch} so the set of
+   * dispatched ids is readable at runtime: {@link ContractDispatchCoverageTest} reads
+   * documentation/contract.yaml and asserts every id in it appears here, which is the guard that
+   * was missing when {@code probed-run-name-console-footer} and {@code
+   * probed-run-name-manifest-field} shipped in the contract with their probe classes written but
+   * never wired — the nightly gate crashed instead of reporting. A {@code switch}'s cases cannot be
+   * enumerated without writing the same list a second time, and a list written twice is the defect
+   * this guards against.
+   */
+  private static final Map<String, BiFunction<ContractEntry, Args, String>> PROBES =
+      Map.ofEntries(
+          Map.entry("entry-point-core", ContractRunner::entryPoint),
+          Map.entry("entry-point-proxy", ContractRunner::entryPoint),
+          Map.entry("entry-point-junit5", ContractRunner::entryPoint),
+          Map.entry("entry-point-slf4j", ContractRunner::entryPoint),
+          Map.entry(
+              "reflectable-buffer-capacity-default",
+              (entry, options) -> BufferCapacityDefaultProbe.observe()),
+          Map.entry("probed-approval-default", (entry, options) -> ApprovalDefaultProbe.observe()),
+          Map.entry("probed-manifest-json", (entry, options) -> ManifestJsonProbe.observe()),
+          Map.entry(
+              "probed-parameter-name-redaction",
+              (entry, options) -> ParameterNameRedactionProbe.observe()),
+          Map.entry(
+              "probed-field-name-redaction-on-custom-class",
+              (entry, options) -> FieldNameRedactionOnCustomClassProbe.observe()),
+          Map.entry(
+              "config-shape-slf4j-zero-code",
+              (entry, options) -> Slf4jZeroCodeAttachProbe.observe()),
+          Map.entry(
+              "config-shape-buffered-path-ignores-logger-threshold",
+              (entry, options) -> BufferedPathIgnoresLoggerThresholdProbe.observe()),
+          Map.entry("probed-output-default", (entry, options) -> OutputDefaultProbe.observe()),
+          Map.entry(
+              "config-shape-launcher-added-by-plugin",
+              (entry, options) ->
+                  LauncherAddedByPluginProbe.observe(options.version(), options.gradlewPath())),
+          Map.entry(
+              "probed-structural-header-rule",
+              (entry, options) -> StructuralHeaderRuleProbe.observe()),
+          Map.entry(
+              "probed-typed-error-marker", (entry, options) -> TypedErrorMarkerProbe.observe()),
+          Map.entry(
+              "probed-native-stringification-not-trusted",
+              (entry, options) -> NativeStringificationNotTrustedProbe.observe()),
+          Map.entry(
+              "probed-platform-type-carveout",
+              (entry, options) -> PlatformTypeCarveoutProbe.observe()),
+          Map.entry(
+              "probed-run-name-console-footer",
+              (entry, options) -> RunNameConsoleFooterProbe.observe()),
+          Map.entry(
+              "probed-run-name-manifest-field",
+              (entry, options) -> RunNameManifestFieldProbe.observe()));
+
   private ContractRunner() {}
+
+  /** The entry ids this runner can answer — the coverage guard's half of the comparison. */
+  static Set<String> dispatchedEntryIds() {
+    return PROBES.keySet();
+  }
+
+  private static String entryPoint(ContractEntry entry, Args options) {
+    return EntryPointProbe.observe(entry.coordinate(), options.registryBase(), options.version());
+  }
 
   public static void main(String[] args) throws IOException {
     Args options = Args.parse(args);
@@ -136,30 +207,14 @@ public final class ContractRunner {
   }
 
   private static String observe(ContractEntry entry, Args options) {
-    return switch (entry.id()) {
-      case "entry-point-core", "entry-point-proxy", "entry-point-junit5", "entry-point-slf4j" ->
-          EntryPointProbe.observe(entry.coordinate(), options.registryBase(), options.version());
-      case "reflectable-buffer-capacity-default" -> BufferCapacityDefaultProbe.observe();
-      case "probed-approval-default" -> ApprovalDefaultProbe.observe();
-      case "probed-manifest-json" -> ManifestJsonProbe.observe();
-      case "probed-parameter-name-redaction" -> ParameterNameRedactionProbe.observe();
-      case "probed-field-name-redaction-on-custom-class" ->
-          FieldNameRedactionOnCustomClassProbe.observe();
-      case "config-shape-slf4j-zero-code" -> Slf4jZeroCodeAttachProbe.observe();
-      case "probed-output-default" -> OutputDefaultProbe.observe();
-      case "config-shape-launcher-added-by-plugin" ->
-          LauncherAddedByPluginProbe.observe(options.version(), options.gradlewPath());
-      case "probed-structural-header-rule" -> StructuralHeaderRuleProbe.observe();
-      case "probed-typed-error-marker" -> TypedErrorMarkerProbe.observe();
-      case "probed-native-stringification-not-trusted" ->
-          NativeStringificationNotTrustedProbe.observe();
-      case "probed-platform-type-carveout" -> PlatformTypeCarveoutProbe.observe();
-      default ->
-          throw new IllegalStateException(
-              "no probe dispatch registered for entry \""
-                  + entry.id()
-                  + "\" — add one in ContractRunner.observe");
-    };
+    BiFunction<ContractEntry, Args, String> probe = PROBES.get(entry.id());
+    if (probe == null) {
+      throw new IllegalStateException(
+          "no probe dispatch registered for entry \""
+              + entry.id()
+              + "\" — add one in ContractRunner.observe");
+    }
+    return probe.apply(entry, options);
   }
 
   private static String escape(String value) {

@@ -9,8 +9,10 @@ package ai.narrativetrace.core.template;
 
 import ai.narrativetrace.core.render.ControlEscape;
 import ai.narrativetrace.core.render.RedactionPolicy;
+import ai.narrativetrace.core.render.RenderingGuard;
 import ai.narrativetrace.core.render.ScalarTrust;
 import ai.narrativetrace.core.render.ValueRenderer;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -264,12 +266,30 @@ public final class TemplateParser {
     return "<" + value.getClass().getSimpleName() + ">";
   }
 
+  /**
+   * Resolves a property by reading state once — a record's or class's own backing field when one
+   * exists — falling back to its accessor method only for a genuinely computed property with no
+   * backing field (there is no state to read; the accessor is the only answer there is).
+   *
+   * <p><b>@llmNote</b> Rendering reads state and never runs a value's own code; a record accessor
+   * is code the record's author can override, exactly as {@link ValueRenderer}'s own record
+   * component read no longer trusts it. The whole reflective read — field or, failing that,
+   * accessor — runs under {@link RenderingGuard}, same as every other reflective read rendering
+   * performs, so a woven accessor invoked here opens no spurious span.
+   */
   private static Object accessProperty(Object object, String property) {
     if (object == null) {
       return null;
     }
+    RenderingGuard.enter();
     try {
-      // Try direct accessor first (records, fluent APIs), then JavaBean getter (getXxx).
+      var field = findBackingField(object.getClass(), property);
+      if (field != null) {
+        field.setAccessible(true); // NOPMD
+        return field.get(object);
+      }
+      // No backing field: a genuinely computed property, answered only by its accessor
+      // (direct method first, records and fluent APIs; then the JavaBean getter, getXxx).
       var method = findAccessor(object.getClass(), property);
       if (method == null) {
         return unresolvedProperty();
@@ -279,14 +299,33 @@ public final class TemplateParser {
       method.setAccessible(true); // NOPMD
       return method.invoke(object);
     } catch (Throwable e) { // NOPMD AvoidCatchingThrowable - a rogue getter may throw Error
-      // Property access can fail for many reasons: no such method, module
+      // Property access can fail for many reasons: no such member, module
       // encapsulation (InaccessibleObjectException), SecurityException from
       // setAccessible in restricted environments, or the target method itself
       // throwing (wrapped as InvocationTargetException). In all cases, the
       // template should gracefully preserve the {placeholder} text rather
       // than crash trace rendering.
       return unresolvedProperty();
+    } finally {
+      RenderingGuard.leave();
     }
+  }
+
+  /**
+   * The declared field named {@code name} on {@code owner} or an ancestor, or {@code null} when
+   * none exists — the same field-finding walk {@link RedactedPaths#redacts} uses to decide whether
+   * a path is hidden, so a property that is redacted and a property that is read agree on which
+   * member answers a name.
+   */
+  private static Field findBackingField(Class<?> owner, String name) {
+    for (var type = owner; type != null && type != Object.class; type = type.getSuperclass()) {
+      for (var field : type.getDeclaredFields()) {
+        if (field.getName().equals(name)) {
+          return field;
+        }
+      }
+    }
+    return null;
   }
 
   /**

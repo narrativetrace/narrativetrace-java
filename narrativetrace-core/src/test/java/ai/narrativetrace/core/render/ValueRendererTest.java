@@ -547,11 +547,16 @@ class ValueRendererTest {
     }
   }
 
+  /**
+   * Updated 2026-09-17 for the rendering rule: a record component is read from its backing field,
+   * never through its accessor, so a broken accessor is never invoked and never seen. See {@link
+   * RenderingReadsStateNeverRunsBehaviourTest}.
+   */
   @Test
-  void recordWithFailingAccessorRendersErrorFallback() {
+  void recordWithFailingAccessorStillRendersFromTheBackingField() {
     var result = renderer.render(new BrokenRecord("test"));
 
-    assertThat(result).isEqualTo("BrokenRecord(name: <error: RuntimeException>)");
+    assertThat(result).isEqualTo("BrokenRecord(name: \"test\")");
   }
 
   @Test

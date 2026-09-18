@@ -76,6 +76,7 @@ object ContractLintSupport {
 
     private val SINCE_PATTERN = Regex("""^\d+\.\d+\.\d+$""")
     private val HEADING = Regex("""^(#{1,6})\s+(.+?)\s*$""")
+    private val HEADING_SINCE = Regex("""^#{1,6}\s.*\(since """)
 
     /** The GitHub-flavoured-Markdown heading slug: lowercase, strip anything but
      * `[a-z0-9 _-]`, then turn spaces into hyphens. Deliberately does not collapse repeated
@@ -107,6 +108,58 @@ object ContractLintSupport {
             anchors += if (count == 0) base else "$base-$count"
         }
         return anchors
+    }
+
+    /**
+     * Every heading line, across every Markdown file and `llms.txt` anywhere under `documentation/`
+     * and the root README's language mirrors, that carries an inline `*(since X.Y.Z...)*` marker —
+     * ported from the TS repo's `tools/contract-lint.ts` `headingsWithSinceMarker` (read-only
+     * reference, not shared code). A heading's GitHub-rendered anchor slug is exactly the text
+     * [headingAnchors] above computes from it; a since-marker's own tag rewrite (settle-markers.sh,
+     * the release publish script) can later shorten or drop the parenthetical, and that mutates the
+     * slug — any reader link into that anchor breaks the instant a release settles. Keeping the
+     * marker in the section's body, never the heading itself, is the only shape immune to that.
+     * One entry per hit, `"<relative path>:<line>: <reason>"`, sorted; empty when the tree is clean.
+     */
+    fun headingsWithSinceMarker(repoRoot: File): List<String> {
+        val hits = mutableListOf<String>()
+        for (file in sinceMarkerHeadingScanScope(repoRoot)) {
+            file.readLines().forEachIndexed { index, line ->
+                if (HEADING_SINCE.containsMatchIn(line)) {
+                    val relative = file.relativeTo(repoRoot).path
+                    hits += "$relative:${index + 1}: since-markers belong in the body: heading " +
+                        "anchors must survive the tag rewrite"
+                }
+            }
+        }
+        return hits.sorted()
+    }
+
+    /**
+     * Every Markdown file and `llms.txt` anywhere under `documentation/` (every language —
+     * translated mirrors live under `documentation/<lang>/` and are in scope too), plus the root README and
+     * its own language mirrors: `README.md` itself, and any other root-level `*.md` file whose
+     * line-1 translation header ([TranslationCheckSupport.parseHeader]) names `README.md` as its
+     * source — the same header-driven "is this a translation of X" test `TranslationCheckSupport`
+     * already uses, so this never keeps a second, independent list of root README mirror filenames.
+     */
+    private fun sinceMarkerHeadingScanScope(repoRoot: File): List<File> {
+        val docsDir = repoRoot.resolve("documentation")
+        val docs = if (docsDir.isDirectory) {
+            docsDir.walkTopDown()
+                .filter { it.isFile && (it.extension == "md" || it.name == "llms.txt") }
+                .toList()
+        } else {
+            emptyList()
+        }
+        val readmeMirrors = repoRoot.listFiles().orEmpty()
+            .filter { it.isFile && it.extension == "md" && (it.name == "README.md" || isReadmeMirror(it)) }
+        return docs + readmeMirrors
+    }
+
+    private fun isReadmeMirror(file: File): Boolean {
+        val firstLine = file.useLines { it.firstOrNull() } ?: return false
+        return TranslationCheckSupport.parseHeader(firstLine)?.sourcePath == "README.md"
     }
 
     /** Splits `"documentation/foo.md#some-anchor"` into path and anchor; throws on a pointer with

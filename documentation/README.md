@@ -19,6 +19,7 @@ above — each language's index lists that language's translated guides.
 | [Choosing an Integration](choosing-an-integration.md) | Which module you actually need: a decision diagram plus the caveats each of the five attachment paths has |
 | [Lifecycle Guide](lifecycle-guide.md) | Where NarrativeTrace belongs in your process: development, CI/acceptance, production — and the privacy posture at each stage |
 | [Configuration Guide](configuration-guide.md) | Every configuration surface: system properties, `junit-platform.properties`, Gradle, Spring, Micronaut, SLF4J; capture flags, MDC keys and redaction defaults |
+| [FAQ](faq.md) | Short answers to the questions that come up once NarrativeTrace is running — starting with tracing level vs. logger level, and the pipeline's two paths |
 | [Annotations Guide](annotations-guide.md) | `@Narrated`, `@OnError`, `@NotTraced`, `@NarrativeSummary`, `@EnableNarrativeTrace`, and the purity contract they imply |
 | [Privacy and Redaction](privacy-and-redaction.md) | The row-by-row redaction contract verified against the code, the guarantees and non-guarantees list, and the production loss model |
 | [What to Commit](what-to-commit.md) | Which generated files are CI artifacts and which are reviewed baselines you commit |

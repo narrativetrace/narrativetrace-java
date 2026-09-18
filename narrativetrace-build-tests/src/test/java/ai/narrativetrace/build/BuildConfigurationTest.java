@@ -514,6 +514,19 @@ class BuildConfigurationTest {
   }
 
   /**
+   * The real tree side of the since-marker heading guard (the fixture side — a planted heading is
+   * flagged, a body marker is not — lives in buildSrc's {@code ContractLintSupportTest}): this
+   * repository's actual documentation carries zero heading-line since-markers today, so wiring the
+   * guard into {@code contractLint} must not turn a real, legitimate doc tree red.
+   */
+  @Test
+  void contractLintFindsNoSinceMarkerHeadingsInTheRealDocumentationTree() {
+    var result = gradle("contractLint");
+
+    assertThat(result.getOutput()).contains("contractLint:").contains("0 problems");
+  }
+
+  /**
    * The demo launcher ({@code demo.sh}) runs examples through their {@code installDist} start
    * scripts to keep Gradle noise out of the demo stream — every example must produce one.
    */

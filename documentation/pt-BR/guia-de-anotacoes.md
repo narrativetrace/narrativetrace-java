@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob 8d2a8c6da217 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob 2c02d68e958a | translated: 2026-09-17 | reviewed: - -->
 # Guia de anotações do NarrativeTrace para Java
 
 [English](../annotations-guide.md) | [Español](../es/guia-de-anotaciones.md) | **Português** | [简体中文](../zh-CN/注解指南.md)
@@ -15,6 +15,7 @@ O NarrativeTrace segue a filosofia **O código é o log**: os nomes de métodos,
 | `@OnError` | `narrativetrace-core` | Método | Adiciona texto de erro contextual quando um método lança uma exceção. |
 | `@NotTraced` | `narrativetrace-core` | Parâmetro, campo, componente de record | Marca um valor como oculto na saída do trace; também é respeitado em campos e componentes de record durante a introspecção reflexiva. |
 | `@NarrativeSummary` | `narrativetrace-core` | Método | Fornece uma renderização personalizada de valores para objetos nos traces. |
+| `@NarrativeElements` | `narrativetrace-api` | Tipo | Declara que a própria iteração de um tipo `Iterable` é pura, para que a renderização o percorra. |
 | `@EnableNarrativeTrace` | `narrativetrace-spring` | Tipo (`@Configuration`) | Habilita o tracing com auto-proxy do Spring para os pacotes selecionados. |
 
 ## Anotações principais
@@ -121,6 +122,38 @@ Como funciona:
 - Se não for encontrado, a renderização percorre os campos do objeto. Um tipo sem campos de
   instância, ou um definido pela plataforma, mantém em vez disso seu próprio `toString()`.
 
+### `@NarrativeElements`
+
+A renderização lê o estado de um valor; ela nunca executa o próprio código do valor, com
+exatamente três exceções sancionadas: `@NarrativeSummary`, o `toString()` próprio de uma folha
+sem estado — e esta. Use `@NarrativeElements` em um tipo cujo `Iterable#iterator()` é conhecido
+por ser puro, para que a renderização o percorra.
+
+```java
+@NarrativeElements
+public final class RecentOrders implements Iterable<Order> {
+    public Iterator<Order> iterator() {
+        return orders.iterator(); // puro — sem carregamento preguiçoso, sem contador, sem E/S
+    }
+}
+```
+
+Como funciona:
+
+- Sem a anotação, a renderização percorre um `Collection`/`Map` apenas quando o tipo é
+  definido pela plataforma — um `ArrayList` simples, um `HashMap` simples — ou, para uma
+  subclasse do usuário de um deles, através do próprio estado desse ancestral, nunca o
+  `iterator()`/`entrySet()` sobrescrito da subclasse. Uma implementação de `Collection`/`Map`
+  escrita à mão, e qualquer `Iterable` isolado que não seja nenhum dos dois, é renderizada
+  como um objeto (ou um marcador de tipo limitado para um `Iterable` isolado) sem jamais
+  chamar `iterator()`.
+- `@NarrativeElements` é a opção explícita além de tudo isso: o próprio `iterator()` do tipo
+  declarado é chamado, sob a mesma proteção de renderização que todo outro hook usa, com o
+  mesmo limite de itens de coleção de qualquer outro percurso de elementos.
+- Se o iterador lançar uma exceção, o valor é renderizado como `<error: IllegalStateException>`
+  — o nome do tipo da exceção e nada mais, exatamente como o modo de falha de qualquer outro hook.
+- A anotação se aplica exatamente ao tipo declarado, não às suas subclasses.
+
 ## O contrato de pureza — efeitos colaterais durante o tracing
 
 O NarrativeTrace pode invocar um pequeno conjunto fixo de caminhos de código nos seus objetos ao renderizar
@@ -131,18 +164,25 @@ O que é invocado, e o que não é:
 
 - **A introspecção de campos nunca chama seu código.** Para qualquer objeto que tenha estado,
   o `ValueRenderer` lê seus *campos* por reflexão — uma leitura pura de memória. Um getter que
-  incrementa um contador ou carrega dados de forma preguiçosa não é tocado pela introspecção.
-  Este é agora o caminho padrão, não o retorno alternativo: desde 2026-09-11 um `toString()`
-  personalizado não substitui mais a introspecção em um tipo que tem campos, então *menos* dos
-  seus membros são executados durante a renderização do que antes, não mais.
+  incrementa um contador ou carrega dados de forma preguiçosa não é tocado pela introspecção,
+  e o acessor gerado de um record também não: o valor de um componente de record é lido a
+  partir do seu campo de apoio, então um acessor com efeito colateral ou que lança uma exceção
+  também nunca é invocado.
+- **Coleções e mapas são percorridos por origem, não por formato.** Um `Collection`/`Map`
+  definido pela plataforma percorre seu próprio iterator/entrySet; uma subclasse do usuário de
+  `ArrayList` ou `HashMap` percorre o próprio estado desse ancestral, nunca a sobrescrita da
+  subclasse; uma implementação escrita à mão é introspectada como qualquer outro objeto.
+  `@NarrativeElements` é a única opção explícita além disso, para um tipo cuja própria
+  iteração é declarada pura.
 - **O que o NarrativeTrace realmente invoca:** um método `@NarrativeSummary`, o `toString()` de
-  um tipo sem campos de instância, os acessores de componentes de record e qualquer caminho de
-  propriedade que você nomear em um template `@Narrated`/`@OnError` (`{order.total}` se resolve
-  chamando primeiro o método acessor direto `total()` e depois o getter JavaBean `getTotal()`).
-  Esses são os únicos lugares onde código do usuário é executado durante a renderização.
+  um tipo sem campos de instância, o próprio `iterator()` de um tipo declarado com
+  `@NarrativeElements`, e qualquer caminho de propriedade que você nomear em um template
+  `@Narrated`/`@OnError` (`{order.total}` se resolve chamando primeiro o método acessor direto
+  `total()` e depois o getter JavaBean `getTotal()`). Esses são os únicos lugares onde código
+  do usuário é executado durante a renderização.
 - **A invocação é limitada e isolada.** A saída tem limites (comprimento de string, itens de
-  coleção, profundidade de introspecção), um getter, resumo ou `toString()` que lança uma exceção
-  nunca pode fazer a chamada de negócio traceada falhar (os templates recorrem ao literal
+  coleção, profundidade de introspecção), um getter, resumo, iterator ou `toString()` que lança
+  uma exceção nunca pode fazer a chamada de negócio traceada falhar (os templates recorrem ao literal
   `{placeholder}`; a parte que falhou de uma renderização recorre a `<error: TypeName>`, nomeando
   o tipo da exceção e nunca sua mensagem), e os valores são renderizados de forma eager no
   ponto de chamada — qualquer efeito colateral acontece uma única vez, em um ponto determinístico, na thread chamadora.

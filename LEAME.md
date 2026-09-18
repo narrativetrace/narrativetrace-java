@@ -1,4 +1,4 @@
-<!-- source: README.md blob edc26723574b | translated: 2026-09-14 | reviewed: - -->
+<!-- source: README.md blob 6b6b586707cb | translated: 2026-09-18 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -24,37 +24,43 @@ necesita refactorización — no más sentencias de log.
 
 ## El problema
 
-La mitad de este método es ruido de logging:
+La mitad de este método existe solo para loguear lo que la otra mitad ya dice:
 
 ```java
-public OrderResult placeOrder(String customerId, String productId, int quantity) {
-    logger.info("Placing order for customer {} product {} quantity {}", customerId, productId, quantity);
-
-    var inventory = inventoryService.reserve(productId, quantity);
-    logger.debug("Reserved inventory: {}", inventory);
-
-    var payment = paymentService.charge(customerId, inventory.total());
-    logger.info("Payment processed: {}", payment.transactionId());
-
-    var result = new OrderResult(payment.transactionId(), inventory.items());
-    logger.info("Order placed successfully: {}", result);
-    return result;
-}
+  public Order placeOrder(OrderRequest req) {
+    log.info("Placing order {}", req.id());
+    try {
+      var customer = customers.find(req.id());
+      var price = catalog.price(req.sku());
+      inventory.reserve(req.sku(), req.qty());
+      var payment = payments.charge(price);
+      var order = orders.save(customer, payment);
+      log.info("Order succeeded {}", order.id());
+      return order;
+    } catch (Exception ex) {
+      log.error("Placing order failed {}", req.id(), ex);
+      throw ex;
+    }
+  }
 ```
 
-La lógica de negocio son tres líneas. El logging, otras cuatro. Cada
-desarrollador escribe estos logs de forma distinta — mensajes distintos, niveles
-distintos, valores incluidos distintos. El resultado es inconsistente, verboso y
-enredado con el código que describe.
+La lógica de negocio son seis líneas. Loguearla — una línea de entrada, una de
+éxito, y un catch que loguea el fallo antes de relanzarlo — son otras siete.
+Cada desarrollador escribe estos logs de forma distinta — mensajes distintos,
+niveles distintos, valores incluidos distintos. El resultado es inconsistente,
+verboso y enredado con el código que describe.
 
-NarrativeTrace elimina todo esto por completo:
+NarrativeTrace elimina todo esto por completo. Borra o enriquece las
+sentencias de logging:
 
 ```java
-public OrderResult placeOrder(String customerId, String productId, int quantity) {
-    var inventory = inventoryService.reserve(productId, quantity);
-    var payment = paymentService.charge(customerId, inventory.total());
-    return new OrderResult(payment.transactionId(), inventory.items());
-}
+  public Order placeOrderNarrated(OrderRequest req) {
+    var customer = customers.find(req.id());
+    var price = catalog.price(req.sku());
+    inventory.reserve(req.sku(), req.qty());
+    var payment = payments.charge(price);
+    return orders.save(customer, payment);
+  }
 ```
 
 Lógica de negocio pura. La traza se genera a partir de los nombres de métodos,
@@ -161,6 +167,22 @@ para IA** (`structural/<Clase>/<escenario>.nt`) — la estructura de llamadas co
 todos los valores de tiempo de ejecución eliminados, segura para entregarla a
 una herramienta de IA o commitearla al repositorio. Consulta el [formato de
 traza estructural](documentation/es/formato-de-traza-estructural.md).
+
+Un estudio empírico, [«Do AI Coding Agents Log Like Humans? An Empirical
+Study»](https://arxiv.org/abs/2604.09409) (arXiv:2604.09409), midió esta
+brecha directamente: en 81 repositorios, los agentes cambiaron el logging
+con menos frecuencia que los humanos en el 58,4 % de ellos; de 4.550 pull
+requests agénticos, solo el 20,7 % tocaron el logging; los agentes no
+cumplieron una petición explícita de logging el 67 % de las veces; y cuando
+el logging necesitaba arreglarse después, los humanos escribieron el 72,5 %
+de esas correcciones ellos mismos, en un commit posterior en lugar de en la
+revisión. Lo que mide el estudio es que los agentes ni escriben logging de
+forma fiable ni siguen instrucciones de logging de forma fiable, y que los
+humanos reparan la brecha en silencio después. La respuesta de NarrativeTrace
+es estructural, no conductual: el código es el log, así que no hay nada que
+un agente deba escribir ni cumplir, y las trazas de aprobación convierten la
+observabilidad en una puerta determinista sobre el diff — la clase de
+salvaguarda que las propias recomendaciones del estudio piden.
 
 ### Comparación con otras opciones
 
@@ -519,7 +541,7 @@ Empieza por aquí:
 - [Ve una traza en 60 segundos](documentation/sixty-seconds.md) (en inglés) — el camino más corto a una traza real: un archivo, una ejecución, salida real pegada tal cual
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — dependencias, todas las vías de integración, cómo funciona la captura, configuración de la salida de trazas
 - [Choosing an Integration](documentation/choosing-an-integration.md) (en inglés) — qué módulo necesitas, como diagrama de decisión
-- [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de JUnit/Gradle/Spring/Micronaut/SLF4J
+- [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de JUnit/Gradle/Spring/Micronaut/SLF4J. El nivel de tracing y el nivel de tu logger son dos diales independientes en dos rutas distintas de la tubería — consulta las [Preguntas frecuentes](documentation/faq.md) (en inglés) si subir o bajar uno de los dos no hace lo que esperabas.
 - [Guía del plugin de Gradle](documentation/es/guia-del-plugin-de-gradle.md) — referencia del DSL, puertas de calidad, recetas
 - [Guía de anotaciones](documentation/es/guia-de-anotaciones.md) — `@Narrated`, `@OnError`, `@NotTraced`, `@NarrativeSummary`, `@EnableNarrativeTrace`
 

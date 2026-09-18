@@ -114,6 +114,14 @@ entries:
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/Slf4jZeroCodeAttachProbe.java"
 
+  - id: config-shape-buffered-path-ignores-logger-threshold
+    kind: config-shape
+    page: "documentation/configuration-guide.md#8-two-dials-two-paths"
+    claim: "the buffered path never consults the SLF4J logger's threshold — raising the narrativetrace logger above every event level silences the synchronous path's log lines but leaves the buffered path's captured trace (what captureTrace() returns) unchanged"
+    since: "0.1.0"
+    expected_effect: "true"
+    probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/BufferedPathIgnoresLoggerThresholdProbe.java"
+
   # ---- claims that ship in 0.2.3, still unreleased when this contract was seeded --------------
   # (documentation/*.md carries a matching "*(since 0.2.3, unreleased)*" marker for each of these —
   # contractLint fails if that marker ever loses its contract entry; contractCheck must report
@@ -171,7 +179,10 @@ entries:
     page: "documentation/configuration-guide.md#the-run-has-a-name"
     claim: "the console suite footer names the run: a \"run: <phrase>\" line"
     since: "0.2.3"
-    documented_default: "run: bold elk soars"
+    # "true", not the guide's example phrase: a run name is generated per run, so no fixed phrase is
+    # ever observable. The probe answers whether a `run: <phrase>` line is present — the same shape
+    # the .NET and Python contracts use for this entry.
+    documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/RunNameConsoleFooterProbe.java"
 
   - id: probed-run-name-manifest-field

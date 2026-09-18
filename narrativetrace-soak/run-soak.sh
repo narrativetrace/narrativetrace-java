@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-# Soak harness runner — see README.md. Usage: ./run-soak.sh [smoke|two-hour]
+# Soak harness runner — see README.md. Usage: ./run-soak.sh [smoke|one-hour|two-hour]
 #
 # Precondition (deliberately NOT run by this script, so it stays build-tool-agnostic — see
 # README.md "How to run"): the shop/notify bootJars and the agent's standalone jar must already be
@@ -14,9 +14,10 @@ set -euo pipefail
 PROFILE="${1:-smoke}"
 case "$PROFILE" in
   smoke) TOTAL_SECONDS=600 ;;
+  one-hour) TOTAL_SECONDS=3600 ;;
   two-hour) TOTAL_SECONDS=7200 ;;
   *)
-    echo "Unknown profile '$PROFILE' (expected smoke|two-hour)" >&2
+    echo "Unknown profile '$PROFILE' (expected smoke|one-hour|two-hour)" >&2
     exit 1
     ;;
 esac
@@ -85,6 +86,9 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 LOGS_DIR="$SCRIPT_DIR/logs"
 rm -rf "$RESULTS_DIR" "$LOGS_DIR"
 mkdir -p "$RESULTS_DIR" "$LOGS_DIR/shop" "$LOGS_DIR/notify"
+# k6 (uid 12345) and the sampler (uid 100) share neither uid nor group with the host user that
+# creates this directory — world-writable so both containers can write their evidence into it (D2).
+chmod a+rwx "$RESULTS_DIR"
 
 PHASE1_SECONDS=$(( TOTAL_SECONDS / 10 ))
 PHASE2_SECONDS=$TOTAL_SECONDS
@@ -107,30 +111,47 @@ wait_for_shop() {
 start_sampler() {
   # $1: phase-specific stats file — see compose.yaml's sampler service comment for why this
   # can't be a single shared stats.jsonl across both phases.
-  STATS_FILE="$1" docker compose -f compose.yaml run --rm -d sampler >/dev/null
+  # --no-deps: this is a `run`, not `up` — without it, compose re-resolves shop/notify's config
+  # (TRACING_ENABLED) and can recreate them (D1).
+  STATS_FILE="$1" docker compose -f compose.yaml run --rm --no-deps -d sampler >/dev/null
+}
+
+stop_sampler() {
+  # `docker compose run --rm -d` starts a one-off container that plain `down` does not stop (D3) —
+  # it must be stopped explicitly before the next phase starts, or it keeps sampling (and, once the
+  # next phase's containers exist, appending samples from the WRONG phase into this phase's file).
+  docker compose -f compose.yaml stop sampler >/dev/null 2>&1 || true
+  docker compose -f compose.yaml rm -f sampler >/dev/null 2>&1 || true
 }
 
 # --- Phase 1: baseline (tracing off — no -javaagent at all, the truest zero-overhead baseline;
 # narrativetrace.level=OFF would still pay weaving/dispatch-check cost for an attached-but-quiet
-# agent) for 10% of the profile length. ---
+# agent) for 10% of the profile length. TRACING_ENABLED is exported for the whole phase (not just
+# the `up` line) — otherwise the sampler/k6 `docker compose run` invocations resolve compose.yaml's
+# ${TRACING_ENABLED:-true} default, see config drift on shop/notify, and recreate them traced (D1).
+# ---
 echo "=== Phase 1: baseline (tracing off), ${PHASE1_SECONDS}s ==="
-TRACING_ENABLED=false docker compose -f compose.yaml up -d --build shop notify
+export TRACING_ENABLED=false
+docker compose -f compose.yaml up -d --build shop notify
 wait_for_shop
 start_sampler /results/baseline-stats.jsonl
 # The k6 service's compose-level entrypoint is already ["sh", "-c"] — the override below is that
 # `-c` script's single argument, not a second `sh -c` (docker compose run appends its command
 # argument(s) after the service's entrypoint, it does not replace it).
-docker compose -f compose.yaml run --rm k6 \
+# --no-deps: same D1 reasoning as start_sampler above — a plain `run` must not recreate shop/notify.
+docker compose -f compose.yaml run --rm --no-deps k6 \
   "k6 run --vus 5 --duration ${PHASE1_SECONDS}s -e SOAK_SUMMARY_PATH=/results/baseline-scenario-summary.json scenario.js & \
    k6 run -e SOAK_POISON_DURATION=${PHASE1_SECONDS}s -e SOAK_POISON_SUMMARY_PATH=/results/baseline-poison-summary.json poison.js & \
    wait"
+stop_sampler
 docker compose -f compose.yaml down
 cp -r "$LOGS_DIR" "$RESULTS_DIR/baseline-logs"
 
 # --- Phase 2: traced, full profile length. ---
 echo "=== Phase 2: traced, ${PHASE2_SECONDS}s (profile=$PROFILE) ==="
 rm -rf "$LOGS_DIR" && mkdir -p "$LOGS_DIR/shop" "$LOGS_DIR/notify"
-TRACING_ENABLED=true docker compose -f compose.yaml up -d --build shop notify
+export TRACING_ENABLED=true
+docker compose -f compose.yaml up -d --build shop notify
 wait_for_shop
 start_sampler /results/traced-stats.jsonl
 K6_EXIT=0

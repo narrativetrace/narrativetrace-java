@@ -1,7 +1,7 @@
 # NarrativeTrace
 
 <!-- docs-vs-published -->
-*(These docs describe 0.2.3; published is 0.2.1.)* <!-- published-version cache age: 0m -->
+*(Docs and published both at 0.2.3.)* <!-- published-version cache age: 0m -->
 <!-- /docs-vs-published -->
 
 > Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
@@ -75,7 +75,7 @@ public class Main {
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 16ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 20ms
 ```
 <!-- /snippet -->
 

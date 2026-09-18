@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 001d89f6e0da | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 44040bbcbd88 | translated: 2026-09-18 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -944,9 +944,15 @@ Esto hace que NarrativeTrace sea fácil de adoptar incrementalmente — añádel
 
 Apps que usan `java.util.logging` o Log4j 1.x: añade el puente SLF4J apropiado ([jul-to-slf4j](https://www.slf4j.org/legacy.html#jul-to-slf4j) o [log4j-over-slf4j](https://www.slf4j.org/legacy.html#log4j-over-slf4j)) y la salida de NarrativeTrace fluye hacia tu infraestructura de logging existente sin cambios.
 
-## 8. Interacción entre TracingLevel y SLF4J
+## 8. Dos diales, dos rutas
 
-TracingLevel (sección 1) y los niveles de log SLF4J (sección 7) son dos capas de filtrado independientes. Ambas deben permitir un evento para que aparezca en la salida de log.
+TracingLevel (sección 1) y el nivel de tu logger SLF4J (sección 7) son dos ajustes
+independientes que responden preguntas distintas. TracingLevel decide qué **captura**
+NarrativeTrace; el nivel de tu logger decide qué se **imprime** — y solo ve una de
+las dos rutas de la tubería. Consulta las [Preguntas frecuentes](../faq.md) (en
+inglés) para la versión de una sola pregunta de esta sección, y [La tubería de
+eventos de doble ruta](canalizacion-de-doble-ruta.md) para el contrato propio de la
+tubería.
 
 ### Flujo de datos
 
@@ -962,23 +968,56 @@ llamada al método → filtro TracingLevel → tubería de eventos
 
 **El nivel de log SLF4J** controla qué se **imprime** en los logs. Los eventos ya están capturados; esto solo afecta a si las sentencias de log de `Slf4jTraceEventListener` atraviesan logback/log4j.
 
+### Las dos rutas
+
+Cada evento que TracingLevel admite — lo que, por debajo de `DETAIL`, sigue
+significando un evento de entrada y de salida para *cada* llamada, solo que con los
+valores de parámetros suprimidos — recorre las dos rutas de la `DualPathPipeline`
+predeterminada a la vez:
+
+- La **ruta síncrona** ejecuta `Slf4jTraceEventListener` en línea, en el hilo que
+  hace la llamada, antes de que el método trazado retorne. Esta es la única ruta que
+  afecta el nivel de tu logger SLF4J — el listener registra una línea por cada
+  evento que recibe, tal como lo recibe, sobreviva o no esa llamada al árbol podado.
+- La **ruta en búfer** alimenta todo lo demás: los archivos de traza que escribe una
+  ejecución de pruebas, `captureTrace()` y el árbol que devuelve, las trazas de
+  aprobación, el informe de claridad y la exportación de
+  `narrativetrace-opentelemetry`. Esta ruta nunca consulta el umbral de tu logger —
+  ve cada evento que TracingLevel admitió, sea cual sea el nivel SLF4J. Es también
+  donde ocurre la poda de `ERRORS`/`SUMMARY` (`TraceTreeBuilder`, *después* de que
+  cada evento ya fue capturado), así que un archivo de traza podado junto a un log
+  síncrono completo de la misma ejecución son ambos correctos, no un error.
+
+Así, un logger en `WARN` y un TracingLevel en `DETAIL` te da logs silenciosos y un
+archivo de traza completo. Un TracingLevel en `SUMMARY` y un logger en `TRACE` te da
+un log ruidoso de cada llamada, junto a un archivo de traza podado a raíces y hojas.
+Un TracingLevel en `OFF` no te da nada en ningún lado, porque no se capturó nada.
+
 ### Ejemplos de combinaciones
 
 | TracingLevel | Nivel de logback en `narrativetrace` | Resultado |
 |---|---|---|
-| `DETAIL` | `INFO` | Árbol de trazas completo (con valores de parámetros) en archivos y renderers, pero las líneas de log de entrada/retorno se suprimen (se loguean a TRACE). Solo las rutas de excepción (WARN) aparecen en los logs. |
-| `ERRORS` | `TRACE` | Solo las rutas de excepción se graban en el árbol de trazas. Esas excepciones se loguean (WARN supera el umbral TRACE). Las llamadas normales no producen nada en ninguna parte. |
-| `NARRATIVE` | `TRACE` | Flujo de llamadas completo grabado y logueado, pero los valores de parámetros aparecen como cadenas vacías (NARRATIVE suprime los valores). |
+| `DETAIL` | `INFO` | Árbol de trazas completo (con valores de parámetros) en archivos, `captureTrace()` y renderers, pero las líneas de log de entrada/retorno se suprimen (se loguean a TRACE). Solo las rutas de excepción (WARN) aparecen en los logs. |
+| `ERRORS` | `TRACE` | El árbol que devuelven `captureTrace()`/los archivos de traza queda podado solo a rutas de excepción — pero cada llamada sigue publicando un evento de entrada/salida, y la ruta síncrona registra cada uno de ellos (con valores de parámetros vacíos), porque el logueo ocurre por evento, antes de la poda. |
+| `NARRATIVE` | `TRACE` | Flujo de llamadas completo grabado, logueado y capturado, pero los valores de parámetros aparecen como cadenas vacías en todas partes (NARRATIVE suprime los valores tanto en la traza como en las líneas de log). |
 | `DETAIL` | `TRACE` | Todo grabado y todo logueado — máxima verbosidad. |
-| `OFF` | `TRACE` | Nada grabado, nada logueado. La puerta de TracingLevel bloquea todos los eventos antes de que lleguen a SLF4J. |
+| `OFF` | `TRACE` | Nada grabado, nada logueado. La puerta `isActive()` bloquea cada llamada antes de que llegue a la tubería, así que SLF4J nunca la ve ocurrir. |
 
 ### Qué ajuste para qué objetivo
 
 | Objetivo | Ajusta | Por qué |
 |---|---|---|
-| Reducir el ruido de logging | Sube el nivel SLF4J del logger `narrativetrace` | El árbol de trazas se sigue capturando para la salida a archivos y los renderers; solo disminuye el volumen en consola/archivo de log. |
-| Reducir el tamaño de los archivos de traza | Baja el TracingLevel (p. ej. `NARRATIVE` → `SUMMARY`) | Entran menos eventos en el árbol de trazas, produciendo una salida renderizada más pequeña. |
-| Reducir la sobrecarga de CPU/memoria | Baja el TracingLevel | El nivel SLF4J no tiene efecto en la sobrecarga de captura — el proxy sigue interceptando, serializando y grabando cada llamada permitida. Solo TracingLevel evita ese trabajo. |
+| Reducir el ruido de logging | Sube el nivel SLF4J del logger `narrativetrace` | El árbol de trazas se sigue capturando para la salida a archivos, `captureTrace()` y los renderers; solo disminuye el volumen de la ruta síncrona en consola/archivo de log. |
+| Reducir el tamaño de los archivos de traza | Baja el TracingLevel (p. ej. `NARRATIVE` → `SUMMARY`) | Menos eventos sobreviven a la poda de `TraceTreeBuilder` en el árbol devuelto — la ruta en búfer, sin efecto de tu logger. |
+| Reducir la sobrecarga de CPU/memoria | Baja el TracingLevel a `OFF` | Solo `OFF` evita la intercepción: la puerta `isActive()` del proxy retorna antes de cualquier serialización, creación de evento o publicación. `ERRORS`, `SUMMARY` y `NARRATIVE` siguen interceptando y publicando un evento por cada llamada — cuestan menos que `DETAIL` solo porque los valores de parámetros no se renderizan, no porque se salte la intercepción. El nivel SLF4J no cambia nada de esto: es un filtro posterior sobre la salida de la ruta síncrona, nunca una palanca de coste de captura. |
+
+### Dónde vive cada dial
+
+| Dial | Vive en |
+|---|---|
+| Nivel de tracing | La propiedad de sistema `narrativetrace.level` o la entrada en `narrativetrace.properties`, o `new NarrativeTraceConfig(TracingLevel...)` / `config.setLevel(...)` en código — sección 1 |
+| Umbral del logger | Tu configuración de Logback/Log4j para el logger `narrativetrace` (o el nombre al que enruta `narrativetrace.loggerName`) — sección 7 |
+| Nivel por tipo de línea | El argumento del constructor `Map<EventType, Level>` de `Slf4jTraceEventListener` — entrada/retorno por defecto en `TRACE`, excepción por defecto en `WARN` — sección 7 |
 
 ## 9. Valores predeterminados recomendados por entorno
 

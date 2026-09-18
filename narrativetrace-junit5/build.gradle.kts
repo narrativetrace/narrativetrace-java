@@ -25,6 +25,50 @@ tasks.test {
     doFirst { workingDir.mkdirs() }
 }
 
+// PIT's own processes (the coverage-analysis "main" JVM and the per-mutant "minion" JVMs) run this
+// module's fixtures (IoErrorFixture and friends) directly, outside `tasks.test`'s workingDir
+// control above, and a `:pitest` run wrote `manifest.json`, `clarity-report.md`,
+// `clarity-results.json` and `traces/` straight into this module's source root — untracked,
+// un-ignored, removable only by hand (nightly F1, 2026-09-17; still reproducing 2026-09-18).
+//
+// A `-Dnarrativetrace.outputDir` pin cannot fix this, and the 2026-09-17 attempt at one did not:
+// PIT mutates the very lookup that reads it. `NarrativeTraceExtension.configParam` returns a
+// String, so PIT's EmptyObjectReturnValsMutator produces a mutant that returns "" for EVERY
+// configuration key — outputDir included — and the fixture that minion runs resolves `Path.of("")`
+// against the process working directory. Audited stack, 2026-09-18:
+//   TraceFileWriter.write(file=[manifest.json], cwd=.../narrativetrace-junit5)
+//     <- ScenarioManifest.write <- NarrativeTraceExtension$GlobalTraceAccumulator.close
+// No property survives a mutant of its own reader; the process working directory does. Pointing
+// PIT's processes at a directory under `build/` is therefore the only guarantee available here —
+// every working-directory-relative default a mutant falls back to (`build/narrativetrace`,
+// `src/test/narratives`, the glossary's `user.dir`) then lands inside the build directory too.
+// The minions inherit it: PIT forks them without a directory of their own.
+//
+// -Xmx384m on both process kinds keeps a full run's four concurrent minions inside a
+// shared-runner-sized box; PitestFixtureOutputLocationTest (narrativetrace-build-tests, @Tag
+// "mutation") runs this exact unscoped invocation nested and asserts the tree stays clean.
+val pitestWorkingDir = layout.buildDirectory.dir("pitest-workdir")
+
+configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
+    jvmArgs = listOf("-Xmx384m")
+    mainProcessJvmArgs = listOf("-Xmx384m")
+}
+
+tasks.named<JavaExec>("pitest") {
+    workingDir = pitestWorkingDir.get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+
+// The build answering for itself, rather than a regex over this file: the cheap half of
+// PitestFixtureOutputLocationTest asserts on this in every `check`, while the nested real
+// mutation run that proves the behaviour is tagged for the scheduled job.
+tasks.register("printPitestWorkingDir") {
+    description = "Prints the working directory PIT's own processes run in."
+    group = "help"
+    val dir = pitestWorkingDir.map { it.asFile.absolutePath }
+    doLast { println(dir.get()) }
+}
+
 dependencies {
     api(project(":narrativetrace-core"))
     api(project(":narrativetrace-proxy"))

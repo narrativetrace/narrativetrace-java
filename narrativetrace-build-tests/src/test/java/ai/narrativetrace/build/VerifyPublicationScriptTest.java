@@ -377,6 +377,81 @@ class VerifyPublicationScriptTest {
     assertThat(result.output().strip()).isEqualTo("exit=1");
   }
 
+  // The 2026-09-15 family finding: `publish-public.sh --tag` mints the public tag object with its
+  // OWN embedded name set to "public/$TAG" while the ref it ends up at (after the push) is
+  // "refs/tags/$TAG" -- ref and embedded name disagree. `git tag -a <name>` always makes the two
+  // match, so a fixture has to build the object under its embedded name first, then re-home the
+  // SAME object onto the target ref (the object is untouched; only which ref points at it
+  // changes) -- exactly the shape a consumer clone of a real public release ends up with. Every
+  // test below is red against today's `latest_tag_version`, which trusts `git describe`'s printed
+  // name (the OBJECT's embedded name) instead of the ref it actually resolved through; git itself
+  // warns "tag '$TAG' is externally known as 'public/$TAG'" on such a repo.
+
+  private void tagWithMismatchedEmbeddedName(
+      Path dir, String refName, String embeddedName, String message)
+      throws IOException, InterruptedException {
+    runGit(dir, "tag", "-a", embeddedName, "-m", message, "HEAD");
+    if (!embeddedName.equals(refName)) {
+      runGit(dir, "update-ref", "refs/tags/" + refName, "refs/tags/" + embeddedName);
+      runGit(dir, "update-ref", "-d", "refs/tags/" + embeddedName);
+    }
+  }
+
+  @Test
+  void latestTagVersionUsesTheRefNameNeverTheTagObjectsEmbeddedName(@TempDir Path repo)
+      throws Exception {
+    initGitRepo(repo);
+    tagWithMismatchedEmbeddedName(repo, "v1.2.3", "public/v1.2.3", "v1.2.3");
+
+    var result = sourced("latest_tag_version", Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).isEqualTo("1.2.3");
+  }
+
+  @Test
+  void latestTagVersionStillFindsTheMismatchedTagWhenHeadIsSeveralCommitsAhead(@TempDir Path repo)
+      throws Exception {
+    initGitRepo(repo);
+    tagWithMismatchedEmbeddedName(repo, "v1.2.3", "public/v1.2.3", "v1.2.3");
+    for (int i = 0; i < 3; i++) {
+      Files.writeString(repo.resolve("f" + i + ".txt"), "c" + i + "\n");
+      runGit(repo, "add", "f" + i + ".txt");
+      runGit(repo, "commit", "-q", "-m", "commit " + i);
+    }
+
+    var result = sourced("latest_tag_version", Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).isEqualTo("1.2.3");
+  }
+
+  /**
+   * Two {@code v*} tags reachable from HEAD, the newer one carrying the embedded-name mismatch:
+   * proves the fix picks the newest by ancestry through the ref, not whatever {@code git describe}
+   * happens to print for it.
+   */
+  @Test
+  void latestTagVersionPicksTheNewestOfTwoReachableTagsByAncestry(@TempDir Path repo)
+      throws Exception {
+    initGitRepoWithTag(repo, "v1.0.0");
+    Files.writeString(repo.resolve("f.txt"), "c\n");
+    runGit(repo, "add", "f.txt");
+    runGit(repo, "commit", "-q", "-m", "commit after v1.0.0");
+    tagWithMismatchedEmbeddedName(repo, "v2.0.0", "public/v2.0.0", "v2.0.0");
+
+    var result = sourced("latest_tag_version", Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).isEqualTo("2.0.0");
+  }
+
+  // Not duplicated here: a lightweight tag (initGitRepoWithTag, no -a) is already exercised by
+  // latestTagVersionReturnsTheNewestReachableTagWithoutTheVPrefix, and "no v* tag reachable" by
+  // latestTagVersionFailsWhenNoTagIsReachable (both above) -- neither behaviour changes under
+  // this fix, and both already pass today, so a fresh copy of either would be a defective (green
+  // before implementation) test.
+
   @Test
   void resolveVersionWithAReachableTagUsesItAndNeverConsultsGradleProperties(@TempDir Path repo)
       throws Exception {

@@ -7,6 +7,7 @@
  */
 // Main soak traffic — see ../README.md "k6/" for the profile design. Run with:
 //   k6 run -e SOAK_PROFILE=smoke scenario.js
+//   k6 run -e SOAK_PROFILE=one-hour scenario.js
 //   k6 run -e SOAK_PROFILE=two-hour scenario.js   (exported, not run in P1)
 // poison.js is a SEPARATE script, run alongside this one (see run-soak.sh) — its one-poison-
 // request-every-30s traffic is not part of this file's operation mix.
@@ -14,6 +15,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 import { OPERATION_MIX, pickOperation } from './mix.js';
+import { PROFILES } from './profiles.js';
 
 const BASE_URL = __ENV.SHOP_BASE_URL || 'http://shop:8080';
 const PROFILE = __ENV.SOAK_PROFILE || 'smoke';
@@ -25,56 +27,7 @@ const piiSeed = new SharedArray('pii-seed', function () {
 
 const CATALOG_PRODUCTS = ['SKU-MECHANICAL-KB', 'SKU-MOUSE-PAD', 'SKU-USB-HUB'];
 
-// Smoke profile (P1, the one this brief runs): 1 min ramp to 20 req/s, 8 min steady, 1 min down.
-const SMOKE_OPTIONS = {
-  scenarios: {
-    smoke: {
-      executor: 'ramping-arrival-rate',
-      startRate: 0,
-      timeUnit: '1s',
-      preAllocatedVUs: 50,
-      maxVUs: 200,
-      stages: [
-        { target: 20, duration: '1m' },
-        { target: 20, duration: '8m' },
-        { target: 0, duration: '1m' },
-      ],
-    },
-  },
-  thresholds: {
-    // Deliberate failures (business failures, the poison path) are tagged expected_failure:true
-    // at the point each request is fired — this threshold only watches the rest.
-    'http_req_failed{expected_failure:false}': ['rate==0'],
-  },
-};
-
-// Two-hour profile — a second exported profile, NOT run in P1 (see README.md "k6/"): 10 min ramp,
-// 90 min steady, two 5-min 3x spikes (20 -> 60 req/s), 10 min recovery.
-const TWO_HOUR_OPTIONS = {
-  scenarios: {
-    twoHour: {
-      executor: 'ramping-arrival-rate',
-      startRate: 0,
-      timeUnit: '1s',
-      preAllocatedVUs: 100,
-      maxVUs: 500,
-      // 10 + 40 + 5 + 10 + 30 + 5 + 10 + 10 = 120 minutes; steady-state minutes (40+10+30+10) = 90.
-      stages: [
-        { target: 20, duration: '10m' },
-        { target: 20, duration: '40m' },
-        { target: 60, duration: '5m' },
-        { target: 20, duration: '10m' },
-        { target: 20, duration: '30m' },
-        { target: 60, duration: '5m' },
-        { target: 20, duration: '10m' },
-        { target: 0, duration: '10m' },
-      ],
-    },
-  },
-  thresholds: SMOKE_OPTIONS.thresholds,
-};
-
-export const options = PROFILE === 'two-hour' ? TWO_HOUR_OPTIONS : SMOKE_OPTIONS;
+export const options = PROFILES[PROFILE] || PROFILES.smoke;
 
 function randomPii() {
   return piiSeed[Math.floor(Math.random() * piiSeed.length)];
@@ -143,19 +96,22 @@ export default function () {
   const operation = pickOperation(OPERATION_MIX, Math.random() * 100);
 
   if (operation === 'getCatalog') {
-    check(http.get(`${BASE_URL}/catalog`), { 'catalog 200': (r) => r.status === 200 });
+    check(http.get(`${BASE_URL}/catalog`, { tags: { expected_failure: 'false' } }), {
+      'catalog 200': (r) => r.status === 200,
+    });
   } else if (operation === 'getOrderById') {
     // ORD-00001 is the first order id the run creates (H2 starts fresh each phase) — a 404 before
     // that order exists is an accepted outcome for this smoke-level check, not a threshold breach.
-    check(http.get(`${BASE_URL}/orders/ORD-00001`), {
+    check(http.get(`${BASE_URL}/orders/ORD-00001`, { tags: { expected_failure: 'false' } }), {
       'order lookup answered': (r) => r.status === 200 || r.status === 404,
     });
   } else if (operation === 'postOrder') {
     check(placeOrder(pii), { 'order placed': (r) => r.status === 201 });
   } else if (operation === 'cancelOrder') {
-    check(http.post(`${BASE_URL}/orders/ORD-00001/cancel`), {
-      'cancel answered': (r) => [200, 404, 409].includes(r.status),
-    });
+    check(
+      http.post(`${BASE_URL}/orders/ORD-00001/cancel`, null, { tags: { expected_failure: 'false' } }),
+      { 'cancel answered': (r) => [200, 404, 409].includes(r.status) }
+    );
   } else {
     check(businessFailureRequest(pii), {
       'business failure answered 4xx': (r) => r.status >= 400 && r.status < 500,

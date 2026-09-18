@@ -63,6 +63,27 @@ def count_poison_markers(logs_dir):
     return count
 
 
+def count_baseline_narration(results_dir):
+    # D1's oracle: a baseline run is only meaningful untraced (see README.md "Baseline"). Any
+    # narrativetrace narration in the copied baseline logs (run-soak.sh's `cp -r logs
+    # results/baseline-logs`, right after phase 1) means the agent was attached and the baseline
+    # ran traced — the same defect the one-hour report's own baseline had to be discarded by hand
+    # for.
+    count = 0
+    pattern = re.compile(r"\bTRACE\s+narrativetrace\b")
+    baseline_logs_dir = os.path.join(results_dir, "baseline-logs")
+    if not os.path.isdir(baseline_logs_dir):
+        return count
+    for path in glob.glob(os.path.join(baseline_logs_dir, "**", "*.log*"), recursive=True):
+        opener = gzip.open if path.endswith(".gz") else open
+        try:
+            with opener(path, "rt", encoding="utf-8", errors="ignore") as f:
+                count += sum(1 for line in f if pattern.search(line))
+        except OSError:
+            continue
+    return count
+
+
 def count_rolls(status_path):
     if not os.path.exists(status_path):
         return 0
@@ -79,8 +100,10 @@ def bytes_written(logs_dir):
 
 
 def thresholds_passed(summary):
+    # A summary that was never captured is not a summary whose thresholds held — evidence missing
+    # is a failure, never a pass (D4).
     if summary is None:
-        return True
+        return False
     for metric in summary.get("metrics", {}).values():
         thresholds = metric.get("thresholds")
         if not thresholds:
@@ -124,6 +147,17 @@ def main():
     poison_off_pct = (
         abs(observed_poison - expected_poison) / expected_poison * 100 if expected_poison else 0
     )
+
+    # D4: missing evidence must fail the run, never be silently treated as a pass.
+    missing_evidence = []
+    if baseline_summary is None:
+        missing_evidence.append("baseline-scenario-summary.json")
+    if traced_summary is None:
+        missing_evidence.append("traced-scenario-summary.json")
+    if not stats_rows:
+        missing_evidence.append("traced-stats.jsonl")
+
+    baseline_narration_count = count_baseline_narration(results_dir)
 
     lines = [f"# SUMMARY — soak smoke run ({datetime.now(timezone.utc).isoformat()})", ""]
 
@@ -177,7 +211,21 @@ def main():
 
     print("\n".join(lines))
 
-    if not thresholds_passed(traced_summary) or poison_off_pct > 5:
+    if missing_evidence:
+        print(f"FAIL: missing evidence: {', '.join(missing_evidence)}", file=sys.stderr)
+    if baseline_narration_count:
+        print(
+            f"FAIL (D1): the baseline's logs hold {baseline_narration_count} narrativetrace "
+            "narration line(s) — the baseline ran traced, invalidating the comparison",
+            file=sys.stderr,
+        )
+
+    if (
+        missing_evidence
+        or baseline_narration_count
+        or not thresholds_passed(traced_summary)
+        or poison_off_pct > 5
+    ):
         sys.exit(1)
 
 

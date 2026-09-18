@@ -8,9 +8,17 @@
 package ai.narrativetrace.security.corpus;
 
 import ai.narrativetrace.api.annotation.NarrativeSummary;
+import ai.narrativetrace.api.annotation.NotTraced;
 import java.net.URI;
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Objects whose {@code toString}, {@code hashCode}, {@code equals} or accessors misbehave — the
@@ -178,6 +186,211 @@ public final class HostileMembers {
     @Override
     public String label() {
       throw new IllegalStateException("accessor refuses");
+    }
+  }
+
+  /**
+   * A record component accessor with a side effect instead of a failure — counts its own calls, for
+   * the "rendering reads state, never runs behaviour" rule (the repository's agent guide, owner
+   * ruling 2026-09-17): the target reads the backing field directly, so the counter must never
+   * move.
+   *
+   * <p><b>@llmNote</b> {@code calls} is {@code @NotTraced} so its own rendered text stays the
+   * constant {@code [REDACTED]} marker rather than the live count — otherwise two renders of the
+   * same instance would print two different numbers and this row would counterfeit a failure of the
+   * unrelated {@code renderingIsIdempotentForEveryHostileGraph} property, which renders every
+   * corpus row twice and compares the text.
+   */
+  public record CountingAccessor(HostileGraphs.Secret held, @NotTraced AtomicInteger calls) {
+    @Override
+    public HostileGraphs.Secret held() {
+      calls.incrementAndGet();
+      return held;
+    }
+  }
+
+  /**
+   * A platform-collection ({@link ArrayList}) subclass whose overridden {@code iterator()} both
+   * counts its own calls and refuses — for the same rule: the target reads {@code ArrayList}'s own
+   * backing state through the platform ancestor, never this override.
+   */
+  public static final class SideEffectingIteratorList extends ArrayList<Object> {
+    public final AtomicInteger iteratorCalls = new AtomicInteger();
+
+    SideEffectingIteratorList(HostileGraphs.Secret held) {
+      add(held);
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+      iteratorCalls.incrementAndGet();
+      throw new UnsupportedOperationException("iterator() must never be called by rendering");
+    }
+  }
+
+  /**
+   * A user {@link java.util.Collection} implemented from scratch — not a platform-collection
+   * subclass, so it carries no platform ancestor state to fall back on. Same rule: the target must
+   * never enumerate it by calling its own {@code iterator()}; it renders as an object instead.
+   */
+  public static final class LookalikeCollection implements java.util.Collection<Object> {
+    private final List<Object> backing;
+    public final AtomicInteger iteratorCalls = new AtomicInteger();
+
+    LookalikeCollection(HostileGraphs.Secret held) {
+      this.backing = new ArrayList<>(List.of(held));
+    }
+
+    @Override
+    public int size() {
+      return backing.size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return backing.isEmpty();
+    }
+
+    @Override
+    public boolean contains(Object o) {
+      return backing.contains(o);
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+      iteratorCalls.incrementAndGet();
+      throw new UnsupportedOperationException("iterator() must never be called by rendering");
+    }
+
+    @Override
+    public Object[] toArray() {
+      return backing.toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] a) {
+      return backing.toArray(a);
+    }
+
+    @Override
+    public boolean add(Object o) {
+      return backing.add(o);
+    }
+
+    @Override
+    public boolean remove(Object o) {
+      return backing.remove(o);
+    }
+
+    @Override
+    public boolean containsAll(java.util.Collection<?> c) {
+      return backing.containsAll(c);
+    }
+
+    @Override
+    public boolean addAll(java.util.Collection<?> c) {
+      return backing.addAll(c);
+    }
+
+    @Override
+    public boolean removeAll(java.util.Collection<?> c) {
+      return backing.removeAll(c);
+    }
+
+    @Override
+    public boolean retainAll(java.util.Collection<?> c) {
+      return backing.retainAll(c);
+    }
+
+    @Override
+    public void clear() {
+      backing.clear();
+    }
+  }
+
+  /**
+   * A user subclass of the ABSTRACT platform base {@code AbstractMap} — no platform-owned state of
+   * its own, unlike {@link SideEffectingIteratorList}'s {@link ArrayList} ancestor — whose
+   * overridden {@code entrySet()} both counts its own calls and refuses, for the rule's 2026-09-18
+   * refinement: the target object-introspects the subclass and never calls the override.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // held exists to be read by object introspection
+  public static final class AbstractMapSubclassOverride extends AbstractMap<String, Object> {
+    public final AtomicInteger entrySetCalls = new AtomicInteger();
+    private final HostileGraphs.Secret held;
+
+    AbstractMapSubclassOverride(HostileGraphs.Secret held) {
+      this.held = held;
+    }
+
+    @Override
+    public Set<Map.Entry<String, Object>> entrySet() {
+      entrySetCalls.incrementAndGet();
+      throw new UnsupportedOperationException("entrySet() must never be called by rendering");
+    }
+  }
+
+  /**
+   * Same rule, for the other ABSTRACT platform base, {@code AbstractCollection}: an overridden
+   * {@code iterator()} that counts its own calls and refuses.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // held exists to be read by object introspection
+  public static final class AbstractCollectionSubclassOverride extends AbstractCollection<Object> {
+    public final AtomicInteger iteratorCalls = new AtomicInteger();
+    private final HostileGraphs.Secret held;
+
+    AbstractCollectionSubclassOverride(HostileGraphs.Secret held) {
+      this.held = held;
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+      iteratorCalls.incrementAndGet();
+      throw new UnsupportedOperationException("iterator() must never be called by rendering");
+    }
+
+    @Override
+    public int size() {
+      return 0;
+    }
+  }
+
+  /**
+   * A FIELDLESS user subclass of the ABSTRACT platform base {@code AbstractCollection} — the
+   * "toString door" the rendering rule's 2026-09-18 abstract-base refinement left open: {@code
+   * rendersItsOwnString} trusts any type with no instance fields of its own to stand behind its own
+   * stringification — and this class declares none — but the text it then trusts is {@code
+   * AbstractCollection}'s OWN inherited {@code toString()}, which walks {@code iterator()}
+   * internally. A fieldless subclass whose override counts its calls and refuses therefore still
+   * reaches it, through a {@code toString()} the subclass never wrote a line of. {@link
+   * AbstractCollectionSubclassOverride} above pins the field-bearing sibling of this same shape,
+   * which the abstract-base refinement already made safe; this one has no field to make {@code
+   * rendersItsOwnString} distrust it.
+   *
+   * <p><b>@llmNote</b> No constructor argument, unlike every other {@code hostileMember} shape:
+   * accepting one only to discard it (the {@link NumberHostileToString} pattern) would still read
+   * as a stored field to a careless refactor, and the whole point of this fixture is to carry zero.
+   * The corpus factory's {@code held} local is simply unused on this arm of the switch, which is
+   * legal and unremarkable Java. The row it backs carries no sentinel to look for.
+   *
+   * <p><b>@llmNote</b> The spy counter is {@code static}, not instance: {@code
+   * rendersItsOwnString}'s "has no instance field" test excludes {@code static} members, so an
+   * instance-field spy would defeat the very fieldless precondition this fixture exists to hold.
+   * Callers reset it before use.
+   */
+  public static final class FieldlessAbstractSubclassToStringDoor
+      extends AbstractCollection<Object> {
+    public static final AtomicInteger ITERATOR_CALLS = new AtomicInteger();
+
+    @Override
+    public Iterator<Object> iterator() {
+      ITERATOR_CALLS.incrementAndGet();
+      throw new UnsupportedOperationException("iterator() must never be called by rendering");
+    }
+
+    @Override
+    public int size() {
+      return 3;
     }
   }
 

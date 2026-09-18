@@ -68,23 +68,35 @@ application {
     mainClass.set("ai.narrativetrace.contract.ContractRunner")
 }
 
+val contractYamlPath: String =
+    (findProperty("contractYaml") as String?) ?: "../documentation/contract.yaml"
+
 tasks.test {
     useJUnitPlatform()
+    // ContractDispatchCoverageTest reads the very file runContract is pointed at, so the ids it
+    // checks are the ids the gate will try to dispatch — never a second copy that could go stale.
+    systemProperty("contractYaml", contractYamlPath)
 }
 
 /**
  * Runs every applicable contract.yaml entry against the published `contractVersion` and writes
  * the JSON result `scripts/contract-check.sh` reads. Exits non-zero (via `ContractRunner.main`'s
  * own `System.exit`) on any FAILS verdict — Gradle surfaces that as this task failing.
+ *
+ * Depends on `test` so this project's own unit tests run first. That is the only place they run at
+ * all: contract-probe is standalone, so no `check` anywhere reaches it, and a guard that never runs
+ * is not a guard (release rule 2). ContractDispatchCoverageTest in particular exists to fail HERE,
+ * with a readable message, instead of letting the runner crash mid-report on an unwired entry.
  */
 tasks.register<JavaExec>("runContract") {
     group = "verification"
     description = "Proves or disproves every documentation/contract.yaml claim against a published version"
+    dependsOn(tasks.test)
     mainClass.set("ai.narrativetrace.contract.ContractRunner")
     classpath = sourceSets["main"].runtimeClasspath
     args = listOfNotNull(
         "--version=$contractVersion",
-        "--contract=${(findProperty("contractYaml") as String?) ?: "../documentation/contract.yaml"}",
+        "--contract=$contractYamlPath",
         (findProperty("out") as String?)?.let { "--out=$it" },
         (findProperty("registryBase") as String?)?.let { "--registry-base=$it" }
     )

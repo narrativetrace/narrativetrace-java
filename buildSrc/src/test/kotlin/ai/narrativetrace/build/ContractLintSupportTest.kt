@@ -291,6 +291,94 @@ class ContractLintSupportTest {
         assertFalse(problems.any { it.contains("since: \"0.2.2\"") })
     }
 
+    // ---- headingsWithSinceMarker -----------------------------------------------------------
+    // Port of the TS repo's tools/contract-lint.ts `headingsWithSinceMarker` (read-only reference):
+    // a heading anchor's slug must survive the tag rewrite (settle-markers.sh, the release
+    // publish script), so a since-marker may only ever sit in a section's body.
+
+    @Test
+    fun headingsWithSinceMarkerFlagsAHeadingCarryingAnInlineMarker() {
+        val docs = tempDir.resolve("documentation")
+        docs.mkdirs()
+        docs.resolve("guide.md").writeText("### The run has a name *(since 0.1.3, unreleased)*\n")
+
+        val hits = ContractLintSupport.headingsWithSinceMarker(tempDir)
+
+        assertEquals(1, hits.size)
+        assertTrue(hits[0].contains("guide.md:1"))
+        assertTrue(
+            hits[0].contains(
+                "since-markers belong in the body: heading anchors must survive the tag rewrite"
+            )
+        )
+    }
+
+    @Test
+    fun headingsWithSinceMarkerDoesNotFlagAMarkerInTheSectionBody() {
+        val docs = tempDir.resolve("documentation")
+        docs.mkdirs()
+        docs.resolve("guide.md")
+            .writeText("### The run has a name\n\n*(since 0.1.3, unreleased)*\n\nBody text.\n")
+
+        assertTrue(ContractLintSupport.headingsWithSinceMarker(tempDir).isEmpty())
+    }
+
+    @Test
+    fun headingsWithSinceMarkerFlagsATranslatedMirrorHeading() {
+        val esDir = tempDir.resolve("documentation/es")
+        esDir.mkdirs()
+        esDir.resolve("guia.md")
+            .writeText("### La ejecución tiene un nombre *(since 0.1.3, unreleased)*\n")
+
+        val hits = ContractLintSupport.headingsWithSinceMarker(tempDir)
+
+        assertTrue(hits.any { it.contains("es/guia.md:1") })
+    }
+
+    @Test
+    fun headingsWithSinceMarkerFlagsALlmsTxtHeading() {
+        val docs = tempDir.resolve("documentation")
+        docs.mkdirs()
+        docs.resolve("llms.txt").writeText("## Behaviours *(since 0.1.3, unreleased)*\n")
+
+        val hits = ContractLintSupport.headingsWithSinceMarker(tempDir)
+
+        assertTrue(hits.any { it.contains("llms.txt:1") })
+    }
+
+    @Test
+    fun headingsWithSinceMarkerFlagsTheRootReadme() {
+        tempDir.resolve("README.md").writeText("## Feature *(since 0.1.3, unreleased)*\n")
+
+        val hits = ContractLintSupport.headingsWithSinceMarker(tempDir)
+
+        assertTrue(hits.any { it.contains("README.md:1") })
+    }
+
+    @Test
+    fun headingsWithSinceMarkerFlagsARootReadmeTranslatedMirror() {
+        tempDir.resolve("LEAME.md").writeText(
+            "<!-- source: README.md blob 000000000000 | translated: 2026-09-01 | reviewed: - -->\n" +
+                "## Funcionalidad *(since 0.1.3, unreleased)*\n"
+        )
+
+        val hits = ContractLintSupport.headingsWithSinceMarker(tempDir)
+
+        assertTrue(hits.any { it.contains("LEAME.md:2") })
+    }
+
+    @Test
+    fun headingsWithSinceMarkerIgnoresARootMarkdownFileThatIsNotAReadmeMirror() {
+        tempDir.resolve("CHANGES.md").writeText("## Feature *(since 0.1.3, unreleased)*\n")
+
+        assertTrue(ContractLintSupport.headingsWithSinceMarker(tempDir).isEmpty())
+    }
+
+    @Test
+    fun headingsWithSinceMarkerReturnsNothingWhenDocumentationDoesNotExist() {
+        assertTrue(ContractLintSupport.headingsWithSinceMarker(tempDir).isEmpty())
+    }
+
     // ---- ContractDecisionSupport --------------------------------------------------------------
 
     @Test

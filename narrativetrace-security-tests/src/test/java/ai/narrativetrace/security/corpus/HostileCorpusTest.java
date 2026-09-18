@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -146,9 +147,9 @@ class HostileCorpusTest {
   }
 
   /**
-   * A redaction row that declared neither a name nor a value, or an unreadable {@code expect},
-   * would be replayed as a silently trivial assertion — the same failure mode as a fixture that
-   * stopped loading, one row at a time.
+   * A redaction row that declared no subject at all, two subjects at once, or an unreadable {@code
+   * expect}, would be replayed as a silently trivial assertion — the same failure mode as a fixture
+   * that stopped loading, one row at a time.
    */
   @Test
   void everyRedactionCaseDeclaresExactlyOneSubjectAndOneDirection() {
@@ -156,9 +157,15 @@ class HostileCorpusTest {
       assertThat(redactionCase.secret())
           .as("%s must carry a canary or a value", redactionCase.id())
           .isNotBlank();
-      assertThat(redactionCase.isName() == (redactionCase.value() == null))
-          .as("%s must be a name case or a value case, never both or neither", redactionCase.id())
-          .isTrue();
+      var subjects =
+          Stream.of(redactionCase.isName(), redactionCase.isKind(), redactionCase.value() != null)
+              .filter(Boolean::booleanValue)
+              .count();
+      assertThat(subjects)
+          .as(
+              "%s must be exactly one of a name case, a value case or a kind case",
+              redactionCase.id())
+          .isEqualTo(1L);
       assertThat(redactionCase.expect())
           .as("%s must declare which way it goes", redactionCase.id())
           .isIn("redacted", "visible");
@@ -166,15 +173,15 @@ class HostileCorpusTest {
   }
 
   /**
-   * A name case whose canary is itself secret-shaped would pass the hidden assertion for the wrong
-   * reason — the value axis would catch it whatever the name said.
+   * A name or kind case whose canary is itself secret-shaped would pass the hidden assertion for
+   * the wrong reason — the value axis would catch it whatever the name or kind said.
    */
   @Test
   void noRedactionCanaryIsItselfASecretShape() {
     for (var redactionCase : HostileCorpus.redactions()) {
-      if (redactionCase.isName()) {
+      if (redactionCase.isName() || redactionCase.isKind()) {
         assertThat(redactionCase.canary())
-            .as("%s must test the name axis, not the value axis", redactionCase.id())
+            .as("%s must test its own axis, not the value axis", redactionCase.id())
             .matches("canary-[a-z0-9-]+");
       }
     }

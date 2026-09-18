@@ -50,6 +50,16 @@ import org.objectweb.asm.Opcodes;
  * assertions are what passed all year: the event also reaches the audit emitter, the buffered
  * consumer and any listener attached through the pipeline SPI, so a secret that is merely masked on
  * its way out of a renderer has already travelled.
+ *
+ * <p><b>@llmNote</b> The corpus also carries four {@code kind} rows — the same composite shapes
+ * {@code graphs.json} builds (a curated {@code toString}, at top level and nested; a sensitive map
+ * key; a throwing summary marker). Those replay through {@link #kindRowHoldsAtCapture}, a separate
+ * method rather than a branch inside {@link #corpusHoldsAtCapture}: a kind row's argument is the
+ * composite object itself, not a {@code String}, so it needs an {@code Object}-typed traced
+ * parameter rather than the ASM-synthesised {@code String} one, and — unlike a name or value row —
+ * its assertion never claims the whole parameter is flagged {@link
+ * ai.narrativetrace.api.event.ParameterCapture#redacted()}; only a component of it is, so
+ * containment and call success are what the corpus row actually declares.
  */
 class CapturePathRedactionConformanceTest {
 
@@ -57,7 +67,10 @@ class CapturePathRedactionConformanceTest {
   private static final String INNOCUOUS = "data";
 
   private static Stream<RedactionCase> corpus() {
-    return HostileCorpus.redactions().stream();
+    // Kind rows replay through kindRowHoldsAtCapture below: their argument is the composite object
+    // itself, not testCase.secret() as a bare String, so this ASM-synthesised String-parameter path
+    // would only ever exercise the innocuous "data" name — never the shape the row names.
+    return HostileCorpus.redactions().stream().filter(row -> !row.isKind());
   }
 
   @ParameterizedTest(name = "{0}")
@@ -125,6 +138,56 @@ class CapturePathRedactionConformanceTest {
                   + " stay visible",
               testCase.id(), testCase.description())
           .noneMatch(Boolean::booleanValue);
+    }
+  }
+
+  /** The typed marker a failing {@code @NarrativeSummary} must render, and never its message. */
+  private static final String THROWING_SUMMARY_MARKER = "<error: IllegalStateException>";
+
+  /**
+   * The interface every {@code kind} row is traced through; {@code data} is not a deny-listed name.
+   */
+  public interface KindService {
+    String handle(Object data);
+  }
+
+  private static Stream<RedactionCase> kindCorpus() {
+    return HostileCorpus.redactions().stream().filter(RedactionCase::isKind);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("kindCorpus")
+  @DisplayName("every composite-shape row holds when replayed through a real traced call")
+  void kindRowHoldsAtCapture(RedactionCase testCase) {
+    var context = new ThreadLocalNarrativeContext();
+    var traced =
+        NarrativeTraceProxy.trace((KindService) argument -> "ok", KindService.class, context);
+
+    assertThat(traced.handle(testCase.payload()))
+        .as(
+            "[%s] a hostile composite must not change what the traced method returns",
+            testCase.id())
+        .isEqualTo("ok");
+
+    var tree = context.captureTrace();
+    var secret = testCase.secret();
+    var rendered =
+        List.of(
+            new MarkdownRenderer().render(tree),
+            new ProseRenderer().render(tree),
+            new IndentedTextRenderer().render(tree));
+
+    assertThat(rendered)
+        .as("[%s] %s — the secret reached rendered output", testCase.id(), testCase.description())
+        .noneMatch(output -> output.contains(secret));
+
+    if ("throwing-summary".equals(testCase.id())) {
+      assertThat(rendered)
+          .as("[%s] a failing summary must render the typed marker somewhere", testCase.id())
+          .anyMatch(output -> output.contains(THROWING_SUMMARY_MARKER));
+      assertThat(rendered)
+          .as("[%s] the exception's own message must never reach output", testCase.id())
+          .noneMatch(output -> output.contains("cannot summarise"));
     }
   }
 

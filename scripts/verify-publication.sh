@@ -181,10 +181,27 @@ VERSION_SOURCE=""
 # The newest `v*` tag reachable from HEAD, without the `v` prefix — the ordinary case: some
 # release has shipped from this history. Returns 1 (empty stdout) when none exists, e.g. a fresh
 # checkout being used to rehearse this script before the first release.
+#
+# Deliberately NOT `git describe --tags --abbrev=0 --match 'v*'`: describe prints the tag
+# OBJECT's own embedded name, and `scripts/publish-public.sh --tag` mints the public tag object
+# under a different local staging name than the ref it is pushed onto (the private release tag of
+# the same name may already own refs/tags/<TAG> in that clone) — so on a real public checkout
+# describe's answer and the actual `v<version>` ref disagree (git itself warns "tag '<TAG>' is
+# externally known as '<other-name>'" in that shape). Walking `refs/tags/v*` by REF NAME and
+# picking the reachable one nearest to HEAD (fewest commits since) gives the same "nearest tag"
+# answer describe intends, without ever trusting what a tag object calls itself.
 latest_tag_version() {
-    local tag
-    tag="$(git -C "$REPO_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null)" || return 1
-    printf '%s' "${tag#v}"
+    local ref distance best_name="" best_distance=""
+    for ref in $(git -C "$REPO_ROOT" for-each-ref --format='%(refname)' 'refs/tags/v*' 2>/dev/null); do
+        git -C "$REPO_ROOT" merge-base --is-ancestor "$ref" HEAD 2>/dev/null || continue
+        distance="$(git -C "$REPO_ROOT" rev-list --count "$ref..HEAD" 2>/dev/null)" || continue
+        if [ -z "$best_distance" ] || [ "$distance" -lt "$best_distance" ]; then
+            best_distance="$distance"
+            best_name="${ref#refs/tags/}"
+        fi
+    done
+    [ -n "$best_name" ] || return 1
+    printf '%s' "${best_name#v}"
 }
 
 maven_metadata_url() {  # base group artifact

@@ -17,7 +17,7 @@ narrativetrace-soak/
 ├── app/
 │   ├── shop/     Gradle project :narrativetrace-soak:shop   — the traced application
 │   └── notify/   Gradle project :narrativetrace-soak:notify — the downstream dependency
-├── k6/           load-generation scripts (smoke + two-hour profiles, the poison probe)
+├── k6/           load-generation scripts (smoke, one-hour, two-hour profiles; the poison probe)
 ├── compose.yaml  shop + notify + k6 + sampler topology
 ├── run-soak.sh   two-phase (baseline, then traced) runner — see below
 └── summarize.py  builds results/SUMMARY.md from the run's artifacts
@@ -158,11 +158,13 @@ redaction pattern too. Redaction stays at its defaults throughout — nothing he
   mix (`mix.js`'s `OPERATION_MIX`, picked by `pickOperation`): `GET /catalog` 60%,
   `GET /orders/{id}` 20%, `POST /orders` 15% (carts of 1-20 lines, quantities that vary — some
   large enough to exercise value-rendering caps), `POST /orders/{id}/cancel` 3%, business-failure
-  requests (unknown customer / payment decline / out-of-stock, evenly split) 2%. Exports two
-  profiles, selected by `-e SOAK_PROFILE=smoke|two-hour`:
+  requests (unknown customer / payment decline / out-of-stock, evenly split) 2%. Selects one of
+  three profiles (`profiles.js`) by `-e SOAK_PROFILE=smoke|one-hour|two-hour`:
   - **`smoke`** (P1, the one `run-soak.sh` runs): 1 min ramp to 20 req/s, 8 min steady, 1 min down.
   - **`two-hour`** — exported, **not run in P1**: 10 min ramp, 90 min steady (with two 5-min 3×
     spikes to 60 req/s inside it), 10 min recovery; 120 minutes total.
+  - **`one-hour`** — the `two-hour` shape at half scale, same rates: 5 min ramp, 45 min steady
+    (with two 2.5-min 3× spikes to 60 req/s inside it), 5 min recovery; 60 minutes total.
 - **`poison.js`** — a **separate script**, run alongside `scenario.js` (not merged into its
   `options.scenarios` — the brief calls for a separate file, and `run-soak.sh` launches both as
   concurrent `k6 run` processes inside the same container). `constant-arrival-rate`, one poison
@@ -171,6 +173,12 @@ redaction pattern too. Redaction stays at its defaults throughout — nothing he
   framework-free ES module importable both by `scenario.js` (inside k6) and `mix.test.js` (inside
   Node) — k6's own JS runtime does not run under plain Node, so keeping this file free of k6 APIs
   is what makes it independently testable at all.
+- **`profiles.js`** — the load profiles `scenario.js` selects from (its `PROFILES` map, keyed by
+  `SOAK_PROFILE`), pure and framework-free like `mix.js`, plus `totalSeconds(stages)`.
+- **`profiles.test.js`** — `node --test k6/profiles.test.js`: holds every profile's stage total
+  equal to `run-soak.sh`'s `TOTAL_SECONDS` arm for it (the baseline length and `summarize.py`'s
+  expected poison count derive from the runner, so a profile that drifts from it fails its own
+  run after the fact), and fails when a profile exists on one side only.
 - **`mix.test.js`** — `node --test k6/mix.test.js` (Node ships in the dev container; if a
   contributor's environment lacks Node, the table above and `mix.js`'s literal `OPERATION_MIX`
   object are the fallback source of truth). Not wired into `./gradlew check` — introducing a Node
@@ -191,7 +199,7 @@ mounted read-only into `shop`/`notify` rather than baked into each image, so a r
 agent doesn't require rebuilding the application images. The rolling log directory (`logs/`) and
 the results directory (`results/`) are bind-mounted to the host.
 
-`./run-soak.sh <smoke|two-hour>`:
+`./run-soak.sh <smoke|one-hour|two-hour>`:
 
 1. **Guards**: refuses to start if a lock file is present (another run in progress, or a stale one
    from a crash), if the repo's working tree is dirty, or if the host's 1-minute load average
@@ -223,6 +231,9 @@ count is off by more than 5% from expected.
 # The 10-minute smoke profile (P1):
 cd narrativetrace-soak
 ./run-soak.sh smoke
+
+# The one-hour profile (a 6-minute baseline, then 60 minutes traced):
+./run-soak.sh one-hour
 
 # The two-hour profile (exported, not exercised in P1):
 ./run-soak.sh two-hour

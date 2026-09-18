@@ -16,7 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * Regression: a deep object graph is not a cycle, and following one recursively used to be a {@link
@@ -43,6 +45,7 @@ class ValueRendererDepthTest {
   record Card(String number, @NotTraced String cvv) {}
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void aTenThousandDeepRecordChainRendersInsteadOfOverflowingTheStack() {
     var deep = chainOfRecords(10_000);
 
@@ -50,6 +53,7 @@ class ValueRendererDepthTest {
   }
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void theStructuredPathSurvivesTheSameChain() {
     var deep = chainOfRecords(10_000);
 
@@ -57,6 +61,7 @@ class ValueRendererDepthTest {
   }
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void aDeepChainOfEveryContainerKindAlsoSurvives() {
     assertThatCode(() -> renderer.render(chainOf(10_000, List::of))).doesNotThrowAnyException();
     assertThatCode(() -> renderer.render(chainOf(10_000, Optional::of))).doesNotThrowAnyException();

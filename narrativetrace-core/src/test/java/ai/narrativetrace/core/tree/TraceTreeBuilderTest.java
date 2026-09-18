@@ -23,7 +23,9 @@ import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 class TraceTreeBuilderTest {
 
@@ -420,6 +422,7 @@ class TraceTreeBuilderTest {
   // and more broadly than a renderer crash ever could. ---
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void veryDeepLegitimateChainBuildsFullyWithoutStackOverflow() {
     var depth = 5_000;
     var events = chainEvents(depth);
@@ -495,6 +498,7 @@ class TraceTreeBuilderTest {
   }
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void errorsLevelSurvivesAVeryDeepErrorChainWithoutStackOverflow() {
     // retainErrorPathsNode runs on whatever buildNodeRecursive already produced: a legitimately
     // deep chain is ordinary, and this must not overflow the stack just because MAX_DEPTH (10 000)
@@ -513,6 +517,7 @@ class TraceTreeBuilderTest {
   }
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void summaryLevelSurvivesAVeryDeepChainWithoutStackOverflow() {
     var depth = 5_000;
     var events = chainEvents(depth);

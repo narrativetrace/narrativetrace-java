@@ -518,12 +518,17 @@ class ValueRendererStructuredTest {
     }
   }
 
+  /**
+   * Updated 2026-09-17 for the rendering rule: a record component is read from its backing field,
+   * never through its accessor, so a broken accessor is never invoked and never seen. See {@link
+   * RenderingReadsStateNeverRunsBehaviourTest}.
+   */
   @Test
-  void recordWithBrokenAccessorRendersErrorField() {
+  void recordWithBrokenAccessorStillRendersFromTheBackingField() {
     var result = renderer.renderStructured(new BrokenRecord("test"));
 
     var obj = (ObjectVal) result;
-    assertThat(obj.fields()).containsEntry("name", new StringVal("<error: RuntimeException>"));
+    assertThat(obj.fields()).containsEntry("name", new StringVal("test"));
   }
 
   record SummarizedOrder(String id) {

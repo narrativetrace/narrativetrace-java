@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -256,6 +257,14 @@ public final class HostileGraphs {
       case "getterThrows" -> new HostileMembers.GetterThrowing(held);
       case "accessorThrows" -> new HostileMembers.AccessorThrowing(held, "label");
       case "hostileKeyNames" -> HostileMembers.hostileKeyNames(held);
+      case "countingAccessor" -> new HostileMembers.CountingAccessor(held, new AtomicInteger());
+      case "sideEffectingIteratorList" -> new HostileMembers.SideEffectingIteratorList(held);
+      case "lookalikeCollection" -> new HostileMembers.LookalikeCollection(held);
+      case "abstractMapSubclassOverride" -> new HostileMembers.AbstractMapSubclassOverride(held);
+      case "abstractCollectionSubclassOverride" ->
+          new HostileMembers.AbstractCollectionSubclassOverride(held);
+      case "fieldlessAbstractSubclassToStringDoor" ->
+          new HostileMembers.FieldlessAbstractSubclassToStringDoor();
       default -> throw new IllegalArgumentException("unknown hostile member: " + member);
     };
   }

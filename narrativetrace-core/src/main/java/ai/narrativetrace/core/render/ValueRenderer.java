@@ -7,11 +7,13 @@
  */
 package ai.narrativetrace.core.render;
 
+import ai.narrativetrace.api.annotation.NarrativeElements;
 import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.annotation.NotTraced;
 import ai.narrativetrace.api.event.RenderedValue;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -22,11 +24,13 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,12 +58,14 @@ import java.util.stream.Collectors;
  * stringification is never trusted while the type has state.</b> A class or record that declares
  * instance fields is walked field by field, at every depth, with {@link RedactionPolicy} consulted
  * per field — whatever {@code toString()} it declares. Exactly two kinds of value keep their own
- * text: a class with no instance fields, and a class the platform defines (its {@code toString()}
- * is the JDK's, not the application's). The single opt-in back to curated rendering is {@link
- * ai.narrativetrace.api.annotation.NarrativeSummary}, written for the trace by the author — and
- * even that text is scanned by {@link RedactionPolicy#shouldRedactValue} rather than trusted
- * verbatim. See {@link #rendersItsOwnString} for the rule and what it replaced. Do not reintroduce
- * a "this class renders itself nicely" fast path: that was the defect.
+ * text: a stateless leaf (no instance fields, and not a composite — an application {@code
+ * Collection}, {@code Map} or {@code Iterable} never renders through its own {@code toString()},
+ * because that text is always somebody's element walk), and a class the platform defines (its
+ * {@code toString()} is the JDK's, not the application's). The single opt-in back to curated
+ * rendering is {@link ai.narrativetrace.api.annotation.NarrativeSummary}, written for the trace by
+ * the author — and even that text is scanned by {@link RedactionPolicy#shouldRedactValue} rather
+ * than trusted verbatim. See {@link #rendersItsOwnString} for the rule and what it replaced. Do not
+ * reintroduce a "this class renders itself nicely" fast path: that was the defect.
  *
  * <p><b>@edgeCase</b> Pending futures render as {@code <pending>}, cancelled futures as {@code
  * <cancelled>}, failed future dereference as {@code <failed>}, and recursive object graphs collapse
@@ -80,6 +86,14 @@ import java.util.stream.Collectors;
  * RenderWalk#MAX_DEPTH} levels of nested complex value and renders {@code <max-depth>} — the fourth
  * cap beside the string, collection and field limits, and per path, so a shallow sibling after a
  * deep one still renders whole.
+ *
+ * <p><b>@sideEffects</b> {@link #render(Object)} and {@link #renderStructured(Object)} hold {@link
+ * RenderingGuard} for their whole call. A record component, a field or a {@code @NarrativeSummary}
+ * method can be invoked reflectively here, and when its declaring class is woven by the agent that
+ * reflective invocation runs the accessor's own instrumented bytecode — the guard is how the
+ * instrumentation gate recognizes that call as a side effect of rendering, not a traced call, and
+ * answers it with the untraced fast path instead of opening a span attributed as a spurious root.
+ * See {@link RenderingGuard}.
  */
 public final class ValueRenderer {
 
@@ -113,6 +127,14 @@ public final class ValueRenderer {
 
   /** Rendered form of a future that failed, or will not answer whether it completed. */
   private static final String FAILED = "<failed>";
+
+  /**
+   * Rendered form of a record component whose backing field exists but could not be made accessible
+   * — an exported-but-not-opened module boundary, typically. Deliberately distinct from {@link
+   * #renderFailed the typed failure marker}: the accessor is never consulted as a fallback, so this
+   * is the honest answer for a value that was never actually unreadable, only unopened.
+   */
+  private static final String INACCESSIBLE = "<inaccessible>";
 
   private final int maxStringLength;
   private final int maxCollectionItems;
@@ -155,11 +177,14 @@ public final class ValueRenderer {
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // rendering may never fail the traced method
   public String render(Object value) {
+    RenderingGuard.enter();
     try {
       var scalar = renderScalar(value);
       return scalar != null ? scalar : renderGuarded(value, new RenderWalk());
     } catch (Throwable t) { // NOPMD
       return typeMarker(value);
+    } finally {
+      RenderingGuard.leave();
     }
   }
 
@@ -245,11 +270,14 @@ public final class ValueRenderer {
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // rendering may never fail the traced method
   public RenderedValue renderStructured(Object value) {
+    RenderingGuard.enter();
     try {
       var scalar = renderStructuredScalar(value);
       return scalar != null ? scalar : renderStructuredGuarded(value, new RenderWalk());
     } catch (Throwable t) { // NOPMD
       return new RenderedValue.StringVal(typeMarker(value));
+    } finally {
+      RenderingGuard.leave();
     }
   }
 
@@ -357,14 +385,12 @@ public final class ValueRenderer {
     if (wrapped != null) {
       return wrapped;
     }
-    if (value instanceof Collection<?> c) {
-      return renderStructuredCollection(c, walk);
+    var enumerated = renderStructuredIfEnumerable(value, ElementOrigin.of(value), walk);
+    if (enumerated != null) {
+      return enumerated;
     }
     if (value.getClass().isArray()) {
       return renderStructuredArray(value, walk);
-    }
-    if (value instanceof Map<?, ?> m) {
-      return renderStructuredMap(m, walk);
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
@@ -483,21 +509,82 @@ public final class ValueRenderer {
     }
   }
 
-  private RenderedValue renderStructuredCollection(Collection<?> collection, RenderWalk walk) {
-    if (!walk.add(collection)) {
-      return new RenderedValue.StringVal(identityMarker(collection));
+  /**
+   * Structured twin of {@link #renderIfEnumerable}: the SAME verdict from {@link ElementOrigin#of},
+   * encoded as a {@link RenderedValue} instead of as text.
+   *
+   * <p><b>@llmNote</b> This method exists because its absence was a defect. The structured path
+   * used to ask {@code value instanceof Collection} and enumerate, origin-blind, so a hand-rolled
+   * collection's own {@code iterator()} ran here while the flat path refused to call it — the rule
+   * held on one path only. Both paths now switch over one decision; only the encoding differs (a
+   * {@code ListVal} where the flat form writes {@code [...]}, an {@code ObjectVal} named {@code
+   * Map} where it writes {@code {...}}), and the structured cap is the list's size rather than a
+   * trailing {@code …} marker.
+   *
+   * @return the structured value, or {@code null} when the caller should fall through to
+   *     object/record rendering
+   */
+  private RenderedValue renderStructuredIfEnumerable(
+      Object value, ElementOrigin origin, RenderWalk walk) {
+    return switch (origin) {
+      case DECLARED_ITERABLE, PLATFORM_COLLECTION ->
+          renderStructuredElements((Iterable<?>) value, walk);
+      case DECLARED_MAP, PLATFORM_MAP -> renderStructuredMap((Map<?, ?>) value, walk);
+      case ARRAY_LIST_ANCESTOR_STATE ->
+          renderStructuredArrayListAncestorState((Collection<?>) value, walk);
+      case HASH_MAP_ANCESTOR_STATE -> renderStructuredHashMapAncestorState((Map<?, ?>) value, walk);
+      case OPAQUE_ITERABLE ->
+          new RenderedValue.StringVal(simpleName(value.getClass()) + "<size unknown>");
+      case OBJECT_STATE, NOT_A_COMPOSITE -> null;
+    };
+  }
+
+  /**
+   * A bounded {@code ListVal} of whatever the iteration yielded, under the cycle guard — the
+   * structured form of both a platform collection's own iterator and the {@link NarrativeElements}
+   * hook's, which are the same walk once the origin decision has sanctioned it.
+   */
+  private RenderedValue renderStructuredElements(Iterable<?> iterable, RenderWalk walk) {
+    var owner = (Object) iterable;
+    if (!walk.add(owner)) {
+      return new RenderedValue.StringVal(identityMarker(owner));
     }
     try {
       return new RenderedValue.ListVal(
-          Collections.unmodifiableList(structuredItems(collection, walk)));
+          Collections.unmodifiableList(structuredItems(iterable, walk)));
     } finally {
-      walk.remove(collection);
+      walk.remove(owner);
+    }
+  }
+
+  /**
+   * Structured twin of {@link #renderArrayListAncestorState}: the ancestor's own array, indexed.
+   */
+  private RenderedValue renderStructuredArrayListAncestorState(
+      Collection<?> value, RenderWalk walk) {
+    var elements = ((ArrayList<?>) value).toArray();
+    return renderStructuredIndexed(value, elements.length, i -> elements[i], walk);
+  }
+
+  /** Structured twin of {@link #renderHashMapAncestorState}: the ancestor's own table, walked. */
+  private RenderedValue renderStructuredHashMapAncestorState(Map<?, ?> value, RenderWalk walk) {
+    if (!walk.add(value)) {
+      return new RenderedValue.StringVal(identityMarker(value));
+    }
+    try {
+      var fields = new LinkedHashMap<String, RenderedValue>();
+      for (var entry : ancestorEntries((HashMap<?, ?>) value)) {
+        putGuardedEntry(fields, entry, walk);
+      }
+      return new RenderedValue.ObjectVal("Map", Collections.unmodifiableMap(fields));
+    } finally {
+      walk.remove(value);
     }
   }
 
   /** Structured twin of {@link #collectionItems}: same bounds, same partial-failure behaviour. */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // iterator() and next() are user code
-  private List<RenderedValue> structuredItems(Collection<?> collection, RenderWalk walk) {
+  private List<RenderedValue> structuredItems(Iterable<?> collection, RenderWalk walk) {
     var elements = new ArrayList<RenderedValue>();
     try {
       for (var item : collection) {
@@ -569,16 +656,16 @@ public final class ValueRenderer {
   }
 
   /** Structured twin of {@link #componentValue}. */
-  @SuppressWarnings("PMD.AvoidCatchingThrowable") // an accessor may throw Error
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // a field read may throw Error
   private RenderedValue structuredComponentValue(
       RecordComponent comp, Object record, RenderWalk walk) {
     try {
       if (isRedacted(comp.getName(), comp.getAnnotation(NotTraced.class) != null)) {
         return new RenderedValue.StringVal(RedactionPolicy.MARKER);
       }
-      var accessor = comp.getAccessor();
-      accessor.setAccessible(true);
-      return renderStructured(accessor.invoke(record), walk);
+      return renderStructured(componentState(comp, record), walk);
+    } catch (InaccessibleObjectException e) {
+      return new RenderedValue.StringVal(INACCESSIBLE);
     } catch (Throwable t) { // NOPMD
       return new RenderedValue.StringVal(renderFailed(t));
     }
@@ -852,14 +939,12 @@ public final class ValueRenderer {
     if (wrapped != null) {
       return wrapped;
     }
-    if (value instanceof Collection<?> c) {
-      return renderCollection(c, walk);
+    var enumerated = renderIfEnumerable(value, ElementOrigin.of(value), walk);
+    if (enumerated != null) {
+      return enumerated;
     }
     if (value.getClass().isArray()) {
       return renderArray(value, walk);
-    }
-    if (value instanceof Map<?, ?> m) {
-      return renderMap(m, walk);
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
@@ -872,6 +957,157 @@ public final class ValueRenderer {
       return renderIntrospected(value, walk);
     }
     return renderWithToString(value);
+  }
+
+  /**
+   * Collections, maps and bare iterables, dispatched by ORIGIN rather than {@code instanceof}
+   * alone: a platform-defined collection/map enumerates through its own iterator or entrySet (the
+   * platform's own code, never overridden below it); a user subclass of {@link ArrayList} or {@link
+   * HashMap} — the two platform collection types this renderer has an honest, ancestor-owned state
+   * read for — enumerates through that read, never the subclass's override; every other case — a
+   * user subclass of an ABSTRACT platform base ({@code AbstractMap}, {@code AbstractCollection} and
+   * their kind, which own no state of their own, so there is no ancestor read to make and the
+   * override is all that is left), a hand-rolled Collection/Map with no platform ancestor at all,
+   * or a subclass of a CONCRETE platform collection/map this renderer has no honest state read for
+   * (an impractical case per the rendering rule: reading, say, {@code LinkedList}'s own node chain
+   * needs the same deep reflection the JDK module system refuses by default) — is not enumerated
+   * here, so the caller falls through to plain object introspection, which prints the subclass's
+   * own declared fields and never calls anything that could be overridden. A bare {@code Iterable}
+   * (not a {@code Collection}) with no platform origin renders a bounded type marker, never
+   * touching its iterator.
+   *
+   * <p>{@link NarrativeElements} — the third sanctioned hook — is asked FIRST and covers both
+   * shapes, an {@code Iterable} through its own {@code iterator()} and a {@code Map} through its
+   * own {@code entrySet()}. For a type with no platform-owned state that hook is the ONLY
+   * enumeration path there is: an abstract base offers no honest ancestor state read, so its
+   * subclass's override is never called unless the author declared the type's elements safe.
+   *
+   * <p><b>@llmNote</b> The decision itself lives in {@link ElementOrigin#of}, which {@link
+   * #renderStructuredIfEnumerable} asks in the same breath: this method only ENCODES the verdict as
+   * flat text. The two paths drifted once — the structured one enumerated any {@code
+   * Collection}/{@code Map} through the value's own overridable members while this one dispatched
+   * by origin — and a rule that holds on one path only is not a rule. Add a case to the enum, never
+   * a second {@code instanceof} ladder here.
+   *
+   * @return the rendered text, or {@code null} when the caller should fall through to object/record
+   *     rendering
+   */
+  private String renderIfEnumerable(Object value, ElementOrigin origin, RenderWalk walk) {
+    return switch (origin) {
+      case DECLARED_ITERABLE -> renderDeclaredIterable((Iterable<?>) value, walk);
+      case DECLARED_MAP, PLATFORM_MAP -> renderMap((Map<?, ?>) value, walk);
+      case PLATFORM_COLLECTION -> renderCollection((Collection<?>) value, walk);
+      case ARRAY_LIST_ANCESTOR_STATE -> renderArrayListAncestorState((Collection<?>) value, walk);
+      case HASH_MAP_ANCESTOR_STATE -> renderHashMapAncestorState((Map<?, ?>) value, walk);
+      case OPAQUE_ITERABLE -> simpleName(value.getClass()) + "<size unknown>";
+      case OBJECT_STATE, NOT_A_COMPOSITE -> null;
+    };
+  }
+
+  /**
+   * The third sanctioned hook: a type declaring {@link NarrativeElements} is enumerated through its
+   * own {@code iterator()} — the one case this renderer trusts a type's own iteration, because the
+   * author declared it pure. Guarded by the same cycle detection every other complex value gets.
+   *
+   * <p>The {@code Map} half of the same hook goes through {@link #renderMap} instead, which already
+   * walks {@code entrySet()} under the same cycle guard, the same cap and the same totality guard.
+   */
+  private String renderDeclaredIterable(Iterable<?> iterable, RenderWalk walk) {
+    var value = (Object) iterable;
+    if (!walk.add(value)) {
+      return identityMarker(value);
+    }
+    try {
+      return declaredIterableElements(iterable, walk);
+    } finally {
+      walk.remove(value);
+    }
+  }
+
+  /**
+   * Up to {@link #maxCollectionItems} rendered elements from the declared hook's own iterator.
+   *
+   * <p><b>@edgeCase</b> A hook that throws — at the first step or half way through — appends {@link
+   * #renderFailed the typed failure marker} after whatever it did yield, exactly as {@link
+   * #collectionItems} does for a platform collection. The hook is totality-guarded like every other
+   * element walk, so declaring a type safe can cost at most the elements it never produced.
+   */
+  @SuppressWarnings(
+      "PMD.AvoidCatchingThrowable") // the declared hook is still the author's own code
+  private String declaredIterableElements(Iterable<?> iterable, RenderWalk walk) {
+    var items = new ArrayList<String>();
+    var truncated = false;
+    try {
+      for (var item : iterable) {
+        if (items.size() >= maxCollectionItems) {
+          truncated = true;
+          break;
+        }
+        items.add(guardedRender(item, walk));
+      }
+    } catch (Throwable t) { // NOPMD
+      items.add(renderFailed(t));
+    }
+    return "[" + String.join(", ", items) + (truncated ? ", …]" : "]");
+  }
+
+  /**
+   * {@code ArrayList}'s own elements, read through its {@code toArray()} — a pure state read (the
+   * JDK's own direct array copy), never the subclass's overridden {@code iterator()}.
+   *
+   * <p><b>@llmNote</b> Only reached for {@link ElementOrigin#ARRAY_LIST_ANCESTOR_STATE}, which has
+   * already established that the subclass overrode neither {@code toArray()} nor {@code size()}; a
+   * subclass that did has taken the honest read back and is object-introspected instead. An
+   * ABSTRACT platform ancestor ({@code AbstractCollection} and its kind) never reaches here at all:
+   * such a base owns no state — the elements live wherever the subclass put them — so there is
+   * nothing honest to read, and "enumerate it anyway" means calling the subclass's own {@code
+   * iterator()}, which is precisely what the rendering rule forbids. {@link NarrativeElements} is
+   * the only way such a type's elements are ever walked.
+   */
+  private String renderArrayListAncestorState(Collection<?> value, RenderWalk walk) {
+    var elements = ((ArrayList<?>) value).toArray();
+    return renderIndexed(value, elements.length, i -> elements[i], walk);
+  }
+
+  /**
+   * {@code HashMap}'s own entries, read through its {@code forEach} — a pure walk of the JDK's own
+   * internal table, never the subclass's overridden {@code entrySet()}. Same ruling as {@link
+   * #renderArrayListAncestorState}, and the same precondition already settled by {@link
+   * ElementOrigin#HASH_MAP_ANCESTOR_STATE}.
+   */
+  private String renderHashMapAncestorState(Map<?, ?> value, RenderWalk walk) {
+    if (!walk.add(value)) {
+      return identityMarker(value);
+    }
+    try {
+      return renderHashMapEntries((HashMap<?, ?>) value, walk);
+    } finally {
+      walk.remove(value);
+    }
+  }
+
+  /** Up to {@link #maxCollectionItems} entries, collected through the ancestor's own state walk. */
+  private String renderHashMapEntries(HashMap<?, ?> map, RenderWalk walk) {
+    var joined =
+        ancestorEntries(map).stream()
+            .map(e -> guardedMapEntry(e, walk))
+            .collect(Collectors.joining(", "));
+    return map.size() > maxCollectionItems ? "{" + joined + ", …}" : "{" + joined + "}";
+  }
+
+  /**
+   * Up to {@link #maxCollectionItems} entries copied out of {@code HashMap}'s own table, shared by
+   * both paths so a subclass's {@code entrySet()} override is bypassed identically in each.
+   */
+  private List<Map.Entry<?, ?>> ancestorEntries(HashMap<?, ?> map) {
+    var entries = new ArrayList<Map.Entry<?, ?>>();
+    map.forEach(
+        (k, v) -> {
+          if (entries.size() < maxCollectionItems) {
+            entries.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
+          }
+        });
+    return entries;
   }
 
   /**
@@ -1188,18 +1424,36 @@ public final class ValueRenderer {
    * raise {@code TypeNotPresentException} or {@code ArrayStoreException} against a malformed
    * annotation, and the marker is the safe answer to that — it discloses nothing.
    */
-  @SuppressWarnings("PMD.AvoidCatchingThrowable") // an accessor may throw Error
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // a field read may throw Error
   private String componentValue(RecordComponent comp, Object record, RenderWalk walk) {
     try {
       if (isRedacted(comp.getName(), comp.getAnnotation(NotTraced.class) != null)) {
         return RedactionPolicy.MARKER;
       }
-      var accessor = comp.getAccessor();
-      accessor.setAccessible(true);
-      return render(accessor.invoke(record), walk);
+      return render(componentState(comp, record), walk);
+    } catch (InaccessibleObjectException e) {
+      return INACCESSIBLE;
     } catch (Throwable t) { // NOPMD
       return renderFailed(t);
     }
+  }
+
+  /**
+   * A record component's own backing field, read directly rather than through its generated
+   * accessor: rendering reads a value's state and never runs the value's own code, and a record
+   * accessor is code the record's author can override.
+   *
+   * <p><b>@llmNote</b> The field name always matches {@link RecordComponent#getName()} — the
+   * compiler generates it that way for every record — so {@code getDeclaredField} always finds it;
+   * nothing here falls back to the accessor. {@code setAccessible(true)} throws {@link
+   * InaccessibleObjectException} against a package that exports but does not open, which the two
+   * callers translate to {@link #INACCESSIBLE} rather than the typed failure marker.
+   */
+  private static Object componentState(RecordComponent comp, Object record)
+      throws NoSuchFieldException, IllegalAccessException {
+    var field = record.getClass().getDeclaredField(comp.getName());
+    field.setAccessible(true);
+    return field.get(record);
   }
 
   /**
@@ -1333,10 +1587,21 @@ public final class ValueRenderer {
    * password at depth zero, and a curated {@code toString()} on any outer class printed nested
    * {@code @NotTraced} values through ordinary Java stringification. Walking instead also puts the
    * depth cap and the cycle guard back in front of every value, since user {@code toString()} ran
-   * outside both. Family invariant, owner-ruled 2026-09-11; .NET has always dispatched this way.
+   * outside both. Family invariant: every NarrativeTrace runtime dispatches this way.
    *
    * <p>Both {@code renderComplex} and {@code renderStructuredComplex} ask this one method, so the
    * flat and structured paths cannot drift on the question.
+   *
+   * <p><b>@edgeCase</b> A COMPOSITE never renders through its own {@code toString()}, on either
+   * path — not even a fieldless one, and whatever the reason the two tests below would have trusted
+   * it. A user subclass of {@code AbstractCollection} that declares no state of its own passed "has
+   * no instance fields" and so was handed its own stringification; the text it was trusted for is
+   * {@code AbstractCollection}'s inherited {@code toString()}, which walks {@code iterator()} — the
+   * subclass's override, reached through a method the subclass never wrote a line of. Element walks
+   * are dispatched by {@link ElementOrigin} and by nothing else; stringification is a leaf's
+   * privilege. Platform composites are excluded from the test because their text is the JDK's own
+   * ({@code Path}, {@code Charset}), and every platform {@code Collection}/{@code Map} has been
+   * dispatched to its own enumeration branch long before this question is asked.
    *
    * <p><b>@llmNote</b> The cost is real and was accepted: a field-bearing value class with a
    * pleasant {@code toString()} now renders as a field dump. {@code @NarrativeSummary} is the
@@ -1344,6 +1609,7 @@ public final class ValueRenderer {
    */
   private static boolean rendersItsOwnString(Class<?> clazz) {
     return HAS_CUSTOM_TO_STRING.get(clazz)
+        && !ElementOrigin.isApplicationComposite(clazz)
         && (!HAS_INSTANCE_FIELDS.get(clazz) || PLATFORM_DEFINED.get(clazz));
   }
 
@@ -1408,13 +1674,8 @@ public final class ValueRenderer {
   private static final ClassValue<Boolean> PLATFORM_DEFINED =
       new ClassValue<>() {
         @Override
-        @SuppressWarnings("PMD.CompareObjectsWithEquals") // a loader is identified by identity
         protected Boolean computeValue(Class<?> clazz) {
-          var loader = clazz.getClassLoader();
-          // Reference comparison is the test, not a shortcut for one: the platform loader is a
-          // singleton and ClassLoader does not override equals, so identity is the only question
-          // there is — and a value-shaped comparison would read as though another answer existed.
-          return loader == null || loader == ClassLoader.getPlatformClassLoader(); // NOPMD
+          return PlatformTypes.isPlatformDefined(clazz);
         }
       };
 

@@ -16,6 +16,7 @@ import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.NoopNarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.pipeline.PipelineBootstrap;
+import ai.narrativetrace.core.render.RenderingGuard;
 import ai.narrativetrace.core.render.ValueRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -107,9 +108,23 @@ public final class AgentRuntime {
    * try range opens, so a throw here would propagate in place of the instrumented method's body. A
    * context that will not answer is treated as off — the same rule the proxy applies. Keep this a
    * plain boolean read; anything heavier belongs behind the gate, not in it.
+   *
+   * <p><b>@llmNote</b> Also off while {@link RenderingGuard#isActive()} says the calling thread is
+   * inside a {@link ValueRenderer} entry point. {@code ValueRenderer} reflectively invokes record
+   * accessors (and other members) while rendering a parameter or return value, and when the
+   * accessor's declaring class is woven that reflective call reaches this exact gate again, for a
+   * call the application never made. {@link NarrativeMethodVisitor} gates both the enter and the
+   * exit hooks behind one read of this method (a per-call {@code traced} local, not a second gate
+   * read — see its class doc), so answering {@code false} here is sufficient on its own: the
+   * accessor's whole enter/exit pair is skipped as one unit. A call the accessor's own body
+   * genuinely makes, outside any render call, is unaffected — the guard is only ever active during
+   * rendering.
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // tracing may never fail the method
   public static boolean isActive() {
+    if (RenderingGuard.isActive()) {
+      return false;
+    }
     try {
       return context.isActive();
     } catch (Throwable t) { // NOPMD - a context that cannot answer is not tracing

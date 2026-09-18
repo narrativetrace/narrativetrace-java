@@ -10,6 +10,7 @@ package ai.narrativetrace.core.render;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import ai.narrativetrace.api.annotation.NarrativeElements;
 import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.event.RenderedValue;
 import java.util.AbstractCollection;
@@ -103,7 +104,15 @@ class ValueRendererTotalityTest {
     }
   }
 
-  /** A map that will not produce its entries. */
+  /**
+   * A map that will not produce its entries.
+   *
+   * <p><b>@llmNote</b> Re-expressed 2026-09-18, same ruling and same reason as {@link
+   * HalfReadableMap}: {@code AbstractMap} owns no entries, so the only walk that ever asks this
+   * type for its entries is the declared-safe hook. The assertion is untouched — what the test pins
+   * is the totality of that walk, not which door it came through.
+   */
+  @NarrativeElements
   private static final class HostileMap extends AbstractMap<String, String> {
     @Override
     public Set<Entry<String, String>> entrySet() {
@@ -111,7 +120,17 @@ class ValueRendererTotalityTest {
     }
   }
 
-  /** A collection that iterates fine and then refuses to say how big it is. */
+  /**
+   * A collection that iterates fine and then refuses to say how big it is.
+   *
+   * <p><b>@llmNote</b> Re-expressed 2026-09-18 (owner ruling: a user subclass of an ABSTRACT
+   * platform base is object-introspected, its override NEVER called): {@code AbstractCollection}
+   * has no platform-owned state, so this shape's totality intent — an otherwise-readable
+   * enumeration whose size answer alone is hostile — only survives under the third sanctioned hook.
+   * The un-annotated twin, {@link UndeclaredSizelessCollection} below, asserts the opposite: plain
+   * object introspection, never the override.
+   */
+  @NarrativeElements
   private static final class SizelessCollection extends AbstractCollection<String> {
     @Override
     public Iterator<String> iterator() {
@@ -124,7 +143,31 @@ class ValueRendererTotalityTest {
     }
   }
 
-  /** A collection that will not iterate at all. */
+  /** Same shape as {@link SizelessCollection}, without the declared-safe hook. */
+  @SuppressWarnings(
+      "PMD.UnusedPrivateField") // label exists only to be read by object introspection
+  private static final class UndeclaredSizelessCollection extends AbstractCollection<String> {
+    private final String label = "sizeless";
+
+    @Override
+    public Iterator<String> iterator() {
+      return List.of("a", "b").iterator();
+    }
+
+    @Override
+    public int size() {
+      throw new AssertionError("collection size assertion");
+    }
+  }
+
+  /**
+   * A collection that will not iterate at all.
+   *
+   * <p><b>@llmNote</b> Re-expressed 2026-09-18, same ruling and same reason as {@link
+   * SizelessCollection}: an {@code AbstractCollection} subclass is only ever enumerated through the
+   * declared-safe hook, so that is where this shape's totality intent lives. Assertions untouched.
+   */
+  @NarrativeElements
   private static final class UniterableCollection extends AbstractCollection<String> {
     @Override
     public Iterator<String> iterator() {
@@ -137,7 +180,14 @@ class ValueRendererTotalityTest {
     }
   }
 
-  /** A collection that yields two items and then throws mid-iteration. */
+  /**
+   * A collection that yields two items and then throws mid-iteration.
+   *
+   * <p><b>@llmNote</b> Re-expressed 2026-09-18, same ruling as {@link SizelessCollection}. This is
+   * the shape that proves the declared-safe hook is totality-guarded like every other element walk:
+   * a hook that dies half way keeps what it already yielded. Assertions untouched.
+   */
+  @NarrativeElements
   private static final class HalfIterableCollection extends AbstractCollection<String> {
     @Override
     public Iterator<String> iterator() {
@@ -210,8 +260,31 @@ class ValueRendererTotalityTest {
     }
   }
 
-  /** A map whose entry set holds one readable entry and one that will not give up its key. */
+  /**
+   * A map whose entry set holds one readable entry and one that will not give up its key.
+   *
+   * <p><b>@llmNote</b> Re-expressed 2026-09-18, same ruling as {@link SizelessCollection}: {@code
+   * AbstractMap} has no platform-owned state either, so this totality intent — a hostile entry
+   * inside an otherwise-readable enumeration — moves under {@code @NarrativeElements}. The
+   * un-annotated twin, {@link UndeclaredHalfReadableMap} below, asserts plain object introspection.
+   */
+  @NarrativeElements
   private static final class HalfReadableMap extends AbstractMap<String, String> {
+    @Override
+    public Set<Entry<String, String>> entrySet() {
+      var entries = new java.util.LinkedHashSet<Entry<String, String>>();
+      entries.add(new java.util.AbstractMap.SimpleEntry<>("good", "value"));
+      entries.add(new HostileEntry());
+      return entries;
+    }
+  }
+
+  /** Same shape as {@link HalfReadableMap}, without the declared-safe hook. */
+  @SuppressWarnings(
+      "PMD.UnusedPrivateField") // label exists only to be read by object introspection
+  private static final class UndeclaredHalfReadableMap extends AbstractMap<String, String> {
+    private final String label = "half-readable";
+
     @Override
     public Set<Entry<String, String>> entrySet() {
       var entries = new java.util.LinkedHashSet<Entry<String, String>>();
@@ -289,6 +362,23 @@ class ValueRendererTotalityTest {
                 List.of(new RenderedValue.StringVal("a"), new RenderedValue.StringVal("b"))));
   }
 
+  /**
+   * Pending (owner ruling 2026-09-18: a user subclass of an ABSTRACT platform base is
+   * object-introspected, its override NEVER called): without {@code @NarrativeElements}, {@link
+   * UndeclaredSizelessCollection} has no honest ancestor state to fall back on either, so it is
+   * rendered like any hand-rolled type — its own declared field, never the elements its {@code
+   * iterator()} would yield, and no failure marker (its {@code size()} is never consulted).
+   */
+  @Test
+  void anUndeclaredSizelessCollectionIsObjectIntrospectedRatherThanEnumerated() {
+    var rendered = renderer.render(new UndeclaredSizelessCollection());
+
+    assertThat(rendered).doesNotContain("<error:");
+    assertThat(rendered).doesNotContain("\"a\"").doesNotContain("\"b\"");
+    assertThat(rendered).contains("UndeclaredSizelessCollection");
+    assertThat(rendered).contains("sizeless");
+  }
+
   // ---------------------------------------------------------------- nested-failure cases
 
   @Test
@@ -301,6 +391,22 @@ class ValueRendererTotalityTest {
   void anIteratorThatDiesHalfwayKeepsTheItemsItAlreadyYielded() {
     assertThat(renderer.render(new HalfIterableCollection()))
         .isEqualTo("[\"item1\", \"item2\", <error: IllegalStateException>]");
+  }
+
+  /**
+   * A platform-defined collection can be hostile too, without any user type in the dispatch: {@code
+   * AbstractMap}'s own {@code keySet()} view is declared by the JDK, so origin says "enumerate" —
+   * and every question it forwards to the map underneath, its size and its iterator alike, refuses.
+   *
+   * <p>INTENT: the totality of the PLATFORM collection walk, which the hostile user collections
+   * above no longer reach: a user subclass of an abstract platform base is object-introspected, so
+   * those shapes now enter through the declared-safe hook's own walk instead. Both walks must stay
+   * total, and this is the one that no user type can be substituted into.
+   */
+  @Test
+  void aPlatformCollectionViewOverAMapThatAnswersNothingRendersTheFailureMarkerAlone() {
+    assertThat(renderer.render(new HostileMap().keySet()))
+        .isEqualTo("[<error: IllegalStateException>]");
   }
 
   @Test
@@ -344,15 +450,19 @@ class ValueRendererTotalityTest {
         .isEqualTo(new RenderedValue.StringVal("<error: AssertionError>"));
   }
 
+  /**
+   * Updated 2026-09-17 for the rendering rule: a record component is read from its backing field,
+   * never through its accessor, so an accessor throwing an {@link Error} is never invoked and never
+   * seen. See {@link RenderingReadsStateNeverRunsBehaviourTest}.
+   */
   @Test
-  void aRecordAccessorThrowingAnErrorMarksOnlyThatComponent() {
+  void aRecordAccessorThrowingAnErrorStillRendersFromTheBackingField() {
     assertThat(renderer.render(new HostileRecord("ignored")))
-        .isEqualTo("HostileRecord(id: <error: AssertionError>)");
+        .isEqualTo("HostileRecord(id: \"ignored\")");
     assertThat(renderer.renderStructured(new HostileRecord("ignored")))
         .isEqualTo(
             new RenderedValue.ObjectVal(
-                "HostileRecord",
-                Map.of("id", new RenderedValue.StringVal("<error: AssertionError>"))));
+                "HostileRecord", Map.of("id", new RenderedValue.StringVal("ignored"))));
   }
 
   @Test
@@ -403,6 +513,23 @@ class ValueRendererTotalityTest {
                     new RenderedValue.StringVal("value"),
                     "<error: AssertionError>",
                     new RenderedValue.StringVal("<error: AssertionError>"))));
+  }
+
+  /**
+   * Pending, same ruling as {@link
+   * #anUndeclaredSizelessCollectionIsObjectIntrospectedRatherThanEnumerated}: without
+   * {@code @NarrativeElements}, {@link UndeclaredHalfReadableMap} is object-introspected, its
+   * {@code entrySet()} override never called, so neither the readable entry nor the hostile one
+   * ever appears, and there is no failure marker.
+   */
+  @Test
+  void anUndeclaredHalfReadableMapIsObjectIntrospectedRatherThanPartiallyEnumerated() {
+    var rendered = renderer.render(new UndeclaredHalfReadableMap());
+
+    assertThat(rendered).doesNotContain("<error:");
+    assertThat(rendered).doesNotContain("good=").doesNotContain("value");
+    assertThat(rendered).contains("UndeclaredHalfReadableMap");
+    assertThat(rendered).contains("half-readable");
   }
 
   /**

@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 79cbabe43f78 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 180a62c36ad9 | translated: 2026-09-13 | reviewed: - -->
 # Ve una traza en 60 segundos
 
 [English](../sixty-seconds.md) | **Español** | [Português](../pt-BR/sessenta-segundos.md) | [简体中文](../zh-CN/60秒.md)

@@ -12,8 +12,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 class TreeWalkTest {
 
@@ -55,6 +57,7 @@ class TreeWalkTest {
   }
 
   @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
   void aVeryDeepLegitimateChainRendersWholeWithoutStackOverflow() {
     // A real recursive business method can produce a deep, but not hostile, call tree. This must
     // not crash, and every node up to MAX_DEPTH must be visited normally.

@@ -12,6 +12,7 @@ NarrativeTrace follows a **Code is the Log** philosophy: method names, parameter
 | `@OnError` | `narrativetrace-core` | Method | Adds contextual error text when a method throws. |
 | `@NotTraced` | `narrativetrace-core` | Parameter, Field, Record component | Marks a value as redacted in trace output; also honored on fields and record components during reflective introspection. |
 | `@NarrativeSummary` | `narrativetrace-core` | Method | Provides custom value rendering for objects in traces. |
+| `@NarrativeElements` | `narrativetrace-api` | Type | Declares an `Iterable` type's own iteration pure, so rendering enumerates it. |
 | `@EnableNarrativeTrace` | `narrativetrace-spring` | Type (`@Configuration`) | Enables Spring auto-proxy tracing for selected packages. |
 
 ## Core Annotations
@@ -116,6 +117,36 @@ How it works:
 - If not found, rendering walks the object's fields. A type with no instance fields, or one the
   platform defines, keeps its own `toString()` instead.
 
+### `@NarrativeElements`
+
+Rendering reads a value's state; it never runs a value's own code, with exactly three sanctioned
+exceptions: `@NarrativeSummary`, a stateless leaf's own `toString()` — and this one. Use
+`@NarrativeElements` on a type whose `Iterable#iterator()` is known to be pure, to have rendering
+enumerate it.
+
+```java
+@NarrativeElements
+public final class RecentOrders implements Iterable<Order> {
+    public Iterator<Order> iterator() {
+        return orders.iterator(); // pure — no lazy load, no counter, no I/O
+    }
+}
+```
+
+How it works:
+
+- Without the annotation, rendering enumerates a `Collection`/`Map` only when the type is
+  platform-defined — a plain `ArrayList`, a plain `HashMap` — or, for a user subclass of one,
+  through that ancestor's own state, never the subclass's overridden `iterator()`/`entrySet()`.
+  A hand-rolled `Collection`/`Map` implementation, and any bare `Iterable` that is neither, render
+  as an object (or a bounded type marker for a bare `Iterable`) without ever calling `iterator()`.
+- `@NarrativeElements` is the opt-in past all of that: the declared type's own `iterator()` is
+  called, under the same rendering guard every other hook runs behind, capped at the same
+  collection-item limit as every other element walk.
+- If the iterator throws, the value renders as `<error: IllegalStateException>` — the exception's
+  type name and nothing else, exactly like every other hook's failure mode.
+- The annotation applies to the exact declared type, not to its subclasses.
+
 ## The Purity Contract — Side Effects During Tracing
 
 NarrativeTrace may invoke a small, fixed set of code paths on your objects while rendering
@@ -126,18 +157,22 @@ What is invoked, and what is not:
 
 - **Field introspection never calls your code.** For any object that has state,
   `ValueRenderer` reads its *fields* reflectively — a pure memory read. A getter that
-  increments a counter or lazily loads data is not touched by introspection. This is now
-  the default path rather than the fallback: since 2026-09-11 a custom `toString()` no
-  longer stands in for introspection on a type that has fields, so *fewer* of your members
-  run during rendering than before, not more.
+  increments a counter or lazily loads data is not touched by introspection, and neither is
+  a record's own generated accessor: a record component's value is read from its backing
+  field, so an accessor with a side effect or one that throws is never invoked either.
+- **Collections and maps are enumerated by origin, not by shape.** A platform-defined
+  `Collection`/`Map` enumerates through its own iterator/entrySet; a user subclass of `ArrayList`
+  or `HashMap` enumerates through that ancestor's own state, never the subclass's override; a
+  hand-rolled implementation is introspected like any other object. `@NarrativeElements` is the
+  one opt-in past this, for a type whose own iteration is declared pure.
 - **What NarrativeTrace does invoke:** a `@NarrativeSummary` method, the `toString()` of a
-  type with no instance fields, record component accessors, and any property path you name
-  in a `@Narrated`/`@OnError` template (`{order.total}` resolves by calling the direct accessor method `total()` first,
-  then the JavaBean getter `getTotal()`). These are the only places user code runs during
-  rendering.
+  type with no instance fields, an `@NarrativeElements`-declared type's own `iterator()`, and
+  any property path you name in a `@Narrated`/`@OnError` template (`{order.total}` resolves by
+  calling the direct accessor method `total()` first, then the JavaBean getter `getTotal()`).
+  These are the only places user code runs during rendering.
 - **Invocation is bounded and isolated.** Output is capped (string length, collection
-  items, introspection depth), a throwing getter, summary or `toString()` can never fail
-  the traced business call (templates fall back to the literal `{placeholder}`; the failed
+  items, introspection depth), a throwing getter, summary, iterator or `toString()` can never
+  fail the traced business call (templates fall back to the literal `{placeholder}`; the failed
   part of a rendering falls back to `<error: TypeName>`, naming the exception's type and
   never its message), and values are rendered eagerly at the call site — any side
   effect happens once, at a deterministic point, on the calling thread.

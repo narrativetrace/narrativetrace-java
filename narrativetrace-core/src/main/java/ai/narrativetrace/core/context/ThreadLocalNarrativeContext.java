@@ -1350,7 +1350,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      * after the hand-over removed the child — and the worker's whole subtree drops out of a
      * capture. Reading in the opposite direction makes that impossible: observing the child gone
      * from the registry means the adoption that preceded its removal is already visible to the read
-     * that follows. Measured at 0.12% of samples before the order was fixed (2026-09-01).
+     * that follows. Measured at 0.12% of samples before the ordering fix.
      */
     Set<SpanId> reportableSpanIds() {
       var ids = new HashSet<>(knownSpanIds);

@@ -87,9 +87,9 @@ class ArchitectureTest {
           .as("Tree builder should only depend on config and event model");
 
   /**
-   * Template resolution is a leaf utility with four deliberate exceptions, all about applying a
-   * security invariant once rather than duplicating it: {@code RedactionPolicy}, {@code
-   * ValueRenderer}, {@code ScalarTrust} and {@code ControlEscape}.
+   * Template resolution is a leaf utility with five deliberate exceptions, all about applying a
+   * security or correctness invariant once rather than duplicating it: {@code RedactionPolicy},
+   * {@code ValueRenderer}, {@code ScalarTrust}, {@code ControlEscape} and {@code RenderingGuard}.
    *
    * <p>A template can name a redacted member two ways, and each needs one of the first two. Naming
    * a <em>path</em> ({@code @Narrated("charging {card.cvv}")}) needs the rule itself, so the
@@ -98,18 +98,26 @@ class ArchitectureTest {
    * renderer, because the object's own {@code toString()} prints its {@code @NotTraced} components
    * in full and only {@code ValueRenderer} knows how to render it without them.
    *
-   * <p>The other two close a different hole the same way: a scalar argument (a {@code Number}
+   * <p>The next two close a different hole the same way: a scalar argument (a {@code Number}
    * subclass, an {@code Enum} constant) substituted directly into a template's flat text must not
    * trust that value's own {@code toString()} any more than {@code ValueRenderer} does, so the
    * resolver asks {@code ScalarTrust} which types are JDK-fixed and sanitizes the rest through
    * {@code ControlEscape} — the exact decision {@code ValueRenderer} makes on its own scalar path.
    *
-   * <p>Redaction and scalar sanitizing are both cross-cutting security invariants rather than
-   * rendering details, so the resolver must apply them. The alternative was a second implementation
-   * of each rule inside this package — the defect class a past redaction-bypass fix exists to
-   * close, and the same class a Number subclass's unsanitized {@code toString()} belongs to. Every
-   * exception here is a named leaf class, and none of the four depends on {@code template}, so
-   * nothing here can become a cycle.
+   * <p>The fifth closes the rendering-reentrancy hole for property access: resolving {@code
+   * {order.total}} reflectively reads a backing field or, for a genuinely computed property with no
+   * field, invokes an accessor — and when that accessor's declaring class is woven, invoking it
+   * from outside a traced scope opens a spurious span exactly as a record accessor invoked from
+   * {@code ValueRenderer} would. {@code RenderingGuard} is how the instrumentation gate recognizes
+   * that call as a side effect of rendering rather than a traced one, so the resolver marks the
+   * same region {@code ValueRenderer} already marks.
+   *
+   * <p>Redaction, scalar sanitizing and the rendering guard are all cross-cutting invariants rather
+   * than rendering details, so the resolver must apply them. The alternative was a second
+   * implementation of each rule inside this package — the defect class a past redaction-bypass fix
+   * exists to close, and the same class a Number subclass's unsanitized {@code toString()} belongs
+   * to. Every exception here is a named leaf class, and none of the five depends on {@code
+   * template}, so nothing here can become a cycle.
    */
   @ArchTest
   static final ArchRule template_package_is_self_contained =
@@ -129,7 +137,8 @@ class ArchitectureTest {
                   .and(not(name("ai.narrativetrace.core.render.RedactionPolicy")))
                   .and(not(name("ai.narrativetrace.core.render.ValueRenderer")))
                   .and(not(name("ai.narrativetrace.core.render.ScalarTrust")))
-                  .and(not(name("ai.narrativetrace.core.render.ControlEscape"))))
+                  .and(not(name("ai.narrativetrace.core.render.ControlEscape")))
+                  .and(not(name("ai.narrativetrace.core.render.RenderingGuard"))))
           .as("Template parser should be a self-contained utility with no internal dependencies");
 
   @ArchTest

@@ -42,6 +42,7 @@ admitted with their enclosing type and are not listed separately.
 | Type | Admitted | Reason |
 |---|---|---|
 | `ai.narrativetrace.api.annotation.Narrated` | 2026-08-30 | Users write it on their own methods; it is the primary authoring surface. |
+| `ai.narrativetrace.api.annotation.NarrativeElements` | 2026-09-17 | Same: authored in user code, on a type whose iteration the author declares pure — the third sanctioned rendering hook. |
 | `ai.narrativetrace.api.annotation.NarrativeSummary` | 2026-08-30 | Same: authored in user code, read by the proxy and the agent. |
 | `ai.narrativetrace.api.annotation.NotTraced` | 2026-08-30 | Same, and the redaction contract depends on it being namable everywhere. |
 | `ai.narrativetrace.api.annotation.OnError` | 2026-08-30 | Same: authored in user code. |

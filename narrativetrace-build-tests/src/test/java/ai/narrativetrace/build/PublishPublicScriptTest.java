@@ -554,4 +554,165 @@ class PublishPublicScriptTest {
       assertThat(result.stdout()).doesNotContain("clean.png");
     }
   }
+
+  // -----------------------------------------------------------------------------------------
+  // 5. Public tag OBJECT naming (2026-09-17 fix): `git tag -a "public/$TAG"` at
+  //    `refs/tags/public/$TAG` writes "public/$TAG" as the tag object's OWN embedded name, then
+  //    the push maps that same object onto `refs/tags/$TAG` on the public remote. Ref and
+  //    embedded name now disagree, which is exactly what makes every consumer clone's `git
+  //    describe --tags --abbrev=0 --match 'v*'` print "public/$TAG-0-g<hash>" instead of "$TAG"
+  //    (git warns "tag '$TAG' is externally known as 'public/$TAG'") — the root cause behind
+  //    verify-publication.sh's `latest_tag_version` misclassifying every artifact LAGGING.
+  // -----------------------------------------------------------------------------------------
+
+  @Nested
+  class PublicTagObjectNaming {
+
+    // From the tag-creation `if [ -n "$TAG_NOTES" ]; then` block through the public-remote push
+    // block's closing `fi` — the real script text, never a hand-copied duplicate (same technique
+    // every other nested class here uses).
+    private final String tagAndPushSnippet =
+        extract(
+            "if \\[ -n \"\\$TAG_NOTES\" \\]; then\\n    # Version and tag name.*?"
+                + "configuring the remote\\.\"\\nfi");
+
+    private GitResult git(Path dir, String... args) throws IOException, InterruptedException {
+      var command = new java.util.ArrayList<String>();
+      command.add("git");
+      command.addAll(List.of(args));
+      var process =
+          new ProcessBuilder(command).directory(dir.toFile()).redirectErrorStream(true).start();
+      var output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      var exitCode = process.waitFor();
+      return new GitResult(output, exitCode);
+    }
+
+    private void requireGit(Path dir, String... args) throws IOException, InterruptedException {
+      var result = git(dir, args);
+      if (result.exitCode() != 0) {
+        throw new IOException(
+            "git "
+                + String.join(" ", args)
+                + " failed ("
+                + result.exitCode()
+                + "): "
+                + result.output());
+      }
+    }
+
+    private record GitResult(String output, int exitCode) {}
+
+    private record TagFixture(
+        Path work,
+        Path privateRemote,
+        Path publicRemote,
+        String tag,
+        String tagNotes,
+        String privateTagObjectBefore) {}
+
+    // Split out of buildTagFixture (PMD NcssCount hard gate: 20 statements/method) -- the git
+    // work-tree setup below is one cohesive step, buildTagFixture's own body is another.
+    private String initWorkTreeWithPrivateTagCollision(Path work)
+        throws IOException, InterruptedException {
+      Files.createDirectories(work);
+      requireGit(work, "init", "-q", "-b", "public-main");
+      requireGit(work, "config", "user.email", "publish-public-test@example.com");
+      requireGit(work, "config", "user.name", "publish-public-test");
+      requireGit(work, "config", "commit.gpgsign", "false");
+      Files.writeString(work.resolve("f.txt"), "hello\n");
+      requireGit(work, "add", "-A");
+      requireGit(work, "commit", "-q", "-m", "release: 9.9.9 \u2014 public source snapshot");
+      var releaseCommit = git(work, "rev-parse", "HEAD").output().strip();
+
+      Files.writeString(work.resolve("private-marker.txt"), "priv\n");
+      requireGit(work, "add", "-A");
+      requireGit(work, "commit", "-q", "-m", "private-only commit (not part of the snapshot)");
+      requireGit(work, "tag", "-a", "v9.9.9", "-m", "private release 9.9.9", "HEAD");
+      var privateTagObjectBefore = git(work, "rev-parse", "refs/tags/v9.9.9").output().strip();
+      requireGit(work, "reset", "-q", "--hard", releaseCommit);
+      return privateTagObjectBefore;
+    }
+
+    /**
+     * A {@code WORK} tree at the staged public-snapshot commit on {@code public-main} (mirroring
+     * the real script's git-worktree-of-the-private-clone shape), with a PRE-EXISTING private
+     * release tag {@code refs/tags/$TAG} on a separate private-only commit — the exact collision
+     * the script's own comment describes ("the private release tag may already own refs/tags/<TAG>
+     * in this clone") and the reason it uses {@code refs/tags/public/$TAG} locally at all. Plus two
+     * bare repos standing in for the private and public remotes.
+     */
+    private TagFixture buildTagFixture(Path tmp) throws IOException, InterruptedException {
+      var work = tmp.resolve("work");
+      var privateTagObjectBefore = initWorkTreeWithPrivateTagCollision(work);
+
+      var privateRemote = tmp.resolve("private-remote.git");
+      var publicRemote = tmp.resolve("public-remote.git");
+      requireGit(tmp, "init", "-q", "--bare", privateRemote.toString());
+      requireGit(tmp, "init", "-q", "--bare", publicRemote.toString());
+
+      return new TagFixture(
+          work,
+          privateRemote,
+          publicRemote,
+          "v9.9.9",
+          "- fixed a defect\n- added a feature",
+          privateTagObjectBefore);
+    }
+
+    private ScriptResult runTagAndPush(TagFixture fx) throws IOException, InterruptedException {
+      var body =
+          String.join(
+              "\n",
+              "set -euo pipefail",
+              "WORK=\"" + fx.work() + "\"",
+              "PUBLIC_BRANCH=\"public-main\"",
+              "TAG=\"" + fx.tag() + "\"",
+              "TAG_NOTES='" + fx.tagNotes() + "'",
+              "LOCAL_TAG_REF=\"refs/tags/public/$TAG\"",
+              "PRIVATE_REMOTE=\"" + fx.privateRemote() + "\"",
+              "PUBLIC_REMOTE=\"" + fx.publicRemote() + "\"",
+              tagAndPushSnippet);
+      return runBash(body, Map.of());
+    }
+
+    /**
+     * Bundles the tag step's full contract in one fixture, mirroring the behaviour spec: the public
+     * remote's tag object embeds the plain {@code v$TAG} name (never the private staging name
+     * {@code public/v$TAG}) and still carries the changelog message; the local {@code
+     * refs/tags/public/$TAG} and the remote {@code refs/tags/$TAG} name the identical object; and —
+     * a regression guard for the two-tag model — the clone's own PRIVATE release tag on the release
+     * commit is left untouched by the publish. The FIRST assertion is the one this defect actually
+     * breaks today; the rest lock the surrounding contract down for when it's fixed.
+     */
+    @Test
+    void publicTagObjectEmbedsThePlainVTagNameNotThePublicPrefixedStagingName(@TempDir Path tmp)
+        throws Exception {
+      var fx = buildTagFixture(tmp);
+
+      var result = runTagAndPush(fx);
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+
+      var remoteTagDump = git(fx.publicRemote(), "cat-file", "-p", "refs/tags/" + fx.tag());
+      assertThat(remoteTagDump.exitCode()).isZero();
+      assertThat(remoteTagDump.output().lines())
+          .as("the public remote's tag object header")
+          .anyMatch(line -> line.equals("tag " + fx.tag()));
+      assertThat(remoteTagDump.output()).doesNotContain("tag public/" + fx.tag());
+      assertThat(remoteTagDump.output()).contains(fx.tagNotes());
+
+      var localRefObject =
+          git(fx.work(), "rev-parse", "refs/tags/public/" + fx.tag()).output().strip();
+      var remoteRefObject =
+          git(fx.publicRemote(), "rev-parse", "refs/tags/" + fx.tag()).output().strip();
+      assertThat(localRefObject)
+          .as("local staging ref and remote ref must name the same object")
+          .isEqualTo(remoteRefObject);
+
+      var privateTagObjectAfter =
+          git(fx.work(), "rev-parse", "refs/tags/" + fx.tag()).output().strip();
+      assertThat(privateTagObjectAfter)
+          .as("the private release tag must be untouched by the publish")
+          .isEqualTo(fx.privateTagObjectBefore());
+    }
+  }
 }

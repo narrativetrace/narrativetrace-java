@@ -1,0 +1,13 @@
+{
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/ProListing.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/catalogue/ProListings.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals/PromotionRenderer.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals/QuotaMarkdown.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals/SporadicPolicy.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals/TierPrecondition.java": "narrativetrace-skills is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "buildSrc/src/main/kotlin/ai/narrativetrace/build/CommentHygieneSupport.kt": "the lint's own HISTORY_PATTERN/PORT_FRAMING_PATTERN regex literals spell the very substrings they match; not history left behind",
+  "buildSrc/src/main/kotlin/ai/narrativetrace/build/ContractLintSupport.kt": "quotes the *(since X.Y.Z, unreleased)* doc-marker syntax it validates, a different mechanism that happens to share the ', unreleased)' substring; not history left behind",
+  "buildSrc/src/main/kotlin/ai/narrativetrace/build/DuplicationCheckSupport.kt": "buildSrc is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "buildSrc/src/main/kotlin/ai/narrativetrace/build/JcstressReportSupport.kt": "buildSrc is outside this wave's scope (core/api/proxy/agent only); pending its own wave",
+  "buildSrc/src/main/kotlin/ai/narrativetrace/build/PublishedVersionSupport.kt": "quotes the *(since X.Y.Z, unreleased)* doc-marker syntax it counts, a different mechanism that happens to share the ', unreleased)' substring; not history left behind"
+}
