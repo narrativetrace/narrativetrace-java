@@ -24,8 +24,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
 }
 
 tasks.withType<JavaCompile> {
@@ -129,7 +129,7 @@ gradle wrapper
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 20ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 13ms
 ```
 <!-- /snippet -->
 
@@ -163,9 +163,9 @@ moment it is on the classpath; the two commented lines below are the change:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.3")   // new: attaches to the pipeline
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.4")   // new: attaches to the pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // new: the SLF4J backend it needs
 }
 ```

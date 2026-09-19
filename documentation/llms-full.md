@@ -142,7 +142,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.3"
+    id("ai.narrativetrace") version "0.2.4"
 }
 ```
 
@@ -196,9 +196,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.3")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.3")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.4")
 }
 ```
 
@@ -695,7 +695,7 @@ narrativetrace.format=markdown
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.3"
+    id("ai.narrativetrace") version "0.2.4"
 }
 
 narrativeTrace {

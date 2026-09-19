@@ -224,7 +224,7 @@ and supplies the Jupiter engine:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.3"
+    id("ai.narrativetrace") version "0.2.4"
 }
 ```
 
@@ -292,7 +292,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.3`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.4`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
