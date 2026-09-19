@@ -55,17 +55,16 @@ import java.util.stream.Collectors;
  * ai.narrativetrace.api.annotation.NarrativeSummary}.
  *
  * <p><b>@llmNote</b> <b>The one invariant to keep when editing this class: a type's own
- * stringification is never trusted while the type has state.</b> A class or record that declares
- * instance fields is walked field by field, at every depth, with {@link RedactionPolicy} consulted
- * per field — whatever {@code toString()} it declares. Exactly two kinds of value keep their own
- * text: a stateless leaf (no instance fields, and not a composite — an application {@code
- * Collection}, {@code Map} or {@code Iterable} never renders through its own {@code toString()},
- * because that text is always somebody's element walk), and a class the platform defines (its
- * {@code toString()} is the JDK's, not the application's). The single opt-in back to curated
+ * stringification is never trusted unless the type is a named platform leaf.</b> Every other value
+ * is walked field by field, at every depth, with {@link RedactionPolicy} consulted per field —
+ * whatever {@code toString()} it declares — and a value with no readable field renders as its bare
+ * type name rather than its text, because state can live off the field graph entirely (a static
+ * identity-keyed side table, a {@code ClassValue}, a {@code ThreadLocal}). The leaf list is {@link
+ * PlatformTypes#isStatelessLeaf}, keyed on the exact class. The single opt-in back to curated
  * rendering is {@link ai.narrativetrace.api.annotation.NarrativeSummary}, written for the trace by
  * the author — and even that text is scanned by {@link RedactionPolicy#shouldRedactValue} rather
- * than trusted verbatim. See {@link #rendersItsOwnString} for the rule and what it replaced. Do not
- * reintroduce a "this class renders itself nicely" fast path: that was the defect.
+ * than trusted verbatim. See {@link #rendersItsOwnString} for the rule and the two it replaced. Do
+ * not reintroduce a "this class renders itself nicely" fast path: that was the defect.
  *
  * <p><b>@edgeCase</b> Pending futures render as {@code <pending>}, cancelled futures as {@code
  * <cancelled>}, failed future dereference as {@code <failed>}, and recursive object graphs collapse
@@ -305,6 +304,15 @@ public final class ValueRenderer {
    * <p><b>@llmNote</b> An instance method, not static, only so it can consult {@link
    * RedactionPolicy#shouldRedactValue}. The flat twin {@link #renderScalar} applies the same test
    * at the same point; a secret must not depend on which of the two paths an exporter chose.
+   *
+   * <p><b>@llmNote</b> The typed temporal and numeric forms are behind an ORIGIN gate, and must
+   * stay there. Both read the value's own numeric or epoch state — {@code getTime()}, {@code
+   * doubleValue()} — and neither {@link Date} nor {@link BigDecimal} is {@code final}, so an {@code
+   * instanceof} reached an application override and answered a typed attribute from whatever it
+   * chose to return, while the flat path walked the same value's fields and redacted them by name.
+   * The gate makes a user subclass of a platform numeric or temporal type exactly what it is on the
+   * flat path too: a composite, walked. It is the same question {@link ScalarTrust} asks one branch
+   * over, and one channel may not answer it differently from the other.
    */
   private RenderedValue structuredScalar(Object value) {
     if (value == null) {
@@ -317,20 +325,22 @@ public final class ValueRenderer {
     if (value instanceof Boolean b) {
       return new RenderedValue.BooleanVal(b);
     }
-    var temporal = renderStructuredTemporal(value);
-    if (temporal != null) {
-      return temporal;
-    }
-    var numeric = renderStructuredNumeric(value);
-    if (numeric != null) {
-      return numeric;
+    if (PlatformTypes.isPlatformDefined(value.getClass())) {
+      var temporal = renderStructuredTemporal(value);
+      if (temporal != null) {
+        return temporal;
+      }
+      var numeric = renderStructuredNumeric(value);
+      if (numeric != null) {
+        return numeric;
+      }
     }
     if (value instanceof Character) {
       return new RenderedValue.StringVal(scalarText(value));
     }
     if (value instanceof Enum<?>) {
-      // Enum.toString() is a per-constant overridable method (a constant body can supply one),
-      // not a JDK-fixed format — the same reason a non-JDK Number is not trusted below.
+      // Enum.toString() is a per-constant overridable method (a constant body can supply one), not
+      // a platform-fixed format — so its text is sanitized, as the flat path sanitizes it.
       return new RenderedValue.StringVal(ControlEscape.sanitize(scalarText(value)));
     }
     return null;
@@ -844,12 +854,14 @@ public final class ValueRenderer {
       return scalarText(value);
     }
     if (value instanceof Number number) {
-      var text = scalarText(number);
-      return ScalarTrust.isTrustedNumeric(number) ? text : sanitizeAndCap(text);
+      // Extending Number says nothing about what a value holds: a subclass is an ordinary composite
+      // with a numeric base, so only a platform numeric leaf's own text is read here. Answering
+      // "not a scalar" hands every other one to the walk, where a composite belongs.
+      return ScalarTrust.isTrustedNumeric(number) ? scalarText(number) : null;
     }
     if (value instanceof Enum<?>) {
-      // Enum.toString() is a per-constant overridable method, not a JDK-fixed format — the same
-      // treatment a non-JDK Number gets, one line up.
+      // Enum.toString() is a per-constant overridable method, not a platform-fixed format; but a
+      // constant holds no member a walk could reach, so its text is read and sanitized.
       return sanitizeAndCap(scalarText(value));
     }
     return null;
@@ -1141,9 +1153,9 @@ public final class ValueRenderer {
    * The value-shape axis applied to curated text, then the escape and the cap.
    *
    * <p><b>@llmNote</b> Both curated paths — {@link #summarize} and {@link #renderWithToString} —
-   * end here, so a JWT is withheld whether an author's summary printed it or a field-less leaf
-   * type's own {@code toString()} did. The name axis cannot help on either path: there is no member
-   * name to match, only text.
+   * end here, so a JWT is withheld whether an author's summary printed it or a platform leaf type's
+   * own {@code toString()} did. The name axis cannot help on either path: there is no member name
+   * to match, only text.
    */
   private String scanned(String text) {
     return redactionPolicy.shouldRedactValue(text) ? RedactionPolicy.MARKER : sanitizeAndCap(text);
@@ -1163,13 +1175,14 @@ public final class ValueRenderer {
   /**
    * A leaf type's own text, scanned like any other value.
    *
-   * <p><b>@llmNote</b> Only reachable for a class {@link #rendersItsOwnString} trusts — one with no
-   * instance fields of its own, or one the platform defines. Everything else is walked, so this
-   * method can no longer print past a redaction the author declared.
+   * <p><b>@llmNote</b> Only reachable for a class {@link #rendersItsOwnString} trusts — a platform
+   * leaf type named in {@link PlatformTypes#isStatelessLeaf}'s list. Everything else is walked or
+   * named, so this method cannot print past a redaction the author declared.
    *
-   * <p><b>@edgeCase</b> A {@code toString()} answering {@code null} breaks the JDK contract but is
-   * not a failure the reader can act on, so it answers the value's type marker; one that throws
-   * answers the typed failure marker naming the exception instead.
+   * <p><b>@edgeCase</b> A {@code toString()} answering {@code null} or throwing is not a shape any
+   * listed leaf has, and the guards stay regardless: totality is not conditional on the current
+   * contents of a list. A {@code null} answers the value's type marker, a throw the typed failure
+   * marker naming the exception.
    */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // rogue toString() may throw Error
   private String renderWithToString(Object value) {
@@ -1573,109 +1586,60 @@ public final class ValueRenderer {
   /**
    * Whether a class may stand in for introspection with its own {@code toString()}.
    *
-   * <p>INTENT: <b>A type's own stringification is never trusted while the type has state.</b> A
-   * class that declares instance fields — its own or inherited — is walked field by field at every
-   * depth, with {@link RedactionPolicy} consulted per field, whatever its {@code toString()} would
-   * have printed. Only two kinds of class keep their own text: one with no instance fields at all
-   * (nothing to hide, nothing to walk) and one the platform itself defines, whose {@code
-   * toString()} is fixed by the JDK rather than written by the application.
-   * {@code @NarrativeSummary} keeps precedence over both — see {@link #summarize}.
+   * <p>INTENT: <b>Only an explicitly named platform leaf type renders through its own {@code
+   * toString()}.</b> {@link PlatformTypes#isStatelessLeaf} holds the list — the boxed primitives,
+   * the JDK's numeric, temporal, identifier, locator and pattern value types — and every other
+   * value is walked instead: field by field with {@link RedactionPolicy} consulted per field, or,
+   * when it has no readable field at all, as its bare type name. {@code @NarrativeSummary} keeps
+   * precedence over both — see {@link #summarize}.
    *
-   * <p>The rule this replaces trusted any {@code toString()} unless the class declared a
-   * {@code @NotTraced} field, and consulted neither the name deny-list nor the field types. A plain
-   * {@code Login{username, password}} with a hand-written {@code toString()} therefore printed the
-   * password at depth zero, and a curated {@code toString()} on any outer class printed nested
-   * {@code @NotTraced} values through ordinary Java stringification. Walking instead also puts the
-   * depth cap and the cycle guard back in front of every value, since user {@code toString()} ran
-   * outside both. Family invariant: every NarrativeTrace runtime dispatches this way.
+   * <p>Two rules preceded this one and each was escaped. The first trusted any {@code toString()}
+   * unless the class declared a {@code @NotTraced} field, so a plain {@code Login{username,
+   * password}} with a hand-written {@code toString()} printed the password at depth zero. The
+   * second trusted a class with NO instance field ("nothing to hide") or any class the platform
+   * defines — and "no field" is not "no state": a fieldless class can park its state in a static
+   * identity-keyed side table, a {@link ClassValue} or a {@link ThreadLocal}, read it back inside
+   * its own {@code toString()}, and reach the trace with only the value-shape scan in front of it.
+   * Platform origin alone is no better a proxy, because a platform value can hold a whole
+   * application document and print it. Walking instead also puts the depth cap and the cycle guard
+   * back in front of every value, since a user {@code toString()} ran outside both. Family
+   * invariant: every NarrativeTrace runtime decides this with its own explicit list of platform
+   * leaves.
    *
    * <p>Both {@code renderComplex} and {@code renderStructuredComplex} ask this one method, so the
    * flat and structured paths cannot drift on the question.
    *
    * <p><b>@edgeCase</b> A COMPOSITE never renders through its own {@code toString()}, on either
-   * path — not even a fieldless one, and whatever the reason the two tests below would have trusted
-   * it. A user subclass of {@code AbstractCollection} that declares no state of its own passed "has
-   * no instance fields" and so was handed its own stringification; the text it was trusted for is
-   * {@code AbstractCollection}'s inherited {@code toString()}, which walks {@code iterator()} — the
+   * path — not even a fieldless one. The check is kept beside the leaf list as a second,
+   * independent lock: a user subclass of {@code AbstractCollection} that declares no state of its
+   * own is not on the list, and the text it would otherwise have been handed is {@code
+   * AbstractCollection}'s inherited {@code toString()}, which walks {@code iterator()} — the
    * subclass's override, reached through a method the subclass never wrote a line of. Element walks
    * are dispatched by {@link ElementOrigin} and by nothing else; stringification is a leaf's
-   * privilege. Platform composites are excluded from the test because their text is the JDK's own
-   * ({@code Path}, {@code Charset}), and every platform {@code Collection}/{@code Map} has been
-   * dispatched to its own enumeration branch long before this question is asked.
+   * privilege.
    *
-   * <p><b>@llmNote</b> The cost is real and was accepted: a field-bearing value class with a
-   * pleasant {@code toString()} now renders as a field dump. {@code @NarrativeSummary} is the
-   * opt-in back to curated text, and its output is scanned rather than trusted verbatim.
+   * <p><b>@llmNote</b> The cost is real and was accepted twice over: a field-bearing value class
+   * with a pleasant {@code toString()} renders as a field dump, and a platform type that is not a
+   * named leaf ({@code StringBuilder}, a {@code Throwable}, a buffer) renders as its type and
+   * whatever of its own declared fields are readable. {@code @NarrativeSummary} is the opt-in back
+   * to curated text, and its output is scanned rather than trusted verbatim.
    */
   private static boolean rendersItsOwnString(Class<?> clazz) {
     return HAS_CUSTOM_TO_STRING.get(clazz)
         && !ElementOrigin.isApplicationComposite(clazz)
-        && (!HAS_INSTANCE_FIELDS.get(clazz) || PLATFORM_DEFINED.get(clazz));
+        && STATELESS_LEAF.get(clazz);
   }
 
   /**
-   * Whether the class, or anything it inherits from, declares a non-static instance field.
-   *
-   * <p>INTENT: "Has state" is the question the invariant turns on, and it is asked of the whole
-   * hierarchy even though introspection only prints {@code getDeclaredFields()} of the runtime
-   * class: a subclass {@code toString()} can print an inherited field through a getter, and that is
-   * the same broken promise. A class with no state cannot leak one, so its own text stands.
-   *
-   * <p><b>@llmNote</b> Synthetic fields do not count — the compiler's {@code this$0} outer-instance
-   * reference and switch-map tables are not state an author declared, and counting them would send
-   * every anonymous class with a curated {@code toString()} to an empty field dump.
-   *
-   * <p>Cached per class by {@link ClassValue}, so the reflection cost is paid once and never on the
-   * traced path afterwards.
+   * Whether the class is one of the platform leaf types whose own {@code toString()} rendering may
+   * call — {@link PlatformTypes#isStatelessLeaf}, cached per class by {@link ClassValue} so the
+   * lookup is paid once and never on the traced path afterwards.
    */
-  private static final ClassValue<Boolean> HAS_INSTANCE_FIELDS =
+  private static final ClassValue<Boolean> STATELESS_LEAF =
       new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> clazz) {
-          for (var current = clazz;
-              current != null && current != Object.class;
-              current = current.getSuperclass()) {
-            for (var field : current.getDeclaredFields()) {
-              if (!Modifier.isStatic(field.getModifiers()) && !field.isSynthetic()) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }
-      };
-
-  /**
-   * Whether the JDK itself defines this class, rather than the application.
-   *
-   * <p>INTENT: The invariant above is about <em>application</em> stringification. {@code
-   * LocalDate}, {@code UUID}, {@code Duration}, {@code URI} and their kind carry fields, so the
-   * bare rule would walk them — and their fields live in modules that are not open to this one, so
-   * the walk answers a row of {@code <error: InaccessibleObjectException>} where the JDK's own
-   * {@code toString()} answers {@code 2026-09-11}. Neither is a leak; one is unreadable. A platform
-   * type cannot declare an application's secret field and its {@code toString()} is not application
-   * code, so its text is the right answer as well as a safe one. Same reasoning as {@link
-   * ScalarTrust}, which trusts eight JDK numeric types for the same reason one level up; .NET
-   * reaches the same place by enumerating {@code decimal}, {@code DateTime}, {@code Type} and
-   * friends as scalars ahead of its object walk.
-   *
-   * <p><b>@llmNote</b> Decided by defining class loader, not by package name: the bootstrap loader
-   * ({@code null}) and the platform loader are the two the JVM does not let application code define
-   * classes in. A {@code javax.}-prefixed class from an application jar is loaded by the system
-   * loader and is therefore NOT trusted, which a prefix test would have got wrong. Every JDK type
-   * that could carry an application object into its own text — collections, maps, arrays, {@code
-   * Optional}, {@code Future}, {@code AtomicReference}, {@code Map.Entry} — is already dispatched
-   * to its own branch before this question is ever asked.
-   *
-   * <p><b>@edgeCase</b> The trusted text is still scanned, escaped and capped by {@link #scanned};
-   * "the platform wrote this" is a statement about the <em>format</em>, not about the bytes a
-   * {@code StringBuilder} happens to hold.
-   */
-  private static final ClassValue<Boolean> PLATFORM_DEFINED =
-      new ClassValue<>() {
-        @Override
-        protected Boolean computeValue(Class<?> clazz) {
-          return PlatformTypes.isPlatformDefined(clazz);
+          return PlatformTypes.isStatelessLeaf(clazz);
         }
       };
 

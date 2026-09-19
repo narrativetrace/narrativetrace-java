@@ -327,7 +327,9 @@ class ClarityAnalyzerTest {
   }
 
   @Test
-  void reportsCollocationIssueForNonPreferredVerb() {
+  void standardVerbWithKnownNounIsNotFlagged() {
+    // "check" is a standard verb (VerbDictionary.STANDARD_VERBS) — absence from "ledger"'s
+    // preferred-verb sample is no evidence of a naming problem.
     var node =
         new TraceNode(
             new MethodSignature("LedgerService", "checkLedger", List.of()),
@@ -338,12 +340,82 @@ class ClarityAnalyzerTest {
 
     var result = analyzer.analyze(tree);
 
+    assertThat(result.issues().stream().filter(i -> i.category().equals("collocation")).findFirst())
+        .isEmpty();
+  }
+
+  @Test
+  void genericVerbWithKnownNounIsFlaggedWithCandidates() {
+    // "handle" is generic — a known noun's preferred verbs are worth suggesting.
+    var node =
+        new TraceNode(
+            new MethodSignature("LedgerService", "handleLedger", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var result = analyzer.analyze(tree);
+
     var collocationIssue =
         result.issues().stream().filter(i -> i.category().equals("collocation")).findFirst();
     assertThat(collocationIssue).isPresent();
-    assertThat(collocationIssue.get().element()).isEqualTo("LedgerService.checkLedger");
+    assertThat(collocationIssue.get().element()).isEqualTo("LedgerService.handleLedger");
     assertThat(collocationIssue.get().suggestion()).contains("reconcileLedger");
     assertThat(collocationIssue.get().severity()).isEqualTo(ClarityIssue.Severity.LOW);
+  }
+
+  @Test
+  void nonVerbFirstTokenIsNotFlagged() {
+    // "leaf" is not a verb at all (VerbDictionary: UNKNOWN; MorphologyAnalyzer: not verb-shaped).
+    var node =
+        new TraceNode(
+            new MethodSignature("TreeWalker", "leafNode", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var result = analyzer.analyze(tree);
+
+    assertThat(result.issues().stream().filter(i -> i.category().equals("collocation")).findFirst())
+        .isEmpty();
+  }
+
+  @Test
+  void genericVerbDeclaredInVocabularyIsNotFlagged() {
+    // The project's own glossary declares "handle" a domain verb for this codebase.
+    var node =
+        new TraceNode(
+            new MethodSignature("LedgerService", "handleLedger", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+    var vocabulary = DomainVocabulary.of(java.util.Set.of("handle"), java.util.Set.of());
+
+    var result = new ClarityAnalyzer(vocabulary).analyze(tree);
+
+    assertThat(result.issues().stream().filter(i -> i.category().equals("collocation")).findFirst())
+        .isEmpty();
+  }
+
+  @Test
+  void unknownVerbShapedFirstTokenWithUnknownNounIsNotFlagged() {
+    // "customize" is verb-shaped (ends in -ize) but in no built-in tier; "widget" is not a noun
+    // the collocation dictionary knows, so there is nothing to suggest either way.
+    var node =
+        new TraceNode(
+            new MethodSignature("Service", "customizeWidget", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    var result = analyzer.analyze(tree);
+
+    assertThat(result.issues().stream().filter(i -> i.category().equals("collocation")).findFirst())
+        .isEmpty();
   }
 
   @Test

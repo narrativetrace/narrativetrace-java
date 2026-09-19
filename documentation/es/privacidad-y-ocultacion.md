@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 4189e7bb4104 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 8f8cdb147490 | translated: 2026-09-19 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -99,13 +99,35 @@ merece la pena decirlo con claridad:
 > por cada campo — sea lo que sea que su propio `toString()` hubiera
 > impreso.**
 
-Exactamente dos tipos de valor conservan su propio texto. Uno es una clase
-**sin ningún campo de instancia**: no hay nada que ocultar ni nada que
-recorrer. El otro es una clase **que define la plataforma** — `LocalDate`,
-`Duration`, `UUID`, `URI` y similares — cuyo `toString()` es el formato del
-JDK y no código de la aplicación, y que no puede declarar uno de tus campos
-en primer lugar. Una clase declarada por *tu* propio código es código
-de aplicación, extienda lo que extienda.
+Un solo tipo de valor conserva su propio texto: un **tipo hoja de la
+plataforma**, nombrado uno a uno en una lista que mantiene el renderizador
+— `LocalDate`, `Duration`, `UUID`, `URI`, `Path`, `Pattern` y similares —
+cuyo `toString()` es el formato del JDK y no código de la aplicación, y que
+no puede declarar uno de tus campos en primer lugar. Una clase declarada
+por *tu* propio código es código de aplicación, extienda lo que extienda, y
+un tipo de la plataforma que no esté en la lista (un `StringBuilder`, un
+`Throwable`, un búfer — cada uno imprime texto que *tú* le entregaste) se
+renderiza como el objeto que es.
+
+La coincidencia es por clase **exacta**, e incluye los atajos que un
+renderizador toma para un valor que espera pequeño. Una subclase de `Number`
+o de `Date` es un compuesto que resulta tener una base de la plataforma —
+libre de llevar un campo `password` e imprimirlo —, así que el atajo numérico
+del renderizador plano, las formas numéricas y temporales tipadas del
+renderizador estructurado y el marcador `{amount}` de una plantilla
+`@Narrated` la recorren como a cualquier otro objeto, y leen el texto o la
+época propios de un valor solo para la clase exacta de la plataforma.
+
+Todo lo demás se recorre. Un valor sin ningún campo legible no es por ello
+un valor que no tenga nada que contar, así que tampoco conserva su texto:
+se renderiza como el nombre de su tipo. Hasta el 2026-09-19 "no declara
+campos de instancia" se leía como "no tiene estado, nada que ocultar", y
+eso es falso — una clase sin campos puede guardar su estado en una tabla
+estática indexada por la instancia, en un `ClassValue` o en un
+`ThreadLocal`, leerlo dentro de su propio `toString()` e imprimir un valor
+que ningún recorrido de campos habría visto jamás. La misma forma apareció
+en cuatro runtimes con un día de diferencia; todos deciden ahora esto con
+una lista explícita de tipos hoja de la plataforma.
 
 La única opción explícita para volver a un renderizado cuidadosamente
 escrito es **`@NarrativeSummary`**: un método sin argumentos que escribes
@@ -131,7 +153,8 @@ profundidad y la protección contra ciclos delante de cada valor: tu
 
 **El coste es real y se aceptó.** Una clase de valor con un `toString()`
 agradable y sin `@NarrativeSummary` ahora se renderiza como un volcado de
-campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00`. Más
+campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00` — y
+una clase sin campos se renderiza como `Marker{}`, con su texto sin leer. Más
 feo, y correcto. Añade `@NarrativeSummary` a los tipos donde la lectura
 importe.
 

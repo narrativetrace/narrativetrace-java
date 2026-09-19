@@ -12,9 +12,11 @@ import ai.narrativetrace.contract.probes.BufferCapacityDefaultProbe;
 import ai.narrativetrace.contract.probes.BufferedPathIgnoresLoggerThresholdProbe;
 import ai.narrativetrace.contract.probes.EntryPointProbe;
 import ai.narrativetrace.contract.probes.FieldNameRedactionOnCustomClassProbe;
+import ai.narrativetrace.contract.probes.FieldlessValueNotTrustedProbe;
 import ai.narrativetrace.contract.probes.LauncherAddedByPluginProbe;
 import ai.narrativetrace.contract.probes.ManifestJsonProbe;
 import ai.narrativetrace.contract.probes.NativeStringificationNotTrustedProbe;
+import ai.narrativetrace.contract.probes.NumberSubclassNotTrustedProbe;
 import ai.narrativetrace.contract.probes.OutputDefaultProbe;
 import ai.narrativetrace.contract.probes.ParameterNameRedactionProbe;
 import ai.narrativetrace.contract.probes.PlatformTypeCarveoutProbe;
@@ -94,6 +96,12 @@ public final class ContractRunner {
           Map.entry(
               "probed-platform-type-carveout",
               (entry, options) -> PlatformTypeCarveoutProbe.observe()),
+          Map.entry(
+              "probed-fieldless-value-not-trusted",
+              (entry, options) -> FieldlessValueNotTrustedProbe.observe()),
+          Map.entry(
+              "probed-number-subclass-not-trusted",
+              (entry, options) -> NumberSubclassNotTrustedProbe.observe()),
           Map.entry(
               "probed-run-name-console-footer",
               (entry, options) -> RunNameConsoleFooterProbe.observe()),

@@ -86,7 +86,7 @@ How it works:
 
 **Two secrets are hidden by what they are, not only by what they are called.** The name deny-list cannot see a bearer token passed as `value`, returned as a bare `String`, or sitting unnamed in a list, so a second and independent rule looks at the bytes. Exactly three shapes are recognised: a JWT (three base64url segments whose first begins `eyJ`), a card number (13–19 digits, separators allowed, passing the Luhn checksum), and a `Set-Cookie` string (`name=value` followed by a cookie attribute such as `Path`, `Max-Age` or `HttpOnly`). Everything else renders normally — this is a short list of structural signatures, not an entropy heuristic, because a value blanked by guesswork is a hole in your narrative you cannot see. One false positive is accepted deliberately: an identifier of card-number length that happens to satisfy Luhn. An order number that does not satisfy it stays visible. `RedactionPolicy.DISABLED` turns this rule off along with the name deny-list; `RedactionPolicy.ofPatterns(...)` replaces the names only and keeps it on.
 
-**A type's own `toString()` is never trusted while the type has state.** A class or record that declares instance fields — its own or inherited — is walked field by field, at every depth, with both redaction mechanisms consulted per field, whatever its `toString()` would have printed. Exactly two kinds of value keep their own text: a class with no instance fields at all (nothing to hide, nothing to walk), and a class the platform defines (`LocalDate`, `Duration`, `UUID`, `URI` and their kind), whose `toString()` is the JDK's format rather than application code. A class your own code declares is application code whatever it extends. The single opt-in back to curated rendering is `@NarrativeSummary` below — and even its text passes the value-shape check, the control-character escape and the length cap. Until 2026-09-11 the rule ran the opposite way, and that left a plain `Login { username, password }` with a hand-written `toString()` printing the password at depth zero, and any curated `toString()` printing nested `@NotTraced` values straight through ordinary Java stringification. The cost of the fix is real and was accepted: a value class with a pleasant `toString()` and no `@NarrativeSummary` now renders as a field dump — `Amount{currency: "EUR", units: 10}` rather than `EUR 10.00`. Add `@NarrativeSummary` to the types where the reading matters.
+**A type's own `toString()` is never trusted while the type has state.** A class or record that declares instance fields — its own or inherited — is walked field by field, at every depth, with both redaction mechanisms consulted per field, whatever its `toString()` would have printed. One kind of value keeps its own text: a platform leaf type, named one by one in a list the renderer holds (`LocalDate`, `Duration`, `UUID`, `URI`, `Path`, `Pattern` and their kind), whose `toString()` is the JDK's format rather than application code. A class your own code declares is application code whatever it extends, and a class with no readable field is not thereby a class with nothing to tell — it can hold its state in a static table keyed by the instance, in a `ClassValue` or in a `ThreadLocal` and print it from its own `toString()` — so it renders as its type name rather than its text (2026-09-19, family-wide). The single opt-in back to curated rendering is `@NarrativeSummary` below — and even its text passes the value-shape check, the control-character escape and the length cap. Until 2026-09-11 the rule ran the opposite way, and that left a plain `Login { username, password }` with a hand-written `toString()` printing the password at depth zero, and any curated `toString()` printing nested `@NotTraced` values straight through ordinary Java stringification. The cost of the fix is real and was accepted: a value class with a pleasant `toString()` and no `@NarrativeSummary` now renders as a field dump — `Amount{currency: "EUR", units: 10}` rather than `EUR 10.00`. Add `@NarrativeSummary` to the types where the reading matters.
 
 **Redaction survives every wrapper, at any depth.** A holder such as `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` or a standalone `Map.Entry` prints its payload's raw `toString()` if it is treated as a value, so NarrativeTrace opens it instead and renders what it holds under exactly these rules — which then applies again to whatever *that* holds. An `AtomicReferenceArray` renders exactly as the `Object[]` holding the same elements, and a lone `Map.Entry` renders `key=value` exactly as it would inside a `Map`. `Optional<Card>` renders as `Card(number: "4111", cvv: [REDACTED])`, never as `Optional[Card[number=4111, cvv=123]]`; an empty wrapper renders as `<empty>`. This matters because `Optional<T>` is the idiomatic return type of a lookup, which is precisely where redacted data travels.
 
@@ -114,13 +114,13 @@ How it works:
 - If the method throws, the value renders as `<error: IllegalStateException>` — the exception's
   type name and nothing else. The message is excluded on purpose: it routinely interpolates the
   value that failed to format.
-- If not found, rendering walks the object's fields. A type with no instance fields, or one the
-  platform defines, keeps its own `toString()` instead.
+- If not found, rendering walks the object's fields. Only a platform leaf type keeps its own
+  `toString()` instead; a type with no readable field renders as its type name.
 
 ### `@NarrativeElements`
 
 Rendering reads a value's state; it never runs a value's own code, with exactly three sanctioned
-exceptions: `@NarrativeSummary`, a stateless leaf's own `toString()` — and this one. Use
+exceptions: `@NarrativeSummary`, a platform leaf type's own `toString()` — and this one. Use
 `@NarrativeElements` on a type whose `Iterable#iterator()` is known to be pure, to have rendering
 enumerate it.
 
@@ -166,7 +166,7 @@ What is invoked, and what is not:
   hand-rolled implementation is introspected like any other object. `@NarrativeElements` is the
   one opt-in past this, for a type whose own iteration is declared pure.
 - **What NarrativeTrace does invoke:** a `@NarrativeSummary` method, the `toString()` of a
-  type with no instance fields, an `@NarrativeElements`-declared type's own `iterator()`, and
+  platform leaf type, an `@NarrativeElements`-declared type's own `iterator()`, and
   any property path you name in a `@Narrated`/`@OnError` template (`{order.total}` resolves by
   calling the direct accessor method `total()` first, then the JavaBean getter `getTotal()`).
   These are the only places user code runs during rendering.

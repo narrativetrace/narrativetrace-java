@@ -217,11 +217,13 @@ public final class TemplateParser {
    * toString()} raises {@link StackOverflowError}, and an observability failure may never become an
    * application failure.
    *
-   * <p><b>@llmNote</b> A non-JDK {@link Number} subclass or an {@link Enum} constant with an
-   * overridden {@code toString()} is application code, exactly like a {@code String} — but unlike
-   * {@link ValueRenderer#render(Object)}, this fast path never truncates, so only {@link
-   * ControlEscape#sanitize} applies, not length capping. {@link ScalarTrust} is the single answer
-   * both this method and {@code ValueRenderer} consult, so the two paths cannot drift on it.
+   * <p><b>@llmNote</b> An {@link Enum} constant with an overridden {@code toString()} is
+   * application code, exactly like a {@code String} — but unlike {@link
+   * ValueRenderer#render(Object)}, this fast path never truncates, so only {@link
+   * ControlEscape#sanitize} applies, not length capping. A constant holds no member a walk could
+   * reach, which is why sanitizing is enough for it and was never enough for a {@link Number}
+   * subclass: that one is a composite, it never arrives here at all, and {@link #isScalar} is where
+   * it is turned away.
    */
   private static String scalarText(Object value) {
     var rendered = rawScalarText(value);
@@ -237,26 +239,32 @@ public final class TemplateParser {
     }
   }
 
-  /** Whether {@code value}'s scalar text came from application code, not a JDK-fixed format. */
+  /**
+   * Whether {@code value}'s scalar text came from application code rather than a platform-fixed
+   * format — an enum constant's, now that a {@link Number} subclass is no longer a scalar here.
+   */
   private static boolean needsSanitizing(Object value) {
-    if (value instanceof Number number) {
-      return !ScalarTrust.isTrustedNumeric(number);
-    }
     return value instanceof Enum<?>;
   }
 
   /**
-   * Values that are their own best narration and cannot hide a member: numbers, booleans,
-   * characters and enum constants. Skipping the renderer for these keeps the common placeholder —
-   * {@code {orderId}}, {@code {quantity}} — as cheap as it was.
+   * Values that are their own best narration and cannot hide a member: the platform's own numeric
+   * leaves, booleans, characters and enum constants. Skipping the renderer for these keeps the
+   * common placeholder — {@code {orderId}}, {@code {quantity}} — as cheap as it was.
    *
    * <p><b>@edgeCase</b> {@link CharSequence} was on this list until 2026-09-04 and is deliberately
    * not any more: text is the one scalar whose <em>content</em> can be a credential, so it is
    * answered by {@link ValueRenderer#renderNarrationText} one method up rather than by its own
    * {@code toString()}.
+   *
+   * <p><b>@edgeCase</b> A {@link Number} is a scalar here only when {@link ScalarTrust} says its
+   * own text may be read. A subclass of {@code Number} can hold anything, including a deny-listed
+   * field its {@code toString()} prints, and a narration template is rendering like any other — so
+   * it goes to the renderer and is walked, exactly as it is when the same value is captured as an
+   * argument.
    */
   private static boolean isScalar(Object value) {
-    return value instanceof Number
+    return value instanceof Number number && ScalarTrust.isTrustedNumeric(number)
         || value instanceof Boolean
         || value instanceof Character
         || value instanceof Enum<?>;

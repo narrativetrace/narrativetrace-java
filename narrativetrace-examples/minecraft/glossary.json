@@ -352,14 +352,6 @@
       "firstSeen": "2026-08-15"
     },
     {
-      "term": "name",
-      "context": "game",
-      "kind": "word",
-      "status": "harvested",
-      "sources": ["CreatureType.valueOf", "Item.valueOf", "Recipe.valueOf"],
-      "firstSeen": "2026-08-15"
-    },
-    {
       "term": "player inventory",
       "context": "game",
       "kind": "noun-phrase",
@@ -485,22 +477,6 @@
       "kind": "verb-phrase",
       "status": "harvested",
       "sources": ["DefaultStateManager.update", "StateManager.update"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "value",
-      "context": "game",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["CreatureType.values", "Item.values", "Recipe.values"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "value of",
-      "context": "game",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["CreatureType.valueOf", "Item.valueOf", "Recipe.valueOf"],
       "firstSeen": "2026-08-15"
     },
     {

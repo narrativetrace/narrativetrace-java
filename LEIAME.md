@@ -1,4 +1,4 @@
-<!-- source: README.md blob 6b6b586707cb | translated: 2026-09-18 | reviewed: - -->
+<!-- source: README.md blob 8dc5c899333f | translated: 2026-09-18 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -449,7 +449,7 @@ ocultação é o código da aplicação construir seu próprio `ValueRenderer` c
 `RedactionPolicy.DISABLED` — um ato deliberado e revisável no seu próprio
 código-fonte, nunca um estado de configuração. Segundo, a captura lê *campos*
 por reflexão e nunca chama seus getters, mas invoca sim um método
-`@NarrativeSummary`, o `toString()` de um tipo sem campos de instância, os
+`@NarrativeSummary`, o `toString()` de um tipo folha da plataforma, os
 acessores de componentes de `record` e os caminhos de propriedade nomeados em
 templates `@Narrated`/`@OnError`; mantenha-os puros, como você faria para um
 depurador. Hoje o escopo é somente de inclusão — `packages=` para o agente, pacotes base

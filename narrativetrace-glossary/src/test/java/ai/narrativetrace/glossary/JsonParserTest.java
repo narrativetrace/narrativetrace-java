@@ -85,6 +85,55 @@ class JsonParserTest {
   }
 
   @Test
+  void acceptsNestingAtTheFamilyDepthLimit() {
+    var text = "[".repeat(JsonParser.MAX_NESTING_DEPTH) + "]".repeat(JsonParser.MAX_NESTING_DEPTH);
+
+    assertThat(JsonParser.parse(text)).isInstanceOf(List.class);
+  }
+
+  @Test
+  void rejectsNestingOneLevelPastTheFamilyDepthLimit() {
+    var depth = JsonParser.MAX_NESTING_DEPTH + 1;
+
+    assertRejected(
+        "[".repeat(depth) + "]".repeat(depth),
+        "nesting depth " + depth + " exceeds the maximum of " + JsonParser.MAX_NESTING_DEPTH);
+  }
+
+  @Test
+  void countsOnlyStructuralBracketsSoObjectAndArrayNestingMix() {
+    var half = JsonParser.MAX_NESTING_DEPTH / 2;
+    var text = "{\"a\":[".repeat(half) + "0" + "]}".repeat(half);
+
+    assertThat(JsonParser.parse(text)).isInstanceOf(Map.class);
+  }
+
+  @Test
+  void bracketsInsideStringsDoNotCountTowardNestingDepth() {
+    var brackets = "[".repeat(JsonParser.MAX_NESTING_DEPTH + 50);
+
+    assertThat(JsonParser.parse("{\"a\": \"" + brackets + "\"}")).isEqualTo(Map.of("a", brackets));
+  }
+
+  @Test
+  void anEscapedQuoteDoesNotEndTheStringEarly() {
+    var brackets = "[".repeat(JsonParser.MAX_NESTING_DEPTH + 50);
+
+    assertThat(JsonParser.parse("{\"a\": \"say \\\" then " + brackets + "\"}"))
+        .isEqualTo(Map.of("a", "say \" then " + brackets));
+  }
+
+  @Test
+  void rejectsAPathologicallyDeepDocumentWithoutRecursingIntoIt() {
+    var depth = 10_000;
+    var text = "[".repeat(depth) + "]".repeat(depth);
+
+    org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
+        java.time.Duration.ofSeconds(10),
+        () -> assertRejected(text, "exceeds the maximum of " + JsonParser.MAX_NESTING_DEPTH));
+  }
+
+  @Test
   void decodesEverySimpleEscape() {
     assertThat(JsonParser.parse("\"\\\\ \\/ \\b \\f \\n \\r \\t \\\"\""))
         .isEqualTo("\\ / \b \f \n \r \t \"");

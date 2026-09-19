@@ -101,7 +101,8 @@ class GlossaryJsonReaderTest {
     assertRejected(
         "{\"schemaVersion\": 1, \"contexts\": {}, \"terms\": {}}", "terms must be a JSON array");
     assertRejected(
-        "{\"schemaVersion\": 1, \"contexts\": {\"a\": {\"packages\": [], \"typo\": 1}}, \"terms\": []}",
+        "{\"schemaVersion\": 1, \"contexts\": {\"a\": {\"packages\": [], \"typo\": 1}}, \"terms\":"
+            + " []}",
         "unknown key 'typo' in context 'a'");
     assertRejected(
         "{\"schemaVersion\": 1, \"contexts\": {\"a\": {}}, \"terms\": []}",
@@ -111,20 +112,24 @@ class GlossaryJsonReaderTest {
   @Test
   void rejectsTermViolations() {
     assertRejectedTerm(
-        "{\"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\", \"firstSeen\": \"2026-08-11\"}",
+        "{\"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\", \"firstSeen\":"
+            + " \"2026-08-11\"}",
         "missing required key 'term'");
     assertRejectedTerm(term("word", "harvested", "not-a-date"), "invalid firstSeen date");
     assertRejectedTerm(
         term("adjective", "harvested", "2026-08-11"), "unknown term kind 'adjective'");
     assertRejectedTerm(term("word", "reviewed", "2026-08-11"), "unknown term status 'reviewed'");
     assertRejectedTerm(
-        "{\"term\": \"t\", \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\", \"firstSeen\": \"2026-08-11\", \"occurrences\": 3}",
+        "{\"term\": \"t\", \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\","
+            + " \"firstSeen\": \"2026-08-11\", \"occurrences\": 3}",
         "unknown key 'occurrences'");
     assertRejectedTerm(
-        "{\"term\": 1, \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\", \"firstSeen\": \"2026-08-11\"}",
+        "{\"term\": 1, \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\","
+            + " \"firstSeen\": \"2026-08-11\"}",
         "term must be a JSON string");
     assertRejectedTerm(
-        "{\"term\": \"t\", \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\", \"firstSeen\": \"2026-08-11\", \"synonyms\": [{\"alias\": \"x\", \"extra\": 1}]}",
+        "{\"term\": \"t\", \"context\": \"a\", \"kind\": \"word\", \"status\": \"harvested\","
+            + " \"firstSeen\": \"2026-08-11\", \"synonyms\": [{\"alias\": \"x\", \"extra\": 1}]}",
         "unknown key 'extra' in synonym");
   }
 
@@ -220,6 +225,16 @@ class GlossaryJsonReaderTest {
                     }
                     """))
         .withMessageContaining("fx");
+  }
+
+  @Test
+  void rejectsAGlossaryDocumentNestedPastTheFamilyDepthLimit() {
+    var depth = JsonParser.MAX_NESTING_DEPTH + 1;
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> reader.read("[".repeat(depth) + "]".repeat(depth)))
+        .withMessageContaining(
+            "nesting depth " + depth + " exceeds the maximum of " + JsonParser.MAX_NESTING_DEPTH);
   }
 
   @Test

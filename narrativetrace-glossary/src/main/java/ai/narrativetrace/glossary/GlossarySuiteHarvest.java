@@ -23,7 +23,8 @@ import java.util.function.UnaryOperator;
  *
  * <p>INTENT: The orchestration the suite hook needs (ADR-012 Phase 5) in one glossary-owned
  * collaborator, so JUnit extensions stay free of glossary mechanics: read the committed {@code
- * glossary.json} (or start empty), harvest the run's traces, merge additively, rewrite {@code
+ * glossary.json} (or start empty), harvest the run's traces, carry curated entries across any
+ * normalization rule change ({@link GlossaryRekey}), merge additively, rewrite {@code
  * glossary.json} and {@code glossary.md}, write the volatile usage report, and hand back the
  * console vocabulary line plus {@code non-canonical-term} clarity issues.
  *
@@ -103,13 +104,16 @@ public final class GlossarySuiteHarvest {
     var existing = readGlossary();
     var harvester = new GlossaryHarvester(new ContextResolver(existing), packageOf);
     var harvest = staticMode ? harvester.harvestStatic(trees) : harvester.harvest(trees);
-    var merge = new GlossaryMerger(clock).merge(existing, harvest);
+    // Re-key before merging: a normalization rule change retires keys that the merge, being
+    // additive, would otherwise leave orphaned beside the successors it is about to add.
+    var carried = GlossaryRekey.migrate(existing, harvest);
+    var merge = new GlossaryMerger(clock).merge(carried, harvest);
     // The vocabulary check only runs against a committed glossary: without a glossary.json
     // present before the run there is no curated vocabulary to violate, and no
     // non-canonical-term issues may reach the clarity report or its CI gate.
     var violations =
         glossaryFileExists
-            ? VocabularyViolations.collect(existing, merge.suppressedAliasUses())
+            ? VocabularyViolations.collect(carried, merge.suppressedAliasUses())
             : List.<VocabularyViolation>of();
 
     writeGlossaryFiles(merge.glossary());

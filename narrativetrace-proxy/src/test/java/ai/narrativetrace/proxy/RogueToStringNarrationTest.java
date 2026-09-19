@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.narrativetrace.api.annotation.Narrated;
+import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.annotation.OnError;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import org.junit.jupiter.api.Test;
@@ -81,19 +82,49 @@ class RogueToStringNarrationTest {
   }
 
   /**
-   * {@link Rogue} declares no instance fields, so it is one of the two kinds of value that still
-   * stringify themselves — and when that throws, the narration carries the typed failure marker.
-   * The marker names the exception's TYPE and not its message: {@code "toString exploded"} is
-   * application text, and in the field such a message routinely interpolates the value that would
-   * not format.
+   * Since 2026-09-19 a user class's own {@code toString()} is never entered at all — the
+   * stateless-leaf hook is an explicit list of platform leaf types, and {@link Rogue}'s emptiness
+   * earns it nothing — so the rogue implementation cannot even fail: the placeholder resolves to
+   * the value as an object, naming its type.
    */
   @Test
-  void theNarrationDegradesToATypedErrorMarkerRatherThanVanishing() {
+  void theNarrationNeverEntersTheRogueToStringAtAll() {
     NarratedService real = payload -> "ok";
     var context = new ThreadLocalNarrativeContext();
     var proxy = NarrativeTraceProxy.trace(real, NarratedService.class, context);
 
     proxy.process(new Rogue());
+
+    var narration = context.captureTrace().roots().get(0).signature().narration();
+    assertThat(narration).isEqualTo("Processing Rogue{}").doesNotContain("exploded");
+  }
+
+  /** A payload whose {@code @NarrativeSummary} throws — the hook narration does still run. */
+  static final class RogueSummary {
+    @NarrativeSummary
+    public String describe() {
+      throw new IllegalStateException("summary exploded");
+    }
+  }
+
+  interface SummaryNarratedService {
+    @Narrated("Processing {payload}")
+    String process(RogueSummary payload);
+  }
+
+  /**
+   * The typed failure marker, pinned where a value's own code still runs inside narration. The
+   * marker names the exception's TYPE and not its message: {@code "summary exploded"} is
+   * application text, and in the field such a message routinely interpolates the value that would
+   * not format.
+   */
+  @Test
+  void theNarrationDegradesToATypedErrorMarkerRatherThanVanishing() {
+    SummaryNarratedService real = payload -> "ok";
+    var context = new ThreadLocalNarrativeContext();
+    var proxy = NarrativeTraceProxy.trace(real, SummaryNarratedService.class, context);
+
+    proxy.process(new RogueSummary());
 
     var narration = context.captureTrace().roots().get(0).signature().narration();
     assertThat(narration)
@@ -102,7 +133,7 @@ class RogueToStringNarrationTest {
   }
 
   @Test
-  void aToStringReturningNullAlsoDegradesToTheTypeMarker() {
+  void aToStringReturningNullIsNotEnteredEither() {
     interfaceCheck();
   }
 
@@ -113,7 +144,7 @@ class RogueToStringNarrationTest {
 
     assertThat(proxy.process(new NullToString())).isEqualTo("ok");
     assertThat(context.captureTrace().roots().get(0).signature().narration())
-        .isEqualTo("Processing <NullToString>");
+        .isEqualTo("Processing NullToString{}");
   }
 
   static final class NullToString {

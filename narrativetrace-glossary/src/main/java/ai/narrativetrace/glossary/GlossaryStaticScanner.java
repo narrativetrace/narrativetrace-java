@@ -33,15 +33,19 @@ import java.util.stream.Stream;
  * {@code @Narrated} / {@code @OnError} text: here the annotation value is the <strong>raw</strong>
  * template, placeholders intact, whereas a captured trace carries it with values interpolated.
  *
- * <p><b>@edgeCase</b> Synthetic, bridge, non-public, and {@code Object} methods are skipped, and a
- * class contributing no methods contributes no tree. Parameter names are real only when the scanned
- * code was compiled with {@code -parameters}; otherwise they read {@code arg0}, which the
- * harvester's normalizer discards as unusable vocabulary.
+ * <p><b>@edgeCase</b> Synthetic, bridge, non-public, {@code Object}, data-class-synthesized and
+ * enum-compiler methods are skipped, and a class contributing no methods contributes no tree.
+ * Parameter names are real only when the scanned code was compiled with {@code -parameters};
+ * otherwise they read {@code arg0}, which the harvester's normalizer discards as unusable
+ * vocabulary.
  *
  * @see GlossaryHarvester#harvestStatic(List)
  * @see GlossaryScannerMain
  */
 public final class GlossaryStaticScanner {
+
+  private static final java.util.regex.Pattern COMPONENT_ACCESSOR =
+      java.util.regex.Pattern.compile("component\\d+");
 
   /**
    * Scans every loadable class under a compiled-classes directory.
@@ -131,7 +135,48 @@ public final class GlossaryStaticScanner {
     return method.isSynthetic()
         || method.isBridge()
         || !Modifier.isPublic(method.getModifiers())
-        || isObjectMethod(method);
+        || isObjectMethod(method)
+        || isDataClassMember(method)
+        || isEnumStatic(method);
+  }
+
+  /**
+   * Whether the method is one the compiler writes into every enum.
+   *
+   * <p>{@code values()} and {@code valueOf(String)} exist on every enum and are not marked
+   * synthetic, so they reached the harvest as the terms {@code value} and {@code value of}. The
+   * declaring type is the whole test: a class that declares a {@code values()} of its own named it
+   * deliberately, and it stays vocabulary.
+   */
+  private static boolean isEnumStatic(Method method) {
+    if (!method.getDeclaringClass().isEnum() || !Modifier.isStatic(method.getModifiers())) {
+      return false;
+    }
+    return "values".equals(method.getName()) && method.getParameterCount() == 0
+        || "valueOf".equals(method.getName())
+            && method.getParameterCount() == 1
+            && method.getParameterTypes()[0] == String.class;
+  }
+
+  /**
+   * Whether the method is one a data class had written for it rather than one someone named.
+   *
+   * <p>A Kotlin data class synthesizes {@code copy} and one {@code componentN} per property. The
+   * JVM does not mark either synthetic, so they reach the harvest and become the terms {@code copy}
+   * and {@code component 1} — language plumbing a reader never says aloud.
+   *
+   * <p><b>@edgeCase</b> Recognized by shape, not by name alone: {@code componentN} takes no
+   * arguments, and {@code copy} returns its own declaring type and takes the properties it copies.
+   * A method whose name merely begins with {@code copy}, or one called {@code copy} that does
+   * neither, is ordinary vocabulary and stays.
+   */
+  private static boolean isDataClassMember(Method method) {
+    if (COMPONENT_ACCESSOR.matcher(method.getName()).matches()) {
+      return method.getParameterCount() == 0;
+    }
+    return "copy".equals(method.getName())
+        && method.getParameterCount() > 0
+        && method.getReturnType() == method.getDeclaringClass();
   }
 
   private static boolean isObjectMethod(Method method) {

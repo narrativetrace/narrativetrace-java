@@ -28,6 +28,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
@@ -299,12 +300,20 @@ class ValueRendererStructuredTest {
     }
   }
 
+  /**
+   * A third-party {@code Number} is not one of the numeric types the structured path answers as a
+   * scalar, and since 2026-09-19 it is not a stateless leaf either — a fieldless class buys no
+   * trust — so the structured path never reads its text at all: the forged line is not sanitized,
+   * it is never produced. The flat path answers it in its {@code Number} scalar branch, where
+   * {@link ScalarTrust} refuses the type's own text and {@link ValueRendererTest} pins the
+   * sanitizing.
+   */
   @Test
-  void hostileNumberSubclassIsSanitizedInStructuredOutput() {
-    var rendered = (StringVal) renderer.renderStructured(new HostileAmount());
+  void hostileNumberSubclassNeverSpeaksForItselfInStructuredOutput() {
+    var rendered = renderer.renderStructured(new HostileAmount());
 
-    assertThat(rendered.value()).doesNotContain("\n");
-    assertThat(rendered.value()).isEqualTo("1\\n## forged\\n");
+    assertThat(rendered).isEqualTo(new ObjectVal("HostileAmount", Map.of()));
+    assertThat(String.valueOf(rendered)).doesNotContain("forged");
   }
 
   @Test
@@ -458,10 +467,17 @@ class ValueRendererStructuredTest {
     }
   }
 
+  /**
+   * A user class's own text is never read, whether or not it declares a field: the structured value
+   * is the object, named and walked. A platform leaf is the one type whose own text still becomes a
+   * {@link StringVal} — pinned beside it so the two answers stay visibly different.
+   */
   @Test
-  void customToStringRendersAsStringVal() {
+  void aCustomToStringRendersAsAnObjectValWhileAPlatformLeafKeepsItsText() {
     assertThat(renderer.renderStructured(new WithCustomToString()))
-        .isEqualTo(new StringVal("custom-value"));
+        .isEqualTo(new ObjectVal("WithCustomToString", Map.of()));
+    assertThat(renderer.renderStructured(java.net.URI.create("https://example.test/a")))
+        .isEqualTo(new StringVal("https://example.test/a"));
   }
 
   @Test

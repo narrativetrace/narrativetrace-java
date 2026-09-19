@@ -13,7 +13,6 @@ import static org.gradle.testkit.runner.TaskOutcome.UP_TO_DATE;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -40,7 +39,8 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>The typed {@code JDependReportTask} and {@code DependencyReportTask} are driven in throwaway
  * fixture builds (their inputs are compiled classes and dependency declarations, and editing a real
  * module mid-suite is not an option), with a real-tree run each for the root build's own wiring;
- * {@code generateLlmsDocs} runs against this repository with a file edit restored byte-for-byte.
+ * {@code generateLlmsDocs} runs against this repository, asking the build which sources it declares
+ * and exercising reruns through its own output directory — never by editing a tracked page.
  */
 class TaskInputInvalidationTest {
 
@@ -213,35 +213,44 @@ class TaskInputInvalidationTest {
 
   // --- generateLlmsDocs: llms.txt is a declared source ---------------------
 
+  /**
+   * The regression is that a source page is READ inside {@code doLast} instead of DECLARED, so the
+   * build's own answer to "which files are your sources" is the proof: a declared input is what
+   * Gradle fingerprints, and an undeclared one is what left the generated copy stale while the task
+   * reported UP-TO-DATE.
+   */
   @Test
-  void generateLlmsDocsRerunsWhenLlmsTxtChangesAndOnlyThen() throws IOException {
+  void generateLlmsDocsDeclaresBothSourcePagesAsInputs() {
+    var declared = gradle(PROJECT_DIR, "printLlmsDocsSources").getOutput();
+
+    assertThat(declared)
+        .as("a source read inside doLast is not an input — Gradle fingerprints what is declared")
+        .contains("documentation/llms.txt")
+        .contains("documentation/llms-full.md");
+  }
+
+  /**
+   * The behavioural half, kept to what a test may touch: {@code build/site} is this task's own
+   * output. Asking the question by editing {@code documentation/llms.txt} and restoring it
+   * afterwards — what this test did until 2026-09-18 — writes where the repository lives: invisible
+   * while it passes, a rewritten tracked page on any run that never reaches the restore.
+   */
+  @Test
+  void generateLlmsDocsRerunsWhenItsOutputIsMissingAndOnlyThen() throws IOException {
     var source = new File(PROJECT_DIR, "documentation/llms.txt").toPath();
     var copy = new File(PROJECT_DIR, "build/site/llms.txt").toPath();
-    var original = Files.readAllBytes(source);
 
     gradle(PROJECT_DIR, "generateLlmsDocs");
-    assertThat(Files.readAllBytes(copy)).isEqualTo(original);
+    assertThat(Files.readAllBytes(copy)).isEqualTo(Files.readAllBytes(source));
     assertThat(outcome(gradle(PROJECT_DIR, "generateLlmsDocs"), ":generateLlmsDocs"))
         .as("nothing changed")
         .isEqualTo(UP_TO_DATE);
 
-    var probe = "\n<!-- TaskInputInvalidationTest probe -->\n";
-    try {
-      Files.write(
-          source,
-          (new String(original, StandardCharsets.UTF_8) + probe).getBytes(StandardCharsets.UTF_8));
-      var changed = gradle(PROJECT_DIR, "generateLlmsDocs");
-      assertThat(outcome(changed, ":generateLlmsDocs"))
-          .as("a changed llms.txt reruns the copy")
-          .isEqualTo(SUCCESS);
-      assertThat(Files.readString(copy)).contains(probe);
-    } finally {
-      Files.write(source, original);
-    }
-    assertThat(Files.readAllBytes(source)).as("the tree is left as found").isEqualTo(original);
+    Files.delete(copy);
 
     assertThat(outcome(gradle(PROJECT_DIR, "generateLlmsDocs"), ":generateLlmsDocs"))
+        .as("a missing output reruns the copy")
         .isEqualTo(SUCCESS);
-    assertThat(Files.readAllBytes(copy)).isEqualTo(original);
+    assertThat(Files.readAllBytes(copy)).isEqualTo(Files.readAllBytes(source));
   }
 }

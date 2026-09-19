@@ -252,6 +252,7 @@ public final class HostileGraphs {
       case "toStringHuge" -> new HostileMembers.Huge(held);
       case "toStringNull" -> new HostileMembers.NullReturning(held);
       case "numberHostileToString" -> new HostileMembers.NumberHostileToString(held);
+      case "numberSubclassToStringDoor" -> new HostileMembers.NumberSubclassToStringDoor(sentinel);
       case "hashCodeThrows" -> new HostileMembers.HashThrowing(held);
       case "equalsThrows" -> new HostileMembers.EqualsThrowing(held);
       case "getterThrows" -> new HostileMembers.GetterThrowing(held);
@@ -265,6 +266,8 @@ public final class HostileGraphs {
           new HostileMembers.AbstractCollectionSubclassOverride(held);
       case "fieldlessAbstractSubclassToStringDoor" ->
           new HostileMembers.FieldlessAbstractSubclassToStringDoor();
+      case "fieldlessSideTableToStringDoor" ->
+          new HostileMembers.FieldlessSideTableToStringDoor(held);
       default -> throw new IllegalArgumentException("unknown hostile member: " + member);
     };
   }

@@ -658,22 +658,6 @@
       },
       "sources": ["OrderResult.transactionId", "PaymentConfirmation.transactionId"],
       "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "value",
-      "context": "shop",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["CustomerTier.values"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "value of",
-      "context": "shop",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["CustomerTier.valueOf"],
-      "firstSeen": "2026-08-15"
     }
   ]
 }

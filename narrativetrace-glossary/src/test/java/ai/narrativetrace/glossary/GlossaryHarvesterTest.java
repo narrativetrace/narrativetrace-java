@@ -290,4 +290,106 @@ class GlossaryHarvesterTest {
 
     assertThatCode(() -> harvester.harvest(List.of(tree))).doesNotThrowAnyException();
   }
+
+  // --- Harvest and translation must resolve a node's context by the same rule. A term filed under
+  // one context and looked up under another produces a gap no curation can close. ---
+
+  private static final Glossary SHOP_AND_BILLING =
+      new Glossary(
+          1,
+          Map.of(
+              "shop",
+              new BoundedContext("shop", List.of("com.acme.shop"), null),
+              "billing",
+              new BoundedContext("billing", List.of("com.acme.billing"), null),
+              "_unassigned",
+              new BoundedContext("_unassigned", List.of(), null)),
+          List.of());
+
+  private static TraceNode orderNode(String capturedPackage) {
+    return new TraceNode(
+        new MethodSignature(
+            "OrderService", "placeOrder", List.of(), null, null, null, capturedPackage),
+        List.of(),
+        null);
+  }
+
+  private static ai.narrativetrace.core.export.CanonicalEntry orderEntry(String capturedPackage) {
+    return ai.narrativetrace.core.export.CanonicalEntry.builder()
+        .timestamp("2026-08-14T10:00:00.000Z")
+        .level("trace")
+        .message("enter")
+        .traceId("0123456789abcdef0123456789abcdef")
+        .spanId("0123456789abcdef")
+        .codeNamespace("OrderService")
+        .codeFunction("placeOrder")
+        .ntEntryType("entry")
+        .ntEventType("method_enter")
+        .ntSchemaVersion("1.2")
+        .ntPackage(capturedPackage)
+        .build();
+  }
+
+  private static Glossary withPlaceOrderCuratedIn(String context) {
+    return new Glossary(
+        SHOP_AND_BILLING.schemaVersion(),
+        SHOP_AND_BILLING.contexts(),
+        List.of(
+            new GlossaryTerm(
+                "place order",
+                context,
+                TermKind.VERB_PHRASE,
+                TermStatus.CURATED,
+                null,
+                Map.of("es", "realizar pedido"),
+                List.of(),
+                List.of(),
+                java.time.LocalDate.of(2026, 8, 11))));
+  }
+
+  /**
+   * Harvests one node, curates its verb phrase in exactly the context the harvest filed it under,
+   * then renders the same call: the translation must land. It only can when both halves resolved
+   * the context the same way.
+   */
+  private static void assertHarvestAndTranslationAgree(
+      UnaryOperator<String> packageOf, String capturedPackage) {
+    var harvested =
+        new GlossaryHarvester(new ContextResolver(SHOP_AND_BILLING), packageOf)
+            .harvest(List.of(tree(orderNode(capturedPackage))));
+    var context =
+        harvested.candidates().stream()
+            .filter(candidate -> "place order".equals(candidate.phrase()))
+            .map(HarvestCandidate::context)
+            .findFirst()
+            .orElseThrow();
+
+    var view = new TraceTranslationView(withPlaceOrderCuratedIn(context), packageOf);
+
+    assertThat(view.render(List.of(orderEntry(capturedPackage)), "es"))
+        .as("harvested under '%s'", context)
+        .contains("realizar pedido (placeOrder)");
+  }
+
+  @Test
+  void harvestAndTranslationAgreeWhenTheIndexResolvesTheSimpleName() {
+    assertHarvestAndTranslationAgree(className -> "com.acme.shop", "com.acme.shop");
+  }
+
+  @Test
+  void harvestAndTranslationAgreeWhenTheClassShipsInAJarTheIndexNeverScanned() {
+    assertHarvestAndTranslationAgree(className -> null, "com.acme.shop");
+  }
+
+  @Test
+  void harvestAndTranslationAgreeWhenTheSimpleNameIsAmbiguousInTheIndex() {
+    // Two classes share the simple name, so the index answers for the wrong one (or, as the real
+    // index does, not at all). The package captured at the site outranks it either way.
+    assertHarvestAndTranslationAgree(className -> "com.acme.billing", "com.acme.shop");
+  }
+
+  @Test
+  void aPreSchemaOneTwoSignatureWithNoCapturedPackageStillFallsBackToTheIndex() {
+    assertHarvestAndTranslationAgree(className -> "com.acme.shop", null);
+  }
 }

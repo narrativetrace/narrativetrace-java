@@ -23,11 +23,25 @@ import java.util.Map;
  * false}, {@code null}. Fractional/exponent numbers are rejected — the glossary schema has none.
  * Duplicate object keys and trailing content are errors. JSON {@code null} parses to {@link #NULL}
  * (never Java {@code null}) so callers can distinguish "key absent" from "key explicitly null".
+ *
+ * <p>Container nesting is capped at {@link #MAX_NESTING_DEPTH} and refused before parsing begins,
+ * because parsing is recursive and the document is user-supplied.
  */
 final class JsonParser {
 
   /** Sentinel returned for a JSON {@code null} literal. */
   static final Object NULL = new Object();
+
+  /**
+   * Deepest {@code {}}/{@code []} nesting a glossary document may open.
+   *
+   * <p>The same number in every NarrativeTrace runtime, whatever each one's JSON reader is built
+   * from — one limit, so a document accepted by one runtime is accepted by all. The curated shape
+   * this schema actually uses tops out around four levels (contexts → terms → translations), so 16
+   * is headroom rather than a realistic ceiling; its job is to turn a pathologically deep document
+   * — hostile or merely corrupted — into one clean, named error.
+   */
+  static final int MAX_NESTING_DEPTH = 16;
 
   private final String text;
   private int pos;
@@ -42,12 +56,14 @@ final class JsonParser {
    * @param text JSON text; must not be {@code null}
    * @return {@link Map} (insertion-ordered), {@link List}, {@link String}, {@link Long}, {@link
    *     Boolean}, or {@link #NULL}
-   * @throws IllegalArgumentException on any syntax error, with character position
+   * @throws IllegalArgumentException on any syntax error, with character position, or when
+   *     container nesting exceeds {@link #MAX_NESTING_DEPTH}
    */
   static Object parse(String text) {
     if (text == null) {
       throw new IllegalArgumentException("JSON text must not be null");
     }
+    requireBoundedNesting(text);
     var parser = new JsonParser(text);
     parser.skipWhitespace();
     var value = parser.parseValue();
@@ -56,6 +72,58 @@ final class JsonParser {
       throw parser.error("trailing content after JSON document");
     }
     return value;
+  }
+
+  /**
+   * Refuses a document whose container nesting exceeds {@link #MAX_NESTING_DEPTH}, before {@link
+   * #parseValue} can recurse into it.
+   *
+   * <p>{@code parseValue → parseObject/parseArray → parseValue} is real call-stack recursion, and
+   * {@code glossary.json} is user-supplied, so the depth of the file decides the depth of the
+   * stack. This scan is a single left-to-right pass with a counter — no recursion of its own — so
+   * measuring a hostile document can never become the stack exhaustion it exists to prevent.
+   *
+   * <p><b>@edgeCase</b> Brackets inside a string literal are not structure: the scan skips each
+   * literal whole, honouring backslash escapes, so {@code "[[[["} as a value counts nothing and an
+   * escaped quote does not end the literal early. An unterminated literal runs to the end of the
+   * text and the parser reports it by its own name.
+   */
+  private static void requireBoundedNesting(String text) {
+    int depth = 0;
+    int i = 0;
+    while (i < text.length()) {
+      char c = text.charAt(i);
+      if (c == '"') {
+        i = endOfString(text, i);
+      } else if (c == '{' || c == '[') {
+        depth = opened(depth, i);
+      } else if (c == '}' || c == ']') {
+        depth--;
+      }
+      i++;
+    }
+  }
+
+  /** Index of the literal's closing quote, or the text length when it is never closed. */
+  private static int endOfString(String text, int openingQuote) {
+    int i = openingQuote + 1;
+    while (i < text.length()) {
+      char c = text.charAt(i);
+      if (c == '"') {
+        return i;
+      }
+      i += c == '\\' ? 2 : 1;
+    }
+    return text.length();
+  }
+
+  private static int opened(int depth, int position) {
+    int nested = depth + 1;
+    if (nested > MAX_NESTING_DEPTH) {
+      throw error(
+          position, "nesting depth " + nested + " exceeds the maximum of " + MAX_NESTING_DEPTH);
+    }
+    return nested;
   }
 
   private Object parseValue() {
@@ -229,7 +297,11 @@ final class JsonParser {
   }
 
   private IllegalArgumentException error(String message) {
-    return new IllegalArgumentException("invalid JSON at position " + pos + ": " + message);
+    return error(pos, message);
+  }
+
+  private static IllegalArgumentException error(int position, String message) {
+    return new IllegalArgumentException("invalid JSON at position " + position + ": " + message);
   }
 
   private IllegalArgumentException error(String message, Throwable cause) {

@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob a120b4005457 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob cb0829e3bb7e | translated: 2026-09-19 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -99,6 +99,8 @@ Cada método, clase, parámetro y componente de record recibe una nota construid
 | `amount` | 0.50 | Broad noun 'amount' — qualify it (e.g., orderAmount) |
 
 Las notas aportan orientación concreta allí donde los diccionarios pueden proporcionarla. Un verbo genérico o no reconocido junto a un sustantivo de dominio conocido gana una sugerencia de renombrado `verbNoun` — `Generic verb 'process' + broad noun 'order' — consider: backorderOrder, cancelOrder, fulfillOrder` — y cualquier abreviatura penalizada se explica en línea: `; spell out: chk → check`. Los accesores de record se puntúan con la rúbrica de sustantivos y se expresan para componentes (`Domain-specific component 'customerId'`).
+
+El diccionario de colocaciones es solo una señal positiva: un verbo que aparece listado para un sustantivo confirma que el nombre se lee bien, pero un verbo que no aparece listado nunca se trata como evidencia en contra del nombre — la sugerencia de renombrado solo se activa para un verbo genérico o genuinamente confuso, nunca simplemente porque el verbo real esté ausente de la muestra.
 
 Las notas nunca entran en `issues[]` — un elogio no es una acción a realizar. Se muestran en la tabla **Elements** del informe y en el array `elements` de `clarity-results.json` (esquema 1.2).
 

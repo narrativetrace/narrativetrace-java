@@ -128,50 +128,6 @@
       "firstSeen": "2026-08-15"
     },
     {
-      "term": "component 1",
-      "context": "library",
-      "kind": "noun-phrase",
-      "status": "harvested",
-      "sources": ["Book.component1", "LoanReceipt.component1", "Member.component1"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "component 2",
-      "context": "library",
-      "kind": "noun-phrase",
-      "status": "harvested",
-      "sources": ["Book.component2", "LoanReceipt.component2", "Member.component2"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "component 3",
-      "context": "library",
-      "kind": "noun-phrase",
-      "status": "harvested",
-      "sources": ["Book.component3", "LoanReceipt.component3", "Member.component3"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "component 4",
-      "context": "library",
-      "kind": "noun-phrase",
-      "status": "harvested",
-      "sources": ["Book.component4"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "copy",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "curated",
-      "translations": {
-        "es": "ejemplar",
-        "zh-CN": "副本"
-      },
-      "sources": ["Book.copy", "LoanReceipt.copy", "Member.copy"],
-      "firstSeen": "2026-08-15"
-    },
-    {
       "term": "default lending",
       "context": "library",
       "kind": "noun-phrase",
@@ -204,86 +160,6 @@
       "firstSeen": "2026-08-15"
     },
     {
-      "term": "get author",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Book.getAuthor"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get available",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Book.getAvailable"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get book title",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["LoanReceipt.getBookTitle"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get card number",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Member.getCardNumber"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get due date",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["LoanReceipt.getDueDate"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get id",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Member.getId"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get isbn",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Book.getIsbn"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get member name",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["LoanReceipt.getMemberName"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get name",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Member.getName"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "get title",
-      "context": "library",
-      "kind": "verb-phrase",
-      "status": "harvested",
-      "sources": ["Book.getTitle"],
-      "firstSeen": "2026-08-15"
-    },
-    {
       "term": "id",
       "context": "library",
       "kind": "word",
@@ -312,7 +188,7 @@
       "context": "library",
       "kind": "word",
       "status": "harvested",
-      "sources": ["Book.copy", "Book.getIsbn", "CatalogService.findBook"],
+      "sources": ["Book.getIsbn", "Book.copy", "CatalogService.findBook"],
       "firstSeen": "2026-08-15"
     },
     {
@@ -388,7 +264,7 @@
         "es": "nombre del socio",
         "zh-CN": "会员姓名"
       },
-      "sources": ["LoanReceipt.copy", "LoanReceipt.getMemberName"],
+      "sources": ["LoanReceipt.getMemberName", "LoanReceipt.copy"],
       "firstSeen": "2026-08-15"
     },
     {
@@ -396,7 +272,7 @@
       "context": "library",
       "kind": "word",
       "status": "harvested",
-      "sources": ["Member.copy", "Member.getName"],
+      "sources": ["Member.getName", "Member.copy"],
       "firstSeen": "2026-08-15"
     },
     {
@@ -416,7 +292,7 @@
         "es": "título",
         "zh-CN": "书名"
       },
-      "sources": ["Book.copy", "Book.getTitle"],
+      "sources": ["Book.getTitle", "Book.copy"],
       "firstSeen": "2026-08-15"
     }
   ]

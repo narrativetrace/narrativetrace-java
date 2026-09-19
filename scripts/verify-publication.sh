@@ -476,6 +476,79 @@ run_smoke_test() {  # version
 }
 
 # ---------------------------------------------------------------------------------------
+# Gradle Plugin Portal LISTING check — independent of the PLUGIN row in the artifact-presence
+# poll above. That row reads $GRADLE_PLUGIN_PORTAL_BASE, the Portal's /m2 proxy: it mirrors Maven
+# Central and answers PRESENT the instant Central has the marker POM, whether or not the Portal
+# itself has ever run publishPlugins for this coordinate — the blind spot that let every release
+# so far (0.2.0, 0.2.1, 0.2.3) ship without a real Portal publish. This check asks the Portal's
+# own per-version plugin page instead, by shelling out to scripts/plugin-portal-published.sh —
+# the one place that question is answered, never reimplemented here.
+# ---------------------------------------------------------------------------------------
+
+GRADLE_PLUGIN_ID="ai.narrativetrace"
+# The last release built under the broken guard: every version up to and including this one
+# genuinely has no Portal listing, a known and already-explained gap, not a fresh regression.
+# Raised only by the release that ships the guard fix — every version after it was built under
+# the fixed guard, so a missing listing for one of those is real and gets no softened wording.
+PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION="0.2.3"
+
+# a <= b for dotted numeric versions. bash 3.2 has no [[ ]], so plain [ ] comparisons; missing or
+# non-numeric components read as 0 — good enough for this repo's X.Y.Z release scheme.
+version_le() {  # a b
+    [ "$1" = "$2" ] && return 0
+    local IFS=. a_parts b_parts i av bv
+    read -r -a a_parts <<<"$1"
+    read -r -a b_parts <<<"$2"
+    for i in 0 1 2 3; do
+        av="${a_parts[$i]:-0}"
+        bv="${b_parts[$i]:-0}"
+        case "$av" in ''|*[!0-9]*) av=0 ;; esac
+        case "$bv" in ''|*[!0-9]*) bv=0 ;; esac
+        if [ "$av" -lt "$bv" ]; then return 0; fi
+        if [ "$av" -gt "$bv" ]; then return 1; fi
+    done
+    return 0
+}
+
+PLUGIN_PORTAL_LISTING_STATUS="SKIPPED"
+PLUGIN_PORTAL_LISTING_DETAIL=""
+
+# Shells out rather than re-asking the Portal here: one place decides PUBLISHED / NOT_PUBLISHED /
+# ERROR (and one place is unit-tested for it) — see that script's own header for why /m2 can't
+# answer this question honestly. A version through PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION still
+# reports NOT_YET_PUBLISHED as a failing status — the canary stays honestly red until a real
+# publish lands — but with the explanation attached, so a human reading it does not mistake a
+# known, already-diagnosed gap for a fresh regression the way a bare MISSING would read.
+run_plugin_portal_listing_check() {  # version
+    local version="$1" output exit_code
+    if [ "$LOCAL_REHEARSAL" = 1 ]; then
+        PLUGIN_PORTAL_LISTING_STATUS="SKIPPED"
+        PLUGIN_PORTAL_LISTING_DETAIL="--local-rehearsal has no local stand-in for the Portal's own listing page"
+        return
+    fi
+    output="$("$REPO_ROOT/scripts/plugin-portal-published.sh" "$version" 2>&1)" && exit_code=0 || exit_code=$?
+    case "$exit_code" in
+        0)
+            PLUGIN_PORTAL_LISTING_STATUS="PRESENT"
+            PLUGIN_PORTAL_LISTING_DETAIL="$output"
+            ;;
+        1)
+            if version_le "$version" "$PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION"; then
+                PLUGIN_PORTAL_LISTING_STATUS="NOT_YET_PUBLISHED"
+                PLUGIN_PORTAL_LISTING_DETAIL="not yet published to the Portal (first publish on the next release) — every release through ${PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION} shipped under the /m2 guard bug, so this is expected, not a new regression"
+            else
+                PLUGIN_PORTAL_LISTING_STATUS="MISSING"
+                PLUGIN_PORTAL_LISTING_DETAIL="$output"
+            fi
+            ;;
+        *)
+            PLUGIN_PORTAL_LISTING_STATUS="MISSING"
+            PLUGIN_PORTAL_LISTING_DETAIL="guard could not reach the Portal: $output"
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------------------
 
@@ -497,7 +570,10 @@ print_report() {  # version
         fi
         printf '%-8s %-45s %s\n' "${CHECK_KIND[$i]}" "${CHECK_GROUP[$i]}:${CHECK_ARTIFACT[$i]}:$1" "$status"
     done
+    printf '%-8s %-45s %s\n' "LISTING" "${GRADLE_PLUGIN_ID}:$1" "$PLUGIN_PORTAL_LISTING_STATUS"
+    case "$PLUGIN_PORTAL_LISTING_STATUS" in PRESENT|SKIPPED) ;; *) ALL_PRESENT=0 ;; esac
     echo
+    echo "Plugin Portal listing: $PLUGIN_PORTAL_LISTING_STATUS${PLUGIN_PORTAL_LISTING_DETAIL:+ ($PLUGIN_PORTAL_LISTING_DETAIL)}"
     echo "Smoke test: $SMOKE_VERDICT${SMOKE_DETAIL:+ ($SMOKE_DETAIL)}"
 }
 
@@ -509,6 +585,7 @@ dry_run_report() {  # version
         resource_urls_for "${CHECK_KIND[$i]}" "${CHECK_GROUP[$i]}" "${CHECK_ARTIFACT[$i]}" "$version" \
             | while read -r url; do echo "  ${CHECK_KIND[$i]} $url"; done
     done
+    echo "  LISTING https://plugins.gradle.org/plugin/${GRADLE_PLUGIN_ID}/${version}"
     echo
     echo "Smoke test would apply id(\"ai.narrativetrace\") version \"$version\" from" \
         "$([ "$LOCAL_REHEARSAL" = 1 ] && echo mavenLocal || echo "the Gradle Plugin Portal")."
@@ -530,6 +607,7 @@ main() {
     fi
 
     poll_artifacts "$VERSION"
+    run_plugin_portal_listing_check "$VERSION"
     run_smoke_test "$VERSION"
     print_report "$VERSION"
 

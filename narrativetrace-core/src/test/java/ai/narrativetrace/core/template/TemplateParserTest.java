@@ -527,11 +527,18 @@ class TemplateParserTest {
     assertThat(resolved).doesNotContain("topsecret");
   }
 
-  /** A third-party {@code Number} — {@link TemplateParser}'s scalar test must not trust it. */
+  /**
+   * A third-party {@code Number} — {@link TemplateParser}'s scalar test must not trust it. It holds
+   * a deny-listed field its own text prints, which is what made the scalar shortcut a leak here and
+   * not only an escaping question: a narration template is rendering like any other output.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by introspection, which is the whole point
   static class HostileAmount extends Number {
+    private final String password = "hunter2";
+
     @Override
     public String toString() {
-      return "1\n## forged\n";
+      return "1\n## forged\n" + password;
     }
 
     @Override
@@ -556,12 +563,12 @@ class TemplateParserTest {
   }
 
   @Test
-  void hostileNumberSubclassArgumentIsSanitizedInTemplateSubstitution() {
+  void hostileNumberSubclassArgumentIsWalkedInTemplateSubstitution() {
     var resolved =
         TemplateParser.resolve("amount: {amount}", Map.of("amount", new HostileAmount()));
 
-    assertThat(resolved).doesNotContain("\n");
-    assertThat(resolved).isEqualTo("amount: 1\\n## forged\\n");
+    assertThat(resolved).doesNotContain("\n").doesNotContain("forged").doesNotContain("hunter2");
+    assertThat(resolved).isEqualTo("amount: HostileAmount{password: [REDACTED]}");
   }
 
   enum HostileEnum {

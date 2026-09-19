@@ -26,6 +26,7 @@ Packages: `ai.narrativetrace.examples.clarity`
 | main | harvested |  |  |  |
 | message | harvested |  |  |  |
 | name | harvested |  |  |  |
+| night | harvested |  |  |  |
 | out | harvested |  |  |  |
 | payment | curated |  |  | es: pago; zh-CN: 支付 |
 | report | harvested |  |  |  |
@@ -55,7 +56,6 @@ Packages: `ai.narrativetrace.examples.clarity`
 | full name | harvested |  |  |  |
 | guest by id | harvested |  |  |  |
 | guest id | curated |  |  | es: id de huésped; zh-CN: 宾客编号 |
-| per night | harvested |  |  |  |
 | reservation id | curated |  |  | es: id de reserva; zh-CN: 预订编号 |
 | room category | curated |  |  | es: categoría de habitación; zh-CN: 房型 |
 | room number | curated |  |  | es: número de habitación; zh-CN: 房间号 |

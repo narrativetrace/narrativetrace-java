@@ -82,8 +82,6 @@ Packages: `ai.narrativetrace.examples.ecommerce`
 | place order | curated |  |  | es: realizar pedido; zh-CN: 下单 |
 | release | curated |  |  | es: liberar; zh-CN: 释放 |
 | reserve | curated |  |  | es: reservar; zh-CN: 预留 |
-| value | harvested |  |  |  |
-| value of | harvested |  |  |  |
 
 ### Templates
 

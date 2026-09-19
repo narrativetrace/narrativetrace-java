@@ -332,6 +332,17 @@ class TranslationSubscriberTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"", "__", "$$$", "123"})
+  void aMethodNameCarryingNoReadableWordNeverThrowsOutOfOnNext(String methodName) {
+    var subscriber = new TranslationSubscriber(chargeGlossary(), "es", sink::add);
+
+    org.assertj.core.api.Assertions.assertThatCode(
+            () -> subscriber.onNext(enterEvent(rootSpanContext(), "PaymentService", methodName)))
+        .doesNotThrowAnyException();
+    assertThat(sink).containsExactly("PaymentService." + methodName + "()");
+  }
+
   @Test
   void receivesEventsLiveFromABufferedEventConsumer() throws Exception {
     var latch = new java.util.concurrent.CountDownLatch(1);

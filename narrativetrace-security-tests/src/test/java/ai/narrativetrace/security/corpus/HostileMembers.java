@@ -13,6 +13,8 @@ import java.net.URI;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -108,18 +110,18 @@ public final class HostileMembers {
   /**
    * A {@code Number} subclass whose {@code toString()} is a forged narrative line, not a number —
    * the shape {@code ValueRenderer.renderScalar} used to trust unsanitized because {@code Number}
-   * is a fast-pathed scalar type. Carries a newline (log/Markdown-line forgery), a Markdown fence,
+   * was a fast-pathed scalar type. Carries a newline (log/Markdown-line forgery), a Markdown fence,
    * JSON object structure and the two non-JSON floating-point spellings, all in one payload so a
    * single case exercises every renderer's scalar-numeric path at once.
    *
    * <p><b>@llmNote</b> Takes a {@code held} constructor argument purely to match every other {@code
-   * hostileMember} shape's factory signature in {@link HostileGraphs#hostile}; it is never read.
-   * This shape is a scalar (a {@code Number}), so it is never introspected field-by-field the way
-   * {@link Throwing} and its siblings are — the redaction oracle does not apply to it, only the
-   * structure-forging one does.
+   * hostileMember} shape's factory signature in {@link HostileGraphs#hostile}; the field exists to
+   * be walked now that a {@code Number} subclass is the composite it always was, and the redaction
+   * oracle applies to this shape like any other. The structure-forging oracle is what the forged
+   * text is for: it must not appear at all, rather than appear escaped.
    */
   @SuppressWarnings({
-    "PMD.UnusedPrivateField", // kept only to match the uniform hostile() factory
+    "PMD.UnusedPrivateField", // held exists to be read by object introspection
     "PMD.NonSerializableClass" // extends Number, which is Serializable; never actually serialized
   })
   public static final class NumberHostileToString extends Number {
@@ -152,6 +154,64 @@ public final class HostileMembers {
     @Override
     public double doubleValue() {
       return 1d;
+    }
+  }
+
+  /**
+   * A user {@link Number} subclass carrying a deny-listed field and a {@code toString()} that
+   * prints it — the {@code number-subclass-tostring-door} row.
+   *
+   * <p>INTENT: {@code Number} is a public abstract class, so extending it says nothing about what
+   * an instance holds: this one is an ordinary composite that happens to have a numeric base, and
+   * its deny-listed field is hidden by name on any path that walks it. The flat renderer's
+   * scalar-numeric fast path did not walk it — it printed this text with only the value-shape scan
+   * and the length cap in front, no field name for the deny-list to match and no {@code @NotTraced}
+   * to honor — while the structured path introspected the same value and rendered the field as the
+   * marker. One value, two channels, two different answers, and the leaking one was the channel
+   * every human-readable output uses.
+   *
+   * <p><b>@llmNote</b> The sibling {@link NumberHostileToString} pins the OTHER half of the same
+   * branch: a numeric text that forges narrative structure. That one carries no state in its text,
+   * so a renderer that sanitized the text passed it; this one carries the secret in its text, so
+   * only a renderer that never reads the text at all passes. Both rows stay: the structure-forging
+   * one keeps the sanitizing guard honest for the values whose own text is still read.
+   */
+  @SuppressWarnings({
+    "PMD.UnusedPrivateField", // both fields are read by toString and by introspection
+    "PMD.NonSerializableClass" // extends Number, which is Serializable; never actually serialized
+  })
+  public static final class NumberSubclassToStringDoor extends Number {
+
+    private final String password;
+    private final long cents = 1999L;
+
+    NumberSubclassToStringDoor(String password) {
+      this.password = password;
+    }
+
+    @Override
+    public String toString() {
+      return "Amount{password=" + password + ", cents=" + cents + "}";
+    }
+
+    @Override
+    public int intValue() {
+      return (int) cents;
+    }
+
+    @Override
+    public long longValue() {
+      return cents;
+    }
+
+    @Override
+    public float floatValue() {
+      return cents;
+    }
+
+    @Override
+    public double doubleValue() {
+      return cents;
     }
   }
 
@@ -358,8 +418,8 @@ public final class HostileMembers {
   /**
    * A FIELDLESS user subclass of the ABSTRACT platform base {@code AbstractCollection} — the
    * "toString door" the rendering rule's 2026-09-18 abstract-base refinement left open: {@code
-   * rendersItsOwnString} trusts any type with no instance fields of its own to stand behind its own
-   * stringification — and this class declares none — but the text it then trusts is {@code
+   * rendersItsOwnString} used to trust any type with no instance fields of its own to stand behind
+   * its own stringification — and this class declares none — but the text it then trusted is {@code
    * AbstractCollection}'s OWN inherited {@code toString()}, which walks {@code iterator()}
    * internally. A fieldless subclass whose override counts its calls and refuses therefore still
    * reaches it, through a {@code toString()} the subclass never wrote a line of. {@link
@@ -373,10 +433,9 @@ public final class HostileMembers {
    * The corpus factory's {@code held} local is simply unused on this arm of the switch, which is
    * legal and unremarkable Java. The row it backs carries no sentinel to look for.
    *
-   * <p><b>@llmNote</b> The spy counter is {@code static}, not instance: {@code
-   * rendersItsOwnString}'s "has no instance field" test excludes {@code static} members, so an
-   * instance-field spy would defeat the very fieldless precondition this fixture exists to hold.
-   * Callers reset it before use.
+   * <p><b>@llmNote</b> The spy counter is {@code static}, not instance: the fieldless precondition
+   * this fixture exists to hold is about DECLARED instance fields, which {@code static} members are
+   * not, so an instance-field spy would quietly defeat it. Callers reset it before use.
    */
   public static final class FieldlessAbstractSubclassToStringDoor
       extends AbstractCollection<Object> {
@@ -391,6 +450,47 @@ public final class HostileMembers {
     @Override
     public int size() {
       return 3;
+    }
+  }
+
+  /**
+   * A FIELDLESS class, no composite at all, whose {@code toString()} reads its real state out of a
+   * static identity-keyed SIDE TABLE — state no field reflection can see.
+   *
+   * <p>INTENT: "Declares no instance field" was never a statement that a value has nothing to tell.
+   * This class keeps its payload in a {@code Map} keyed by the instance's identity — the same door
+   * a {@code ClassValue} or a {@code ThreadLocal} opens — so introspection finds nothing to walk
+   * while the class's own text prints a deny-listed component in full. A stateless-leaf exemption
+   * granted for emptiness therefore hands the whole secret to the trace with only the value-shape
+   * scan and the length cap in front of it: no field name to match, no {@code @NotTraced} to honor,
+   * no cap a walked composite obeys. Trust in a value's own text belongs to an explicitly named
+   * platform leaf type and nothing else.
+   *
+   * <p><b>@llmNote</b> The reads counter and the table are both {@code static}: an instance field
+   * of either kind would give introspection something to find and destroy the fieldless
+   * precondition this fixture exists to hold. Callers reset the counter before use, exactly as the
+   * sibling {@link FieldlessAbstractSubclassToStringDoor} does.
+   *
+   * <p><b>@edgeCase</b> The table is an {@link java.util.IdentityHashMap}, so it consults neither
+   * {@code equals} nor {@code hashCode} of the key — a hostile fixture may have neither — and it
+   * retains every instance ever built. Bounded by construction: the corpus builds one instance per
+   * replay of one row.
+   */
+  public static final class FieldlessSideTableToStringDoor {
+    public static final AtomicInteger SIDE_TABLE_READS = new AtomicInteger();
+
+    private static final Map<Object, HostileGraphs.Secret> SIDE_TABLE =
+        Collections.synchronizedMap(new IdentityHashMap<>());
+
+    FieldlessSideTableToStringDoor(HostileGraphs.Secret held) {
+      SIDE_TABLE.put(this, held);
+    }
+
+    @Override
+    public String toString() {
+      SIDE_TABLE_READS.incrementAndGet();
+      var held = SIDE_TABLE.get(this);
+      return "FieldlessSideTableToStringDoor[" + held.label() + "/" + held.secret() + "]";
     }
   }
 
@@ -572,9 +672,9 @@ public final class HostileMembers {
    * A user class named after a platform type ({@link java.util.Date}) but defined by application
    * code — the {@code platform-lookalike-walked} row.
    *
-   * <p><b>@llmNote</b> Deliberately not {@code java.util.Date} itself. Trust is decided by defining
-   * class loader, per {@code ValueRenderer.PLATFORM_DEFINED}, never by a class's own simple name —
-   * a name-based test would have trusted this class's {@code toString()} and printed the field it
+   * <p><b>@llmNote</b> Deliberately not {@code java.util.Date} itself. Trust is decided by the
+   * exact class, per {@code PlatformTypes.isStatelessLeaf}, never by a class's own simple name — a
+   * name-based test would have trusted this class's {@code toString()} and printed the field it
    * hides.
    */
   @SuppressWarnings("PMD.UnusedPrivateField") // read by toString and by introspection

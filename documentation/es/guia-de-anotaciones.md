@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob 2c02d68e958a | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob fec2e7b0e04d | translated: 2026-09-17 | reviewed: - -->
 
 # Guía de anotaciones de NarrativeTrace para Java
 
@@ -91,7 +91,7 @@ Cómo funciona:
 
 **Dos secretos se ocultan por lo que son, no solo por cómo se llaman.** La lista de denegación basada en nombres no puede ver un token portador pasado como `value`, devuelto como un `String` desnudo o situado sin nombre dentro de una lista, así que una segunda regla independiente mira los bytes. Se reconocen exactamente tres formas: un JWT (tres segmentos base64url cuyo primero empieza por `eyJ`), un número de tarjeta (13–19 dígitos, se admiten separadores, que supera la suma de comprobación de Luhn) y una cadena `Set-Cookie` (`nombre=valor` seguido de un atributo de cookie como `Path`, `Max-Age` o `HttpOnly`). Todo lo demás se renderiza con normalidad — esto es una lista corta de firmas estructurales, no una heurística de entropía, porque un valor borrado por conjetura es un agujero en tu narrativa que no puedes ver. Se acepta deliberadamente un falso positivo: un identificador con la longitud de un número de tarjeta que casualmente satisface Luhn. Un número de pedido que no lo satisface permanece visible. `RedactionPolicy.DISABLED` desactiva esta regla junto con la lista de denegación por nombres; `RedactionPolicy.ofPatterns(...)` sustituye solo los nombres y la mantiene activa.
 
-**El `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga estado.** Una clase o `record` que declara campos de instancia — propios o heredados — se recorre campo a campo, a cualquier profundidad, consultando ambos mecanismos de ocultación por cada campo, sea lo que sea que su `toString()` hubiera impreso. Exactamente dos tipos de valor conservan su propio texto: una clase sin ningún campo de instancia (nada que ocultar, nada que recorrer), y una clase que define la plataforma (`LocalDate`, `Duration`, `UUID`, `URI` y similares), cuyo `toString()` es el formato del JDK y no código de la aplicación. Una clase declarada por tu propio código es código de aplicación, extienda lo que extienda. La única opción explícita para volver a un renderizado cuidadosamente escrito es `@NarrativeSummary`, más abajo — e incluso su texto pasa por la comprobación de la forma del valor, el escape de caracteres de control y el límite de longitud. Hasta el 2026-09-11 la regla funcionaba al revés, y eso dejaba que un simple `Login { username, password }` con un `toString()` escrito a mano imprimiera la contraseña a profundidad cero, y que cualquier `toString()` cuidadosamente escrito imprimiera valores `@NotTraced` anidados directamente a través de la serialización a texto ordinaria de Java. El coste es real y se aceptó: una clase de valor con un `toString()` agradable y sin `@NarrativeSummary` ahora se renderiza como un volcado de campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00`. Añade `@NarrativeSummary` a los tipos donde la lectura importe.
+**El `toString()` propio de un tipo nunca es de fiar mientras el tipo tenga estado.** Una clase o `record` que declara campos de instancia — propios o heredados — se recorre campo a campo, a cualquier profundidad, consultando ambos mecanismos de ocultación por cada campo, sea lo que sea que su `toString()` hubiera impreso. Un solo tipo de valor conserva su propio texto: un tipo hoja de la plataforma, nombrado uno a uno en una lista que mantiene el renderizador (`LocalDate`, `Duration`, `UUID`, `URI`, `Path`, `Pattern` y similares), cuyo `toString()` es el formato del JDK y no código de la aplicación. Una clase declarada por tu propio código es código de aplicación, extienda lo que extienda, y una clase sin ningún campo legible no es por ello una clase que no tenga nada que contar — puede guardar su estado en una tabla estática indexada por la instancia, en un `ClassValue` o en un `ThreadLocal` e imprimirlo desde su propio `toString()` — así que se renderiza como el nombre de su tipo y no como su texto (2026-09-19, en toda la familia). La única opción explícita para volver a un renderizado cuidadosamente escrito es `@NarrativeSummary`, más abajo — e incluso su texto pasa por la comprobación de la forma del valor, el escape de caracteres de control y el límite de longitud. Hasta el 2026-09-11 la regla funcionaba al revés, y eso dejaba que un simple `Login { username, password }` con un `toString()` escrito a mano imprimiera la contraseña a profundidad cero, y que cualquier `toString()` cuidadosamente escrito imprimiera valores `@NotTraced` anidados directamente a través de la serialización a texto ordinaria de Java. El coste es real y se aceptó: una clase de valor con un `toString()` agradable y sin `@NarrativeSummary` ahora se renderiza como un volcado de campos — `Amount{currency: "EUR", units: 10}` en lugar de `EUR 10.00`. Añade `@NarrativeSummary` a los tipos donde la lectura importe.
 
 **El ocultado sobrevive a cualquier envoltorio, a cualquier profundidad.** Un contenedor como `Optional`, `OptionalInt`/`OptionalLong`/`OptionalDouble`, `Future`, `AtomicReference`, `AtomicReferenceArray` o un `Map.Entry` suelto imprime el `toString()` crudo de su contenido si se le trata como un valor, así que NarrativeTrace lo abre y renderiza lo que contiene siguiendo exactamente estas reglas — que se vuelven a aplicar a lo que sea que *eso* contenga. Un `AtomicReferenceArray` se renderiza igual que el `Object[]` que contiene los mismos elementos, y un `Map.Entry` suelto se renderiza como `clave=valor`, exactamente igual que dentro de un `Map`. Un `Optional<Card>` se renderiza como `Card(number: "4111", cvv: [REDACTED])`, nunca como `Optional[Card[number=4111, cvv=123]]`; un envoltorio vacío se renderiza como `<empty>`. Esto importa porque `Optional<T>` es el tipo de retorno idiomático de una búsqueda, que es precisamente por donde viajan los datos ocultados.
 
@@ -120,14 +120,15 @@ Cómo funciona:
 - Si el método lanza una excepción, el valor se renderiza como `<error: IllegalStateException>`
   — el nombre del tipo de la excepción y nada más. El mensaje se excluye a propósito: suele
   interpolar el propio valor que no se pudo formatear.
-- Si no lo encuentra, el renderizado recorre los campos del objeto. Un tipo sin campos de
-  instancia, o uno que define la plataforma, conserva en su lugar su propio `toString()`.
+- Si no lo encuentra, el renderizado recorre los campos del objeto. Solo un tipo hoja de la
+  plataforma conserva en su lugar su propio `toString()`; un tipo sin ningún campo legible se
+  renderiza como el nombre de su tipo.
 
 ### `@NarrativeElements`
 
 El renderizado lee el estado de un valor; nunca ejecuta el propio código del valor, con
 exactamente tres excepciones sancionadas: `@NarrativeSummary`, el propio `toString()` de una
-hoja sin estado — y esta. Usa `@NarrativeElements` en un tipo cuyo `Iterable#iterator()` se sepa
+hoja de la plataforma — y esta. Usa `@NarrativeElements` en un tipo cuyo `Iterable#iterator()` se sepa
 que es puro, para que el renderizado lo enumere.
 
 ```java
@@ -178,7 +179,7 @@ Qué se invoca y qué no:
   como cualquier otro objeto. `@NarrativeElements` es la única opción explícita más allá de
   esto, para un tipo cuya propia iteración se declara pura.
 - **Lo que NarrativeTrace sí invoca:** un método `@NarrativeSummary`, el `toString()` de un
-  tipo sin campos de instancia, el `iterator()` propio de un tipo declarado con
+  tipo hoja de la plataforma, el `iterator()` propio de un tipo declarado con
   `@NarrativeElements`, y cualquier ruta de propiedad que nombres en una plantilla
   `@Narrated`/`@OnError` (`{order.total}` se resuelve llamando primero al método accesor
   directo `total()` y después al getter JavaBean `getTotal()`). Estos son los únicos lugares

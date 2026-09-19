@@ -13,6 +13,7 @@ import ai.narrativetrace.api.event.RenderedValue;
 import ai.narrativetrace.api.event.RenderedValue.ListVal;
 import ai.narrativetrace.api.event.RenderedValue.ObjectVal;
 import ai.narrativetrace.api.event.RenderedValue.StringVal;
+import java.time.LocalDate;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.Iterator;
@@ -254,15 +255,14 @@ class RenderingReadsStateNeverRunsBehaviourStructuredTest {
 
   /**
    * A FIELDLESS user subclass of the ABSTRACT platform base {@code AbstractCollection}. No INSTANCE
-   * field anywhere in its hierarchy, so {@code rendersItsOwnString} trusts it to stringify itself —
-   * but the text it is trusted for is {@code AbstractCollection}'s OWN inherited {@code
+   * field anywhere in its hierarchy, so the fieldless rule of the day trusted it to stringify
+   * itself — but the text it was trusted for is {@code AbstractCollection}'s OWN inherited {@code
    * toString()}, which walks {@code iterator()} internally, running this override.
    *
-   * <p><b>@llmNote</b> The spy counter is deliberately {@code static}: {@code
-   * rendersItsOwnString}'s "has no instance field" test walks {@code getDeclaredFields()}, which
-   * excludes {@code static} members — an instance-field spy (the obvious first attempt) would
-   * silently defeat the very precondition this fixture exists to hold, and the fixture would then
-   * test something else without saying so. Every test using it resets the counter first.
+   * <p><b>@llmNote</b> The spy counter is deliberately {@code static}: the fieldless precondition
+   * this fixture holds is about DECLARED instance fields, which {@code static} members are not — an
+   * instance-field spy (the obvious first attempt) would silently defeat it, and the fixture would
+   * then test something else without saying so. Every test using it resets the counter first.
    */
   static final class FieldlessAbstractCollectionSubclass extends AbstractCollection<Object> {
     static final AtomicInteger ITERATOR_CALLS = new AtomicInteger();
@@ -317,14 +317,11 @@ class RenderingReadsStateNeverRunsBehaviourStructuredTest {
    * Same rule, the {@code AbstractMap} sibling — {@code entrySet()} through the same door. Split
    * from the {@code AbstractCollection} test above rather than sharing {@link #bothPaths()}: {@code
    * AbstractMap} itself declares two {@code transient} instance fields of its own ({@code keySet},
-   * {@code values}, the {@code entrySet()}/{@code keySet()} view cache) — {@code
-   * HAS_INSTANCE_FIELDS} walks the WHOLE hierarchy, so it is {@code true} for every {@code
-   * AbstractMap} subclass regardless of the subclass's own fields, and {@code rendersItsOwnString}
-   * is therefore already {@code false} here. The flat path is a LIVE regression guard, not pending
-   * — this asymmetry with the {@code AbstractCollection} sibling (which has no such ancestor
-   * fields) is exactly why the door is fieldless-{@code AbstractCollection}-specific today, and
-   * splitting the two paths into separate tests keeps that already-true guard live instead of
-   * disabling it alongside the genuinely pending structured half.
+   * {@code values}, the {@code entrySet()}/{@code keySet()} view cache), so back when trust turned
+   * on "declares no instance field anywhere in the hierarchy" this sibling was already refused for
+   * that unrelated reason while the {@code AbstractCollection} one was not — which is why the door
+   * was fieldless-{@code AbstractCollection}-specific then. Both are refused outright now (a user
+   * subclass is on no leaf list), and the two paths stay split so each guard reads on its own.
    */
   @Test
   void aFieldlessAbstractMapSubclassAlreadyNeverRendersThroughItsInheritedToStringFlat() {
@@ -390,11 +387,13 @@ class RenderingReadsStateNeverRunsBehaviourStructuredTest {
   }
 
   /**
-   * The counterexample that must stay GREEN: a genuinely stateless leaf (no instance field
-   * anywhere, not a {@code Collection}/{@code Map}) with a curated {@code toString()} still renders
-   * through it — the one sanctioned hook the rule never withdrew. Live regression guard, not
-   * pending: {@code ValueRenderer} already calls the value's own {@code toString()} directly on
-   * both paths once a value is neither a collection/map (never reached here) nor introspected.
+   * What "stateless leaf" means since 2026-09-19: a PLATFORM leaf type, named in an explicit list,
+   * and nothing else. A user class with no instance field anywhere used to qualify on emptiness
+   * alone — and emptiness is not statelessness: the same class can hold its state in a static
+   * identity-keyed side table, a {@code ClassValue} or a {@code ThreadLocal} and print it from its
+   * own {@code toString()}, where no field walk would ever see it. So the counterexample cuts the
+   * other way now: this class's curated text is never read, on either path, and the hook that
+   * remains for a user type is {@code @NarrativeSummary}.
    */
   static final class StatelessLeafWithCuratedToString {
     @Override
@@ -405,13 +404,23 @@ class RenderingReadsStateNeverRunsBehaviourStructuredTest {
 
   @ParameterizedTest
   @MethodSource("bothPaths")
-  void aStatelessLeafWithACuratedToStringStillRendersThroughIt(
+  void aUserClassWithNoFieldsNeverRendersThroughItsCuratedToString(
       Function<Object, String> renderAsText) {
     var value = new StatelessLeafWithCuratedToString();
 
     var rendered = renderAsText.apply(value);
 
-    assertThat(rendered).contains("stateless-leaf-text");
+    assertThat(rendered).doesNotContain("stateless-leaf-text");
+    assertThat(rendered).contains("StatelessLeafWithCuratedToString");
+  }
+
+  /** The counterexample that must stay GREEN: a platform leaf's own text, on both paths. */
+  @ParameterizedTest
+  @MethodSource("bothPaths")
+  void aPlatformLeafStillRendersThroughItsOwnText(Function<Object, String> renderAsText) {
+    var rendered = renderAsText.apply(LocalDate.of(2026, 9, 19));
+
+    assertThat(rendered).contains("2026-09-19");
   }
 
   // ------------------------------------------------------------------------------------- bullet 8

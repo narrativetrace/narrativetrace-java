@@ -273,13 +273,33 @@ public final class TraceTranslationView {
       sb.append("  ".repeat(depth));
     }
 
+    /**
+     * Appends the function name, glossed when the glossary covers it.
+     *
+     * <p><b>@edgeCase</b> {@code code.function} is a required string with no shape constraint, so a
+     * valid canonical entry may carry a name that normalizes to nothing — blank, all punctuation,
+     * all digits. A view a live subscriber drives must be total over its own input format, so such
+     * a name renders verbatim, exactly as an uncovered name already does, instead of throwing out
+     * of the subscriber and into the fan-out.
+     */
     private void appendFunction(String function, String context) {
-      var result = translateOrGap(normalizer.phrase(function), context);
+      var phrase = readablePhrase(function);
+      if (phrase.isEmpty()) {
+        sb.append(function == null ? "" : function);
+        return;
+      }
+      var result = translateOrGap(phrase.get(), context);
       if (result.complete()) {
         sb.append(result.text()).append(" (").append(function).append(") ");
       } else {
         sb.append(function);
       }
+    }
+
+    private Optional<String> readablePhrase(String function) {
+      return function == null || function.isBlank()
+          ? Optional.empty()
+          : normalizer.phraseOrEmpty(function);
     }
 
     private void appendParameters(CanonicalEntry entry, String context) {
@@ -306,17 +326,17 @@ public final class TraceTranslationView {
     }
 
     /**
-     * Resolves the bounded context for an entry. The captured {@code nt.package} field (schema 1.2)
-     * is the primary source — identity captured at the site is authoritative; the {@code packageOf}
-     * resolver is the fallback for pre-1.2 canonical files. When the package is unknown or
-     * unmatched and the glossary declares exactly one context, that context applies — a
-     * single-context glossary is unambiguous. Multi-context glossaries stay strict and resolve to
-     * {@code _unassigned}.
+     * Resolves the bounded context for an entry. Which package to resolve is {@link
+     * ContextResolver#packageToResolve}'s single rule, shared with the harvest so a term is always
+     * looked up in the context it was filed under. When the package is unknown or unmatched and the
+     * glossary declares exactly one context, that context applies — a single-context glossary is
+     * unambiguous. Multi-context glossaries stay strict and resolve to {@code _unassigned}.
      */
     private String contextOf(CanonicalEntry entry) {
-      var packageName =
-          entry.ntPackage() != null ? entry.ntPackage() : packageOrEmpty(entry.codeNamespace());
-      var resolved = resolver.resolve(packageName);
+      var resolved =
+          resolver.resolve(
+              ContextResolver.packageToResolve(
+                  entry.ntPackage(), entry.codeNamespace(), packageOf));
       // No is-unassigned guard: the resolver only returns declared context names or UNASSIGNED,
       // so when exactly one context is declared, it either matched (identity) or is the fallback.
       var declared =
@@ -333,10 +353,5 @@ public final class TraceTranslationView {
       }
       return result;
     }
-  }
-
-  private String packageOrEmpty(String className) {
-    var packageName = packageOf.apply(className);
-    return packageName == null ? "" : packageName;
   }
 }

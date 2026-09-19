@@ -9,6 +9,7 @@ package ai.narrativetrace.proxy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
@@ -23,18 +24,20 @@ import org.junit.jupiter.api.Test;
 class ProxyLevelRenderingTest {
 
   /**
-   * Counts its own stringification.
+   * Counts the one member rendering calls on a user type: the {@code @NarrativeSummary} hook.
    *
-   * <p><b>@llmNote</b> The counter is {@code static} deliberately. Since 2026-09-11 a class that
-   * declares instance fields is walked field by field rather than stringified, so an instance
-   * counter would read zero in every case — a green test measuring nothing. A field-less class
-   * keeps its own text, which is precisely the invocation this probe exists to observe.
+   * <p><b>@llmNote</b> The counter is {@code static} deliberately — a class that declares instance
+   * fields is walked field by field, so an instance counter would read zero in every case, a green
+   * test measuring nothing. The probe counted its own {@code toString()} until 2026-09-19, when the
+   * stateless-leaf hook became an explicit list of platform leaf types and a user class's own text
+   * stopped being read at all; the summary hook is the invocation that still observes "the renderer
+   * reached this value".
    */
   static final class RenderProbe {
     static final AtomicInteger RENDER_COUNT = new AtomicInteger();
 
-    @Override
-    public String toString() {
+    @NarrativeSummary
+    public String describe() {
       RENDER_COUNT.incrementAndGet();
       return "probe";
     }

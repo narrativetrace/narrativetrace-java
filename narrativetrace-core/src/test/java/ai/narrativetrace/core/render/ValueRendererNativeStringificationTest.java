@@ -13,10 +13,19 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.annotation.NotTraced;
 import ai.narrativetrace.api.event.RenderedValue;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,6 +38,12 @@ import org.junit.jupiter.api.Test;
  * nesting, no wrapper, no annotation involved — because the trust check asked only whether the
  * class declared a {@code @NotTraced} field and never consulted the name deny-list, the field
  * types, or anything one level down. Every assertion here is a channel that was open.
+ *
+ * <p>Tightened 2026-09-19 to the form every runtime now shares: the trust is an EXPLICIT list of
+ * platform leaf types, keyed on the exact class. "Declares no instance field" was the second rule
+ * and was escaped in turn — a fieldless class can hold its state in a static identity-keyed side
+ * table, a {@code ClassValue} or a {@code ThreadLocal}, all invisible to a field walk and all
+ * readable from inside its own {@code toString()}.
  *
  * <p><b>@llmNote</b> Both render paths are asserted on every rule. {@code renderStructured} is what
  * the OpenTelemetry exporter reads; a rule enforced on one path and not the other is a leak with
@@ -129,7 +144,7 @@ class ValueRendererNativeStringificationTest {
 
   // ------------------------------------------------------------------ what still keeps its text
 
-  /** A class with no instance fields: nothing to hide, nothing to walk. */
+  /** A class with no instance fields — which is not the same thing as a class with no state. */
   static final class Stateless {
     @Override
     public String toString() {
@@ -137,11 +152,69 @@ class ValueRendererNativeStringificationTest {
     }
   }
 
+  /**
+   * The 2026-09-19 correction, from the cross-runtime finding that a value presenting as FIELDLESS
+   * to reflection can print state reflection cannot see: "declares no instance field" was never a
+   * statement that a value has nothing to tell, so it buys no trust at all. A fieldless user class
+   * renders as the object it is, naming its type, its own {@code toString()} never entered.
+   */
   @Test
-  void aClassWithNoInstanceFieldsKeepsItsOwnText() {
-    assertThat(renderer.render(new Stateless())).isEqualTo("always the same");
+  void aClassWithNoInstanceFieldsIsStillNotTrustedWithItsOwnText() {
+    assertThat(renderer.render(new Stateless())).isEqualTo("Stateless{}");
     assertThat(renderer.renderStructured(new Stateless()))
-        .isEqualTo(new RenderedValue.StringVal("always the same"));
+        .isEqualTo(new RenderedValue.ObjectVal("Stateless", Map.of()));
+  }
+
+  /**
+   * The shape the correction was ruled for: a FIELDLESS class holding its real state in a static
+   * identity-keyed SIDE TABLE and reading it back inside its own {@code toString()}. Reflection
+   * finds nothing to walk, so the old "no field, nothing to hide" test handed the class its own
+   * text — and that text prints state no field name exists for, so neither the deny-list nor
+   * {@code @NotTraced} can reach it. A {@code ClassValue} or a {@code ThreadLocal} is the same
+   * door; the corpus row {@code fieldless-sidetable-tostring-door} pins it for every runtime.
+   */
+  static final class SideTableState {
+    private static final Map<Object, String> STATE =
+        Collections.synchronizedMap(new IdentityHashMap<>());
+
+    SideTableState(String hidden) {
+      STATE.put(this, hidden);
+    }
+
+    @Override
+    public String toString() {
+      return "SideTableState[" + STATE.get(this) + "]";
+    }
+  }
+
+  /** The same door through a {@link ThreadLocal} rather than a table keyed by the instance. */
+  static final class ThreadLocalState {
+    private static final ThreadLocal<String> STATE = new ThreadLocal<>();
+
+    ThreadLocalState(String hidden) {
+      STATE.set(hidden);
+    }
+
+    @Override
+    public String toString() {
+      return "ThreadLocalState[" + STATE.get() + "]";
+    }
+  }
+
+  @Test
+  void stateHeldOffTheFieldGraphIsNeverPrintedThroughAFieldlessClassOwnText() {
+    var sideTable = new SideTableState("hunter2");
+    var threadLocal = new ThreadLocalState("hunter2");
+
+    assertThat(renderer.render(sideTable)).isEqualTo("SideTableState{}");
+    assertThat(renderer.renderStructured(sideTable))
+        .isEqualTo(new RenderedValue.ObjectVal("SideTableState", Map.of()));
+    assertThat(renderer.renderForCapture(sideTable).rendered()).doesNotContain("hunter2");
+
+    assertThat(renderer.render(threadLocal)).isEqualTo("ThreadLocalState{}");
+    assertThat(renderer.renderStructured(threadLocal))
+        .isEqualTo(new RenderedValue.ObjectVal("ThreadLocalState", Map.of()));
+    assertThat(renderer.renderForCapture(threadLocal).rendered()).doesNotContain("hunter2");
   }
 
   /**
@@ -157,6 +230,55 @@ class ValueRendererNativeStringificationTest {
     assertThat(renderer.render(Duration.ofMinutes(90))).isEqualTo("PT1H30M");
     assertThat(renderer.render(UUID.fromString("00000000-0000-0000-0000-00000000002a")))
         .isEqualTo("00000000-0000-0000-0000-00000000002a");
+  }
+
+  /**
+   * The leaf list also names three FAMILIES — {@code Path}, {@code ZoneId}, {@code Charset} — whose
+   * every implementation is a JDK-internal class no list could name by hand ({@code
+   * sun.nio.fs.UnixPath}, {@code java.time.ZoneRegion}, {@code sun.nio.cs.UTF_8}). Trust still
+   * turns on the exact class's ORIGIN: the family is consulted only after the runtime class itself
+   * proves platform-defined.
+   */
+  @Test
+  void aPlatformLeafFamilyKeepsItsOwnTextThroughItsInternalImplementationClass() {
+    assertThat(renderer.render(Path.of("tmp/narrativetrace"))).isEqualTo("tmp/narrativetrace");
+    assertThat(renderer.render(ZoneId.of("Europe/Madrid"))).isEqualTo("Europe/Madrid");
+    assertThat(renderer.render(StandardCharsets.UTF_8)).isEqualTo("UTF-8");
+  }
+
+  /** A FIELDLESS application subclass of a family member: application code, so not a leaf. */
+  static final class ApplicationCharset extends Charset {
+    ApplicationCharset() {
+      super("x-application-charset", null);
+    }
+
+    @Override
+    public boolean contains(Charset other) {
+      return false;
+    }
+
+    @Override
+    public CharsetDecoder newDecoder() {
+      throw new UnsupportedOperationException("never called by rendering");
+    }
+
+    @Override
+    public CharsetEncoder newEncoder() {
+      throw new UnsupportedOperationException("never called by rendering");
+    }
+  }
+
+  /**
+   * {@code Charset} declares its own {@code toString()} {@code final}, so this subclass's text
+   * would be the JDK's — and it is refused all the same, because trust is decided by the exact
+   * class's origin and never by what it extends. The next application subclass of a family member
+   * will not be so harmless.
+   */
+  @Test
+  void anApplicationSubclassOfALeafFamilyIsNotALeaf() {
+    assertThat(renderer.render(new ApplicationCharset()))
+        .isEqualTo("ApplicationCharset{}")
+        .doesNotContain("x-application-charset");
   }
 
   /** A subclass an application declares is application code, whatever it extends. */
@@ -221,17 +343,16 @@ class ValueRendererNativeStringificationTest {
         .isEqualTo(new RenderedValue.StringVal(RedactionPolicy.MARKER));
   }
 
-  /** A field-less leaf's own text is scanned on the same line, for the same reason. */
-  static final class LeakyToString {
-    @Override
-    public String toString() {
-      return JWT;
-    }
-  }
-
+  /**
+   * A platform leaf's own text is scanned on the same line, for the same reason — pinned on a
+   * {@link Pattern}, whose text is the pattern it holds, because a platform leaf is now the only
+   * type whose own text rendering reads at all.
+   */
   @Test
-  void aLeafWhoseTextIsCredentialShapedIsWithheldToo() {
-    assertThat(renderer.render(new LeakyToString())).isEqualTo(RedactionPolicy.MARKER);
+  void aPlatformLeafWhoseTextIsCredentialShapedIsWithheldToo() {
+    assertThat(renderer.render(Pattern.compile(JWT))).isEqualTo(RedactionPolicy.MARKER);
+    assertThat(renderer.renderStructured(Pattern.compile(JWT)))
+        .isEqualTo(new RenderedValue.StringVal(RedactionPolicy.MARKER));
   }
 
   /** A summary carrying a control character forges a log line unless it is escaped. */
@@ -266,7 +387,7 @@ class ValueRendererNativeStringificationTest {
         .isEqualTo(new RenderedValue.StringVal("<error: IllegalStateException>"));
   }
 
-  /** A leaf whose own text throws, with the failing value in the exception message. */
+  /** A fieldless class whose own text throws, with the failing value in the exception message. */
   static final class ThrowingLeaf {
     @Override
     public String toString() {
@@ -274,23 +395,30 @@ class ValueRendererNativeStringificationTest {
     }
   }
 
+  /**
+   * A fieldless class is not a leaf, so its {@code toString()} is never entered and cannot even
+   * fail — no marker, and certainly no message. The typed marker itself stays pinned on the members
+   * rendering does run: the summary hook above, and the field read below.
+   */
   @Test
-  void aThrowingLeafNamesTheExceptionTypeAndNeverItsMessage() {
+  void aThrowingToStringIsNeverEnteredSoItCannotEvenFail() {
     assertThat(renderer.render(new ThrowingLeaf()))
-        .isEqualTo("<error: IllegalArgumentException>")
+        .isEqualTo("ThrowingLeaf{}")
         .doesNotContain("hunter2");
   }
 
-  /** A getter-backed field whose read throws an {@link Error}, not an exception. */
+  /** A field whose own rendered member throws an {@link Error}, not an exception. */
   static final class ErrorField {
     @SuppressWarnings("PMD.UnusedPrivateField") // read reflectively
-    private final Object value =
-        new Object() {
-          @Override
-          public String toString() {
-            throw new StackOverflowError();
-          }
-        };
+    private final Object value = new SummaryRaisingAnError();
+  }
+
+  /** The summary hook is the member a field's value can still fail inside. */
+  static final class SummaryRaisingAnError {
+    @NarrativeSummary
+    public String describe() {
+      throw new StackOverflowError();
+    }
   }
 
   @Test

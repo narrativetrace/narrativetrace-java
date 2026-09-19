@@ -37,7 +37,13 @@ public final class TermNormalizer {
   private static final Set<String> STOPWORDS =
       Set.of(
           "with", "and", "or", "of", "to", "for", "by", "from", "in", "on", "at", "as", "was", "is",
-          "has");
+          "has", "per");
+
+  /** Leading tokens that spell "read this property" rather than name an action. */
+  private static final Set<String> ACCESSOR_PREFIXES = Set.of("get", "is");
+
+  /** Conjunctions that join two actions; a name carrying one is a sentence, not a property name. */
+  private static final Set<String> CONJUNCTIONS = Set.of("and", "or");
 
   /** Trailing patterns whose {@code es} suffix marks a plural ({@code boxes}, {@code classes}). */
   private static final List<String> ES_PLURAL_ENDINGS =
@@ -81,6 +87,27 @@ public final class TermNormalizer {
   }
 
   /**
+   * {@link #phrase} for callers that must stay total: the normalized phrase, or empty when the
+   * identifier carries no readable word.
+   *
+   * <p>The same answer {@link #classCandidate} and its siblings already give — "nothing readable
+   * here" is a value, not a failure — for a caller that wants phrase semantics without role-suffix
+   * stripping. A renderer reading a wire format cannot treat an unreadable name as an error,
+   * because the format permits one, so it asks this instead.
+   *
+   * @param identifier camelCase, PascalCase, or snake_case identifier; must not be blank
+   * @return the normalized phrase, or empty when nothing readable remains
+   * @throws IllegalArgumentException when the identifier is blank
+   */
+  public Optional<String> phraseOrEmpty(String identifier) {
+    if (identifier == null || identifier.isBlank()) {
+      throw new IllegalArgumentException("identifier must not be blank");
+    }
+    var tokens = normalizedTokens(identifier);
+    return tokens.isEmpty() ? Optional.empty() : Optional.of(String.join(" ", tokens));
+  }
+
+  /**
    * One harvestable phrase produced by normalization.
    *
    * @param phrase normalized phrase text
@@ -102,7 +129,8 @@ public final class TermNormalizer {
    * Normalizes a method name into harvest candidates.
    *
    * <p>A method with a leading verb yields its verb phrase plus the object noun phrase (leading
-   * stopwords dropped); any other method yields a single noun candidate.
+   * stopwords dropped); any other method yields a single noun candidate. A property read yields
+   * only the noun it reads — see {@link #accessorRead}.
    *
    * @param methodName method identifier carrying at least one readable word
    * @return one or two candidates, never empty
@@ -110,6 +138,10 @@ public final class TermNormalizer {
    */
   public List<Candidate> methodCandidates(String methodName) {
     var tokens = requireReadableTokens(methodName);
+    var read = accessorRead(tokens);
+    if (read.isPresent()) {
+      return List.of(nounCandidate(read.get()));
+    }
     if (!isVerb(tokens.get(0))) {
       return List.of(nounCandidate(tokens));
     }
@@ -181,6 +213,29 @@ public final class TermNormalizer {
 
   private boolean isRoleSuffix(String token) {
     return roleSuffixes.classify(token).category() != RoleSuffixDictionary.Category.UNKNOWN;
+  }
+
+  /**
+   * The property name a {@code get}/{@code is} accessor reads, when the identifier is one.
+   *
+   * <p>{@code getAuthor} is how the language spells "the author"; nobody says "get author" out
+   * loud, so the phrase is plumbing and only the noun it reads is vocabulary. What it reads is a
+   * noun by construction, whatever part of speech the dictionary gives its first word — a property
+   * names a thing — so the accessor yields exactly one noun candidate.
+   *
+   * <p><b>@edgeCase</b> A name that joins two actions with {@code and} or {@code or} is a sentence,
+   * not a property name: {@code getOrCreateAccount} and {@code getAndIncrement} keep both of their
+   * candidates. Word class cannot make this call — the verb dictionary reads {@code author}, {@code
+   * book} and {@code title} as verbs, because in another sentence they are — so the conjunction is
+   * the signal that survives. A prefix with nothing after it ({@code get}) is the whole identifier
+   * and stays, there being no noun to keep instead.
+   */
+  private static Optional<List<String>> accessorRead(List<String> tokens) {
+    if (tokens.size() < 2 || !ACCESSOR_PREFIXES.contains(tokens.get(0))) {
+      return Optional.empty();
+    }
+    var read = tokens.subList(1, tokens.size());
+    return read.stream().anyMatch(CONJUNCTIONS::contains) ? Optional.empty() : Optional.of(read);
   }
 
   private static List<String> withoutLeadingStopwords(List<String> tokens) {

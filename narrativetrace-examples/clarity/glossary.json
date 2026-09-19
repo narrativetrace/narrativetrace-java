@@ -364,6 +364,14 @@
       "firstSeen": "2026-08-15"
     },
     {
+      "term": "night",
+      "context": "hotel",
+      "kind": "word",
+      "status": "harvested",
+      "sources": ["Room.pricePerNight"],
+      "firstSeen": "2026-08-15"
+    },
+    {
       "term": "out",
       "context": "hotel",
       "kind": "word",
@@ -381,14 +389,6 @@
         "zh-CN": "支付"
       },
       "sources": ["DefaultPaymentGateway.authorizePayment", "PaymentGateway", "PaymentGateway.authorizePayment"],
-      "firstSeen": "2026-08-15"
-    },
-    {
-      "term": "per night",
-      "context": "hotel",
-      "kind": "noun-phrase",
-      "status": "harvested",
-      "sources": ["Room.pricePerNight"],
       "firstSeen": "2026-08-15"
     },
     {

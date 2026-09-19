@@ -32,7 +32,6 @@ Packages: `ai.narrativetrace.examples.minecraft`
 | item | curated |  |  | es: objeto; zh-CN: 物品 |
 | kind | harvested |  |  |  |
 | main | harvested |  |  |  |
-| name | harvested |  |  |  |
 | quantity | curated |  |  | es: cantidad; zh-CN: 数量 |
 | recipe | curated |  |  | es: receta; zh-CN: 配方 |
 | result | harvested |  |  |  |
@@ -82,5 +81,3 @@ Packages: `ai.narrativetrace.examples.minecraft`
 | spawn hostile | curated |  |  | es: generar hostil; zh-CN: 生成敌对生物 |
 | tag | harvested |  |  |  |
 | update | harvested |  |  |  |
-| value | harvested |  |  |  |
-| value of | harvested |  |  |  |

@@ -3,11 +3,13 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 #
-# Golden-side legal-marker self-check.
+# Legal-marker self-check: the legal text matches its canonical source.
 #
-# This repository is the CANONICAL copy of every legally load-bearing sentence
-# in the NarrativeTrace family (the free Java repo is the golden copy). Those sentences live in
-# README.md and its three translations, wrapped in machine-anchor markers:
+# This repository IS that canonical source — it holds the canonical copy of
+# every legally load-bearing sentence in the NarrativeTrace family, and each
+# other runtime's own check compares its copy against this one. Those sentences
+# live in README.md and its three translations, wrapped in machine-anchor
+# markers:
 #
 #   <!-- legal:<name>:begin -->
 #   ...canonical (or, in a translation, translated) text...
@@ -26,8 +28,8 @@
 #       order, never nested, never empty, in each of the four files below
 #   (b) the same SET of region names appears in all four files
 #   (c) LICENSE still contains exactly one `{{VERSION}}` and one
-#       `{{CHANGE_DATE}}` placeholder (the per-release fill point
-#       scripts/publish-public.sh uses)
+#       `{{CHANGE_DATE}}` placeholder — the two values a release fills in —
+#       or is cleanly filled already
 #   (d) LICENSE-APACHE is present
 #
 # Usage:
@@ -35,8 +37,8 @@
 #   scripts/legal-check.sh --emit <name>                   # region <name> from README.md (en)
 #   scripts/legal-check.sh --emit <name> --lang es|pt|zh   # ... from the matching translation
 set -euo pipefail
-# Portability guard: bash 3.2+ (macOS stock bash included), same convention as
-# scripts/publish-public.sh.
+# Portability guard: bash 3.2+ (macOS stock bash included), the convention
+# every script in this repository follows.
 [ -n "${BASH_VERSION:-}" ] || { echo "ERROR: run with bash, not another shell."; exit 1; }
 cd "$(dirname "$0")/.."
 
@@ -165,10 +167,10 @@ done
 echo ">> Region-name set compared across all 4 files: {$(echo "$REF_NAMES" | tr '\n' ' ' | sed 's/ *$//')}"
 
 # --- (c) LICENSE placeholders --------------------------------------------------
-# Fill-aware, because this script ships in the public snapshot: the private
-# (golden) tree carries the template with exactly one {{VERSION}} and one
-# {{CHANGE_DATE}}; a published tree carries them FILLED — a concrete version
-# and a concrete "(YYYY-MM-DD for this version)" date, and zero placeholders.
+# Fill-aware, because a LICENSE is legitimately in one of two states. As the
+# BSL 1.1 TEMPLATE it carries exactly one {{VERSION}} and one {{CHANGE_DATE}};
+# as a RELEASED copy it carries them FILLED — a concrete version and a concrete
+# "(YYYY-MM-DD for this version)" date, and zero placeholders.
 # Either state is correct; a mixture is not. (`grep -c ... || true` — grep
 # exits 1 on zero matches, and under `set -euo pipefail` the unguarded pipe
 # aborted the whole script exactly when it had something to report.)

@@ -29,6 +29,10 @@ secret.properties
 .cifuzz-corpus/
 .next-run-progress.md
 buildSrc/.kotlin/
+# The same session directory for the main build. A session file lives here only while a build is
+# running, so it is invisible to a `git status` taken between builds — and was missed until a gate
+# looked DURING one.
+/.kotlin/
 
 # JVM fontconfig caches created when example runs see an unset HOME (dir literally named "?")
 narrativetrace-examples/*/\?/

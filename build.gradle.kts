@@ -61,6 +61,17 @@ tasks.register<Copy>("generateLlmsDocs") {
     into(layout.buildDirectory.dir("site"))
 }
 
+// The build answering for itself: TaskInputInvalidationTest asks which files the copy above
+// declares as sources, instead of editing a tracked page to see whether the task notices. A test
+// may read the repository it runs in; it may never write to it (treeWritesCheck, below).
+tasks.register("printLlmsDocsSources") {
+    description = "Prints the source files generateLlmsDocs declares as its inputs."
+    group = "help"
+    val sources = tasks.named<Copy>("generateLlmsDocs")
+        .map { copy -> copy.inputs.files.files.map { it.absolutePath }.sorted() }
+    doLast { sources.get().forEach { println(it) } }
+}
+
 // Licensing is a build property, not a convention: `licensing.properties` says which licence each
 // module ships under, and this check refuses a dependency graph the licences cannot support. It
 // runs against the *resolved* project dependencies rather than the build files, so a dependency
@@ -780,6 +791,60 @@ tasks.register("commentHygiene") {
 }
 
 // ------------------------------------------------------------------------------------------------
+// treeWritesCheck (per commit, no network) — a verification task may READ the repository it runs
+// in; it may never WRITE to it. `recordTreeState` snapshots `git status --porcelain` before the
+// test tasks, this compares it after, and any new entry fails the build: a suite that edits where
+// the repository lives is not a test, it is an unreviewed edit. `build/` is git-ignored, so a task
+// writing its own output directory never appears here — which is exactly the line being drawn.
+// The decision logic lives in TreeWritesGuardSupport (buildSrc), unit-tested there.
+// ------------------------------------------------------------------------------------------------
+
+val treeStateBeforeFile = layout.buildDirectory.file("reports/tree-writes/before.txt")
+
+tasks.register("recordTreeState") {
+    description = "Records the working-tree state the verification tasks start from"
+    group = "verification"
+    val stateFile = treeStateBeforeFile
+    val repoRoot = rootDir
+    // Always: a baseline recorded by an earlier run would excuse exactly the writes this must catch.
+    outputs.upToDateWhen { false }
+    doLast {
+        val file = stateFile.get().asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            ai.narrativetrace.build.TreeWritesGuardSupport.workingTreeStatus(repoRoot)
+                .joinToString(separator = "\n", postfix = "\n")
+        )
+    }
+}
+
+tasks.register("treeWritesCheck") {
+    description = "Fails if a verification task wrote anywhere in the working tree"
+    group = "verification"
+    dependsOn("recordTreeState")
+    // The whole point is to run last: every test task in every module is a candidate writer.
+    mustRunAfter(allprojects.map { it.tasks.withType(Test::class.java) })
+    val stateFile = treeStateBeforeFile
+    val repoRoot = rootDir
+    outputs.upToDateWhen { false }
+    doLast {
+        val before = stateFile.get().asFile.readLines().filter { it.isNotEmpty() }
+        val written = ai.narrativetrace.build.TreeWritesGuardSupport.newWorkingTreeEntries(
+            before,
+            ai.narrativetrace.build.TreeWritesGuardSupport.workingTreeStatus(repoRoot),
+        )
+        if (written.isNotEmpty()) {
+            throw GradleException(
+                ai.narrativetrace.build.TreeWritesGuardSupport
+                    .reportLines("the verification tasks", written)
+                    .joinToString("\n")
+            )
+        }
+        println("treeWritesCheck: the verification tasks left the working tree as they found it")
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 // deepFixtureBudget (per commit, no network) — every deep-recursion/deep-graph test fixture's
 // depth is bounded by a declared budget (JUnit5 `@Timeout`), release retrospective rule 3: a test
 // whose legitimate cost scales with a large fixture must never rely on an implicit default. Java
@@ -1178,6 +1243,8 @@ subprojects {
         System.getProperty("narrativetrace.outputDir")?.let { systemProperty("narrativetrace.outputDir", it) }
         System.getProperty("narrativetrace.format")?.let { systemProperty("narrativetrace.format", it) }
         finalizedBy(tasks.named("jacocoTestReport"))
+        // The baseline treeWritesCheck compares against must predate every candidate writer.
+        mustRunAfter(":recordTreeState")
     }
 
     tasks.named<Test>("test") {
@@ -1335,6 +1402,7 @@ subprojects {
             dependsOn(":contractLint")
             dependsOn(":commentHygiene")
             dependsOn(":deepFixtureBudget")
+            dependsOn(":treeWritesCheck")
         }
     }
 
@@ -1346,7 +1414,14 @@ subprojects {
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
             junit5PluginVersion = "1.2.1"
-            threads = 4
+            // The nightly runs PIT inside a memory ceiling; minion count is the knob — each minion is
+            // a full JVM beside the build daemon and the Kotlin compile daemons, so the nightly overrides
+            // this via -Pnarrativetrace.pitest.threads=<n> to stay inside its cgroup. Default 4: nothing
+            // changes for developers and CI.
+            threads = ai.narrativetrace.build.PitestSettings.threads(
+                providers.gradleProperty(ai.narrativetrace.build.PitestSettings.PROPERTY_NAME).orNull,
+                default = 4,
+            )
             outputFormats = setOf("HTML", "XML")
             timestampedReports = false
             timeoutConstInMillis = 8000
@@ -1377,7 +1452,13 @@ subprojects {
         configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
             pitestVersion = "1.17.4"
             junit5PluginVersion = "1.2.1"
-            threads = 4
+            // The nightly runs PIT inside a memory ceiling; minion count is the knob — same resolver
+            // and same property as the shared pitest block above, so the nightly's override reaches
+            // both without drift. Default 4: nothing changes for developers and CI.
+            threads = ai.narrativetrace.build.PitestSettings.threads(
+                providers.gradleProperty(ai.narrativetrace.build.PitestSettings.PROPERTY_NAME).orNull,
+                default = 4,
+            )
             outputFormats = setOf("HTML", "XML")
             timestampedReports = false
             timeoutConstInMillis = 20000

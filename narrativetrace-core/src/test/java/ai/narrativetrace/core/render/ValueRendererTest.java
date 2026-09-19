@@ -12,11 +12,14 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.annotation.NotTraced;
+import ai.narrativetrace.api.event.RenderedValue;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class ValueRendererTest {
@@ -199,15 +202,22 @@ class ValueRendererTest {
     assertThat(result).doesNotContain("k".repeat(201));
   }
 
+  /**
+   * A key whose rendered member refuses. The refusing member is the {@code @NarrativeSummary} hook
+   * rather than a {@code toString()}: now that the stateless-leaf hook is an explicit list of
+   * platform leaf types, a user class's own {@code toString()} is never entered, so a throwing one
+   * could not produce the marker this test is about. The summary hook is the member rendering still
+   * runs on a key.
+   */
   static class ExplodingKey {
-    @Override
-    public String toString() {
+    @NarrativeSummary
+    public String describe() {
       throw new IllegalStateException("boom");
     }
   }
 
   @Test
-  void mapKeyWithThrowingToStringRendersPlaceholderInsteadOfFailingTheTracedCall() {
+  void mapKeyWithThrowingSummaryRendersPlaceholderInsteadOfFailingTheTracedCall() {
     var map = new java.util.LinkedHashMap<Object, Integer>();
     map.put(new ExplodingKey(), 1);
 
@@ -242,31 +252,26 @@ class ValueRendererTest {
     assertThat(result).contains("…");
   }
 
-  static class Chatty {
-    @Override
-    public String toString() {
-      return "x".repeat(500);
-    }
-  }
-
+  /**
+   * The cap on a trusted type's own text, pinned on a platform leaf — a long {@link URI} — because
+   * that is where the stringification path still runs: a user class's own {@code toString()} is no
+   * longer entered at all, whatever it would have returned.
+   */
   @Test
-  void capsCustomToStringOutputAtTheStringLimit() {
-    var result = renderer.render(new Chatty());
+  void capsAPlatformLeafsOwnTextAtTheStringLimit() {
+    var result = renderer.render(URI.create("https://example.test/" + "x".repeat(500)));
 
     assertThat(result).hasSize(201); // 200 chars + the … marker
     assertThat(result).endsWith("…");
   }
 
-  static class Noisy {
-    @Override
-    public String toString() {
-      return "a\nb";
-    }
-  }
-
+  /**
+   * Same path, the control-character escape: a {@link Pattern}'s own text is the pattern it holds,
+   * so a pattern carrying a line break is a platform leaf whose text must still be escaped.
+   */
   @Test
-  void sanitizesControlCharactersOnTheToStringPath() {
-    var result = renderer.render(new Noisy());
+  void sanitizesControlCharactersInAPlatformLeafsOwnText() {
+    var result = renderer.render(Pattern.compile("a\nb"));
 
     assertThat(result).isEqualTo("a\\nb");
     assertThat(result).doesNotContain("\n");
@@ -305,31 +310,99 @@ class ValueRendererTest {
     }
   }
 
+  /**
+   * A fieldless class is not a stateless leaf, so its {@code toString()} — broken contract and all
+   * — is never entered: the value renders as the object it is, naming its type and the fields
+   * reflection found, which for this one is none.
+   */
   @Test
-  void objectWithNullToStringRendersClassNameMarker() {
-    assertThat(renderer.render(new NullToString())).isEqualTo("<NullToString>");
+  void objectWithNullToStringIsNeverEnteredAndRendersAsItsType() {
+    assertThat(renderer.render(new NullToString())).isEqualTo("NullToString{}");
   }
 
-  static class ExactlyAtLimit {
+  /** An enum constant whose own text is {@code null} — the scalar branch text is still read on. */
+  enum NullTextEnum {
+    VALUE;
+
     @Override
     public String toString() {
-      return "y".repeat(200);
+      return null;
     }
   }
 
+  /**
+   * The type marker for text that came back {@code null}, pinned where a value's own text is still
+   * read: the enum branch. An enum constant holds no member a walk could reach, so its text is read
+   * — the last scalar branch that reads application code, now that a {@code Number} subclass is
+   * walked like the composite it is.
+   */
   @Test
-  void toStringExactlyAtTheLimitIsNotTruncated() {
-    var result = renderer.render(new ExactlyAtLimit());
+  void aScalarWhoseTextIsNullRendersTheClassNameMarker() {
+    assertThat(renderer.render(NullTextEnum.VALUE)).isEqualTo("<NullTextEnum>");
+  }
+
+  /** A {@code Number} subclass whose own text is {@code null}, and is therefore never read. */
+  static class NullTextNumber extends Number {
+    private static final long serialVersionUID = 1L;
+
+    @Override
+    public String toString() {
+      return null;
+    }
+
+    @Override
+    public int intValue() {
+      return 0;
+    }
+
+    @Override
+    public long longValue() {
+      return 0L;
+    }
+
+    @Override
+    public float floatValue() {
+      return 0f;
+    }
+
+    @Override
+    public double doubleValue() {
+      return 0d;
+    }
+  }
+
+  /**
+   * A {@code Number} subclass is a composite with a numeric base: its text is not read, so a {@code
+   * null} coming back from it is not a case the renderer can even reach. The value renders as the
+   * object it is, naming its type and its (absent) fields.
+   */
+  @Test
+  void aNumberSubclassWhoseTextIsNullIsWalkedRatherThanRead() {
+    assertThat(renderer.render(new NullTextNumber())).isEqualTo("NullTextNumber{}");
+  }
+
+  /** The cap's boundary, on the same platform-leaf path: 21 characters of scheme plus 179. */
+  @Test
+  void aPlatformLeafsTextExactlyAtTheLimitIsNotTruncated() {
+    var result = renderer.render(URI.create("https://example.test/" + "y".repeat(179)));
 
     assertThat(result).hasSize(200);
     assertThat(result).doesNotContain("…");
   }
 
-  /** A third-party {@code Number} — any caller can extend the abstract class. */
+  /**
+   * A third-party {@code Number} — any caller can extend the abstract class, and this one holds a
+   * deny-listed field beside the forged text, which is what makes the scalar shortcut a leak rather
+   * than only an escaping question.
+   */
+  @SuppressWarnings("PMD.UnusedPrivateField") // read by introspection, which is the whole point
   static class HostileAmount extends Number {
+    private final String password = "hunter2";
+    private final long cents = 1L;
+
     @Override
     public String toString() {
-      return "1\n## forged\n";
+      return "1\n## forged\n" + password;
     }
 
     @Override
@@ -354,14 +427,14 @@ class ValueRendererTest {
   }
 
   @Test
-  void hostileNumberSubclassToStringIsSanitizedNotEmittedRaw() {
-    // A Number subclass's toString() is application code, not a JDK-fixed format: the same
-    // control-character sanitizing a String gets must apply, or a forged line break/Markdown
-    // structure reaches narrative text unescaped.
+  void hostileNumberSubclassIsWalkedSoItsTextIsNeverProduced() {
+    // Extending Number says nothing about what a value holds: this one is an ordinary composite
+    // with a numeric base, so it is walked — the deny-listed field hidden by name, the forged line
+    // never produced rather than escaped after the fact.
     var result = renderer.render(new HostileAmount());
 
-    assertThat(result).doesNotContain("\n");
-    assertThat(result).isEqualTo("1\\n## forged\\n");
+    assertThat(result).doesNotContain("\n").doesNotContain("forged").doesNotContain("hunter2");
+    assertThat(result).isEqualTo("HostileAmount{password: [REDACTED], cents: 1}");
   }
 
   enum HostileEnum {
@@ -396,7 +469,7 @@ class ValueRendererTest {
     assertThat(renderer.render(new BigDecimal("4.20"))).isEqualTo("4.20");
   }
 
-  /** A subclass of a non-final JDK numeric type — the hole the exact-class match closes. */
+  /** A subclass of a non-final platform numeric type — the hole the exact-class match closes. */
   static class HostileBigDecimal extends BigDecimal {
     HostileBigDecimal() {
       super(0);
@@ -409,11 +482,22 @@ class ValueRendererTest {
   }
 
   @Test
-  void hostileBigDecimalSubclassIsSanitizedByExactClassNotInstanceof() {
+  void hostileBigDecimalSubclassIsWalkedByExactClassNotInstanceof() {
     var result = renderer.render(new HostileBigDecimal());
 
-    assertThat(result).doesNotContain("\n");
-    assertThat(result).isEqualTo("1\\n## forged\\n");
+    assertThat(result).doesNotContain("\n").doesNotContain("forged");
+    assertThat(result).startsWith("HostileBigDecimal{");
+  }
+
+  /**
+   * The same exact-class rule on the structured path, where the typed numeric form reads {@code
+   * doubleValue()} rather than the text: a subclass may override that too, so the value it answers
+   * is application code and a typed attribute built from it is a forged number.
+   */
+  @Test
+  void hostileBigDecimalSubclassIsWalkedOnTheStructuredPathToo() {
+    assertThat(renderer.renderStructured(new HostileBigDecimal()))
+        .isInstanceOf(RenderedValue.ObjectVal.class);
   }
 
   @Test
@@ -647,11 +731,17 @@ class ValueRendererTest {
     }
   }
 
-  /** A field-less class keeps its own text, so a throwing one reaches the typed failure marker. */
+  /**
+   * A field-less class is not a stateless leaf, so its {@code toString()} is never entered — a
+   * throwing one cannot even fail. The typed failure marker stays pinned on the members rendering
+   * does run: the {@code @NarrativeSummary} hook and a field read (see {@link
+   * #mapKeyWithThrowingSummaryRendersPlaceholderInsteadOfFailingTheTracedCall} and {@link
+   * #objectWithModuleEncapsulatedFieldsRendersGracefully}).
+   */
   @Test
-  void toStringFailureRendersTheExceptionType() {
+  void aThrowingToStringIsNeverEnteredAtAll() {
     assertThat(renderer.render(new ThrowingToString()))
-        .isEqualTo("<error: RuntimeException>")
+        .isEqualTo("ThrowingToString{}")
         .doesNotContain("boom");
   }
 

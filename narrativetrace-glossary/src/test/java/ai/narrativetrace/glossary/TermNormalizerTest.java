@@ -233,4 +233,74 @@ class TermNormalizerTest {
     assertThat(normalizer.phrase("account_ ")).isEqualTo("account");
     assertThat(normalizer.phrase("_ account")).isEqualTo("account");
   }
+
+  @Test
+  void aBeanAccessorYieldsTheNounItReadsAndNoVerbPhrase() {
+    assertThat(normalizer.methodCandidates("getAuthor"))
+        .containsExactly(new TermNormalizer.Candidate("author", TermKind.WORD));
+    assertThat(normalizer.methodCandidates("getBookTitle"))
+        .containsExactly(new TermNormalizer.Candidate("book title", TermKind.NOUN_PHRASE));
+    assertThat(normalizer.methodCandidates("isAvailable"))
+        .containsExactly(new TermNormalizer.Candidate("available", TermKind.WORD));
+  }
+
+  /**
+   * The near miss: a name joining two actions with {@code and}/{@code or} is a sentence, not a
+   * property name, so both of its candidates survive.
+   */
+  @Test
+  void aNameJoiningTwoActionsIsNotABeanAccessor() {
+    assertThat(normalizer.methodCandidates("getOrCreateAccount"))
+        .extracting(TermNormalizer.Candidate::phrase)
+        .containsExactly("get or create account", "create account");
+    assertThat(normalizer.methodCandidates("getAndIncrement"))
+        .extracting(TermNormalizer.Candidate::phrase)
+        .containsExactly("get and increment", "increment");
+  }
+
+  @Test
+  void perIsAFunctionWordSoItNeverStartsAnObjectNoun() {
+    assertThat(normalizer.methodCandidates("pricePerNight"))
+        .containsExactly(
+            new TermNormalizer.Candidate("price per night", TermKind.VERB_PHRASE),
+            new TermNormalizer.Candidate("night", TermKind.WORD));
+  }
+
+  @Test
+  void aPropertyNameHoldingAGenitiveIsStillOneNoun() {
+    assertThat(normalizer.methodCandidates("getDateOfBirth"))
+        .containsExactly(new TermNormalizer.Candidate("date of birth", TermKind.NOUN_PHRASE));
+  }
+
+  @Test
+  void aPrefixWithNothingAfterItIsStillItsOwnWord() {
+    assertThat(normalizer.methodCandidates("get"))
+        .extracting(TermNormalizer.Candidate::phrase)
+        .containsExactly("get");
+  }
+
+  @Test
+  void theTotalPhraseNormalizesExactlyAsPhraseDoes() {
+    assertThat(normalizer.phraseOrEmpty("accountWithOverdraft")).contains("account with overdraft");
+    assertThat(normalizer.phraseOrEmpty("overdraftAccounts")).contains("overdraft account");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"__", "_ _"})
+  void theTotalPhraseAnswersEmptyWherePhraseRefuses(String identifier) {
+    assertThatThrownBy(() -> normalizer.phrase(identifier))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThat(normalizer.phraseOrEmpty(identifier)).isEmpty();
+  }
+
+  @Test
+  void theTotalPhraseStillRefusesABlankIdentifier() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> normalizer.phraseOrEmpty(" "))
+        .withMessage("identifier must not be blank");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> normalizer.phraseOrEmpty(null))
+        .withMessage("identifier must not be blank");
+  }
 }

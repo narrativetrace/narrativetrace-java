@@ -69,6 +69,9 @@ public final class ClarityAnalyzer {
   private final ParameterNameScorer parameterNameScorer;
   private final AbbreviationDictionary abbreviationDictionary;
   private final ElementNoteComposer noteComposer;
+  private final VerbDictionary verbDictionary;
+  private final MorphologyAnalyzer morphologyAnalyzer;
+  private final DomainVocabulary vocabulary;
 
   /** An analyzer with no project vocabulary — the built-in dictionaries alone. */
   public ClarityAnalyzer() {
@@ -84,6 +87,9 @@ public final class ClarityAnalyzer {
     this.parameterNameScorer = new ParameterNameScorer(vocabulary);
     this.abbreviationDictionary = new AbbreviationDictionary(vocabulary);
     this.noteComposer = new ElementNoteComposer(vocabulary);
+    this.verbDictionary = new VerbDictionary(vocabulary);
+    this.morphologyAnalyzer = new MorphologyAnalyzer(vocabulary);
+    this.vocabulary = vocabulary;
   }
 
   /**
@@ -434,6 +440,14 @@ public final class ClarityAnalyzer {
     return issues;
   }
 
+  /**
+   * The dictionary is a positive signal only: a verb in a noun's preferred set is evidence the name
+   * reads well, but absence from that 4-8-verb sample is never evidence against it — the sample was
+   * never meant to be exhaustive. The issue fires only on a verb {@link
+   * ElementNoteComposer#renameHint} already treats as weak (generic, or unrecognized-but-verb
+   * -shaped), only when the noun has candidates to suggest, and only when the project has not
+   * declared the verb its own.
+   */
   private List<ClarityIssue> findCollocationIssues(
       List<TraceNode> nodes, Set<String> propertyAccessors) {
     var issues = new ArrayList<ClarityIssue>();
@@ -445,8 +459,10 @@ public final class ClarityAnalyzer {
 
       var verb = tokens.get(0).toLowerCase();
       var noun = tokens.get(tokens.size() - 1).toLowerCase();
+      if (!isWeakVerb(verb)) continue;
+
       var preferred = collocationDictionary.preferredVerbs(noun);
-      if (preferred.isEmpty() || preferred.contains(verb)) continue;
+      if (preferred.isEmpty()) continue;
 
       var capitalNoun = Character.toUpperCase(noun.charAt(0)) + noun.substring(1);
       var suggestion =
@@ -461,6 +477,21 @@ public final class ClarityAnalyzer {
               ClarityIssue.Severity.LOW.weight()));
     }
     return issues;
+  }
+
+  /**
+   * A verb worth a collocation suggestion: categorized GENERIC, or UNKNOWN and genuinely
+   * verb-shaped (a non-verb first token, e.g. {@code leaf}, is never a collocation issue) — and,
+   * either way, not a verb the project's own glossary declares as its domain vocabulary.
+   */
+  private boolean isWeakVerb(String verb) {
+    if (vocabulary.isDomainVerb(verb)) return false;
+    return switch (verbDictionary.categorize(verb).category()) {
+      case GENERIC -> true;
+      case UNKNOWN ->
+          morphologyAnalyzer.analyze(verb).partOfSpeech() == MorphologyAnalyzer.PartOfSpeech.VERB;
+      default -> false;
+    };
   }
 
   /**

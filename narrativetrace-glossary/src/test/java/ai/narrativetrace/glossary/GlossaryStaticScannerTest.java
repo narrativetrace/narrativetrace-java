@@ -77,6 +77,32 @@ class GlossaryStaticScannerTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
+  private List<String> scannedMethodNames(Class<?> type) {
+    return scanner.scan(List.of(type)).stream()
+        .flatMap(tree -> tree.roots().stream())
+        .map(node -> node.signature().methodName())
+        .sorted()
+        .toList();
+  }
+
+  @Test
+  void aDataClassContributesItsOwnMethodsAndNoneOfItsSynthesizedMembers() {
+    assertThat(scannedMethodNames(ai.narrativetrace.glossary.fixtures.DataClassFixture.class))
+        .containsExactly("copyLedger", "getAuthor");
+  }
+
+  @Test
+  void anEnumContributesItsOwnMethodsAndNeitherCompilerStatic() {
+    assertThat(scannedMethodNames(ai.narrativetrace.glossary.fixtures.CustomerTierFixture.class))
+        .containsExactly("qualifiesForFreeShipping");
+  }
+
+  @Test
+  void aValuesMethodOnAnOrdinaryClassIsStillVocabulary() {
+    assertThat(scannedMethodNames(ai.narrativetrace.glossary.fixtures.ValuesFixture.class))
+        .containsExactly("valueOf", "values");
+  }
+
   private void copyFixtureClassInto(Path classesDir) throws Exception {
     var classFile = OverdraftFixtureService.class.getName().replace('.', '/') + ".class";
     try (var source = getClass().getClassLoader().getResourceAsStream(classFile)) {

@@ -11,8 +11,11 @@ plugins {
     // than through `narrativetrace-publish`, so it asks for the licence packaging directly —
     // otherwise it would be the one published artifact shipping without its licence.
     id("narrativetrace-license-packaging")
+    // functionalTest drives this plugin through GradleTestKit. Without the convention those nested
+    // builds take the default test-kit home and the default daemon sizes, and their JVMs outlive
+    // the suite — the second source of the resident-JVM pile a standalone verify has to fit inside.
+    id("narrativetrace-nested-gradle-builds")
 }
-
 
 dependencies {
     // narrativetraceDoctor (NarrativeTraceDoctorTask) calls the free CLI's doctor classes

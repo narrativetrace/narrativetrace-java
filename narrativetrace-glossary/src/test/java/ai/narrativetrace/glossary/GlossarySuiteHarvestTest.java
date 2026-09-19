@@ -161,6 +161,36 @@ class GlossarySuiteHarvestTest {
     assertThatThrownBy(() -> harvest.run(null)).isInstanceOf(IllegalArgumentException.class);
   }
 
+  @Test
+  void anAdoptersCuratedEntryIsCarriedToItsNewKeyOnTheNextHarvest() throws Exception {
+    var stranded =
+        new Glossary(
+            1,
+            Map.of("billing", new BoundedContext("billing", List.of("com.acme.billing"), null)),
+            List.of(
+                new GlossaryTerm(
+                    "get overdraft account",
+                    "billing",
+                    TermKind.VERB_PHRASE,
+                    TermStatus.CURATED,
+                    "The account permitted to go below zero.",
+                    Map.of("es", "cuenta con descubierto"),
+                    List.of(),
+                    List.of("AccountService.getOverdraftAccount"),
+                    LocalDate.of(2026, 8, 11))));
+    Files.writeString(
+        glossaryDir.resolve("glossary.json"), new GlossaryJsonWriter().write(stranded));
+
+    harvestInto(glossaryDir).run(List.of(traceOf("AccountService", "getOverdraftAccount")));
+
+    assertThat(glossaryDir.resolve("glossary.json"))
+        .content()
+        .contains("\"term\": \"overdraft account\"")
+        .contains("cuenta con descubierto")
+        .contains("The account permitted to go below zero.")
+        .doesNotContain("\"term\": \"get overdraft account\"");
+  }
+
   private void writeCuratedGlossaryWithSynonym() throws Exception {
     var curated =
         new Glossary(

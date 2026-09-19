@@ -15,6 +15,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TraceTranslationViewTest {
 
@@ -603,6 +605,27 @@ class TraceTranslationViewTest {
     var text = view.render(List.of(failure), "es");
 
     assertThat(text).contains("!! siniestro rechazado [ClaimRejectedException]: boom");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"", "__", "$$$", "123"})
+  void aFunctionNameCarryingNoReadableWordRendersVerbatimInsteadOfThrowing(String function) {
+    var glossary = billingGlossary(term("charge", TermKind.VERB_PHRASE, Map.of("es", "cobrar")));
+    var entries = List.of(enter("PaymentService", function, "0000000000000001", null));
+
+    var text = billingView(glossary).render(entries, "es");
+
+    assertThat(text).startsWith("PaymentService." + function + "()");
+  }
+
+  @Test
+  void aReadableFunctionNameStillTranslates() {
+    var glossary = billingGlossary(term("charge", TermKind.VERB_PHRASE, Map.of("es", "cobrar")));
+    var entries = List.of(enter("PaymentService", "charge", "0000000000000001", null));
+
+    var text = billingView(glossary).render(entries, "es");
+
+    assertThat(text).startsWith("PaymentService.cobrar (charge) ()");
   }
 
   @Test

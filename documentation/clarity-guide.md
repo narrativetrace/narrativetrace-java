@@ -98,6 +98,8 @@ Every method, class, parameter, and record component earns a note built from the
 
 Notes carry concrete guidance wherever the dictionaries can supply it. A generic or unrecognized verb paired with a known domain noun earns a `verbNoun` rename hint — `Generic verb 'process' + broad noun 'order' — consider: backorderOrder, cancelOrder, fulfillOrder` — and any penalized abbreviation is spelled out inline: `; spell out: chk → check`. Record accessors are scored on the noun rubric and phrased for components (`Domain-specific component 'customerId'`).
 
+The collocation dictionary is a positive signal only: a verb it lists for a noun confirms the name reads well, but a verb it does not list is never treated as evidence against the name — the rename hint fires only for a generic or genuinely unclear verb, never merely because the actual verb is missing from the sample.
+
 Notes never enter `issues[]` — praise is not an actionable. They are surfaced in the report's **Elements** table and in the `elements` array of `clarity-results.json` (schema 1.2).
 
 ## Your own vocabulary, from the glossary you already have

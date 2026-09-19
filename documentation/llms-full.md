@@ -573,12 +573,15 @@ after a deep one still renders in full.
 **A type's own `toString()` is never trusted while the type has state** (owner ruling,
 2026-09-11; family-wide). Any class or record that declares instance fields — its own or
 inherited — is walked field by field at every depth, with `@NotTraced` and the name
-deny-list consulted per field, whatever `toString()` it declares. Exactly two kinds of
-value keep their own text: a class with no instance fields (nothing to hide, nothing to
-walk) and a class the platform defines (`LocalDate`, `Duration`, `UUID`, `URI` — its
+deny-list consulted per field, whatever `toString()` it declares. One kind of
+value keeps its own text: a platform leaf type, named one by one in a list the renderer
+holds (`LocalDate`, `Duration`, `UUID`, `URI`, `Path`, `Pattern` and their kind — its
 `toString()` is the JDK's format, and its fields sit in a module that is not open, so
 walking it would answer `<error: InaccessibleObjectException>` where the JDK answers a
-date). A class the application declares is application code whatever it extends.
+date). A class the application declares is application code whatever it extends, and a
+class with no readable field renders as its type name (2026-09-19): state can live in a
+static table keyed by the instance, in a `ClassValue` or in a `ThreadLocal`, where a field
+walk never sees it and the class's own `toString()` reads it freely.
 `@NarrativeSummary` is the single opt-in back to curated rendering, and its text is
 scanned for credential shapes, escaped and capped like any other value. The rule this
 replaced trusted any `toString()` unless the class declared a `@NotTraced` field, which
@@ -1097,7 +1100,7 @@ Why it is worth the cost:
 
 - **Correctness** — objects are captured as they were at call time. A mutable object modified after the traced call returns still shows its original value in the trace.
 - **No object retention** — the trace holds strings, not references to your domain objects. Nothing NarrativeTrace keeps prevents an object from being garbage collected.
-- **Safe rendering** — `ValueRenderer` handles nulls, strings, numbers, enums, records, collections, arrays and plain objects; detects cycles by identity; catches rogue `toString()` implementations; and truncates large values. Any object that has instance fields is rendered by reflecting over them, whatever `toString()` it declares — a type's own stringification is never trusted while the type has state, so a curated `toString()` cannot print past a redaction. Only a type with no instance fields, or one the platform defines (`LocalDate`, `UUID`, …), keeps its own text; `@NarrativeSummary` is the opt-in back to curated rendering, and its output is scanned like any other value.
+- **Safe rendering** — `ValueRenderer` handles nulls, strings, numbers, enums, records, collections, arrays and plain objects; detects cycles by identity; catches rogue `toString()` implementations; and truncates large values. Any object that has instance fields is rendered by reflecting over them, whatever `toString()` it declares — a type's own stringification is never trusted while the type has state, so a curated `toString()` cannot print past a redaction. Only a platform leaf type named in the renderer's own list (`LocalDate`, `UUID`, …) keeps its own text, and a type with no readable field renders as its type name; `@NarrativeSummary` is the opt-in back to curated rendering, and its output is scanned like any other value.
 
 The trade-off is that serialization happens on every traced call, whether or not anyone ever reads the trace. That cost is inside the active-path benchmark numbers. For extremely hot loops, exclude them with `TracingLevel.OFF` or `@NotTraced`, or narrow the traced scope.
 

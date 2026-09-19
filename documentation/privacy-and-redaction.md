@@ -88,12 +88,34 @@ plainly:
 > at every depth, with both redaction mechanisms consulted per field — whatever
 > its own `toString()` would have printed.**
 
-Exactly two kinds of value keep their own text. One is a class with **no
-instance fields at all**: there is nothing to hide and nothing to walk. The
-other is a class **the platform defines** — `LocalDate`, `Duration`, `UUID`,
-`URI` and their kind — whose `toString()` is the JDK's format rather than
+One kind of value keeps its own text: a **platform leaf type**, named one by
+one in a list the renderer holds — the boxed primitives and `String`,
+`BigInteger`/`BigDecimal`, the `java.time` types, `UUID`, `URI`/`URL`,
+`Locale`, `Currency`, `Date`, `File`, `Path`, `Charset`, `Pattern`, `Class`,
+the single-cell atomics — whose `toString()` is the JDK's format rather than
 application code, and which cannot declare one of your fields in the first
-place. A class *your* code declares is application code whatever it extends.
+place. A class *your* code declares is application code whatever it extends,
+and a platform type that is not on the list (a `StringBuilder`, a `Throwable`,
+a buffer — each of which prints text *you* handed it) renders as the object it
+is instead.
+
+Matching is by the **exact** class, which includes the shortcuts a renderer
+takes for a value it expects to be small. A subclass of `Number` or of `Date`
+is a composite that happens to have a platform base — free to carry a
+`password` field and print it — so the flat renderer's numeric shortcut, the
+structured renderer's typed numeric and temporal forms, and a `@Narrated`
+template's `{amount}` placeholder all walk it like any other object, and read
+a value's own text or epoch only for the exact platform class.
+
+Everything else is walked. A value with no readable field at all is not
+thereby a value with nothing to tell, so it does not keep its text either: it
+renders as its type name. Until 2026-09-19 "declares no instance field" was
+read as "has no state, nothing to hide", and that is false — a class with no
+fields can hold its state in a static table keyed by the instance, in a
+`ClassValue` or in a `ThreadLocal`, read it back inside its own `toString()`,
+and print a value no field walk could ever have seen. The same shape was found
+in four runtimes within a day of each other; every one of them now decides this
+with an explicit list of platform leaf types.
 
 The single opt-in back to curated rendering is **`@NarrativeSummary`**: a
 zero-argument method you wrote *for* the trace, so its output is your choice.
@@ -115,8 +137,9 @@ puts the depth cap and the cycle guard back in front of every value: your
 
 **The cost is real and was accepted.** A value class with a pleasant
 `toString()` and no `@NarrativeSummary` now renders as a field dump —
-`Amount{currency: "EUR", units: 10}` rather than `EUR 10.00`. Uglier, and
-correct. Add `@NarrativeSummary` to the types where the reading matters.
+`Amount{currency: "EUR", units: 10}` rather than `EUR 10.00` — and a class with
+no fields renders as `Marker{}`, its text unread. Uglier, and correct. Add
+`@NarrativeSummary` to the types where the reading matters.
 
 A **parameter** is settled earlier still, and the difference follows from where
 the decision is made. A parameter whose *name* the deny-list denies is decided

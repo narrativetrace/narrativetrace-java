@@ -601,6 +601,125 @@ class VerifyPublicationScriptTest {
     }
   }
 
+  // --- Gradle Plugin Portal LISTING check: the /m2 proxy blind spot this adds an independent
+  // signal for. version_le is pure (no network); run_plugin_portal_listing_check shells out to
+  // scripts/plugin-portal-published.sh, so these fixtures point REPO_ROOT at a throwaway
+  // directory carrying a STUB of that script (exit code fixed by the test) rather than making a
+  // real Portal call — the real script has its own dedicated test coverage
+  // (PluginPortalPublishedScriptTest); this file only proves the classification wrapped around it.
+
+  @Test
+  void versionLeOrdersDottedVersionsNumerically() throws Exception {
+    assertThat(sourced("version_le 0.2.3 0.2.3 && echo yes || echo no").output().strip())
+        .isEqualTo("yes");
+    assertThat(sourced("version_le 0.2.0 0.2.3 && echo yes || echo no").output().strip())
+        .isEqualTo("yes");
+    assertThat(sourced("version_le 0.2.4 0.2.3 && echo yes || echo no").output().strip())
+        .isEqualTo("no");
+    // Numeric, not lexicographic: "0.10.0" sorts before "0.2.3" as strings but is the newer
+    // version.
+    assertThat(sourced("version_le 0.10.0 0.2.3 && echo yes || echo no").output().strip())
+        .isEqualTo("no");
+  }
+
+  private void writeStubPluginPortalPublishedScript(Path repo, int exitCode, String stdout)
+      throws IOException {
+    var scriptsDir = repo.resolve("scripts");
+    Files.createDirectories(scriptsDir);
+    var script = scriptsDir.resolve("plugin-portal-published.sh");
+    Files.writeString(
+        script,
+        "#!/usr/bin/env bash\n"
+            + "echo '"
+            + stdout.replace("'", "'\\''")
+            + "'\n"
+            + "exit "
+            + exitCode
+            + "\n");
+    if (!script.toFile().setExecutable(true)) {
+      throw new IOException("could not mark fixture script executable: " + script);
+    }
+  }
+
+  @Test
+  void listingCheckExitZeroIsPresent(@TempDir Path repo) throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 0, "ai.narrativetrace 0.2.3 is published");
+
+    var result =
+        sourced(
+            "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.3; echo"
+                + " \"$PLUGIN_PORTAL_LISTING_STATUS\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.output().strip()).isEqualTo("PRESENT");
+  }
+
+  /**
+   * A version through {@code PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION} (0.2.3, the last release
+   * built under the /m2 guard bug) reads NOT_YET_PUBLISHED with the softened, explained wording —
+   * still a failing status (the canary stays honestly red), never silently PRESENT.
+   */
+  @Test
+  void listingCheckExitOneThroughKnownGapVersionIsNotYetPublishedWithExplanation(@TempDir Path repo)
+      throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 1, "not on the Portal yet");
+
+    var result =
+        sourced(
+            "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.3; echo"
+                + " \"$PLUGIN_PORTAL_LISTING_STATUS|$PLUGIN_PORTAL_LISTING_DETAIL\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.output().strip())
+        .startsWith("NOT_YET_PUBLISHED|")
+        .contains("expected")
+        .doesNotContain("not on the Portal yet");
+  }
+
+  /** A version AFTER the known-gap version gets no softening: a missing listing is real. */
+  @Test
+  void listingCheckExitOneAfterKnownGapVersionIsMissing(@TempDir Path repo) throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 1, "not on the Portal yet");
+
+    var result =
+        sourced(
+            "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.4; echo"
+                + " \"$PLUGIN_PORTAL_LISTING_STATUS|$PLUGIN_PORTAL_LISTING_DETAIL\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.output().strip()).startsWith("MISSING|").contains("not on the Portal yet");
+  }
+
+  /** The guard's own ERROR verdict (exit 2 — network failure) is never read as PRESENT. */
+  @Test
+  void listingCheckExitTwoIsMissingNeverPresent(@TempDir Path repo) throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 2, "ERROR: could not reach the Portal");
+
+    var result =
+        sourced(
+            "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.4; echo"
+                + " \"$PLUGIN_PORTAL_LISTING_STATUS\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.output().strip()).isEqualTo("MISSING");
+  }
+
+  /** --local-rehearsal has no local stand-in for the Portal, so the check is skipped, not run. */
+  @Test
+  void listingCheckSkipsUnderLocalRehearsalWithoutInvokingTheStub(@TempDir Path repo)
+      throws Exception {
+    // No stub script written at all: if the check ran it anyway, sourcing would fail loudly
+    // rather than silently reporting SKIPPED.
+    var result =
+        sourced(
+            "LOCAL_REHEARSAL=1; run_plugin_portal_listing_check 0.2.3;"
+                + " echo \"$PLUGIN_PORTAL_LISTING_STATUS\"",
+            Map.of("REPO_ROOT", repo.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.output().strip()).isEqualTo("SKIPPED");
+  }
+
   // --- fixtures: a throwaway git repo (usually no gradlew — only latest_tag_version /
   // resolve_version ever run against most of these; one test above adds a stub gradlew for the
   // full --dry-run path), and a loopback HTTP server standing in for Maven Central ------------

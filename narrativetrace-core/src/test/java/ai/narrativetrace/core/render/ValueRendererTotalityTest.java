@@ -311,20 +311,22 @@ class ValueRendererTotalityTest {
 
   // ---------------------------------------------------------------- the report's five FAIL lines
 
-  @Test
-  void aNumberWhoseToStringThrowsRendersItsTypeInsteadOfEscaping() {
-    assertThat(renderer.render(new HostileNumber())).isEqualTo("<HostileNumber>");
-  }
-
   /**
-   * A {@code Number} that answers no conversion is not a structured scalar, so the walk reaches it
-   * — and it has no state, so it keeps its own text, which throws. The typed marker is what is
-   * left.
+   * A {@code Number} subclass is a composite with a numeric base, so neither path asks it for
+   * anything — no conversion, no text. Its {@code toString()} cannot fail a render it is never
+   * entered by, and the honest answer is the object it is, named, with no readable field of its
+   * own.
    */
   @Test
-  void aNumberThatRefusesEveryConversionRendersTheTypedMarkerStructurally() {
+  void aNumberWhoseToStringThrowsIsWalkedSoItIsNeverEntered() {
+    assertThat(renderer.render(new HostileNumber())).isEqualTo("HostileNumber{}");
+  }
+
+  /** The same value and the same answer on the other path: one decision, so they cannot drift. */
+  @Test
+  void aNumberThatRefusesEveryConversionRendersAsItsTypeStructurally() {
     assertThat(renderer.renderStructured(new HostileNumber()))
-        .isEqualTo(new RenderedValue.StringVal("<error: IllegalStateException>"));
+        .isEqualTo(new RenderedValue.ObjectVal("HostileNumber", java.util.Map.of()));
   }
 
   @Test
@@ -535,15 +537,20 @@ class ValueRendererTotalityTest {
   /**
    * A user subclass of a platform temporal is NOT a platform type, so its own {@code toString()} is
    * not trusted — and its state is inherited, so the walk has nothing it is allowed to print. The
-   * empty brace pair is the honest answer: no leak, and no pretence that anything was read. The
-   * structured path scalar-handles {@code Date} before the walk, so it still answers the type
-   * marker; the two paths diverge here because the value IS two different things to them.
+   * empty brace pair is the honest answer: no leak, and no pretence that anything was read.
+   *
+   * <p><b>@llmNote</b> Both paths now, and the divergence this test used to document is what
+   * closed: the structured typed-temporal form used to scalar-handle any {@code Date} before the
+   * walk, which meant reading {@code getTime()} — an application override on a subclass, the very
+   * thing the rule forbids — and answering a typed attribute from whatever it returned, while the
+   * flat path walked the same value's fields. The typed forms are keyed on origin now, so a user
+   * subclass of a platform numeric or temporal type is the composite it is on both channels.
    */
   @Test
   void aTemporalSubclassThatAnswersNothingRendersNoStateRatherThanItsOwnString() {
     assertThat(renderer.render(new HostileDate())).isEqualTo("HostileDate{}");
     assertThat(renderer.renderStructured(new HostileDate()))
-        .isEqualTo(new RenderedValue.StringVal("<HostileDate>"));
+        .isEqualTo(new RenderedValue.ObjectVal("HostileDate", java.util.Map.of()));
   }
 
   @Test

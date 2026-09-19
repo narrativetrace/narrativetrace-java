@@ -26,7 +26,6 @@ public final class MethodNameScorer {
   private static final List<String> VERB_SUFFIXES = List.of("ate", "ize", "ise", "ify", "en");
 
   private final IdentifierTokenizer tokenizer = new IdentifierTokenizer();
-  private final CollocationDictionary collocationDictionary = new CollocationDictionary();
   private final VerbDictionary verbDictionary;
   private final GenericTokenDetector genericDetector;
   private final AbbreviationDictionary abbreviationDictionary;
@@ -45,10 +44,6 @@ public final class MethodNameScorer {
     this.genericDetector = new GenericTokenDetector(vocabulary);
     this.abbreviationDictionary = new AbbreviationDictionary(vocabulary);
     this.morphologyAnalyzer = new MorphologyAnalyzer(vocabulary);
-  }
-
-  public CollocationDictionary collocationDictionary() {
-    return collocationDictionary;
   }
 
   public double score(String methodName) {

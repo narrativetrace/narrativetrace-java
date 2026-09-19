@@ -108,12 +108,6 @@ class MethodNameScorerTest {
   }
 
   @Test
-  void collocationDictionaryIsAccessible() {
-    assertThat(scorer.collocationDictionary()).isNotNull();
-    assertThat(scorer.collocationDictionary().isPreferred("reconcile", "ledger")).isTrue();
-  }
-
-  @Test
   void emptyStringReturnsZero() {
     assertThat(scorer.score("")).isEqualTo(0.0);
   }

@@ -35,10 +35,6 @@ Packages: `ai.narrativetrace.examples.library`
 |---|---|---|---|---|
 | book title | curated |  |  | es: título del libro; zh-CN: 书名 |
 | card number | curated |  |  | es: número de carné; zh-CN: 借书证号 |
-| component 1 | harvested |  |  |  |
-| component 2 | harvested |  |  |  |
-| component 3 | harvested |  |  |  |
-| component 4 | harvested |  |  |  |
 | default lending | harvested |  |  |  |
 | due date | curated |  |  | es: fecha de devolución; zh-CN: 应还日期 |
 | in memory catalog | harvested |  |  |  |
@@ -53,18 +49,7 @@ Packages: `ai.narrativetrace.examples.library`
 | Term | Status | Definition | Deprecated synonyms | Translations |
 |---|---|---|---|---|
 | borrow book | curated |  |  | es: prestar libro; zh-CN: 借书 |
-| copy | curated |  |  | es: ejemplar; zh-CN: 副本 |
 | find book | curated |  |  | es: buscar libro; zh-CN: 查找图书 |
-| get author | harvested |  |  |  |
-| get available | harvested |  |  |  |
-| get book title | harvested |  |  |  |
-| get card number | harvested |  |  |  |
-| get due date | harvested |  |  |  |
-| get id | harvested |  |  |  |
-| get isbn | harvested |  |  |  |
-| get member name | harvested |  |  |  |
-| get name | harvested |  |  |  |
-| get title | harvested |  |  |  |
 | lookup member | curated |  |  | es: consultar socio; zh-CN: 查询会员 |
 
 ### Templates

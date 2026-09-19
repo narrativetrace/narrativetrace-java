@@ -26,8 +26,10 @@ import java.util.function.UnaryOperator;
  * ({@code Exception}/{@code Error} stripped). Observations are aggregated and deterministically
  * ordered; the harvester makes no merge decisions.
  *
- * <p>Trace nodes carry only simple class names, so the package used for context resolution comes
- * from an injected resolver function (the suite hook supplies a real one; tests supply a map).
+ * <p>A node's bounded context is resolved from the package {@link ContextResolver#packageToResolve}
+ * selects — the package captured on the signature when the capture site supplied it, else the
+ * injected simple-name resolver (the suite hook supplies a real one; tests supply a map).
+ * Translation resolves by the same call, so a term is looked up in the context it was filed under.
  * Non-identifier names on synthetic nodes are skipped — harvesting is best-effort by design.
  */
 public final class GlossaryHarvester {
@@ -122,7 +124,9 @@ public final class GlossaryHarvester {
       TraceNode node, Map<HarvestCandidate, Integer> occurrences, boolean includeTemplates) {
     var signature = node.signature();
     var className = signature.className();
-    var context = contextResolver.resolve(packageOrEmpty(className));
+    var context =
+        contextResolver.resolve(
+            ContextResolver.packageToResolve(signature.packageName(), className, packageOf));
     harvestClass(context, className, occurrences);
     harvestMethod(context, className, signature.methodName(), occurrences);
     harvestParameters(node, context, occurrences);
@@ -152,11 +156,6 @@ public final class GlossaryHarvester {
         new TermNormalizer.Candidate(template, TermKind.TEMPLATE),
         site,
         template);
-  }
-
-  private String packageOrEmpty(String className) {
-    var packageName = packageOf.apply(className);
-    return packageName == null ? "" : packageName;
   }
 
   private void harvestClass(

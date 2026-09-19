@@ -17,15 +17,26 @@
 # first tag — verify in Settings → Environments → release.
 name: Release
 
-# Least privilege by default; the publish job re-states the one scope it needs.
+# Least privilege by default; each job re-states the one scope it needs.
 permissions: {}
 
 on:
   push:
     tags: ["v*"]
+  # Publishes the plugin ALONE, for a version already released to Maven Central — the case a
+  # tag push cannot cover: a past release (e.g. one the Plugin Portal guard skipped in error)
+  # with nothing new for the libraries job to do. `publish-plugin` below runs from this trigger
+  # without `publish`, checking out the matching v<version> tag rather than today's default
+  # branch, so it builds and publishes exactly what that release was.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Already-released version to publish to the Gradle Plugin Portal (e.g. 0.2.3) — checks out v<version>; runs publish-plugin only, never the libraries job"
+        required: true
 
 jobs:
   publish:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: release
     # Read the checkout, nothing else. Publishing goes to Maven Central and the
@@ -76,12 +87,63 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: ./gradlew publishAggregationToCentralPortal
 
-      # The Gradle plugin is versioned independently of the libraries and the
-      # Plugin Portal refuses re-uploads, so publish only a version it lacks.
-      # The plugin shares the libraries' version by design (see gradle.properties), so
-      # it uses the same resolved value. The old `sed` here matched nothing either,
-      # which built a URL with an empty version, got a 404 for it, and concluded the
-      # plugin was new — so the "skip if already published" guard never once skipped.
+  # A separate job, not a step of `publish` above: the Plugin Portal has its own credentials,
+  # its own failure modes (see scripts/plugin-portal-published.sh), and — per the workflow_dispatch
+  # case above — its own reason to run alone, for a version the libraries job published in a past
+  # run. `needs: [publish]` orders it after the libraries job on a real release without making it
+  # depend on that job existing: the `if` below runs it whenever `publish` succeeded OR this run is
+  # a manual dispatch (where `publish` never runs at all — `needs.publish.result` is `skipped`,
+  # which `always()` lets this `if` see instead of the default "skip because a dependency didn't
+  # succeed").
+  publish-plugin:
+    needs: [publish]
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.publish.result == 'success')
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      # A tag push checks out the tag that triggered the run, same as `publish` above. A manual
+      # dispatch checks out v<version> explicitly — never today's default branch — so this job
+      # always builds and publishes the exact release its VERSION names, dispatch or not.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      # The version always comes from the checkout's own build, never trusted blindly off the
+      # dispatch input: a dispatch that named the wrong version would otherwise check out
+      # v<input> and then publish whatever gradle.properties happens to say at that ref — this
+      # catches that mismatch instead of publishing it.
+      - name: Resolve the version to publish
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="$(./gradlew -q --console=plain printVersion | tail -n 1 | tr -d '[:space:]')"
+          [ -n "$version" ] || { echo "could not determine the plugin version"; exit 1; }
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            [ "$version" = "$INPUT_VERSION" ] || {
+              echo "dispatch asked for version ${INPUT_VERSION} but the checked-out v${INPUT_VERSION} tag builds version ${version}"
+              exit 1
+            }
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      # The Gradle plugin is versioned independently of the libraries and the Plugin Portal
+      # refuses re-uploads, so publish only a version it lacks. scripts/plugin-portal-published.sh
+      # asks the Portal's own plugin page, never the /m2 proxy: /m2 mirrors Maven Central and
+      # answers with a redirect the instant the libraries job publishes there, whether or not the
+      # Portal itself has ever run publishPlugins for this coordinate — the bug that meant every
+      # release so far (0.2.0, 0.2.1, 0.2.3) printed the skip line without ever really publishing.
+      # A guard verdict of ERROR (network failure — the question could not be answered) fails the
+      # step rather than guessing either way, and a decision to publish fails loudly on missing
+      # credentials rather than letting publishPlugins itself produce a less legible error.
       - name: Publish Gradle plugin (if this version is new)
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
@@ -90,9 +152,21 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "${VERSION}" ] || { echo "empty version reached the plugin publish step"; exit 1; }
-          url="https://plugins.gradle.org/m2/ai/narrativetrace/ai.narrativetrace.gradle.plugin/${VERSION}/ai.narrativetrace.gradle.plugin-${VERSION}.pom"
-          if curl -sfI "$url" >/dev/null; then
-            echo "plugin ${VERSION} already on the Plugin Portal — skipping"
-          else
-            ./gradlew :narrativetrace-gradle-plugin:publishPlugins
-          fi
+          set +e
+          bash scripts/plugin-portal-published.sh "$VERSION"
+          status=$?
+          set -e
+          case "$status" in
+            0)
+              echo "plugin ${VERSION} already on the Gradle Plugin Portal — skipping"
+              ;;
+            1)
+              [ -n "${GRADLE_PUBLISH_KEY:-}" ] || { echo "GRADLE_PUBLISH_KEY is empty in the release environment"; exit 1; }
+              [ -n "${GRADLE_PUBLISH_SECRET:-}" ] || { echo "GRADLE_PUBLISH_SECRET is empty in the release environment"; exit 1; }
+              ./gradlew :narrativetrace-gradle-plugin:publishPlugins
+              ;;
+            *)
+              echo "ERROR: could not determine whether plugin ${VERSION} is on the Gradle Plugin Portal — see the guard's own output above"
+              exit 1
+              ;;
+          esac

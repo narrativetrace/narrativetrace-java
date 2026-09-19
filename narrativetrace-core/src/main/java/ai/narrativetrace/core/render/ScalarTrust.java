@@ -9,53 +9,46 @@ package ai.narrativetrace.core.render;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Set;
 
 /**
- * Decides whether a {@link Number}'s own {@code toString()} is safe to emit unsanitized.
+ * Decides whether a {@link Number}'s own {@code toString()} may be read at all — the numeric face
+ * of the one origin decision, so a number's text is trusted identically wherever a number is
+ * printed.
  *
  * <p>INTENT: {@link ValueRenderer} and {@code TemplateParser} both fast-path a {@code Number} as a
- * flat scalar, printing its {@code toString()} directly — a {@code String} on the same path is
- * sanitized and length-capped first. {@code Number} is a public abstract class; any caller can
- * extend it and return anything at all from {@code toString()}, including a raw line break or
- * Markdown/JSON structure, and that text used to reach every renderer unsanitized. The eight JDK
- * types this class trusts are the only ones whose {@code toString()} is fixed by the platform, not
- * by application code.
+ * flat scalar. {@code Number} is a public abstract class, so extending it says nothing about what
+ * an instance holds: a subclass is an ordinary composite that happens to have a numeric base, free
+ * to carry a deny-listed field and print it from a {@code toString()} its author wrote years before
+ * anyone traced the class. A fast path that reads that text has only the value-shape scan and the
+ * length cap in front of it — no field name for the deny-list to match, no {@code @NotTraced} to
+ * honor, none of the caps a walked composite obeys. So the only numbers whose own text is read are
+ * the platform's numeric leaf types, matched by the EXACT class, which IS its origin; every other
+ * {@code Number} is walked field by field like any other composite, on both rendering paths alike.
  *
- * <p><b>@llmNote</b> Matched by exact class, not {@code instanceof}. {@link BigInteger} and {@link
- * BigDecimal} are not final, so a subclass overriding {@code toString()} would otherwise inherit
- * the trusted path — the very hole this class exists to close. The other six are all {@code final}
- * (Byte, Short, Integer, Long, Float, Double), so {@code instanceof} alone would already be exact
- * for them; the exact-class check costs nothing extra and keeps one rule for all eight.
+ * <p><b>@llmNote</b> The list is {@link PlatformTypes#isStatelessLeaf}'s, asked here rather than
+ * restated: the boxed primitives, {@link BigInteger} and {@link BigDecimal} — neither of them
+ * {@code final}, which is why assignability would be no test at all — and the single-cell atomics
+ * and adders. Sanitizing the text was the answer this replaced, and it was only ever half of one:
+ * an escape can make a forged line harmless, but nothing about it can make a printed secret
+ * unprinted.
  *
  * <p>Public because both {@link ValueRenderer} and {@code ai.narrativetrace.core.template.
  * TemplateParser} apply the identical scalar test and must not drift on the answer.
  *
  * <p><b>@llmNote</b> The rule was settled at the commercial audit tier's own boundary first, and
- * that tier applies the identical one. Two implementations of "is this number's text safe" would
- * drift, and a drifted answer is a forged record on whichever side fell behind.
+ * that tier applies the identical one. Two implementations of "may this number's text be read"
+ * would drift, and a drifted answer is a forged record on whichever side fell behind.
  */
 public final class ScalarTrust {
-
-  private static final Set<Class<?>> JDK_SAFE_NUMERIC_TYPES =
-      Set.of(
-          Byte.class,
-          Short.class,
-          Integer.class,
-          Long.class,
-          Float.class,
-          Double.class,
-          BigInteger.class,
-          BigDecimal.class);
 
   private ScalarTrust() {}
 
   /**
-   * Whether {@code number}'s own {@code toString()} is guaranteed to contain no forged structure —
-   * true for the six boxed primitives plus {@link BigInteger}/{@link BigDecimal}, false for any
-   * other {@link Number} subclass, whose {@code toString()} is application code.
+   * Whether {@code number}'s own {@code toString()} may be read — true for the platform's numeric
+   * leaf types, matched by exact class, false for every other {@link Number} subclass, which is a
+   * composite and whose state is read by walking it instead.
    */
   public static boolean isTrustedNumeric(Number number) {
-    return JDK_SAFE_NUMERIC_TYPES.contains(number.getClass());
+    return PlatformTypes.isStatelessLeaf(number.getClass());
   }
 }

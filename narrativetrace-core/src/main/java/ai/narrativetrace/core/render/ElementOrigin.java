@@ -113,16 +113,18 @@ enum ElementOrigin {
    * or {@code Iterable} of its own.
    *
    * <p>INTENT: A composite never renders through its own {@code toString()}, on either path. The
-   * inherited {@code AbstractCollection.toString()} of a FIELDLESS subclass is the door this
-   * closes: the subclass declares no state, so {@code rendersItsOwnString} was willing to stand
+   * inherited {@code AbstractCollection.toString()} of a FIELDLESS subclass is the door this closed
+   * first: the subclass declares no state, so the fieldless rule of the day was willing to stand
    * behind its text — but that text is produced by walking {@code iterator()}, which the subclass
-   * overrode. Stringification is a leaf's privilege; a composite's is always somebody's element
-   * walk.
+   * overrode. The leaf list closes it a second time (a user subclass is on no list), and this check
+   * stays as the independent lock. Stringification is a leaf's privilege; a composite's is always
+   * somebody's element walk.
    *
    * <p><b>@llmNote</b> Platform composites are excluded because their text IS the JDK's: a {@code
-   * Path} or a {@code Charset} renders its own short native form, exactly as {@code
-   * PLATFORM_DEFINED} intends one level up. Every platform {@code Collection}/{@code Map} is
-   * dispatched to its own enumeration branch long before this question is asked.
+   * Path} or a {@code Charset} renders its own short native form, exactly as {@link
+   * PlatformTypes#isStatelessLeaf}'s list intends one level up. Every platform {@code
+   * Collection}/{@code Map} is dispatched to its own enumeration branch long before this question
+   * is asked.
    */
   static boolean isApplicationComposite(Class<?> clazz) {
     return !PlatformTypes.isPlatformDefined(clazz)

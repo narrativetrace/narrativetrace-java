@@ -429,8 +429,8 @@ Two honest limits. First, the only way values escape redaction is application
 code that constructs its own `ValueRenderer` with `RedactionPolicy.DISABLED` — a
 deliberate, reviewable act in your own source, never a configuration state.
 Second, capture reads *fields* reflectively and never calls your getters, but it
-does invoke a `@NarrativeSummary` method, the `toString()` of a type with no
-instance fields, record component accessors, and property paths named in
+does invoke a `@NarrativeSummary` method, the `toString()` of a platform leaf
+type, record component accessors, and property paths named in
 `@Narrated`/`@OnError` templates; keep those pure, as you would for a debugger. Scoping today is
 include-only — `packages=` for the agent, base packages for Spring and Micronaut
 — with no exclude list yet.
