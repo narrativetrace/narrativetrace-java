@@ -8,6 +8,7 @@
 package ai.narrativetrace.core.context;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.SpanId;
@@ -151,6 +152,81 @@ class NoopNarrativeContextTest {
     var scope = snapshot.activate();
     assertThat(scope).isNotNull();
     scope.close(); // should not throw
+  }
+
+  /**
+   * The defaults an implementation gets for free by overriding only the required methods — pinned
+   * directly, so a change to one of these constants is a deliberate, visible edit.
+   */
+  @Test
+  void defaultCapturesParameterValuesReturnsTrue() {
+    assertThat(new MinimalNarrativeContext().capturesParameterValues()).isTrue();
+  }
+
+  @Test
+  void defaultCapturesInstanceIdsReturnsFalse() {
+    assertThat(new MinimalNarrativeContext().capturesInstanceIds()).isFalse();
+  }
+
+  @Test
+  void defaultCapturesSourceLocationReturnsFalse() {
+    assertThat(new MinimalNarrativeContext().capturesSourceLocation()).isFalse();
+  }
+
+  @Test
+  void defaultStoryIdReturnsNull() {
+    assertThat(new MinimalNarrativeContext().storyId()).isNull();
+  }
+
+  @Test
+  void defaultChapterIdReturnsNull() {
+    assertThat(new MinimalNarrativeContext().chapterId()).isNull();
+  }
+
+  @Test
+  void defaultTraceIdIsNeverNull() {
+    assertThat(new MinimalNarrativeContext().traceId()).isNotNull();
+  }
+
+  @Test
+  void defaultSetRequestContextIsNoOp() {
+    var context = new MinimalNarrativeContext();
+
+    assertThatCode(() -> context.setRequestContext("GET", null, null)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void defaultSetUserContextIsNoOp() {
+    var context = new MinimalNarrativeContext();
+
+    assertThatCode(() -> context.setUserContext(null, null, null)).doesNotThrowAnyException();
+  }
+
+  /**
+   * The three-argument {@code exitMethodWithReturn} is a pure delegation to the two-argument
+   * overload, dropping the structured value — an implementation that overrides only the flat
+   * overload still sees every call, structured or not.
+   */
+  @Test
+  void defaultExitMethodWithReturnThreeArgDelegatesToTheTwoArgOverload() {
+    var context = new RecordingExitContext();
+    var spanId = SpanId.of("0123456789abcdef");
+
+    context.exitMethodWithReturn("value", null, spanId);
+
+    assertThat(context.lastRendered).isEqualTo("value");
+    assertThat(context.lastSpanId).isEqualTo(spanId);
+  }
+
+  private static class RecordingExitContext extends MinimalNarrativeContext {
+    String lastRendered;
+    SpanId lastSpanId;
+
+    @Override
+    public void exitMethodWithReturn(String renderedReturnValue, SpanId spanId) {
+      lastRendered = renderedReturnValue;
+      lastSpanId = spanId;
+    }
   }
 
   private static class MinimalNarrativeContext implements NarrativeContext {

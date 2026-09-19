@@ -585,4 +585,50 @@ class ProseRendererTest {
 
     assertThat(rendered).contains("[REDACTED]").doesNotContain("eyJhbGciOiJIUzI1NiJ9");
   }
+
+  /**
+   * An empty tree carries no trace id ({@code DefaultTraceTree}'s own invariant: roots empty iff
+   * trace id null), so the header this renderer opens every non-empty trace with must stay silent
+   * rather than naming a trace that does not exist.
+   */
+  @Test
+  void anEmptyTreeGetsNoTraceHeaderAtAll() {
+    var rendered = renderer.render(new DefaultTraceTree(List.of()));
+
+    assertThat(rendered).doesNotContain("The trace ");
+  }
+
+  /** A leaf span still in flight: no children, so the compact inline outcome form applies. */
+  @Test
+  void anInFlightLeafNodeIsDescribedInFlightInline() {
+    var node =
+        new TraceNode(
+            new MethodSignature("PaymentService", "charge", List.of()),
+            List.of(),
+            new TraceOutcome.Incomplete());
+
+    var rendered = renderer.render(new DefaultTraceTree(List.of(node)));
+
+    assertThat(stripTraceHeader(rendered))
+        .isEqualTo("The payment service failed to charge — ⏳ in-flight.");
+  }
+
+  /** A span still in flight with children rendered: the closing-line outcome form applies. */
+  @Test
+  void anInFlightNodeWithChildrenClosesTheBlockInFlight() {
+    var child =
+        new TraceNode(
+            new MethodSignature("PaymentGateway", "authorize", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("\"ok\""));
+    var parent =
+        new TraceNode(
+            new MethodSignature("PaymentService", "charge", List.of()),
+            List.of(child),
+            new TraceOutcome.Incomplete());
+
+    var rendered = renderer.render(new DefaultTraceTree(List.of(parent)));
+
+    assertThat(stripTraceHeader(rendered)).contains("⏳ in-flight.");
+  }
 }

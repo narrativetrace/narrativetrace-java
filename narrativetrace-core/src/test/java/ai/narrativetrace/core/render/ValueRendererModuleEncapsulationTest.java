@@ -131,4 +131,21 @@ class ValueRendererModuleEncapsulationTest {
     assertThat(rendered).doesNotContain("hunter2");
     assertThat(rendered).contains("<inaccessible>");
   }
+
+  /**
+   * The structured twin of the test above: {@code structuredComponentValue} must answer the same
+   * dedicated {@code <inaccessible>} marker as the flat path, not the typed {@code <error: Type>}
+   * one every other unreadable member uses, and never the accessor's own value.
+   */
+  @Test
+  void theStructuredPathAlsoRendersTheDedicatedInaccessibleMarker() throws Exception {
+    var instance = secretClass.getConstructor(String.class).newInstance("hunter2");
+    var renderer = new ValueRenderer();
+
+    var rendered = renderer.renderStructured(instance);
+
+    var text = rendered.toString();
+    assertThat(text).doesNotContain("hunter2");
+    assertThat(text).contains("<inaccessible>");
+  }
 }

@@ -19,8 +19,11 @@ import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.core.render.TraceNamer;
 import ai.narrativetrace.core.tree.DefaultTraceTree;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 class TraceTreeCanonicalMapperTest {
 
@@ -491,5 +494,36 @@ class TraceTreeCanonicalMapperTest {
     // Entry order is: root enter, child enter, child exit, root exit.
     assertThat(entries.get(0).parentSpanId()).isNull();
     assertThat(entries.get(1).parentSpanId()).isEqualTo(entries.get(0).spanId());
+  }
+
+  /**
+   * A hand-built tree is not guaranteed acyclic ({@code TraceNode.children} is an undefended list):
+   * the node that closes the cycle still yields its own enter/exit pair, entered and exited
+   * immediately as {@link TraceTreeCanonicalMapper#fromTree}'s own javadoc documents, with the
+   * walk's cycle marker appended to its exit message — never an infinite descent.
+   */
+  @Test
+  @Timeout(value = 5, unit = TimeUnit.SECONDS)
+  void aCyclicTreeYieldsALimitedNodePairInsteadOfHanging() {
+    var childHolder = new ArrayList<TraceNode>();
+    var b =
+        new TraceNode(
+            new MethodSignature("Recursive", "b", List.of()),
+            childHolder,
+            new TraceOutcome.Returned("\"ok\""));
+    var a =
+        new TraceNode(
+            new MethodSignature("Recursive", "a", List.of()),
+            List.of(b),
+            new TraceOutcome.Returned("\"ok\""));
+    childHolder.add(a);
+
+    var entries = TraceTreeCanonicalMapper.fromTree(new DefaultTraceTree(List.of(a)));
+
+    // a-enter, b-enter, a(cycle)-enter, a(cycle)-exit, b-exit, a-exit: never unbounded.
+    assertThat(entries).hasSize(6);
+    assertThat(entries)
+        .extracting(CanonicalEntry::message)
+        .anySatisfy(m -> assertThat(m).contains("(cycle)"));
   }
 }

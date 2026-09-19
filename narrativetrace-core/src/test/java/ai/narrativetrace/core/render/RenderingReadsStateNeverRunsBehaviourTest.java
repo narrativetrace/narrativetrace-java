@@ -199,6 +199,24 @@ class RenderingReadsStateNeverRunsBehaviourTest {
     assertThat(rendered).contains("k=\"v\"");
   }
 
+  /**
+   * A self-reference reached through the ancestor-state read, not the overridden {@code
+   * entrySet()}: the cycle guard belongs to {@code renderHashMapAncestorState} itself, same as the
+   * plain-{@code HashMap} cycle guard, and must collapse to the identity marker without recursing
+   * through the JDK's own {@code forEach}.
+   */
+  @Test
+  void aSelfReferentialPlatformMapSubclassCollapsesToTheIdentityMarker() {
+    var map = new SideEffectingEntrySetMap();
+    map.put("self", map);
+
+    var rendered = renderer.render(map);
+
+    assertThat(map.entrySetCalls).as("the overridden entrySet() must never run").hasValue(0);
+    assertThat(rendered).contains("self=<SideEffectingEntrySetMap@");
+    assertThat(rendered).doesNotContain("StackOverflow");
+  }
+
   // ------------------------------------------------------------------------------------- bullet 6
 
   /**
@@ -437,6 +455,27 @@ class RenderingReadsStateNeverRunsBehaviourTest {
     var rendered = renderer.render(new DeclaredSafeThrowingIterable());
 
     assertThat(rendered).contains("<error: IllegalStateException>");
+  }
+
+  /** A declared-safe {@code Iterable} that yields itself, closing a cycle through the hook. */
+  @NarrativeElements
+  static final class DeclaredSafeCyclicIterable implements Iterable<Object> {
+    @Override
+    public Iterator<Object> iterator() {
+      return List.of((Object) this).iterator();
+    }
+  }
+
+  /**
+   * The third hook gets the same cycle guard as every other complex value walk: a self-reference
+   * collapses to the identity marker rather than recursing forever.
+   */
+  @Test
+  void aSelfReferentialThirdHookIterableCollapsesToTheIdentityMarker() {
+    var rendered = renderer.render(new DeclaredSafeCyclicIterable());
+
+    assertThat(rendered).contains("<DeclaredSafeCyclicIterable@");
+    assertThat(rendered).doesNotContain("StackOverflow");
   }
 
   // ------------------------------------------------------------------------------------- bullet 9

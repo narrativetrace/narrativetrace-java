@@ -665,4 +665,54 @@ class TemplateParserTest {
 
     assertThat(resolved).isEqualTo("qty: 5, price: 9.99");
   }
+
+  /**
+   * A scalar whose own {@code toString()} bombs — the totality guard around it, not its text.
+   * Overridden at the enum class level, not per-constant, so {@code getClass()} stays {@code
+   * ExplodingEnum} rather than an anonymous per-constant subclass whose simple name is empty.
+   */
+  enum ExplodingEnum {
+    VALUE;
+
+    @Override
+    public String toString() {
+      throw new IllegalStateException("boom");
+    }
+  }
+
+  @Test
+  void aScalarWhoseOwnToStringThrowsRendersTheTypeMarkerInstead() {
+    var resolved =
+        TemplateParser.resolve("status: {status}", Map.of("status", ExplodingEnum.VALUE));
+
+    assertThat(resolved).isEqualTo("status: <ExplodingEnum>");
+  }
+
+  /**
+   * A computed property named differently from the field backing it: no field named {@code
+   * displayName} exists, so {@code accessProperty} must fall through to the JavaBean {@code
+   * getDisplayName()} convention rather than the backing-field read {@link
+   * #resolvesJavaBeanGetterPropertyAccess} already exercises (there, the field and the property
+   * share a name, so the backing-field read wins before the getter fallback is ever tried).
+   */
+  static final class Profile {
+    private final String name;
+
+    Profile(String name) {
+      this.name = name;
+    }
+
+    public String getDisplayName() {
+      return name;
+    }
+  }
+
+  @Test
+  void aPropertyWithNoBackingFieldFallsThroughToTheJavaBeanGetter() {
+    var result =
+        TemplateParser.resolve(
+            "Welcome {profile.displayName}", Map.of("profile", new Profile("Ada")));
+
+    assertThat(result).isEqualTo("Welcome Ada");
+  }
 }
