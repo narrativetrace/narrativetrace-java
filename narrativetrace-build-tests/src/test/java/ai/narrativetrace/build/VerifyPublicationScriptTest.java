@@ -805,6 +805,80 @@ class VerifyPublicationScriptTest {
     }
   }
 
+  // --- B-62 residue: the PLUGIN artifact-presence row (print_report's own table, not the
+  // separate LISTING row above) must read the same PENDING_APPROVAL relief under the identical
+  // condition — a new plugin id's /m2 proxy check reading LAGGING while Central already has the
+  // marker. Same fake-endpoint style as the six LISTING fixtures above, reusing pluginRowFixture
+  // and startMarkerServer so both rows are provably asking one shared detection function.
+
+  /**
+   * The PLUGIN row itself read LAGGING (the /m2 proxy's clean 404) and Central already has the
+   * marker: the row must read PENDING_APPROVAL, carry the same "awaiting Gradle's approval" text,
+   * and must not flip ALL_PRESENT to red.
+   */
+  @Test
+  void printReportPluginRowIsPendingApprovalWhenPortalProxyIs404AndCentralHasTheMarker()
+      throws Exception {
+    var central = startMarkerServer(true);
+    try {
+      var result =
+          sourced(
+              pluginRowFixture("LAGGING")
+                  + "PLUGIN_PORTAL_LISTING_STATUS=PRESENT; SMOKE_VERDICT=PASSED;"
+                  + " print_report 0.2.4; echo \"ALL_PRESENT=$ALL_PRESENT\"",
+              Map.of("MAVEN_CENTRAL_BASE", central.baseUrl()));
+
+      assertThat(result.output())
+          .contains("PLUGIN")
+          .contains("PENDING_APPROVAL")
+          .contains("submitted to the Portal, awaiting Gradle's approval of the new plugin id")
+          .doesNotContain("LAGGING");
+      assertThat(result.output()).contains("ALL_PRESENT=1");
+    } finally {
+      central.httpServer().stop(0);
+    }
+  }
+
+  /**
+   * The /m2 proxy is 404 but Central ALSO lacks the marker: a real gap, the PLUGIN row stays red.
+   */
+  @Test
+  void printReportPluginRowStaysRedWhenCentralAlsoLacksTheMarker() throws Exception {
+    var central = startMarkerServer(false);
+    try {
+      var result =
+          sourced(
+              pluginRowFixture("LAGGING")
+                  + "PLUGIN_PORTAL_LISTING_STATUS=PRESENT; SMOKE_VERDICT=PASSED;"
+                  + " print_report 0.2.4; echo \"ALL_PRESENT=$ALL_PRESENT\"",
+              Map.of("MAVEN_CENTRAL_BASE", central.baseUrl()));
+
+      assertThat(result.output()).contains("LAGGING").doesNotContain("PENDING_APPROVAL");
+      assertThat(result.output()).contains("ALL_PRESENT=0");
+    } finally {
+      central.httpServer().stop(0);
+    }
+  }
+
+  /**
+   * A PLUGIN row that already reads PRESENT (a direct 200, or a redirect curl's {@code -L} resolved
+   * to 200) is never touched by the pending-approval override — and, provably, Central is never
+   * even asked: {@code MAVEN_CENTRAL_BASE} points at a closed port that fails instantly, so if the
+   * row were wrongly re-checked this test would fail (or hang) rather than pass.
+   */
+  @Test
+  void printReportPluginRowStaysPresentAndNeverQueriesCentralWhenAlreadyPresent() throws Exception {
+    var result =
+        sourced(
+            pluginRowFixture("PRESENT")
+                + "PLUGIN_PORTAL_LISTING_STATUS=PRESENT; SMOKE_VERDICT=PASSED;"
+                + " print_report 0.2.4; echo \"ALL_PRESENT=$ALL_PRESENT\"",
+            Map.of("MAVEN_CENTRAL_BASE", "http://127.0.0.1:1"));
+
+    assertThat(result.output()).contains("PRESENT").doesNotContain("PENDING_APPROVAL");
+    assertThat(result.output()).contains("ALL_PRESENT=1");
+  }
+
   /** print_report's red/not-red verdict: PENDING_APPROVAL never flips ALL_PRESENT to red. */
   @Test
   void printReportTreatsPendingApprovalAsNotRed() throws Exception {

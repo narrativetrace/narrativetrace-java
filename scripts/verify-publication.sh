@@ -524,20 +524,36 @@ version_le() {  # a b
 PLUGIN_PORTAL_LISTING_STATUS="SKIPPED"
 PLUGIN_PORTAL_LISTING_DETAIL=""
 
-# B-62: while a NEW plugin id awaits Gradle's approval of the listing, the Portal's own page (what
-# run_plugin_portal_listing_check asks below) answers "not here" even though the release itself
-# shipped fine — Central already has the marker; only the Portal's approval is pending. True when
-# BOTH halves hold: the artifact-presence poll's PLUGIN row (poll_artifacts, above) already read
-# LAGGING for this exact version — the Portal's /m2 proxy answering 404, its documented "not found
-# yet" reading (classify_http_status) — AND Central's own copy of that same marker answers 200.
-# Reads the CHECK_* arrays poll_artifacts left populated rather than re-deriving anything, so this
-# can never disagree with what the report table already printed for that row.
+# B-62: while a NEW plugin id awaits Gradle's approval, the Portal's own page (what
+# run_plugin_portal_listing_check asks) AND the Portal's /m2 proxy (what the artifact-presence
+# poll's PLUGIN row, above, asks) both answer "not here" even though the release itself shipped
+# fine — Central already has the marker; only the Portal's approval is pending. Text both rows
+# share so a human reading either one gets the identical explanation.
+PLUGIN_PENDING_APPROVAL_DETAIL="submitted to the Portal, awaiting Gradle's approval of the new plugin id; nothing to do"
+
+# The one place that asks "does Central already have this exact marker POM" — shared by
+# pending_portal_approval (the LISTING row, below) and print_report (the PLUGIN row): before this
+# function existed, the two rows asked the same question two different ways and could disagree —
+# the residue of B-62 that left the PLUGIN row reading LAGGING (red) under the exact condition the
+# LISTING row already knew to read as PENDING_APPROVAL (not red). Only meaningful for a row whose
+# own portal-proxy check already read LAGGING (a clean 404, "not found yet") — a caller with any
+# other status has no business asking this.
+plugin_marker_present_on_central() {  # group artifact version
+    [ "$(classify_http_status "$(head_status "$(maven_pom_url "$MAVEN_CENTRAL_BASE" "$1" "$2" "$3")")")" = "PRESENT" ]
+}
+
+# True when BOTH halves hold: the artifact-presence poll's PLUGIN row (poll_artifacts, above)
+# already read LAGGING for this exact version — the Portal's /m2 proxy answering 404, its
+# documented "not found yet" reading (classify_http_status) — AND Central's own copy of that same
+# marker answers 200 (plugin_marker_present_on_central). Reads the CHECK_* arrays poll_artifacts
+# left populated rather than re-deriving anything, so this can never disagree with what the report
+# table's own PLUGIN row goes on to print for that row — print_report asks the very same shared
+# function.
 pending_portal_approval() {  # version
-    local version="$1" i central_status
+    local version="$1" i
     for i in "${!CHECK_KIND[@]}"; do
         if [ "${CHECK_KIND[$i]}" = "PLUGIN" ] && [ "${CHECK_STATUS[$i]}" = "LAGGING" ]; then
-            central_status="$(classify_http_status "$(head_status "$(maven_pom_url "$MAVEN_CENTRAL_BASE" "${CHECK_GROUP[$i]}" "${CHECK_ARTIFACT[$i]}" "$version")")")"
-            [ "$central_status" = "PRESENT" ]
+            plugin_marker_present_on_central "${CHECK_GROUP[$i]}" "${CHECK_ARTIFACT[$i]}" "$version"
             return
         fi
     done
@@ -572,7 +588,7 @@ run_plugin_portal_listing_check() {  # version
                 PLUGIN_PORTAL_LISTING_DETAIL="not yet published to the Portal (first publish on the next release) — every release through ${PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION} shipped under the /m2 guard bug, so this is expected, not a new regression"
             elif pending_portal_approval "$version"; then
                 PLUGIN_PORTAL_LISTING_STATUS="PENDING_APPROVAL"
-                PLUGIN_PORTAL_LISTING_DETAIL="submitted to the Portal, awaiting Gradle's approval of the new plugin id; nothing to do"
+                PLUGIN_PORTAL_LISTING_DETAIL="$PLUGIN_PENDING_APPROVAL_DETAIL"
             else
                 PLUGIN_PORTAL_LISTING_STATUS="MISSING"
                 PLUGIN_PORTAL_LISTING_DETAIL="$output"
@@ -596,16 +612,26 @@ ALL_PRESENT=1
 # significant under `set -e` for whoever calls it — a footgun this script's own `resource_urls_for`
 # fix above exists to avoid. `main` reads ALL_PRESENT explicitly instead.
 print_report() {  # version
-    local i status
+    local i status detail
     ALL_PRESENT=1
     echo
     printf '%-8s %-45s %s\n' "KIND" "COORDINATE" "STATUS"
     for i in "${!CHECK_KIND[@]}"; do
         status="${CHECK_STATUS[$i]}"
-        if [ "$status" != "PRESENT" ]; then
+        detail=""
+        # B-62: the same relief the LISTING row already gets (see pending_portal_approval) applies
+        # here too, through the same shared detection function — a PLUGIN row that read LAGGING
+        # only because a NEW plugin id awaits Gradle's approval (Central already has the marker) is
+        # not a real gap, so it reads PENDING_APPROVAL instead and does not flip the canary red.
+        if [ "${CHECK_KIND[$i]}" = "PLUGIN" ] && [ "$status" = "LAGGING" ] \
+            && plugin_marker_present_on_central "${CHECK_GROUP[$i]}" "${CHECK_ARTIFACT[$i]}" "$1"; then
+            status="PENDING_APPROVAL"
+            detail=" ($PLUGIN_PENDING_APPROVAL_DETAIL)"
+        fi
+        if [ "$status" != "PRESENT" ] && [ "$status" != "PENDING_APPROVAL" ]; then
             ALL_PRESENT=0
         fi
-        printf '%-8s %-45s %s\n' "${CHECK_KIND[$i]}" "${CHECK_GROUP[$i]}:${CHECK_ARTIFACT[$i]}:$1" "$status"
+        printf '%-8s %-45s %s%s\n' "${CHECK_KIND[$i]}" "${CHECK_GROUP[$i]}:${CHECK_ARTIFACT[$i]}:$1" "$status" "$detail"
     done
     printf '%-8s %-45s %s\n' "LISTING" "${GRADLE_PLUGIN_ID}:$1" "$PLUGIN_PORTAL_LISTING_STATUS"
     # PENDING_APPROVAL is not a red: the release shipped, nothing is broken, and there is nothing
