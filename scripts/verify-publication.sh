@@ -105,9 +105,15 @@ USAGE
 # release" idea applied to the coordinate list this script consumes.
 # ---------------------------------------------------------------------------------------
 
-# "ai.narrativetrace" -> "ai/narrativetrace"
+# "ai.narrativetrace" -> "ai/narrativetrace". `tr`, not `${1//./\/}`: whether a bash parameter
+# substitution's REPLACEMENT text needs "/" escaped as "\/" differs by bash version — on macOS
+# stock bash 3.2.57 the backslash is kept literally ("ai\/narrativetrace"), silently mistyping
+# every URL this function feeds into 404 (LAGGING) for a host run of this script, never on the
+# newer bash the container/CI use, so the defect stayed invisible until a real host run made
+# every artifact and the plugin marker both read LAGGING against a release that had, in fact,
+# published fine. `tr` has one behaviour on any bash this script's own header claims to support.
 group_path() {
-    printf '%s' "${1//./\/}"
+    printf '%s' "$1" | tr '.' '/'
 }
 
 maven_artifact_url() {  # base group artifact version extension
@@ -447,7 +453,12 @@ run_smoke_test() {  # version
         plugin_repo="mavenLocal()"
         library_repo="mavenLocal()"
     else
-        plugin_repo="gradlePluginPortal()"
+        # Mirrors the DOCUMENTED consumer snippet (README.md / installation-guide.md, B-65): Central
+        # first — the plugin marker publishes to Maven Central with every release, while the Portal
+        # listing follows Gradle's approval of a new plugin id, so a smoke test resolving Portal-only
+        # would fail on exactly the release this canary exists to catch problems in.
+        plugin_repo="mavenCentral()
+        gradlePluginPortal()"
         library_repo="mavenCentral()"
     fi
     write_smoke_project "$work_dir" "$version" "$plugin_repo" "$library_repo"
@@ -513,12 +524,35 @@ version_le() {  # a b
 PLUGIN_PORTAL_LISTING_STATUS="SKIPPED"
 PLUGIN_PORTAL_LISTING_DETAIL=""
 
+# B-62: while a NEW plugin id awaits Gradle's approval of the listing, the Portal's own page (what
+# run_plugin_portal_listing_check asks below) answers "not here" even though the release itself
+# shipped fine — Central already has the marker; only the Portal's approval is pending. True when
+# BOTH halves hold: the artifact-presence poll's PLUGIN row (poll_artifacts, above) already read
+# LAGGING for this exact version — the Portal's /m2 proxy answering 404, its documented "not found
+# yet" reading (classify_http_status) — AND Central's own copy of that same marker answers 200.
+# Reads the CHECK_* arrays poll_artifacts left populated rather than re-deriving anything, so this
+# can never disagree with what the report table already printed for that row.
+pending_portal_approval() {  # version
+    local version="$1" i central_status
+    for i in "${!CHECK_KIND[@]}"; do
+        if [ "${CHECK_KIND[$i]}" = "PLUGIN" ] && [ "${CHECK_STATUS[$i]}" = "LAGGING" ]; then
+            central_status="$(classify_http_status "$(head_status "$(maven_pom_url "$MAVEN_CENTRAL_BASE" "${CHECK_GROUP[$i]}" "${CHECK_ARTIFACT[$i]}" "$version")")")"
+            [ "$central_status" = "PRESENT" ]
+            return
+        fi
+    done
+    return 1
+}
+
 # Shells out rather than re-asking the Portal here: one place decides PUBLISHED / NOT_PUBLISHED /
 # ERROR (and one place is unit-tested for it) — see that script's own header for why /m2 can't
 # answer this question honestly. A version through PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION still
 # reports NOT_YET_PUBLISHED as a failing status — the canary stays honestly red until a real
 # publish lands — but with the explanation attached, so a human reading it does not mistake a
-# known, already-diagnosed gap for a fresh regression the way a bare MISSING would read.
+# known, already-diagnosed gap for a fresh regression the way a bare MISSING would read. A version
+# after the known gap that matches pending_portal_approval reads PENDING_APPROVAL instead of
+# MISSING — nothing broke, there is nothing to do but wait for Gradle; everything else after the
+# known gap is a real MISSING, unsoftened.
 run_plugin_portal_listing_check() {  # version
     local version="$1" output exit_code
     if [ "$LOCAL_REHEARSAL" = 1 ]; then
@@ -536,6 +570,9 @@ run_plugin_portal_listing_check() {  # version
             if version_le "$version" "$PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION"; then
                 PLUGIN_PORTAL_LISTING_STATUS="NOT_YET_PUBLISHED"
                 PLUGIN_PORTAL_LISTING_DETAIL="not yet published to the Portal (first publish on the next release) — every release through ${PLUGIN_PORTAL_KNOWN_GAP_THROUGH_VERSION} shipped under the /m2 guard bug, so this is expected, not a new regression"
+            elif pending_portal_approval "$version"; then
+                PLUGIN_PORTAL_LISTING_STATUS="PENDING_APPROVAL"
+                PLUGIN_PORTAL_LISTING_DETAIL="submitted to the Portal, awaiting Gradle's approval of the new plugin id; nothing to do"
             else
                 PLUGIN_PORTAL_LISTING_STATUS="MISSING"
                 PLUGIN_PORTAL_LISTING_DETAIL="$output"
@@ -571,7 +608,10 @@ print_report() {  # version
         printf '%-8s %-45s %s\n' "${CHECK_KIND[$i]}" "${CHECK_GROUP[$i]}:${CHECK_ARTIFACT[$i]}:$1" "$status"
     done
     printf '%-8s %-45s %s\n' "LISTING" "${GRADLE_PLUGIN_ID}:$1" "$PLUGIN_PORTAL_LISTING_STATUS"
-    case "$PLUGIN_PORTAL_LISTING_STATUS" in PRESENT|SKIPPED) ;; *) ALL_PRESENT=0 ;; esac
+    # PENDING_APPROVAL is not a red: the release shipped, nothing is broken, and there is nothing
+    # to do but wait for Gradle's approval of the new plugin id (B-62). MISSING and
+    # NOT_YET_PUBLISHED still fail the canary.
+    case "$PLUGIN_PORTAL_LISTING_STATUS" in PRESENT|SKIPPED|PENDING_APPROVAL) ;; *) ALL_PRESENT=0 ;; esac
     echo
     echo "Plugin Portal listing: $PLUGIN_PORTAL_LISTING_STATUS${PLUGIN_PORTAL_LISTING_DETAIL:+ ($PLUGIN_PORTAL_LISTING_DETAIL)}"
     echo "Smoke test: $SMOKE_VERDICT${SMOKE_DETAIL:+ ($SMOKE_DETAIL)}"

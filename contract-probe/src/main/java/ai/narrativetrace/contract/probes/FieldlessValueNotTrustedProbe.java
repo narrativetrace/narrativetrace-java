@@ -21,6 +21,11 @@ import java.util.Map;
  * stateless leaf: this one keeps its state in a static table keyed by the instance and prints it
  * from its own {@code toString()}, which no field walk could ever see. Only a platform leaf type
  * keeps its own text now, so the sentinel must not appear anywhere in the trace.
+ *
+ * <p>The rule this probe measures: a traced ARGUMENT is rendered (that is what the redaction probes
+ * in this package prove); this probe measures the RETURN rendering only. The sentinel must
+ * therefore reach {@link Fieldless} through a channel rendering never sees — a static holder set
+ * immediately before a NO-ARG traced {@code Factory.make()} call, never a traced argument.
  */
 public final class FieldlessValueNotTrustedProbe {
 
@@ -28,13 +33,17 @@ public final class FieldlessValueNotTrustedProbe {
 
   private static final String SENTINEL = "side-table-secret";
 
+  // Set immediately before the traced no-arg call in observe(); never passed as a traced
+  // argument, so the argument-capture line carries no state at all to render.
+  private static final ThreadLocal<String> PENDING_HIDDEN = new ThreadLocal<>();
+
   /** No instance field at all; every byte of its state lives in the static table below. */
   public static final class Fieldless {
     private static final Map<Object, String> STATE =
         Collections.synchronizedMap(new IdentityHashMap<>());
 
-    public Fieldless(String hidden) {
-      STATE.put(this, hidden);
+    public Fieldless() {
+      STATE.put(this, PENDING_HIDDEN.get());
     }
 
     @Override
@@ -44,7 +53,7 @@ public final class FieldlessValueNotTrustedProbe {
   }
 
   interface Factory {
-    Fieldless make(String hidden);
+    Fieldless make();
   }
 
   public static String observe() {
@@ -52,7 +61,12 @@ public final class FieldlessValueNotTrustedProbe {
     Factory factory =
         NarrativeTraceProxy.trace(
             (Factory) Fieldless::new, Factory.class, new ThreadLocalNarrativeContext());
-    factory.make(SENTINEL);
+    PENDING_HIDDEN.set(SENTINEL);
+    try {
+      factory.make();
+    } finally {
+      PENDING_HIDDEN.remove();
+    }
     String text = SlfCapture.allMessages(capture);
     if (text.contains(SENTINEL)) {
       return "leaked";

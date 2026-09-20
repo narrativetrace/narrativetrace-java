@@ -69,7 +69,22 @@ cause:
 
 ## Quick Start with Gradle Plugin
 
-The Gradle plugin handles all wiring automatically — dependencies, compiler flags, and test JVM configuration:
+The Gradle plugin handles all wiring automatically — dependencies, compiler flags, and test JVM configuration.
+
+Give Maven Central the first look in `pluginManagement` — the plugin and its marker publish to
+Maven Central with every release, while the Gradle Plugin Portal listing follows Gradle's
+approval of a new plugin id, so Central is what makes a fresh release resolvable the day it
+ships:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+```
 
 ```kotlin
 plugins {

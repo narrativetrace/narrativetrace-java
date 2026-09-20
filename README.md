@@ -219,7 +219,22 @@ code" is the Gradle plugin plus a JUnit 5 test. Java 17+
 
 **1. Apply the plugin.** It adds the dependencies, sets the `-parameters`
 compiler flag (without it traces show `arg0`, `arg1`), configures the test JVM
-and supplies the Jupiter engine:
+and supplies the Jupiter engine.
+
+Give Maven Central the first look in `pluginManagement` — the plugin and its marker publish to
+Maven Central with every release, while the Gradle Plugin Portal listing follows Gradle's
+approval of a new plugin id, so Central is what makes a fresh release resolvable the day it
+ships:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+```
 
 ```kotlin
 // build.gradle.kts

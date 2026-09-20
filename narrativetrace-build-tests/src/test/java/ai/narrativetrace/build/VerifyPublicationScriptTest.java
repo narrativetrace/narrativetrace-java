@@ -720,6 +720,115 @@ class VerifyPublicationScriptTest {
     assertThat(result.output().strip()).isEqualTo("SKIPPED");
   }
 
+  // --- B-62: PENDING_APPROVAL — a new plugin id submitted for approval leaves the Portal's own
+  // listing page (and its /m2 proxy) answering "not here" while Central already has the release.
+  // These populate the CHECK_* arrays by hand (main()'s load_checks/poll_artifacts never run in a
+  // sourced call) exactly as poll_artifacts would have left them after polling the PLUGIN row.
+
+  private String pluginRowFixture(String status) {
+    return "CHECK_KIND=(PLUGIN); CHECK_GROUP=(ai.narrativetrace);"
+        + " CHECK_ARTIFACT=(ai.narrativetrace.gradle.plugin); CHECK_STATUS=("
+        + status
+        + "); ";
+  }
+
+  /**
+   * The exact B-65 shape: the Portal's own listing page says NOT_YET_PUBLISHED (stub exit 1), the
+   * PLUGIN row's /m2 proxy check already read LAGGING (its documented 404 reading), and Central's
+   * own copy of the same marker is 200 — the release shipped; only the Portal's approval of the id
+   * is pending. This must read as a distinct, non-red state, never MISSING.
+   */
+  @Test
+  void listingCheckIsPendingApprovalWhenThePortalProxyIs404AndCentralHasTheMarker(
+      @TempDir Path repo) throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 1, "not on the Portal yet");
+    var central = startMarkerServer(true);
+    try {
+      var result =
+          sourced(
+              pluginRowFixture("LAGGING")
+                  + "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.4; echo"
+                  + " \"$PLUGIN_PORTAL_LISTING_STATUS|$PLUGIN_PORTAL_LISTING_DETAIL\"",
+              Map.of("REPO_ROOT", repo.toString(), "MAVEN_CENTRAL_BASE", central.baseUrl()));
+
+      assertThat(result.output().strip())
+          .startsWith("PENDING_APPROVAL|")
+          .contains("submitted to the Portal, awaiting Gradle's approval of the new plugin id")
+          .contains("nothing to do");
+    } finally {
+      central.httpServer().stop(0);
+    }
+  }
+
+  /**
+   * The /m2 proxy is 404 (LAGGING) but Central ALSO lacks the marker: a real gap, stays MISSING.
+   */
+  @Test
+  void listingCheckStaysMissingWhenCentralAlsoLacksTheMarker(@TempDir Path repo) throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 1, "not on the Portal yet");
+    var central = startMarkerServer(false);
+    try {
+      var result =
+          sourced(
+              pluginRowFixture("LAGGING")
+                  + "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.4; echo"
+                  + " \"$PLUGIN_PORTAL_LISTING_STATUS|$PLUGIN_PORTAL_LISTING_DETAIL\"",
+              Map.of("REPO_ROOT", repo.toString(), "MAVEN_CENTRAL_BASE", central.baseUrl()));
+
+      assertThat(result.output().strip()).startsWith("MISSING|").contains("not on the Portal yet");
+    } finally {
+      central.httpServer().stop(0);
+    }
+  }
+
+  /**
+   * The /m2 proxy row itself read MISSING (a 5xx or connection failure), never LAGGING — a
+   * different failure shape than "still awaiting approval", so PENDING_APPROVAL never fires even
+   * when Central happens to have the marker.
+   */
+  @Test
+  void listingCheckStaysMissingWhenThePluginRowItselfIsNotLagging(@TempDir Path repo)
+      throws Exception {
+    writeStubPluginPortalPublishedScript(repo, 1, "not on the Portal yet");
+    var central = startMarkerServer(true);
+    try {
+      var result =
+          sourced(
+              pluginRowFixture("MISSING")
+                  + "LOCAL_REHEARSAL=0; run_plugin_portal_listing_check 0.2.4; echo"
+                  + " \"$PLUGIN_PORTAL_LISTING_STATUS\"",
+              Map.of("REPO_ROOT", repo.toString(), "MAVEN_CENTRAL_BASE", central.baseUrl()));
+
+      assertThat(result.output().strip()).isEqualTo("MISSING");
+    } finally {
+      central.httpServer().stop(0);
+    }
+  }
+
+  /** print_report's red/not-red verdict: PENDING_APPROVAL never flips ALL_PRESENT to red. */
+  @Test
+  void printReportTreatsPendingApprovalAsNotRed() throws Exception {
+    var result =
+        sourced(
+            "CHECK_KIND=(); CHECK_GROUP=(); CHECK_ARTIFACT=(); CHECK_STATUS=();"
+                + " PLUGIN_PORTAL_LISTING_STATUS=PENDING_APPROVAL; SMOKE_VERDICT=PASSED;"
+                + " print_report 0.2.4 >/dev/null; echo \"$ALL_PRESENT\"");
+
+    assertThat(result.output().strip()).isEqualTo("1");
+  }
+
+  /** Same verdict function: MISSING still flips ALL_PRESENT to red. */
+  @Test
+  void printReportKeepsMissingAsRed() throws Exception {
+    var result =
+        sourced(
+            "CHECK_KIND=(); CHECK_GROUP=(); CHECK_ARTIFACT=(); CHECK_STATUS=();"
+                + " PLUGIN_PORTAL_LISTING_STATUS=MISSING; SMOKE_VERDICT=PASSED;"
+                + " print_report 0.2.4 >/dev/null; echo \"$ALL_PRESENT\"");
+
+    assertThat(result.output().strip()).isEqualTo("0");
+  }
+
   // --- fixtures: a throwaway git repo (usually no gradlew — only latest_tag_version /
   // resolve_version ever run against most of these; one test above adds a stub gradlew for the
   // full --dry-run path), and a loopback HTTP server standing in for Maven Central ------------
@@ -788,6 +897,28 @@ class VerifyPublicationScriptTest {
               responseBody.write(body);
             }
           }
+        });
+    server.start();
+    return new MetadataServer(
+        server, "http://" + loopback.getHostAddress() + ":" + server.getAddress().getPort());
+  }
+
+  /**
+   * A loopback HTTP server standing in for Maven Central's copy of the plugin MARKER pom at version
+   * 0.2.4 (the version every {@code pending_portal_approval} test above verifies against) — {@code
+   * present} controls whether the marker path answers 200 or 404, the two halves of the B-62
+   * PENDING_APPROVAL condition this class's {@code pending_portal_approval} reads.
+   */
+  private MetadataServer startMarkerServer(boolean present) throws IOException {
+    var loopback = java.net.InetAddress.getLoopbackAddress();
+    var server = HttpServer.create(new InetSocketAddress(loopback, 0), 0);
+    server.createContext(
+        "/ai/narrativetrace/ai.narrativetrace.gradle.plugin/0.2.4/"
+            + "ai.narrativetrace.gradle.plugin-0.2.4.pom",
+        exchange -> {
+          int status = present ? 200 : 404;
+          exchange.sendResponseHeaders(status, -1);
+          exchange.close();
         });
     server.start();
     return new MetadataServer(

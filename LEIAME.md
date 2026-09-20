@@ -1,4 +1,4 @@
-<!-- source: README.md blob a80adaea210c | translated: 2026-09-18 | reviewed: - -->
+<!-- source: README.md blob e18864c441c1 | translated: 2026-09-20 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -226,7 +226,22 @@ completa](documentation/pt-BR/guia-de-instalacao.md#compatibilidade)).
 
 **1. Aplique o plugin.** Ele adiciona as dependências, define a flag do
 compilador `-parameters` (sem ela os traces mostram `arg0`, `arg1`), configura
-a JVM de testes e fornece o engine do Jupiter:
+a JVM de testes e fornece o engine do Jupiter.
+
+Dê ao Maven Central a primeira prioridade em `pluginManagement` — o plugin e seu marcador são
+publicados no Maven Central a cada versão, enquanto a listagem no Gradle Plugin Portal aguarda a
+aprovação de um novo id de plugin pela Gradle, então é o Central que torna uma versão
+recém-publicada resolvível no mesmo dia em que ela sai:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+```
 
 ```kotlin
 // build.gradle.kts

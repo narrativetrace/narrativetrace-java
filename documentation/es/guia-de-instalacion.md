@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 3d733a85e0d3 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 596c377cac63 | translated: 2026-09-20 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -75,7 +75,22 @@ a la causa:
 
 ## Inicio rápido con el plugin de Gradle
 
-El plugin de Gradle se encarga de todo el cableado automáticamente — dependencias, flags del compilador y configuración de la JVM de pruebas:
+El plugin de Gradle se encarga de todo el cableado automáticamente — dependencias, flags del compilador y configuración de la JVM de pruebas.
+
+Dale a Maven Central la primera prioridad en `pluginManagement` — el plugin y su marcador se
+publican en Maven Central con cada versión, mientras que la inclusión en el Gradle Plugin Portal
+espera la aprobación de Gradle para un id de plugin nuevo, así que Central es lo que hace
+resoluble una versión recién publicada el mismo día en que sale:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+```
 
 ```kotlin
 plugins {
