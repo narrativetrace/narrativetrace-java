@@ -20,6 +20,7 @@ package ai.narrativetrace.skills.replay;
 import ai.narrativetrace.skills.Skill;
 import ai.narrativetrace.skills.SkillStep;
 import ai.narrativetrace.skills.StepBody;
+import ai.narrativetrace.skills.catalogue.ClarityCommands;
 import ai.narrativetrace.skills.catalogue.DoctorCommands;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,6 +66,19 @@ public final class SkillReplayer {
 
   private static final String FIXTURE = "sixty-seconds";
 
+  /**
+   * System property {@code narrativetrace-skills/build.gradle.kts} sets on every {@link
+   * org.gradle.api.tasks.testing.Test} task, naming the local Maven file repository the outer build
+   * published {@code publishSkillsTestRepo}'s modules into. {@link #clarityScan}/{@link
+   * #clarityCheck} forward it to the nested build as {@code -PnarrativetraceTestMavenRepo=<path>}
+   * so the {@code clarity-consumer} fixture's {@code settings.gradle.kts} resolves the plugin and
+   * its libraries from that repository instead of {@code includeBuild}-ing this whole checkout as a
+   * composite — the composite path pushed the standalone snapshot verify's JVM census high enough
+   * to get the outer Gradle daemon OOM-killed. Absent (property unset or blank), the fixture falls
+   * back to its own auto-detection, unchanged.
+   */
+  private static final String TEST_MAVEN_REPO_PROPERTY = "narrativetrace.testMavenRepo";
+
   private SkillReplayer() {}
 
   private static final Map<String, Function<Path, Boolean>> KNOWN_COMMANDS =
@@ -83,7 +97,13 @@ public final class SkillReplayer {
                       "-PnarrativetraceDoctorTarget=" + FIXTURE),
           DoctorCommands.NO_STALE_RECEIVED_FILE,
               root -> gitStatusIsClean(root, FIXTURE + "/src/test/narratives"),
-          DoctorCommands.FIND_RENDERED_TRACES, SkillReplayer::renderedTraceExists);
+          DoctorCommands.FIND_RENDERED_TRACES, SkillReplayer::renderedTraceExists,
+          ClarityCommands.CLEAN_STATIC_SCAN, SkillReplayer::clarityScan,
+          ClarityCommands.CLEAN_CLARITY_CHECK, SkillReplayer::clarityCheck,
+          ClarityCommands.FIND_JSON_REPORT,
+              root -> clarityReportExists(root, "clarity-scan-results.json"),
+          ClarityCommands.FIND_MARKDOWN_REPORT,
+              root -> clarityReportExists(root, "clarity-scan-report.md"));
 
   /** Prose verify strings this replayer additionally knows how to check mechanically. */
   private static final Map<String, Function<Path, Boolean>> KNOWN_VERIFIES =
@@ -186,6 +206,66 @@ public final class SkillReplayer {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("interrupted running find", e);
+    }
+  }
+
+  /** Runs the real plugin task in the standalone clarity consumer, never a root task. */
+  private static boolean clarityScan(Path repoRoot) {
+    Path consumer = repoRoot.resolve("narrativetrace-skills/evals/fixtures/clarity-consumer");
+    try {
+      GradleRunner.create()
+          .withProjectDir(consumer.toFile())
+          .withArguments(clarityGradleArguments("clarityScan"))
+          .build();
+      return clarityReportExists(repoRoot, "clarity-scan-results.json")
+          && clarityReportExists(repoRoot, "clarity-scan-report.md");
+    } catch (UnexpectedBuildFailure failure) {
+      return false;
+    }
+  }
+
+  /**
+   * The {@code ./gradlew clean <task>} arguments {@link #clarityScan}/{@link #clarityCheck} pass to
+   * the nested build: {@code -PnarrativetraceTestMavenRepo=<path>} appended when the outer build
+   * set {@link #TEST_MAVEN_REPO_PROPERTY}, omitted otherwise so the fixture's own auto-detection
+   * (env var, then the composite checkout) still applies — e.g. a developer running the fixture by
+   * hand, or the Tier B eval trials. Pure and unit-testable on purpose: the two call sites only
+   * resolve the system property and hand it here.
+   */
+  static List<String> clarityGradleArguments(String task) {
+    return clarityGradleArguments(task, System.getProperty(TEST_MAVEN_REPO_PROPERTY));
+  }
+
+  static List<String> clarityGradleArguments(String task, String testMavenRepoPath) {
+    if (testMavenRepoPath == null || testMavenRepoPath.isBlank()) {
+      return List.of("clean", task);
+    }
+    return List.of("clean", task, "-PnarrativetraceTestMavenRepo=" + testMavenRepoPath);
+  }
+
+  private static boolean clarityReportExists(Path repoRoot, String fileName) {
+    Path report =
+        repoRoot
+            .resolve("narrativetrace-skills/evals/fixtures/clarity-consumer/build/narrativetrace")
+            .resolve(fileName);
+    try {
+      return Files.isRegularFile(report) && Files.size(report) > 0;
+    } catch (IOException e) {
+      throw new UncheckedIOException("could not inspect " + report, e);
+    }
+  }
+
+  private static boolean clarityCheck(Path repoRoot) {
+    Path consumer = repoRoot.resolve("narrativetrace-skills/evals/fixtures/clarity-consumer");
+    try {
+      GradleRunner.create()
+          .withProjectDir(consumer.toFile())
+          .withArguments(clarityGradleArguments("clarityCheck"))
+          .build();
+      return clarityReportExists(repoRoot, "clarity-results.json")
+          && clarityReportExists(repoRoot, "clarity-report.md");
+    } catch (UnexpectedBuildFailure failure) {
+      return false;
     }
   }
 

@@ -155,6 +155,44 @@ class SnapshotBuilderTest {
   }
 
   @Test
+  void detectsAutodetectionEnabledViaJunitPlatformPropertiesFile() throws IOException {
+    Path resources = project.resolve("src/test/resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("junit-platform.properties"),
+        "junit.jupiter.extensions.autodetection.enabled=true\n");
+
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+    assertThat(s.extensionRegisteredViaServiceLoader()).isTrue();
+  }
+
+  @Test
+  void autodetectionDisabledInJunitPlatformPropertiesIsNotRegistration() throws IOException {
+    Path resources = project.resolve("src/test/resources");
+    Files.createDirectories(resources);
+    Files.writeString(
+        resources.resolve("junit-platform.properties"),
+        "junit.jupiter.extensions.autodetection.enabled=false\n");
+
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+    assertThat(s.extensionRegisteredViaServiceLoader()).isFalse();
+  }
+
+  @Test
+  void detectsAutodetectionEnabledViaGradleTestSystemProperty() throws IOException {
+    Files.writeString(
+        project.resolve("build.gradle.kts"),
+        """
+        tasks.test {
+            systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+        }
+        """);
+
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+    assertThat(s.extensionRegisteredViaServiceLoader()).isTrue();
+  }
+
+  @Test
   void aFileNamedForAnOptionalArtifactThatIsActuallyADirectoryIsSkippedNotThrown()
       throws IOException {
     // build.gradle.kts as a directory: Files.readString on it always fails, exercising the

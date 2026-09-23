@@ -24,7 +24,7 @@ above — each language's index lists that language's translated guides.
 | [Privacy and Redaction](privacy-and-redaction.md) | The row-by-row redaction contract verified against the code, the guarantees and non-guarantees list, and the production loss model |
 | [What to Commit](what-to-commit.md) | Which generated files are CI artifacts and which are reviewed baselines you commit |
 | [Troubleshooting](troubleshooting.md) | Symptom → cause → fix for the failure modes people actually hit, from `arg0` parameters to a silent agent |
-| [Agent Skills](agent-skills.md) | The two agent-loadable skills — `add-narrative-tracing` and `narrativetrace-doctor` — how they're built, and how to install them in your own project |
+| [Agent Skills](agent-skills.md) | Three agent-loadable skills for setup, diagnosis, and Clarity — how they're built, and how to install them in your own project |
 
 ## Framework integration
 
@@ -57,9 +57,9 @@ above — each language's index lists that language's translated guides.
 
 ## For AI agents and tools
 
-- [Agent Skills](agent-skills.md) — `add-narrative-tracing` and `narrativetrace-doctor`,
-  installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`,
-  `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex, or the always-on
+- [Agent Skills](agent-skills.md) — `add-narrative-tracing`, `narrativetrace-doctor`, and
+  `add-narrativetrace-clarity`, installable from `.claude/skills/` or `.agents/skills/`
+  for Codex, or the always-on
   `AGENTS.md` pointer.
 - [`llms.txt`](llms.txt) — machine-readable index following the
   [llmstxt.org](https://llmstxt.org) convention.

@@ -12,7 +12,20 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-With JUnit 5, clarity reports are generated automatically by default — no code needed, no configuration needed *(since 0.2.3)*. `narrativetrace.output=false` turns it off along with every other trace artifact.
+With JUnit 5, a registered `NarrativeTraceExtension` generates clarity reports automatically
+from the calls your tests trace *(since 0.2.3)*. There is no separate Clarity enable flag.
+The Gradle plugin supplies dependencies and test configuration, but the test still needs to
+register the extension and capture a trace. `narrativetrace.output=false` disables reports along
+with the other trace artifacts.
+
+JUnit 4 uses a `NarrativeTraceClassRule` linked to a per-test `NarrativeTraceRule`
+instead of the extension. Both integrations produce the same Clarity artifacts and
+work with `clarityCheck`; see [JUnit 4 integration](#junit-4-integration) below.
+
+For an agent-guided first report or an optional build gate, use the
+[add-narrativetrace-clarity](agent-skills.md) skill. It checks the real consumer `clarityScan`
+task, distinguishes static scan artifacts from JUnit trace artifacts, and treats missing output as
+a setup problem for `narrativetrace-doctor`.
 
 ## What gets scored
 
@@ -241,9 +254,50 @@ NarrativeTrace — Suite complete
   Reports: build/narrativetrace
 ```
 
-No code changes needed — just enable output and run your tests.
+Once the extension is registered and tests capture traces, run the tests with output enabled
+(the default). Reports require nonempty captured traces.
+
+Registration does not have to be per class: `NarrativeTraceExtension` is published as a JUnit
+Platform `Extension` via `META-INF/services`, so setting
+`junit.jupiter.extensions.autodetection.enabled=true` in `junit-platform.properties` registers it
+suite-wide without any `@ExtendWith`. This turns on autodetection for *every*
+ServiceLoader-published extension on the test classpath, not only NarrativeTrace's, so
+`@ExtendWith` remains the explicit, per-class choice when that is what a project wants.
+
+## JUnit 4 integration
+
+Keep JUnit 4 and set `narrativeTrace { testFramework.set("junit4") }` in the
+consumer's Gradle configuration. The plugin adds `narrativetrace-junit4`; a plain
+JUnit 4 runner needs neither Jupiter nor `useJUnitPlatform()`. An existing JUnit
+Platform/Vintage setup can remain in place.
+
+Link the rules in the existing public test class:
+
+```java
+@ClassRule public static NarrativeTraceClassRule classRule = new NarrativeTraceClassRule();
+@Rule public NarrativeTraceRule narrativeTrace = classRule.testRule();
+```
+
+Use `org.junit.ClassRule`, `org.junit.Rule`, and `org.junit.Test`; test methods must
+be public. Trace calls with `NarrativeTraceProxy.trace(impl, Service.class,
+narrativeTrace.context())`. The class rule analyzes nonempty captured traces after
+each class and writes `clarity-report.md` and `clarity-results.json`, combining
+completed classes in that test JVM. A standalone `new NarrativeTraceRule()` produces
+per-test narratives but does not contribute to the aggregate Clarity report.
+
+`NarrativeTestCase` wires both rules as an optional base class when the test has no
+existing superclass to preserve. JUnit 4 reads `narrativetrace.output` (default:
+`true`) and `narrativetrace.outputDir` as test JVM system properties, not from
+`junit-platform.properties`. Run `./gradlew clean clarityCheck` and verify fresh,
+nonempty test reports; missing JSON still causes a successful skip.
 
 ## Build enforcement with `clarityCheck`
+
+The plugin's `clarityScan` task is a separate static path: it analyzes compiled production classes
+without running tests and writes `clarity-scan-report.md` and `clarity-scan-results.json`. Those
+files must remain distinct from the JUnit artifacts below because `clarityCheck` reads
+`clarity-results.json`, which is produced from executed traces. A scan can give a first naming
+report; it does not create test-run input for the gate.
 
 The Gradle plugin provides a `clarityCheck` task that fails the build when naming quality drops below a threshold. This makes clarity scoring enforceable, not advisory.
 
@@ -264,9 +318,19 @@ narrativeTrace {
 
 ### How it works
 
-1. `./gradlew test` — the JUnit extension produces `build/narrativetrace/clarity-results.json`
+1. `./gradlew test` — the JUnit 5 extension or linked JUnit 4 rules produce `build/narrativetrace/clarity-results.json`
 2. `clarityCheck` reads the JSON and compares each scenario against thresholds
 3. `./gradlew check` runs both `test` and `clarityCheck` automatically
+
+`minScore` compares each scenario's **overallScore**, not its individual component
+or element scores. An overall score of 0.82 passes a minimum of 0.80 even if
+`methodNameScore` is 0.55, provided the issue-count limits also pass.
+`maxHighIssues` limits HIGH-severity issues per scenario; `maxSuiteIssues` limits
+suite-level issues separately.
+
+Default thresholds impose no limits. Missing `clarity-results.json` causes a
+successful skip, so verify fresh, nonempty test reports before relying on the gate.
+Choose a test threshold from observed test reports, not static scan scores alone.
 
 ### Failure output
 

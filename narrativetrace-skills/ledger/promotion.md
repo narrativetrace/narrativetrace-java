@@ -16,3 +16,4 @@ fails `./gradlew check` (`PromotionDriftTest`).
 |---|---|---|---|
 | `narrativetrace-doctor` | not yet run | not yet run | not yet run |
 | `add-narrative-tracing` | not yet run | not yet run | not yet run |
+| `add-narrativetrace-clarity` | green (haiku, 2026-09-23) | not yet run | not yet run |

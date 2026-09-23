@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 2f3dbb3d6427 | translated: 2026-09-19 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob 9638b47a5636 | translated: 2026-09-23 | reviewed: - -->
 # Guia de Clareza do NarrativeTrace Java
 
 [English](../clarity-guide.md) | [Español](../es/guia-de-claridad.md) | **Português** | [简体中文](../zh-CN/清晰度指南.md)
@@ -15,7 +15,20 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Com o JUnit 5, os relatórios de clareza são gerados automaticamente por padrão — sem necessidade de código, sem necessidade de configuração *(since 0.2.3)*. `narrativetrace.output=false` desativa isso junto com todos os outros artefatos de trace.
+Com o JUnit 5, uma `NarrativeTraceExtension` registrada gera relatórios de clareza automaticamente
+a partir das chamadas rastreadas pelos testes *(since 0.2.3)*. Não existe uma flag separada para
+ativar o Clarity. O plugin Gradle fornece dependências e configuração de testes, mas o teste
+ainda precisa registrar a extensão e capturar um trace. `narrativetrace.output=false` desativa
+os relatórios junto com os demais artefatos de trace.
+
+O JUnit 4 usa uma `NarrativeTraceClassRule` vinculada a uma `NarrativeTraceRule`
+por teste no lugar da extensão. Ambas as integrações produzem os mesmos artefatos
+do Clarity e funcionam com `clarityCheck`; veja [Integração com JUnit 4](#integração-com-junit-4).
+
+Para obter um primeiro relatório ou configurar um quality gate com ajuda de um agente, use a
+habilidade [add-narrativetrace-clarity](habilidades-de-agente.md). Ela verifica a task `clarityScan`
+do projeto consumidor, distingue seus artefatos dos traces do JUnit e encaminha problemas de
+configuração que deixam a saída ausente para `narrativetrace-doctor`.
 
 ## O que é pontuado
 
@@ -248,9 +261,51 @@ NarrativeTrace — Suite complete
   Reports: build/narrativetrace
 ```
 
-Nenhuma mudança de código necessária — apenas habilite a saída e rode seus testes.
+Depois de registrar a extensão e configurar os testes para capturar traces, execute-os com a
+saída habilitada (o padrão). Os relatórios exigem traces capturados não vazios.
+
+O registro não precisa ser por classe: `NarrativeTraceExtension` é publicada como uma `Extension`
+do JUnit Platform via `META-INF/services`, então definir
+`junit.jupiter.extensions.autodetection.enabled=true` em `junit-platform.properties` a registra
+para toda a suíte, sem nenhum `@ExtendWith`. Isso ativa a detecção automática para *toda*
+extensão publicada via ServiceLoader no classpath de testes, não só a do NarrativeTrace, então o
+`@ExtendWith` continua sendo a escolha explícita por classe quando é isso que o projeto quer.
+
+## Integração com JUnit 4
+
+Mantenha o JUnit 4 e configure `narrativeTrace { testFramework.set("junit4") }` no
+build Gradle do consumidor. O plugin adiciona `narrativetrace-junit4`; um executor
+JUnit 4 convencional não precisa de Jupiter nem de `useJUnitPlatform()`. Uma
+configuração existente de JUnit Platform/Vintage pode ser mantida.
+
+Vincule as regras na classe pública de teste existente:
+
+```java
+@ClassRule public static NarrativeTraceClassRule classRule = new NarrativeTraceClassRule();
+@Rule public NarrativeTraceRule narrativeTrace = classRule.testRule();
+```
+
+Use `org.junit.ClassRule`, `org.junit.Rule` e `org.junit.Test`; os métodos de teste
+devem ser públicos. Rastreie chamadas com `NarrativeTraceProxy.trace(impl, Service.class,
+narrativeTrace.context())`. A regra de classe analisa rastros não vazios após cada
+classe e escreve `clarity-report.md` e `clarity-results.json`, combinando as classes
+concluídas nessa JVM de testes. Uma `new NarrativeTraceRule()` independente produz
+narrativas por teste, mas não contribui para o relatório agregado do Clarity.
+
+`NarrativeTestCase` conecta ambas as regras como classe base opcional quando não
+existe uma superclasse a preservar. O JUnit 4 lê `narrativetrace.output` (padrão:
+`true`) e `narrativetrace.outputDir` como propriedades de sistema da JVM de testes,
+não de `junit-platform.properties`. Execute `./gradlew clean clarityCheck` e verifique
+relatórios de teste recentes e não vazios; se o JSON estiver ausente, a verificação
+continua sendo ignorada sem falhar.
 
 ## Aplicação no build com `clarityCheck`
+
+A task `clarityScan` do plugin é um caminho estático separado: analisa classes de produção
+compiladas sem executar testes e grava `clarity-scan-report.md` e `clarity-scan-results.json`.
+Esses arquivos permanecem separados dos artefatos do JUnit porque `clarityCheck` lê
+`clarity-results.json`, produzido a partir de traces executados. A varredura pode gerar um
+primeiro relatório de nomes; ela não cria a entrada de testes usada pelo gate.
 
 O plugin de Gradle fornece uma task `clarityCheck` que faz o build falhar quando a qualidade da nomenclatura cai abaixo de um limiar. Isso torna a pontuação de clareza exigível, e não apenas consultiva.
 
@@ -271,9 +326,20 @@ narrativeTrace {
 
 ### Como funciona
 
-1. `./gradlew test` — a extensão do JUnit produz `build/narrativetrace/clarity-results.json`
+1. `./gradlew test` — a extensão do JUnit 5 ou as regras vinculadas do JUnit 4 produzem `build/narrativetrace/clarity-results.json`
 2. `clarityCheck` lê o JSON e compara cada cenário com os limiares
 3. `./gradlew check` executa `test` e `clarityCheck` automaticamente
+
+`minScore` compara o **overallScore** de cada cenário, não as pontuações de seus
+componentes ou elementos individuais. Uma pontuação geral de 0.82 passa um mínimo
+de 0.80 mesmo que `methodNameScore` seja 0.55, desde que os limites de contagem de
+problemas também sejam atendidos. `maxHighIssues` limita os problemas de severidade
+HIGH por cenário; `maxSuiteIssues` limita os problemas da suíte separadamente.
+
+Os limiares padrão não impõem limites. Se `clarity-results.json` estiver ausente,
+a verificação é ignorada sem falhar: confirme relatórios de teste recentes e não
+vazios antes de confiar nela. Escolha o limiar a partir dos relatórios de teste
+observados, não apenas das pontuações da análise estática.
 
 ### Saída de falha
 

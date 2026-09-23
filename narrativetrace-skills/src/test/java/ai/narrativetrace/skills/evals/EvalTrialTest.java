@@ -96,6 +96,77 @@ class EvalTrialTest {
   }
 
   @Test
+  void makesTheRenderedCatalogueAvailableBeforeTheAgentRuns(@TempDir Path tempDir)
+      throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    Path repo = Files.createDirectory(tempDir.resolve("repo"));
+    for (String layout : List.of(".agents", ".claude")) {
+      Path skill = Files.createDirectories(repo.resolve(layout + "/skills/example"));
+      Files.writeString(skill.resolve("SKILL.md"), "---\nname: example\n---\nDo the work.");
+    }
+    var trial =
+        new EvalTrial(
+            (argv, cwd, env) -> {
+              assertThat(cwd.resolve(".agents/skills/example/SKILL.md"))
+                  .hasContent("---\nname: example\n---\nDo the work.");
+              assertThat(cwd.resolve(".claude/skills/example/SKILL.md"))
+                  .hasContent("---\nname: example\n---\nDo the work.");
+              return 0;
+            },
+            FIXED_CLOCK,
+            tempDir.resolve("runs.jsonl"));
+
+    assertThat(trial.run(ARGS, repo, fixture, tempDir, scratch, "prompt", "echo {prompt}", 1))
+        .isTrue();
+  }
+
+  @Test
+  void suppliesAnExecutableGradleWrapperToAStandaloneFixture(@TempDir Path tempDir)
+      throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    Path repo = Files.createDirectory(tempDir.resolve("repo"));
+    Files.writeString(repo.resolve("gradlew"), "#!/bin/sh\nexit 0\n");
+    assertThat(repo.resolve("gradlew").toFile().setExecutable(true)).isTrue();
+    Files.createDirectories(repo.resolve("gradle/wrapper"));
+    Files.writeString(repo.resolve("gradle/wrapper/gradle-wrapper.jar"), "wrapper-jar");
+    Files.writeString(repo.resolve("gradle/wrapper/gradle-wrapper.properties"), "distribution");
+    var trial = new EvalTrial(new FakeProcessRunner(0), FIXED_CLOCK, tempDir.resolve("runs.jsonl"));
+
+    trial.run(ARGS, repo, fixture, tempDir, scratch, "prompt", null, 1);
+
+    assertThat(scratch.resolve("gradlew")).isExecutable();
+    assertThat(scratch.resolve("gradle/wrapper/gradle-wrapper.jar")).hasContent("wrapper-jar");
+    assertThat(scratch.resolve("gradle/wrapper/gradle-wrapper.properties"))
+        .hasContent("distribution");
+  }
+
+  @Test
+  void startsWithoutBuildArtifactsOrCachesAndPreservesTheFixturesOwnWrapper(@TempDir Path tempDir)
+      throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    for (String directory : List.of("build", ".gradle", ".git")) {
+      Files.createDirectories(fixture.resolve(directory));
+      Files.writeString(fixture.resolve(directory + "/stale.txt"), "old run");
+    }
+    Files.writeString(fixture.resolve("gradlew"), "fixture wrapper");
+    assertThat(fixture.resolve("gradlew").toFile().setExecutable(true)).isTrue();
+    Path repo = Files.createDirectory(tempDir.resolve("repo"));
+    Files.writeString(repo.resolve("gradlew"), "repository wrapper");
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    var trial = new EvalTrial(new FakeProcessRunner(0), FIXED_CLOCK, tempDir.resolve("runs.jsonl"));
+
+    trial.run(ARGS, repo, fixture, tempDir, scratch, "prompt", null, 1);
+
+    assertThat(scratch.resolve("build")).doesNotExist();
+    assertThat(scratch.resolve(".gradle")).doesNotExist();
+    assertThat(scratch.resolve(".git")).doesNotExist();
+    assertThat(scratch.resolve("gradlew")).hasContent("fixture wrapper").isExecutable();
+    assertThat(scratch.resolve("marker.txt")).hasContent("fixture-content");
+  }
+
+  @Test
   void passesWhenTheAgentSucceedsAndTheGraderSucceeds(@TempDir Path tempDir) throws Exception {
     Path fixture = fixtureWithMarkerFile(tempDir);
     Path scratch = Files.createDirectory(tempDir.resolve("scratch"));

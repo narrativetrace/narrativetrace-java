@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 88c83f42536c | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 097f4e3c98ef | translated: 2026-09-22 | reviewed: - -->
 # Habilidades de agente
 
 *(since 0.2.3)*
@@ -10,7 +10,7 @@ de comprobación, diagnóstico o generación vive en código de biblioteca proba
 de la habilidad es saber cuándo actuar, invocar ese código probado e interpretar el resultado en
 contexto.
 
-## Dos habilidades: configuración y diagnóstico
+## Tres habilidades: configuración, diagnóstico y claridad
 
 - **`add-narrative-tracing`** — instala NarrativeTrace en un proyecto y lo lleva a su primera
   traza: instala con el toolchain real, envuelve una clase con `NarrativeTraceProxy.trace`,
@@ -22,31 +22,35 @@ contexto.
   simple de una CLI no puede cubrir por sí sola: demostrar la ocultación en una prueba, leer una
   traza renderizada antes de hacer aserciones sobre ella, y el flujo de trazas de aprobación
   (marcado como no estudiado todavía — su propia celda de evaluación sigue pendiente).
+- **`add-narrativetrace-clarity`** — ejecuta un primer escaneo estático de nombres, comprueba
+  sus artefactos recién generados, explica las incidencias ordenadas y las notas por elemento,
+  y añade una puerta de calidad explícita solo cuando se solicita.
 
 Se combinan: un proyecto totalmente nuevo empieza con `add-narrative-tracing`; un proyecto que ya
 tiene NarrativeTrace instalado, donde algo no funciona, empieza con `narrativetrace-doctor`.
-Ambos caminos terminan en el doctor — a partir de ahí, el diagnóstico es suyo. Una habilidad futura
-se encargará de la generación (escribir la prueba que demuestra la ocultación, que hoy el doctor
-solo puede pedirte que añadas).
+Ambos caminos terminan en el doctor — a partir de ahí, el diagnóstico es suyo.
+`add-narrativetrace-clarity` se encarga de los primeros informes estáticos de nombres y de la
+aplicación opcional de umbrales de claridad; no instala trazas ni cosecha un glosario.
 
 ## Instalarlas
 
 - **Claude Code**: los ficheros `SKILL.md` renderizados viven en
   [`.claude/skills/narrativetrace-doctor/`](../../.claude/skills/narrativetrace-doctor/SKILL.md) y
-  [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md)
-  en este repositorio. Copia cualquiera de los dos directorios en el `.claude/skills/<nombre>/` de
-  tu propio proyecto y Claude la reconoce por sí solo, invocable por su nombre
-  (`narrativetrace-doctor` / `add-narrative-tracing`) directamente.
+  [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md) y
+  [`.claude/skills/add-narrativetrace-clarity/`](../../.claude/skills/add-narrativetrace-clarity/SKILL.md)
+  en este repositorio. Copia el directorio pertinente en el `.claude/skills/<nombre>/` de tu
+  proyecto y Claude lo reconoce automáticamente; puedes invocar la habilidad por su nombre.
 - **Codex**: el mismo catálogo también renderiza
   [`.agents/skills/narrativetrace-doctor/`](../../.agents/skills/narrativetrace-doctor/SKILL.md) y
-  [`.agents/skills/add-narrative-tracing/`](../../.agents/skills/add-narrative-tracing/SKILL.md) —
+  [`.agents/skills/add-narrative-tracing/`](../../.agents/skills/add-narrative-tracing/SKILL.md) y
+  [`.agents/skills/add-narrativetrace-clarity/`](../../.agents/skills/add-narrativetrace-clarity/SKILL.md) —
   la disposición que Codex CLI documenta para las habilidades propias de un proyecto. Su
   frontmatter lleva solo `name` y `description` (Codex no documenta claves `when_to_use` ni
-  `allowed-tools`); el cuerpo de la página es idéntico. Copia cualquiera de los dos directorios en
+  `allowed-tools`); el cuerpo de la página es idéntico. Copia el directorio pertinente en
   el `.agents/skills/<nombre>/` de tu propio proyecto y Codex la reconoce del mismo modo.
 - **Cualquier agente, cualquier plataforma**: todo agente que lea `AGENTS.md` ve el aviso siempre
   activo que el propio `AGENTS.md` de este repositorio lleva entre sus marcadores
-  `<!-- narrativetrace:skills:start -->` — el nombre y la descripción de ambas habilidades, de modo
+  `<!-- narrativetrace:skills:start -->` — el nombre y la descripción de las tres habilidades, de modo
   que un agente que nunca pensó en buscarlas igualmente sepa que existen.
 - **Gemini** se ejecuta contra el mismo catálogo con una cadencia esporádica y limitada por cuota
   (ver [Tier B — pruebas con LLM](../../narrativetrace-skills/evals/README.md)) en lugar de en cada
@@ -55,23 +59,21 @@ solo puede pedirte que añadas).
 
 ## Cómo se construyen
 
-Ninguna de las dos habilidades se edita nunca a mano.
-`narrativetrace-skills/src/main/java/ai/narrativetrace/skills/catalogue/AddNarrativeTracingSkill.java`
-y `.../NarrativeTraceDoctorSkill.java` son las dos fuentes de la verdad; sus pasos tipados
-renderizan `.claude/skills/add-narrative-tracing/SKILL.md`,
-`.claude/skills/narrativetrace-doctor/SKILL.md`, sus espejos de Codex en
-`.agents/skills/add-narrative-tracing/SKILL.md` y
-`.agents/skills/narrativetrace-doctor/SKILL.md`, y la sección propia de `AGENTS.md` de este
-repositorio — una prueba de deriva (`RenderDriftTest`, conectada a `./gradlew check`) hace fallar
-la compilación en cuanto cualquiera de las cinco se desvía de la fuente tipada. El `name:`
+Ninguna habilidad se edita a mano.
+`narrativetrace-skills/src/main/java/ai/narrativetrace/skills/catalogue/` contiene las tres
+fuentes de la verdad; sus pasos tipados renderizan tres páginas de Claude, tres de Codex y la
+sección de `AGENTS.md` de este repositorio. Una prueba de deriva (`RenderDriftTest`, conectada
+a `./gradlew check`) hace fallar la compilación si cualquiera de esas siete salidas se desvía
+de la fuente tipada. El `name:`
 renderizado de una habilidad es siempre su nombre canónico, nunca un "segmento de claude"
 abreviado — un directorio `.claude/skills/` o `.agents/skills/` incluido en el propio repositorio
 es un espacio de nombres plano, sin prefijo de plugin tras el que esconderse, así que el nombre
 debe autoidentificarse globalmente por sí solo. Una segunda suite (`SkillReplayer`, Tier A2)
 reproduce mecánicamente cada comando y cada `verify` comprobable por máquina que un paso nombra
-contra el fixture `sixty-seconds`, hoy mismo, de forma determinista, sin LLM — que esté en verde
+contra el fixture real correspondiente, incluido el consumidor independiente de Clarity,
+hoy mismo, de forma determinista, sin LLM — que esté en verde
 significa que las instrucciones son literalmente ejecutables ahora mismo, no solo prosa plausible.
-Un lint de Nivel A mantiene fuera de ambas páginas las citas a notas de planificación privadas, al
+Un lint de Nivel A mantiene fuera de las páginas renderizadas las citas a notas de planificación privadas, al
 hermano Pro de este repositorio, a nombres de ficheros de CI y a hashes de git: las frases de
 razonamiento se publican, la cita que nombra la fuente no.
 

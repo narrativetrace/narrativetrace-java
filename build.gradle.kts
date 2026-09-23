@@ -217,6 +217,39 @@ tasks.register("printPublishedCoordinates") {
     }
 }
 
+/**
+ * Publishes every `publishedModules` entry's `mavenJava` publication, plus the Gradle plugin's
+ * own two publications (its marker POM and implementation jar), into
+ * `narrativetrace-skills/build/test-repo` — the local Maven file repository the Tier A2 replay
+ * (`SkillReplayer.clarityScan`/`clarityCheck`) and the standalone fixture path resolve the
+ * `ai.narrativetrace` plugin and its libraries from, instead of an `includeBuild` composite of
+ * this whole checkout. `:narrativetrace-skills:test` is the only task that depends on this one
+ * (narrativetrace-skills/build.gradle.kts) — never wired into `publishToMavenLocal`, `publish`, or
+ * the Central/Plugin-Portal release flows. The repository itself is declared once, in
+ * buildSrc's `narrativetrace-publish.gradle.kts` (every library) and here in spirit for the
+ * plugin module's own `build.gradle.kts` — see either comment for why publishing to it never
+ * requires real signing.
+ */
+tasks.register("publishSkillsTestRepo") {
+    description = "Publishes every library the ai.narrativetrace plugin can add to a consumer, " +
+        "plus the plugin itself, into narrativetrace-skills/build/test-repo"
+    group = "verification"
+    val narrativeTraceGradlePlugin = project(":narrativetrace-gradle-plugin")
+    dependsOn(
+        publishedModules.map {
+            it.tasks.named("publishMavenJavaPublicationToNarrativeTraceSkillsTestRepository")
+        }
+    )
+    dependsOn(
+        narrativeTraceGradlePlugin.tasks.named(
+            "publishPluginMavenPublicationToNarrativeTraceSkillsTestRepository"
+        ),
+        narrativeTraceGradlePlugin.tasks.named(
+            "publishNarrativeTracePluginMarkerMavenPublicationToNarrativeTraceSkillsTestRepository"
+        )
+    )
+}
+
 // Staleness (blob-hash headers) always runs. When documentation/i18n/manifest.json is present, three
 // more checks run against it — completeness, structure parity, index/menu integrity — plus a
 // warn-only review-field summary; absent, the task degrades to the original staleness-only check

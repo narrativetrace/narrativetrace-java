@@ -110,6 +110,26 @@ publishing {
     }
 }
 
+// A file-backed Maven repository consumed only by narrativetrace-skills' Tier A2 replay
+// (SkillReplayer.clarityScan/clarityCheck) and the standalone fixture path documented in
+// narrativetrace-skills/evals/README.md, resolving the plugin and its libraries without an
+// includeBuild composite of this whole checkout — that composite pushed the standalone snapshot
+// verify's JVM census high enough to get the outer Gradle daemon OOM-killed (2026-09-23).
+// `narrativetrace-skills:publishSkillsTestRepo` (root build.gradle.kts) is the only thing that
+// depends on this repository's publish tasks; `publishToMavenLocal`, `publish`, and the
+// Central/Plugin-Portal release flows never reference it. Publishing here still goes through the
+// same `mavenJava` publication, signed exactly like every other repository when credentials are
+// configured, and cleanly un-signed (the `sign*` task no-ops) otherwise — the same proven path
+// `publishToMavenLocal` already relies on with no credentials present.
+publishing {
+    repositories {
+        maven {
+            name = "narrativeTraceSkillsTest"
+            url = uri(project(":narrativetrace-skills").layout.buildDirectory.dir("test-repo"))
+        }
+    }
+}
+
 // Two signing modes, chosen by environment:
 //  - CI (public release workflow): the ASCII-armored private key and its passphrase
 //    arrive as GPG_PRIVATE_KEY / GPG_PASSPHRASE from the repository's Actions

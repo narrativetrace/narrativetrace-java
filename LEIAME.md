@@ -1,4 +1,4 @@
-<!-- source: README.md blob e18864c441c1 | translated: 2026-09-20 | reviewed: - -->
+<!-- source: README.md blob d1a9824fbfd9 | translated: 2026-09-22 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -573,7 +573,7 @@ Para se aprofundar:
 - [Guia de clareza](documentation/pt-BR/guia-de-clareza.md) — modelo de pontuação, componentes de NLP, integração com JUnit
 - [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md) — catálogo canônico de cada funcionalidade em todas as plataformas, com tier e status
 - [Formato de trace estrutural](documentation/pt-BR/formato-de-trace-estrutural.md) — o artefato `.nt` livre de valores por trás do relatório de deltas e dos traces de aprovação
-- [Habilidades de agente](documentation/pt-BR/habilidades-de-agente.md) — `add-narrative-tracing` e `narrativetrace-doctor`, instaláveis hoje via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`, `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` para o Codex, ou o aviso sempre ativo do `AGENTS.md`
+- [Habilidades de agente](documentation/pt-BR/habilidades-de-agente.md) — `add-narrative-tracing`, `narrativetrace-doctor` e `add-narrativetrace-clarity`, instaláveis a partir de `.claude/skills/` ou `.agents/skills/` para o Codex, com o aviso sempre ativo do `AGENTS.md`
 - [Referência completa](documentation/llms-full.md) (em inglês) — API, interioridades da captura, configuração, receitas de integração, solução de problemas, em um único arquivo
 - [Glossário de domínio](https://narrativetrace.ai/doc.html?p=docs/glossary.md) — glossário de linguagem ubíqua coletado a partir dos traces, e visões traduzidas de traces (em inglês)
 

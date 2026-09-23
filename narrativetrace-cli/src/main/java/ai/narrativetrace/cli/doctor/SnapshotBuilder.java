@@ -53,6 +53,26 @@ public final class SnapshotBuilder {
   private static final Pattern COMPILER_ARGS_PARAMETERS =
       Pattern.compile("compilerArgs\\.add\\(\\s*[\"']-parameters[\"']");
 
+  /**
+   * {@code junit.jupiter.extensions.autodetection.enabled=true} in {@code
+   * junit-platform.properties} — JUnit Platform's own key=value format, so a trailing comment or
+   * stray whitespace around {@code =} must not defeat the match.
+   */
+  private static final Pattern AUTODETECTION_PROPERTIES_LINE =
+      Pattern.compile(
+          "(?m)^\\s*junit\\.jupiter\\.extensions\\.autodetection\\.enabled\\s*=\\s*true\\s*$",
+          Pattern.CASE_INSENSITIVE);
+
+  /**
+   * The same key set as a Gradle test-task JVM system property, Kotlin or Groovy DSL — {@code
+   * systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")} or the single-quoted
+   * Groovy equivalent.
+   */
+  private static final Pattern AUTODETECTION_SYSTEM_PROPERTY =
+      Pattern.compile(
+          "systemProperty\\(?\\s*[\"']junit\\.jupiter\\.extensions\\.autodetection\\.enabled[\"']"
+              + "\\s*,\\s*[\"']true[\"']");
+
   private SnapshotBuilder() {}
 
   public static DoctorSnapshot build(Path projectRoot) {
@@ -80,14 +100,16 @@ public final class SnapshotBuilder {
     builder.compilerArgsDeclareParameters(COMPILER_ARGS_PARAMETERS.matcher(buildFile).find());
 
     readGradleProperties(projectRoot, builder);
-    walk(projectRoot, builder, maxFiles);
+    boolean autodetectionEnabledViaPropertiesFile = walk(projectRoot, builder, maxFiles);
 
     String serviceFileText =
         readTextOrEmpty(
             projectRoot.resolve(
                 "src/test/resources/META-INF/services/org.junit.jupiter.api.extension.Extension"));
     builder.extensionRegisteredViaServiceLoader(
-        serviceFileText.contains("NarrativeTraceExtension"));
+        serviceFileText.contains("NarrativeTraceExtension")
+            || autodetectionEnabledViaPropertiesFile
+            || AUTODETECTION_SYSTEM_PROPERTY.matcher(buildFile).find());
 
     return builder.build();
   }
@@ -129,12 +151,13 @@ public final class SnapshotBuilder {
     }
   }
 
-  private static void walk(Path projectRoot, DoctorSnapshot.Builder builder, int maxFiles) {
+  private static boolean walk(Path projectRoot, DoctorSnapshot.Builder builder, int maxFiles) {
     if (!Files.isDirectory(projectRoot)) {
-      return;
+      return false;
     }
     int[] visited = {0};
     boolean[] extendWithFound = {false};
+    boolean[] autodetectionEnabled = {false};
     try {
       Files.walkFileTree(
           projectRoot,
@@ -159,20 +182,8 @@ public final class SnapshotBuilder {
               String rel = projectRoot.relativize(file).toString().replace('\\', '/');
               String name = file.getFileName().toString();
               String content = readTextOrEmpty(file);
-              if (content.isEmpty()) {
-                return FileVisitResult.CONTINUE;
-              }
-              if (name.endsWith(".java") && rel.contains("src/")) {
-                builder.putSourceFile(rel, content);
-                if (content.contains("@ExtendWith")
-                    && content.contains("NarrativeTraceExtension")) {
-                  extendWithFound[0] = true;
-                }
-              } else if (rel.contains("narrativetrace-output/")
-                  || rel.contains("build/narrativetrace/")) {
-                builder.putOutputFile(rel, content);
-              } else if (name.endsWith(".approved.nt") || name.endsWith(".received.nt")) {
-                builder.putApprovalDirFile(rel, content);
+              if (!content.isEmpty()) {
+                classifyFile(rel, name, content, builder, extendWithFound, autodetectionEnabled);
               }
               return FileVisitResult.CONTINUE;
             }
@@ -182,5 +193,34 @@ public final class SnapshotBuilder {
       // partial snapshot, not a crash — the same best-effort stance as visitFile above.
     }
     builder.extensionRegisteredViaExtendWith(extendWithFound[0]);
+    return autodetectionEnabled[0];
+  }
+
+  /**
+   * Buckets one non-empty file the walk visited: a source file (flagging {@code @ExtendWith}
+   * registration along the way), a rendered output file, an approval baseline, or a {@code
+   * junit-platform.properties} that turns on extension autodetection. Anything else is walked but
+   * not otherwise recorded.
+   */
+  private static void classifyFile(
+      String rel,
+      String name,
+      String content,
+      DoctorSnapshot.Builder builder,
+      boolean[] extendWithFound,
+      boolean[] autodetectionEnabled) {
+    if (name.endsWith(".java") && rel.contains("src/")) {
+      builder.putSourceFile(rel, content);
+      if (content.contains("@ExtendWith") && content.contains("NarrativeTraceExtension")) {
+        extendWithFound[0] = true;
+      }
+    } else if (rel.contains("narrativetrace-output/") || rel.contains("build/narrativetrace/")) {
+      builder.putOutputFile(rel, content);
+    } else if (name.endsWith(".approved.nt") || name.endsWith(".received.nt")) {
+      builder.putApprovalDirFile(rel, content);
+    } else if (name.equals("junit-platform.properties")
+        && AUTODETECTION_PROPERTIES_LINE.matcher(content).find()) {
+      autodetectionEnabled[0] = true;
+    }
   }
 }

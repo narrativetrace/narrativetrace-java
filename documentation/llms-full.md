@@ -691,6 +691,11 @@ The annotated method must be public, no-arg, and return String.
 narrativetrace.format=markdown
 ```
 
+The same file's `junit.jupiter.extensions.autodetection.enabled=true` registers
+`NarrativeTraceExtension` suite-wide via its `META-INF/services` entry, without `@ExtendWith` on
+each test class. This enables autodetection for every ServiceLoader-published extension on the
+test classpath, not only NarrativeTrace's; `@ExtendWith` remains the explicit per-class choice.
+
 ### Gradle plugin DSL
 
 ```kotlin
@@ -720,6 +725,11 @@ The plugin:
 - Sets test JVM properties
 - Registers `clarityCheck` task (wired into `check`)
 - Registers `clarityScan` task (standalone classpath analysis)
+
+The plugin does not register `NarrativeTraceExtension` or add JUnit 4 rules to tests.
+JUnit reports require the matching extension/rules and actual traced calls; output
+defaults to enabled. Preserve an existing JUnit 4 suite with
+`narrativeTrace { testFramework.set("junit4") }`.
 
 ### Spring configuration
 
@@ -856,6 +866,17 @@ public class OrderServiceTest {
 - Writes by default; configuration via system properties (`-Dnarrativetrace.output=false` to opt out)
 - `NarrativeTraceClassRule` accumulates traces for combined clarity reports
 
+A plain JUnit 4 consumer uses `narrativeTrace { testFramework.set("junit4") }`;
+the plugin adds `narrativetrace-junit4` without switching its runner to the JUnit
+Platform. An intentional Vintage setup can remain. Use `org.junit.Test` and public
+test methods. The `@Rule` must come from `classRule.testRule()`: an independent
+`new NarrativeTraceRule()` produces per-test narratives but not aggregate Clarity
+reports. The class rule writes `clarity-report.md` and `clarity-results.json` after
+each class, combining completed classes in the same JVM. `NarrativeTestCase` is an
+optional base class that wires both rules when the superclass slot is available.
+JUnit 4 reads output settings from test JVM system properties, not
+`junit-platform.properties`.
+
 ### Spring
 
 ```java
@@ -974,6 +995,13 @@ java -javaagent:narrativetrace-agent.jar=packages=com.example.* -jar app.jar
 
 ## Clarity Scoring
 
+For guided setup, use the [add-narrativetrace-clarity skill](agent-skills.md): it
+runs a first static naming report, checks fresh artifacts, explains the scores,
+and adds a test quality gate only when requested. `add-narrative-tracing` owns
+first-trace installation; `narrativetrace-doctor` diagnoses missing tracing or
+output. Install paths and discovery pointers are listed in the
+[Agent Skills guide](agent-skills.md).
+
 The clarity module scores naming quality across five dimensions:
 
 | Component | Weight | Measures |
@@ -983,6 +1011,13 @@ The clarity module scores naming quality across five dimensions:
 | Class names | 20% | Role suffix quality, domain prefix |
 | Structural | 15% | Parameter count, call depth |
 | Cohesion | 10% | Vocabulary consistency within classes |
+
+`overallScore` is the weighted sum of all five components. `structuralScore`
+penalizes excessive parameter count and call depth. Static scans represent
+methods as flat nodes, so they assess parameter count without observing runtime
+call depth. Explain individual names from the report's `elements[].note` values;
+an empty `issues` array means no scoring rules flagged an issue, not proof that
+the naming is unambiguous.
 
 ### Score interpretation
 
@@ -1068,6 +1103,35 @@ var analyzer = new ClarityAnalyzer(vocabulary);           // clarity module
 ```
 
 Analyzes compiled classes via reflection. Depends on `classes` task, not `test`. Writes `clarity-scan-report.md` and `clarity-scan-results.json` — deliberately distinct from the test-run artifacts so a scan never overwrites what the `clarityCheck` gate reads. Private nested, anonymous, local, and lambda classes are skipped as implementation details. The plugin runs `ai.narrativetrace.glossary.GlossaryAwareClarityScannerMain`, which resolves `--glossary-dir` (the repository root) into the project vocabulary before delegating to `ClarityScannerMain`; the clarity module's own entry point always scores with the built-in dictionaries, since reading `glossary.json` needs the glossary module and that dependency runs the other way.
+
+### JUnit reports and build enforcement
+
+For JUnit 5, register `NarrativeTraceExtension`; for JUnit 4, link
+`NarrativeTraceClassRule` and its per-test `NarrativeTraceRule`. Execute traced calls
+in either case. Nonempty captured traces produce `clarity-report.md` and
+`clarity-results.json` in the configured output directory (default:
+`build/narrativetrace`). JUnit 5 writes at suite completion; JUnit 4 writes after
+each class and combines completed classes in that JVM. There is no separate Clarity enable flag.
+`narrativetrace.output=false` disables these and the other trace artifacts.
+
+In a consumer project applying the plugin, `./gradlew clean clarityCheck` runs
+tests and checks their JSON. `check` includes this task; this framework repository's
+own root build does not apply the consumer plugin and has no `clarityCheck` task.
+
+- `minScore` compares **each scenario's `overallScore`**, not individual component
+  or element scores. An overall score of 0.82 passes a 0.80 minimum even when
+  `methodNameScore` is 0.55, provided the issue-count limits also pass.
+- `maxHighIssues` limits HIGH-severity issues per scenario; `maxSuiteIssues` limits
+  the top-level suite issue count. Suite issues do not change scenario scores.
+- Default thresholds impose no limits. Configure an explicit policy for enforcement;
+  `warnOnly=true` logs violations without failing the build.
+- Missing `clarity-results.json` causes a successful skip. Verify fresh, nonempty
+  artifacts before claiming the gate works. The default task reads test results,
+  not `clarity-scan-results.json`; running `clarityScan` first does not change its
+  input. Choose test thresholds using observed test reports, not static scores alone.
+
+See the [Clarity guide](clarity-guide.md#build-enforcement-with-claritycheck) for
+configuration and failure examples.
 
 ### Programmatic usage
 

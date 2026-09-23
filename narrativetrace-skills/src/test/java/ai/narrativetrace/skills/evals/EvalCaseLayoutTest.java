@@ -21,8 +21,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.narrativetrace.skills.Skill;
 import ai.narrativetrace.skills.catalogue.CatalogueIndex;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -53,13 +56,40 @@ class EvalCaseLayoutTest {
     assertThat(REPO_ROOT.resolve(CaseFixture.fixtureFor(happyPath))).isDirectory();
   }
 
-  @Test
-  void theDoctorSkillCarriesTheRedactionGapDeviationCase() {
-    Path deviation = EVALS_DIR.resolve("narrativetrace-doctor").resolve("deviation-redaction-gap");
+  /**
+   * Every {@code deviation-*} directory under every catalogue skill's evals dir, across every skill
+   * — one parameterized test replacing the doctor's and clarity's hand-written cases so a new
+   * deviation case (any skill) is covered by construction rather than by remembering to add another
+   * hand-written test.
+   */
+  static List<Path> deviationCases() {
+    List<Path> cases = new ArrayList<>();
+    for (Skill skill : skills()) {
+      Path skillDir = EVALS_DIR.resolve(skill.canonicalName());
+      if (!Files.isDirectory(skillDir)) {
+        continue;
+      }
+      try (var entries = Files.list(skillDir)) {
+        entries
+            .filter(Files::isDirectory)
+            .filter(p -> p.getFileName().toString().startsWith("deviation-"))
+            .sorted()
+            .forEach(cases::add);
+      } catch (IOException e) {
+        throw new UncheckedIOException("could not list " + skillDir, e);
+      }
+    }
+    return cases;
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+  @org.junit.jupiter.params.provider.MethodSource("deviationCases")
+  void everyDeviationCaseCarriesAPromptGraderAndAnExistingFixture(Path deviation) {
     assertThat(deviation.resolve("prompt.md")).exists();
     assertThat(deviation.resolve("graders").resolve("verify.sh")).exists();
-    assertThat(CaseFixture.fixtureFor(deviation))
-        .isEqualTo("narrativetrace-skills/evals/fixtures/redaction-gap");
+    assertThat(deviation.resolve("case.json"))
+        .as(deviation + " must declare its own fixture, distinct from the skill's default")
+        .exists();
     assertThat(REPO_ROOT.resolve(CaseFixture.fixtureFor(deviation))).isDirectory();
   }
 

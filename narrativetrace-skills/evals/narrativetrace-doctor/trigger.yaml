@@ -30,6 +30,7 @@ negative:
   - "spring beans not being traced"
   - "micronaut http filter injects no user context"
   - "clarity score seems wrong"
+  - "why is the clarity report empty"
   - "agent doesn't instrument classes"
   - "what does narrativetraceproxy.trace do"
   - "upgrade narrativetrace to the latest version"

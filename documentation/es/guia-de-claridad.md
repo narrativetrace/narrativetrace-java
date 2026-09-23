@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 2f3dbb3d6427 | translated: 2026-09-19 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob 9638b47a5636 | translated: 2026-09-23 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -14,7 +14,20 @@ var renderer = new ClarityReportRenderer();
 System.out.println(renderer.render("Order Placement", result));
 ```
 
-Con JUnit 5, los informes de claridad se generan automáticamente por defecto — sin necesidad de código, sin necesidad de configuración *(since 0.2.3)*. `narrativetrace.output=false` lo desactiva junto con el resto de artefactos de traza.
+Con JUnit 5, una `NarrativeTraceExtension` registrada genera informes de claridad automáticamente
+a partir de las llamadas que trazan tus pruebas *(since 0.2.3)*. No hay un flag independiente para
+activar Clarity. El plugin de Gradle proporciona las dependencias y la configuración de pruebas,
+pero la prueba debe registrar la extensión y capturar una traza. `narrativetrace.output=false`
+desactiva los informes junto con los demás artefactos de traza.
+
+JUnit 4 utiliza una `NarrativeTraceClassRule` vinculada a una `NarrativeTraceRule`
+por prueba en lugar de la extensión. Ambas integraciones producen los mismos artefactos
+de Clarity y funcionan con `clarityCheck`; consulta [Integración con JUnit 4](#integración-con-junit-4).
+
+Para obtener un primer informe o configurar una puerta de calidad con ayuda de un agente, usa la
+habilidad [add-narrativetrace-clarity](habilidades-de-agente.md). Comprueba la tarea `clarityScan`
+del proyecto consumidor, distingue sus artefactos de los generados por las trazas de JUnit y
+deriva los problemas de configuración que dejan la salida vacía a `narrativetrace-doctor`.
 
 ## Qué se puntúa
 
@@ -246,9 +259,51 @@ NarrativeTrace — Suite complete
   Reports: build/narrativetrace
 ```
 
-No se necesitan cambios en el código — solo habilita la salida y ejecuta tus pruebas.
+Una vez registrada la extensión y configuradas las pruebas para capturar trazas, ejecútalas con
+la salida habilitada (el valor por defecto). Los informes requieren trazas capturadas no vacías.
+
+El registro no tiene que ser por clase: `NarrativeTraceExtension` se publica como una `Extension`
+de JUnit Platform mediante `META-INF/services`, así que configurar
+`junit.jupiter.extensions.autodetection.enabled=true` en `junit-platform.properties` la registra
+para toda la suite sin ningún `@ExtendWith`. Esto activa la autodetección para *cada* extensión
+publicada mediante ServiceLoader en el classpath de pruebas, no solo la de NarrativeTrace, así que
+`@ExtendWith` sigue siendo la opción explícita por clase cuando eso es lo que un proyecto quiere.
+
+## Integración con JUnit 4
+
+Conserva JUnit 4 y configura `narrativeTrace { testFramework.set("junit4") }` en
+el build de Gradle del consumidor. El plugin añade `narrativetrace-junit4`; un
+ejecutor JUnit 4 convencional no necesita Jupiter ni `useJUnitPlatform()`. Una
+configuración existente de JUnit Platform/Vintage puede mantenerse.
+
+Vincula las reglas en la clase de prueba pública existente:
+
+```java
+@ClassRule public static NarrativeTraceClassRule classRule = new NarrativeTraceClassRule();
+@Rule public NarrativeTraceRule narrativeTrace = classRule.testRule();
+```
+
+Usa `org.junit.ClassRule`, `org.junit.Rule` y `org.junit.Test`; los métodos de prueba
+deben ser públicos. Traza las llamadas con `NarrativeTraceProxy.trace(impl, Service.class,
+narrativeTrace.context())`. La regla de clase analiza las trazas no vacías después de
+cada clase y escribe `clarity-report.md` y `clarity-results.json`, combinando las
+clases finalizadas en esa JVM de pruebas. Una `new NarrativeTraceRule()` independiente
+produce narrativas por prueba, pero no contribuye al informe agregado de Clarity.
+
+`NarrativeTestCase` conecta ambas reglas como clase base opcional cuando no hay una
+superclase existente que conservar. JUnit 4 lee `narrativetrace.output` (predeterminado:
+`true`) y `narrativetrace.outputDir` como propiedades del sistema de la JVM de pruebas,
+no desde `junit-platform.properties`. Ejecuta `./gradlew clean clarityCheck` y verifica
+informes de prueba recientes y no vacíos; si falta el JSON, la comprobación sigue
+omitiéndose sin fallar.
 
 ## Cumplimiento en el build con `clarityCheck`
+
+La tarea `clarityScan` del plugin ofrece una vía estática independiente: analiza las clases de
+producción compiladas sin ejecutar pruebas y escribe `clarity-scan-report.md` y
+`clarity-scan-results.json`. Estos archivos permanecen separados de los artefactos de JUnit
+porque `clarityCheck` lee `clarity-results.json`, generado a partir de trazas ejecutadas. El
+escaneo permite obtener un primer informe de nombres; no genera la entrada de pruebas de la puerta.
 
 El plugin de Gradle proporciona una tarea `clarityCheck` que hace fallar el build cuando la calidad de los nombres cae por debajo de un umbral. Esto convierte la puntuación de claridad en algo exigible, no meramente consultivo.
 
@@ -269,9 +324,21 @@ narrativeTrace {
 
 ### Cómo funciona
 
-1. `./gradlew test` — la extensión de JUnit produce `build/narrativetrace/clarity-results.json`
+1. `./gradlew test` — la extensión de JUnit 5 o las reglas vinculadas de JUnit 4 producen `build/narrativetrace/clarity-results.json`
 2. `clarityCheck` lee el JSON y compara cada escenario con los umbrales
 3. `./gradlew check` ejecuta `test` y `clarityCheck` automáticamente
+
+`minScore` compara el **overallScore** de cada escenario, no las puntuaciones de
+sus componentes o elementos individuales. Una puntuación global de 0.82 supera
+un mínimo de 0.80 aunque `methodNameScore` sea 0.55, siempre que también se cumplan
+los límites de cantidad de incidencias. `maxHighIssues` limita las incidencias de
+severidad HIGH por escenario; `maxSuiteIssues` limita las incidencias de la suite
+por separado.
+
+Los umbrales predeterminados no imponen límites. Si falta `clarity-results.json`,
+la comprobación se omite sin fallar: verifica informes de prueba recientes y no
+vacíos antes de confiar en ella. Elige el umbral a partir de los informes de prueba
+observados, no solo de las puntuaciones del escaneo estático.
 
 ### Salida en caso de fallo
 

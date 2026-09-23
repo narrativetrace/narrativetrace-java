@@ -24,7 +24,10 @@ import java.util.List;
 public final class CatalogueIndex {
 
   public static final List<Skill> ALL =
-      List.of(NarrativeTraceDoctorSkill.build(), AddNarrativeTracingSkill.build());
+      List.of(
+          NarrativeTraceDoctorSkill.build(),
+          AddNarrativeTracingSkill.build(),
+          AddNarrativeTraceClaritySkill.build());
 
   private CatalogueIndex() {}
 }

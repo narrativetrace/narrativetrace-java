@@ -30,6 +30,20 @@ evals/
 │       ├── case.json           # points the scaffolder at fixtures/empty-project
 │       ├── prompt.md
 │       └── graders/verify.sh
+├── add-narrativetrace-clarity/
+│   ├── trigger.yaml
+│   ├── happy-path/
+│   │   ├── case.json
+│   │   ├── prompt.md
+│   │   └── graders/verify.sh
+│   ├── deviation-output-disabled/
+│   │   ├── case.json
+│   │   ├── prompt.md
+│   │   └── graders/verify.sh
+│   └── deviation-junit4-class-rule/
+│       ├── case.json
+│       ├── prompt.md
+│       └── graders/verify.sh
 └── README.md
 ```
 
@@ -39,6 +53,9 @@ weekly-allowance guard (`QuotaMarkdown`, reading `../ledger/quota.md`) are typed
 `narrativetrace-skills/src/main/java/ai/narrativetrace/skills/evals/` — mirroring the TypeScript
 reference's `evals/run.ts`, `platform-presets.ts`, `tier-precondition.ts`, and `quota.ts`
 respectively, adapted to Java's closed per-port command vocabulary (`./gradlew`, `git`).
+Each trial copies both rendered skill layouts into the isolated scratch project and provisions a
+usable Gradle wrapper when the fixture does not carry one. It excludes fixture `build/`, `.gradle/`,
+and `.git/` state so reports are rebuilt from clean; an existing fixture wrapper is preserved.
 
 ## The sporadic policy (Codex, Gemini)
 
@@ -96,6 +113,40 @@ java -cp narrativetrace-skills/build/classes/java/main ai.narrativetrace.skills.
 java -cp narrativetrace-skills/build/classes/java/main ai.narrativetrace.skills.evals.EvalRunner \
   --skill narrativetrace-doctor --case happy-path --platform gemini --model flash
 ```
+
+The Clarity cases resolve the plugin and libraries from this checkout as a Gradle composite
+build. For their isolated scratch projects, point `NARRATIVETRACE_TEST_REPO` at the source
+checkout (not a Maven repository):
+
+```bash
+./gradlew :narrativetrace-skills:classes :narrativetrace-cli:jar
+NARRATIVETRACE_TEST_REPO="$PWD" java -cp narrativetrace-skills/build/classes/java/main \
+  ai.narrativetrace.skills.evals.EvalRunner --skill add-narrativetrace-clarity \
+  --case happy-path --platform claude --model haiku \
+  --agent-command 'claude -p "{prompt}" --model haiku --allowed-tools "Bash,Read,Edit,Write,Glob,Grep,Skill" --append-system-prompt "Work only in the current project directory. Treat included builds as read-only dependencies." --no-session-persistence --strict-mcp-config'
+# Repeat with --case deviation-output-disabled to exercise test-output repair.
+# Repeat with --case deviation-junit4-class-rule for missing JUnit 4 aggregate reports.
+```
+
+The happy case verifies agent-created scan reports, then reproduces them from clean. The
+deviation starts with a real traced JUnit test, output disabled at execution time, and a
+`minScore` of `0.50`. Its grader requires agent-created test reports, checks the resolved policy,
+rebuilds from clean, and uses a temporary Gradle init script to prove a stricter threshold fails
+with a Clarity diagnostic. It then verifies the original policy again. Both graders reject
+untouched fixtures and validate nonempty scenarios, scores, and element notes. They do not
+grade the prose explanation or prove trigger accuracy; the trigger phrasings remain a separate
+evaluation set.
+
+The JUnit 4 deviation has a working per-test rule and an existing `minScore=0.50`,
+but no linked class rule. Its grader requires fresh test reports, preserves the JUnit
+4 framework and original test execution, then reuses the output-repair grader's
+clean reproduction, policy checks, and strict-failure probe. A static report or a
+migration to Jupiter does not satisfy this case.
+
+Review Clarity explanations separately with the
+[judgment rubric](add-narrativetrace-clarity/judgment-rubric.md). It checks score
+meanings, fidelity to element notes, gate conditions, and coverage. Record omissions
+as not exercised rather than treating an artifact pass as a judgment pass.
 
 Codex/Gemini run their own CLIs headless, each on its own subscription login — the harness never
 passes an API key. Every run is noted in `ledger/runs.jsonl` regardless of outcome (a codex/gemini

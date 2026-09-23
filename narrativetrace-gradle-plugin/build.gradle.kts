@@ -129,6 +129,19 @@ publishing.publications.withType<MavenPublication>().configureEach {
     }
 }
 
+// Same file-backed test repository narrativetrace-publish.gradle.kts (buildSrc) declares for
+// every library module — see its comment for why. The plugin needs both publications there: the
+// marker POM a consumer's `plugins { id("ai.narrativetrace") }` resolves first, and the
+// implementation jar (`pluginMaven`) the marker's POM points at.
+publishing {
+    repositories {
+        maven {
+            name = "narrativeTraceSkillsTest"
+            url = uri(project(":narrativetrace-skills").layout.buildDirectory.dir("test-repo"))
+        }
+    }
+}
+
 val inMemoryKey: String? = System.getenv("GPG_PRIVATE_KEY")?.takeIf { it.isNotBlank() }
 configure<SigningExtension> {
     if (inMemoryKey != null) {

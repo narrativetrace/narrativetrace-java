@@ -98,6 +98,25 @@ public final class EvalTrial {
       int trial)
       throws IOException, InterruptedException {
     copyRecursively(fixtureDir, scratch);
+    for (String layout : List.of(".agents", ".claude")) {
+      Path skills = repoRoot.resolve(layout).resolve("skills");
+      if (Files.isDirectory(skills)) {
+        copyRecursively(skills, scratch.resolve(layout).resolve("skills"));
+      }
+    }
+    for (String relative :
+        List.of(
+            "gradlew",
+            "gradlew.bat",
+            "gradle/wrapper/gradle-wrapper.jar",
+            "gradle/wrapper/gradle-wrapper.properties")) {
+      Path source = repoRoot.resolve(relative);
+      Path destination = scratch.resolve(relative);
+      if (Files.isRegularFile(source) && !Files.exists(destination)) {
+        Files.createDirectories(destination.getParent());
+        Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
+      }
+    }
     if (agentCommand != null) {
       runAgent(agentCommand, prompt, scratch);
     }
@@ -158,12 +177,18 @@ public final class EvalTrial {
   private static void copyRecursively(Path source, Path target) throws IOException {
     try (var stream = Files.walk(source)) {
       for (Path path : (Iterable<Path>) stream::iterator) {
-        Path dest = target.resolve(source.relativize(path));
+        Path relative = source.relativize(path);
+        // A trial must earn its reports: a previously built fixture is not evidence of success.
+        if (List.of("build", ".gradle", ".git").contains(relative.getName(0).toString())) {
+          continue;
+        }
+        Path dest = target.resolve(relative);
         if (Files.isDirectory(path)) {
           Files.createDirectories(dest);
         } else {
           Files.createDirectories(dest.getParent());
-          Files.copy(path, dest, StandardCopyOption.REPLACE_EXISTING);
+          Files.copy(
+              path, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
         }
       }
     }
