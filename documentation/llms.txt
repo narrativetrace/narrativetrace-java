@@ -1,10 +1,36 @@
 # NarrativeTrace
 
-<!-- docs-vs-published -->
-*(These docs describe 0.2.4; published is 0.2.3.)* <!-- published-version cache age: 0m -->
-<!-- /docs-vs-published -->
-
 > Code is the log. Auto-generate human-readable execution traces from method names, parameter names, and return values.
+
+## Start here (paste this into your agent)
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+
+1. Read https://narrativetrace.ai/java/llms.txt first. It carries the
+   install block and the known traps. Do not guess versions or artifact
+   names.
+2. If this directory has no project yet, create the smallest console app
+   that llms.txt's "Install and first trace" block describes. Otherwise
+   work inside the existing project and trace one real service boundary.
+3. Add the plugin the way llms.txt shows, then run
+   `./gradlew narrativetraceInit --diff` and show me the diff. It installs
+   the NarrativeTrace agent skills into this project and adds a marked
+   section to AGENTS.md. Run it for real only after I have seen the diff.
+4. If the `add-narrative-tracing` skill is now available, follow it.
+   Otherwise follow the "Install and first trace (copy this)" block in
+   llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and
+   asserts the trace shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`./gradlew narrativetraceDoctor`).
+   Paste the trace and the doctor report, explain the trace in two
+   sentences, and list exactly what changed in the project.
+
+Rules: never disable redaction; do not commit `.received.nt` files; keep
+the `-parameters` compiler flag; run everything in the foreground and
+read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Install and first trace (copy this)
 
@@ -15,15 +41,19 @@ Java 17+, Gradle 8.0+ (see "Before you start" for a fresh directory with no `./g
 plugins { java; application }
 repositories { mavenCentral() }
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.5")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
 tasks.withType<JavaCompile> { options.compilerArgs.add("-parameters") }
+tasks.test { useJUnitPlatform() }
 application { mainClass.set("com.example.orders.Main") }
 ```
 
 Optional, zero-code step 2 — traces also flow to your logger, `Main.java` below never changes:
-add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.4")` and
+add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.5")` and
 `runtimeOnly("ch.qos.logback:logback-classic:1.5.38")`, plus a `logback.xml`.
 
 (`OrderService`/`DefaultOrderService` — a one-method interface and its trivial implementation —
@@ -75,19 +105,111 @@ public class Main {
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 13ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 4ms
 ```
 <!-- /snippet -->
 
+Then prove redaction in a test. A parameter named for what it holds is hidden by its NAME alone —
+no annotation, no configuration — and this is the test that says so; the doctor's
+`trap.redaction-proof` check looks for exactly this assertion:
+
+<!-- snippet: sixty-seconds/src/test/java/com/example/orders/RedactionTest.java -->
+```java
+// src/test/java/com/example/orders/RedactionTest.java
+package com.example.orders;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import ai.narrativetrace.core.context.NarrativeContext;
+import ai.narrativetrace.core.render.IndentedTextRenderer;
+import ai.narrativetrace.junit5.NarrativeTraceExtension;
+import ai.narrativetrace.proxy.NarrativeTraceProxy;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+/**
+ * A parameter named for what it holds is hidden by that NAME alone — no annotation, no
+ * configuration. This is the proof the doctor's {@code trap.redaction-proof} check looks for.
+ *
+ * <p><b>@llmNote</b> Nothing here is annotated, on purpose: an {@code @NotTraced} anywhere below
+ * would prove the annotation works and say nothing about the deny-list. Plain JUnit assertions for
+ * the same kind of reason — the install block this listing ships with declares {@code
+ * junit-jupiter} and nothing else, so it has to compile as pasted.
+ */
+@ExtendWith(NarrativeTraceExtension.class)
+class RedactionTest {
+
+  interface PaymentService {
+    String charge(String customerId, String paymentToken);
+  }
+
+  @Test
+  void aDenyListedParameterIsRedactedInTheTrace(NarrativeContext context) {
+    PaymentService payments =
+        NarrativeTraceProxy.trace(
+            (customerId, paymentToken) -> "PAY-" + customerId, PaymentService.class, context);
+
+    payments.charge("C-1234", "tok_live_9a8b7c6d5e4f");
+
+    String rendered = new IndentedTextRenderer().render(context.captureTrace());
+    assertTrue(rendered.contains("[REDACTED]"), rendered);
+    assertFalse(rendered.contains("tok_live_9a8b7c6d5e4f"), rendered);
+    assertTrue(rendered.contains("C-1234"), rendered);
+  }
+}
+```
+<!-- /snippet -->
+
+```bash
+./gradlew test
+```
+
 ## Before you start
 
-- JUnit 5 fails with an unhelpful error without `org.junit.platform:junit-platform-launcher` on `testRuntimeOnly` — the `ai.narrativetrace` Gradle plugin adds it for you *(since 0.2.3)*; manual setup still needs the line yourself.
+- JUnit 5 fails with an unhelpful error without `org.junit.platform:junit-platform-launcher` on `testRuntimeOnly` — the `ai.narrativetrace` Gradle plugin adds it for you; manual setup still needs the line yourself.
 - Annotations (`@Narrated`, `@NotTraced`, `@OnError`, `@NarrativeSummary`) live in `ai.narrativetrace.api.annotation`.
 - An empty directory has no `./gradlew` — run `gradle wrapper` once before `./gradlew run`.
-- Test trace output is on by default *(since 0.2.3)*; `narrativetrace.output=false` opts out.
+- Test trace output is on by default; `narrativetrace.output=false` opts out.
 - `ThreadLocalNarrativeContext` is thread-local, not request- or trace-scoped — crossing a thread needs an explicit `ContextSnapshot`, the Micrometer accessor, or a request-scoped filter; see the [context propagation strategies table](configuration-guide.md#context-propagation-strategies).
 
 NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
+
+## Agent skills
+
+Four skills ship with this repository, rendered from a typed catalogue. `./gradlew narrativetraceInit --diff` previews installing them into your own project and writes nothing; running it again without the flag applies it, writing `.agents/skills/<name>/SKILL.md` (plus `.claude/skills/` where a Claude project is detected) and a marked section in `AGENTS.md` — the always-on pointer that makes them discoverable next session without anyone remembering they exist. `./gradlew narrativetraceUninstall` removes exactly that. Without the plugin: `narrativetrace init --dry-run`, then `narrativetrace init`. Copying the directories by hand still works. Details in [Agent Skills](agent-skills.md).
+
+They are also reachable from two registries, each landing the same pages `init` then adopts. The Claude Code plugin marketplace carries them too: `/plugin marketplace add narrativetrace/narrativetrace-java`, then `/plugin install narrativetrace-java@narrativetrace-java` — then run `./gradlew narrativetraceInit --diff`, read the diff, and run it without the flag so `AGENTS.md` points at them. `npx skills add narrativetrace/narrativetrace-java` installs the open-standard pages directly into the project — then run `./gradlew narrativetraceInit --diff`, read the diff, and run it without the flag so `AGENTS.md` points at them.
+
+- `narrativetrace-doctor` — Diagnoses a NarrativeTrace Java install and configuration. Use when nothing is being traced, no build/narrativetrace output appears, the JUnit 5 extension never seems to run, parameter names render as arg0/arg1, or you are not sure NarrativeTrace is wired up correctly. Checks the JDK and JUnit Jupiter versions, the launcher on testRuntimeOnly, narrativetrace.output, whether NarrativeTraceExtension is actually registered, whether any sink receives what is traced, whether -parameters degraded parameter names, whether redaction is proven in a test, whether the NarrativeTrace agent skills are installed and current, and stale .received.nt approval files. Read-only — makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it.
+- `add-narrative-tracing` — Installs NarrativeTrace into a Java project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of standard output. Adds narrativetrace-core and narrativetrace-proxy with Gradle, wraps a class with NarrativeTraceProxy.trace, renders and runs the first trace, then wires an SLF4J/Logback consumer so traces reach your logger. Runs narrativetrace-doctor to confirm the install is correctly wired — narrativetrace-doctor owns diagnosis from there — and ends by previewing the agent-skills install so the next session finds them. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in sixty seconds', 'wrap this class so I can see a trace', or 'send my traces to my logger' to invoke it.
+- `add-narrativetrace-clarity` — Adds or verifies NarrativeTrace Clarity in a Java Gradle project. Use when you want a first static naming report, per-element explanations, or an explicit clarity quality gate. Runs the real clarityScan task, checks fresh nonempty JSON and Markdown, explains the JUnit trace path, and preserves existing thresholds. Repairs a missing or empty clarity report by registering the JUnit 5 extension or linking the JUnit 4 class rule; route tracing itself being broken to narrativetrace-doctor.
+- `narrativetrace-feedback` — Reports a defect in NarrativeTrace itself: a doctor check that is wrong or whose fix does not work, a skill step that cannot be followed, wording in the install prompt that led somewhere wrong, or the library misbehaving on a correctly configured project. Drafts the report from your project (the install coordinates, the doctor's own JSON report, and at most one structural trace), refuses to write one that carries a value from your traces and names the rule that refused it, shows you the whole draft, and asks once whether to file it publicly. Sends nothing anywhere and files nothing without your answer. Say 'report this to NarrativeTrace' or 'the doctor's fix did not work' to invoke it.
+
+## The doctor
+
+Every skill ends at the same seam, and so should you:
+
+```bash
+./gradlew narrativetraceDoctor
+```
+
+Twelve read-only checks — the toolchain (JDK, JUnit range, the platform launcher), the configuration (output property, extension registration, whether the agent skills above are installed and current), and six known traps (silent sink, arg0 parameter names, an unused `@NotTraced` import, redaction never proven in a test, a stale `.received.nt`, a build missing `-parameters`). Every failing finding names the fix and, where one exists, the skill that owns that class of problem. The JSON report lands at `build/narrativetrace/doctor-report.json`. The task exists once the `ai.narrativetrace` Gradle plugin is applied — if the install block above did not apply it, add one line to the `plugins` block (the plugin adds the libraries and the `-parameters` flag itself), then run the doctor again:
+
+```kotlin
+plugins { id("ai.narrativetrace") version "0.2.5" }
+```
+
+## Report a problem
+
+If NarrativeTrace, this file, a skill or the doctor is wrong, ask your agent to use the `narrativetrace-feedback` skill: it drafts the report from your project, refuses to write one that carries a value from your traces, shows you the whole thing, and files nothing until you say so. Nothing is sent anywhere — the draft is yours until you submit it yourself.
+
+```bash
+./gradlew narrativetraceFeedback --channel draft --category doctor --step <check id> \
+  --did "..." --happened "..." --expected "..."
+```
+
+That writes `build/narrativetrace/feedback/feedback-draft.md` and `feedback-body.md`, and exits 2 naming a `vf.*` rule if a field carries a value instead of a description. `--channel url` then prints the pre-filled issue form for `github.com/narrativetrace/narrativetrace-java`, which you open and submit under your own account. Filing is public: it shows that your project uses NarrativeTrace. Without the Gradle plugin, the same three channels are `narrativetrace feedback draft|url|gh`.
 
 ## Field notes from AI agents (self-reported, not a benchmark)
 We asked AI agents to build a Java claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying
@@ -100,7 +222,7 @@ What they stumbled on is covered in "Before you start" above.
 
 ## Docs
 
-- [Agent Skills](agent-skills.md): `add-narrative-tracing` for install and first trace, `narrativetrace-doctor` for read-only diagnosis, and `add-narrativetrace-clarity` for first naming reports and optional test quality gates. Install from `.claude/skills/` or `.agents/skills/` for Codex, or discover them through the always-on `AGENTS.md` pointer.
+- [Agent Skills](agent-skills.md): how the four skills listed above are installed, rendered from the typed catalogue, and kept honest by a drift test.
 - [Complete Reference](https://narrativetrace.ai/llms-full.txt): Full API reference, module map, configuration, integration guides, architecture decisions, and troubleshooting
 - [Javadoc](https://javadoc.io/doc/ai.narrativetrace): API documentation for all published modules
 - [GitHub](https://github.com/narrativetrace/narrativetrace-java): Source code repository
@@ -111,13 +233,13 @@ All published modules include source JARs with Javadoc written for LLM consumpti
 To access detailed API context, resolve the sources classifier from Maven Central:
 
 Gradle (sources auto-downloaded by IDEs):
-  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.4") }
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.2.5") }
 
 Maven:
   mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
 
 Direct download (any module):
-  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.4/narrativetrace-core-0.2.4-sources.jar
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.2.5/narrativetrace-core-0.2.5-sources.jar
 
 Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
 narrativetrace-junit4, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,

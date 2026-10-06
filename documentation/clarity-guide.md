@@ -13,7 +13,7 @@ System.out.println(renderer.render("Order Placement", result));
 ```
 
 With JUnit 5, a registered `NarrativeTraceExtension` generates clarity reports automatically
-from the calls your tests trace *(since 0.2.3)*. There is no separate Clarity enable flag.
+from the calls your tests trace. There is no separate Clarity enable flag.
 The Gradle plugin supplies dependencies and test configuration, but the test still needs to
 register the extension and capture a trace. `narrativetrace.output=false` disables reports along
 with the other trace artifacts.
@@ -305,7 +305,7 @@ The Gradle plugin provides a `clarityCheck` task that fails the build when namin
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 
 narrativeTrace {

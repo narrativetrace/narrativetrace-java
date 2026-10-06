@@ -25,9 +25,11 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 /**
- * The doctor CLI diagnoses a project from the outside: it must never link against the runtime it
- * inspects, and — like {@code narrativetrace-api} — it takes zero dependencies of its own. Mirrors
- * {@code narrativetrace-api/src/test/java/ai/narrativetrace/api/ArchitectureTest.java}.
+ * The {@code narrativetrace} launcher: argument parsing over the {@code narrativetrace-tooling}
+ * library, which carries the doctor itself. It must never link against the runtime it diagnoses,
+ * and it takes no third-party dependency of its own — {@code narrativetrace-tooling} is the only
+ * thing it links against, and that library is zero-dependency in turn. Mirrors {@code
+ * narrativetrace-api/src/test/java/ai/narrativetrace/api/ArchitectureTest.java}.
  */
 @AnalyzeClasses(
     packages = "ai.narrativetrace.cli",
@@ -43,8 +45,8 @@ class ArchitectureTest {
           .dependOnClassesThat()
           .resideInAnyPackage("ai.narrativetrace.core..")
           .as(
-              "The doctor CLI reads a project's build file, source tree, and rendered output as"
-                  + " text — it must never link against the runtime it diagnoses");
+              "The narrativetrace launcher reads a project's build file, source tree, and rendered"
+                  + " output as text — it must never link against the runtime it diagnoses");
 
   @ArchTest
   static final ArchRule cli_carries_no_third_party_dependency =
@@ -53,10 +55,11 @@ class ArchitectureTest {
           .resideInAPackage("ai.narrativetrace.cli..")
           .should()
           .dependOnClassesThat()
-          .resideOutsideOfPackages("ai.narrativetrace.cli..", "java..", "javax..")
+          .resideOutsideOfPackages(
+              "ai.narrativetrace.cli..", "ai.narrativetrace.tooling..", "java..", "javax..")
           .as(
-              "narrativetrace-cli declares zero dependencies, the same contract"
-                  + " narrativetrace-api holds");
+              "narrativetrace-cli declares exactly one dependency, the zero-dependency"
+                  + " narrativetrace-tooling library it launches");
 
   @ArchTest
   static final ArchRule no_pro_only_concerns_leak_in =

@@ -5,21 +5,20 @@
 # config shapes and their effects — checked against a PUBLISHED (never local) install, never a
 # workspace build. See documentation/contract-gate.md for what runs this and when.
 #
-# Schema (four `kind`s, docs-vs-published-gate §2):
+# Schema (four `kind`s):
 #   id                  unique slug
 #   kind                entry-point | reflectable-default | probed-default | config-shape
 #   page                "<doc path>#<anchor>" — the sentence this entry backs
 #   claim               one human sentence
-#   since               the version the claim first holds (x.y.z)
 #   documented_default  (reflectable-default, probed-default) the exact observed value expected
-#   expected_effect     (config-shape) same role, named the way the design note spells it
+#   expected_effect     (config-shape) same role, for a shape rather than a default
 #   probe               source file (repo-relative) implementing the check
 #   coordinate          (entry-point only) "<group>:<artifact>"
 #   registry            (entry-point only) maven-central (default) | gradle-plugin-portal
 #
-# `since` exempts an entry from the nightly gate only while it is LATER than the version actually
-# installed that run (docs-vs-published-gate §5.1 ruling 1) — never keyed on this repo's own
-# gradle.properties version. contractLint (per commit, no network) validates this file's shape;
+# Every entry describes the code it is committed with — there is no version field. The gate reads
+# this file AT THE TAG whose artifact it installs, so a claim and the artifact it is checked against
+# always come from one commit. contractLint (per commit, no network) validates this file's shape;
 # contractCheck (nightly, registry-backed) runs contract-probe/ against it.
 version_source: "gradle.properties#narrativetraceVersion"
 entries:
@@ -30,7 +29,6 @@ entries:
     coordinate: "ai.narrativetrace:narrativetrace-core"
     page: "documentation/installation-guide.md#2-add-dependencies"
     claim: "ai.narrativetrace:narrativetrace-core resolves on Maven Central at the installed version"
-    since: "0.1.0"
     documented_default: "PRESENT"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/EntryPointProbe.java"
 
@@ -40,7 +38,6 @@ entries:
     coordinate: "ai.narrativetrace:narrativetrace-proxy"
     page: "documentation/installation-guide.md#2-add-dependencies"
     claim: "ai.narrativetrace:narrativetrace-proxy resolves on Maven Central at the installed version"
-    since: "0.1.0"
     documented_default: "PRESENT"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/EntryPointProbe.java"
 
@@ -50,7 +47,6 @@ entries:
     coordinate: "ai.narrativetrace:narrativetrace-junit5"
     page: "documentation/installation-guide.md#2-add-dependencies"
     claim: "ai.narrativetrace:narrativetrace-junit5 resolves on Maven Central at the installed version"
-    since: "0.1.0"
     documented_default: "PRESENT"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/EntryPointProbe.java"
 
@@ -60,7 +56,6 @@ entries:
     coordinate: "ai.narrativetrace:narrativetrace-slf4j"
     page: "documentation/installation-guide.md#2-add-dependencies"
     claim: "ai.narrativetrace:narrativetrace-slf4j resolves on Maven Central at the installed version"
-    since: "0.1.0"
     documented_default: "PRESENT"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/EntryPointProbe.java"
 
@@ -69,16 +64,14 @@ entries:
     kind: reflectable-default
     page: "documentation/dual-path-pipeline.md#the-buffered-path--capture-that-never-blocks"
     claim: "the buffered path's ring defaults to 65,536 slots (BufferedEventConsumer.DEFAULT_CAPACITY)"
-    since: "0.1.0"
     documented_default: "65536"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/BufferCapacityDefaultProbe.java"
 
-  # ---- probed / config-shape defaults already true at 0.2.1 (real probes, not skipped) --------
+  # ---- probed and config-shape claims: only visible by running the published artifact ---------
   - id: probed-approval-default
     kind: probed-default
     page: "documentation/configuration-guide.md#2-junit-5-configuration-junit-platformproperties"
     claim: "narrativetrace.approval defaults to false — approval mode is opt-in"
-    since: "0.1.0"
     documented_default: "false"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/ApprovalDefaultProbe.java"
 
@@ -86,7 +79,6 @@ entries:
     kind: probed-default
     page: "documentation/structural-trace-format.md#files-and-naming-cross-platform-decisions-2026-08-24"
     claim: "a run writes <outputDir>/manifest.json, one row per traced scenario"
-    since: "0.1.0"
     documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/ManifestJsonProbe.java"
 
@@ -94,7 +86,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
     claim: "a parameter named password is redacted at capture, unconditionally, even with no annotation"
-    since: "0.2.1"
     documented_default: "[REDACTED]"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/ParameterNameRedactionProbe.java"
 
@@ -102,7 +93,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#privacy-and-redaction"
     claim: "a field named token inside a class your own code defines is redacted at capture by name alone, with no annotation and regardless of the declaring class"
-    since: "0.1.0"
     documented_default: "[REDACTED]"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/FieldNameRedactionOnCustomClassProbe.java"
 
@@ -110,7 +100,6 @@ entries:
     kind: config-shape
     page: "documentation/configuration-guide.md#7-slf4j-configuration"
     claim: "narrativetrace-slf4j on the classpath narrates through SLF4J automatically — no wrapper class, no wiring"
-    since: "0.1.0"
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/Slf4jZeroCodeAttachProbe.java"
 
@@ -118,19 +107,13 @@ entries:
     kind: config-shape
     page: "documentation/configuration-guide.md#8-two-dials-two-paths"
     claim: "the buffered path never consults the SLF4J logger's threshold — raising the narrativetrace logger above every event level silences the synchronous path's log lines but leaves the buffered path's captured trace (what captureTrace() returns) unchanged"
-    since: "0.1.0"
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/BufferedPathIgnoresLoggerThresholdProbe.java"
 
-  # ---- claims that ship in 0.2.3, still unreleased when this contract was seeded --------------
-  # (documentation/*.md carries a matching "*(since 0.2.3, unreleased)*" marker for each of these —
-  # contractLint fails if that marker ever loses its contract entry; contractCheck must report
-  # NOT_APPLICABLE_BEFORE_SINCE for all five of these when run against the published 0.2.1.)
   - id: probed-output-default
     kind: probed-default
     page: "documentation/configuration-guide.md#2-junit-5-configuration-junit-platformproperties"
     claim: "narrativetrace.output defaults to true — test trace output writes with no configuration"
-    since: "0.2.3"
     documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/OutputDefaultProbe.java"
 
@@ -138,7 +121,6 @@ entries:
     kind: config-shape
     page: "documentation/troubleshooting.md#cannot-create-launcher-without-at-least-one-testengine-or-could-not-start-gradle-test-executor-1-failed-to-load-junit-platform"
     claim: "the Gradle plugin adds the JUnit 5 engine and junit-platform-launcher automatically"
-    since: "0.2.3"
     expected_effect: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/LauncherAddedByPluginProbe.java"
 
@@ -146,7 +128,6 @@ entries:
     kind: probed-default
     page: "documentation/structural-trace-format.md#artifact-identity-cross-platform-2026-09-09"
     claim: "an invocation's scenario: header names the method and invocation index, never a name = \"…\" display name"
-    since: "0.2.3"
     documented_default: "method-and-index"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/StructuralHeaderRuleProbe.java"
 
@@ -154,7 +135,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#when-rendering-a-part-fails"
     claim: "a throwing accessor renders as <error: TypeName> — the exception's message is excluded"
-    since: "0.2.3"
     documented_default: "<error: IllegalStateException>"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/TypedErrorMarkerProbe.java"
 
@@ -162,7 +142,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a class declaring instance fields is walked field by field — its own toString() is never trusted"
-    since: "0.2.3"
     documented_default: "field-walked-not-tostring"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/NativeStringificationNotTrustedProbe.java"
 
@@ -170,7 +149,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a platform type (UUID, LocalDate, Duration, URI) keeps its own toString(), unwalked"
-    since: "0.2.3"
     documented_default: "own-tostring-used"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/PlatformTypeCarveoutProbe.java"
 
@@ -178,7 +156,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a class with no readable field renders as its type name — emptiness is not statelessness, so its own toString() is never entered"
-    since: "0.2.4"
     documented_default: "type-named-not-tostring"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/FieldlessValueNotTrustedProbe.java"
 
@@ -186,7 +163,6 @@ entries:
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#a-types-own-tostring-is-never-trusted-while-the-type-has-state"
     claim: "a Number subclass is walked like any other composite — extending a platform numeric type does not grant its own toString()"
-    since: "0.2.4"
     documented_default: "field-walked-not-tostring"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/NumberSubclassNotTrustedProbe.java"
 
@@ -194,7 +170,6 @@ entries:
     kind: probed-default
     page: "documentation/configuration-guide.md#the-run-has-a-name"
     claim: "the console suite footer names the run: a \"run: <phrase>\" line"
-    since: "0.2.3"
     # "true", not the guide's example phrase: a run name is generated per run, so no fixed phrase is
     # ever observable. The probe answers whether a `run: <phrase>` line is present — the same shape
     # the .NET and Python contracts use for this entry.
@@ -205,6 +180,5 @@ entries:
     kind: probed-default
     page: "documentation/configuration-guide.md#the-run-has-a-name"
     claim: "manifest.json carries a top-level run object (id, name) naming the run it belongs to"
-    since: "0.2.3"
     documented_default: "true"
     probe: "contract-probe/src/main/java/ai/narrativetrace/contract/probes/RunNameManifestFieldProbe.java"

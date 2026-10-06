@@ -17,9 +17,15 @@ import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * Reads {@code documentation/contract.yaml} — the schema itself is validated per commit by
- * buildSrc's {@code contractLint}; this reader trusts that and only extracts what {@link
- * ContractRunner} needs to run.
+ * Reads a {@code contract.yaml} — the schema itself is validated per commit by buildSrc's {@code
+ * contractLint}; this reader trusts that and only extracts what {@link ContractRunner} needs to
+ * run.
+ *
+ * @llmNote The file handed to it is normally NOT the working tree's: {@code
+ *     scripts/contract-check.sh} extracts {@code documentation/contract.yaml} as of the tag whose
+ *     artifact it installs. A file from an older release carries keys this reader no longer names
+ *     ({@code since:}); keys it does not ask for are simply not read, which is what lets one runner
+ *     check any release's contract.
  */
 public final class ContractYaml {
 
@@ -39,7 +45,6 @@ public final class ContractYaml {
                 (String) raw.get("kind"),
                 (String) raw.get("page"),
                 (String) raw.get("claim"),
-                (String) raw.get("since"),
                 expect,
                 (String) raw.get("probe"),
                 (String) raw.get("coordinate"),

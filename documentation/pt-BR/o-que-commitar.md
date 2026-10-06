@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 22ad5861277b | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 4f114a8f7fef | translated: 2026-10-04 | reviewed: - -->
 # O que commitar
 
 [English](../what-to-commit.md) | Español | **Português** | [简体中文](../zh-CN/应提交的内容.md)
@@ -8,7 +8,7 @@ descrevem uma execução, e baselines revisadas que descrevem um contrato
 pretendido. Faça commit do segundo tipo, não do primeiro.
 
 Todo artefato de tempo de teste é gravado por padrão no diretório efêmero
-`build/narrativetrace` *(since 0.2.3)* — sem nenhuma configuração necessária,
+`build/narrativetrace` — sem nenhuma configuração necessária,
 `narrativetrace.output=false` desativa isso (veja o
 [Guia de Configuração](guia-de-configuracao.md)). Efêmero é o ponto: ele vive
 sob `build/`, então nunca precisa da disciplina de que trata esta página —
@@ -20,14 +20,29 @@ qualquer momento.
 | `build/narrativetrace/traces/*.md` | Não | Regenerado a cada execução; geralmente um artefato de CI, não código-fonte |
 | `build/narrativetrace/traces/*.json` | Não | O mesmo trace como JSON canônico — regenerado a cada execução |
 | `build/narrativetrace/diagrams/*.mmd` | Não | Regenerado a cada execução |
-| `build/narrativetrace/manifest.json` | Não | Regenerado a cada execução; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta execução*, não um cenário, então muda a cada execução mesmo quando mais nada muda *(since 0.2.3)* |
+| `build/narrativetrace/manifest.json` | Não | Regenerado a cada execução; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta execução*, não um cenário, então muda a cada execução mesmo quando mais nada muda |
 | `build/narrativetrace/structural/*.nt` | Não | A baseline *local* do último verde contra a qual o delta do console e os relatórios de falha comparam — não é a baseline de aprovação (veja abaixo) |
 | `build/narrativetrace/clarity-report.md` | Não | Um relatório gerado, não uma decisão — o `clarityCheck` lê o `clarity-results.json` ao lado dele, também gerado |
 | `src/test/narratives/<Class>/<scenario>.approved.nt` | **Sim** | A baseline de aprovação revisada (só existe se o [modo de aprovação](formato-de-trace-estrutural.md) estiver ativo). Este é o único arquivo da lista que é uma decisão deliberada, não uma saída |
 | `src/test/narratives/<Class>/<scenario>.received.nt` | Não | Escrito quando há divergência na aprovação, ou quando ainda não existe baseline. Revise-o, rode `./gradlew approveNarratives` para promovê-lo, depois apague-o ou deixe a task removê-lo — nunca faça commit do arquivo received em si |
 | `src/test/narratives/<Class>/<scenario>.incomplete.nt` | Não | Escrito no lugar de `.received.nt` quando a própria execução foi incompleta (perda de melhor esforço, ou um escopo assíncrono recusado). O `approveNarratives` o ignora pelo nome de propósito — veja [Formato de trace estrutural](formato-de-trace-estrutural.md) |
 | `glossary.json` / `glossary.md` | **Sim**, se a coleta do glossário for usada | Commitado na raiz do repositório por `glossaryScan` / `glossary.set(true)`; o arquivo commitado é o que a pontuação de clareza e as verificações de vocabulário leem de volta. "Um arquivo, um workflow de revisão" |
-| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` do `AGENTS.md` | **Sim** *(since 0.2.3)* | Saída de build do catálogo tipado do `narrativetrace-skills`, não saída de uma execução de teste — commitado do mesmo jeito que o `glossary.json`: regenerado, revisado nos diffs, e checado contra deriva (`RenderDriftTest`, ligado ao `./gradlew check`) em vez de editado à mão |
+| `.claude/skills/**/SKILL.md`, `.agents/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` do `AGENTS.md` | **Sim** | Saída de build do catálogo tipado do `narrativetrace-skills-catalogue`, não saída de uma execução de teste — commitado do mesmo jeito que o `glossary.json`: regenerado, revisado nos diffs, e checado contra deriva (`RenderDriftTest`, ligado ao `./gradlew check`) em vez de editado à mão |
+| `skills-lock.json` | **Sim**, se o seu time usa `npx skills add` | Gravado na raiz do projeto pelo `npx skills add` — o próprio registro do que o registry instalou e de onde; faça commit dele do mesmo jeito que faria com qualquer outro arquivo de lock de dependências do qual o seu time dependa |
+| `.claude-plugin/marketplace.json` | **Sim** | O próprio listing deste repositório (Fase 4): saída de build do mesmo catálogo tipado da linha acima, renderizada e checada contra o mesmo teste de deriva — nunca editada à mão |
+
+Em um projeto que executou [`narrativetraceInit`](guia-do-plugin-de-gradle.md#narrativetraceinit)
+esses mesmos três caminhos são os que devem ser commitados, e cada `SKILL.md` instalado carrega uma
+linha de procedência nomeando a versão a partir da qual foi instalado — esse selo é como o
+`narrativetraceUninstall` sabe que uma página é nossa e como o doctor distingue uma instalação em dia
+de uma obsoleta, então uma página commitada sem ele se torna uma página que ninguém pode remover ou
+atualizar com segurança. A seção de `AGENTS.md` que um consumidor commita fica entre
+`<!-- narrativetrace:start ... -->` e `<!-- narrativetrace:end -->`: o que você escrever fora desses
+marcadores é seu e sobrevive a cada nova execução, e o que estiver dentro deles é substituído.
+
+Uma instalação pessoal do plugin (`/plugin install narrativetrace-java@narrativetrace-java` do
+Claude Code) não grava nada no projeto — ela vive no seu próprio cache de plugins, então não há
+nada dela para commitar.
 
 Tudo dentro de `build/` já está coberto pelo `.gitignore` distribuído
 (`build/` é a primeira linha). `src/test/narratives/` não está — os

@@ -14,11 +14,11 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * {@code config-shape}, since 0.2.3 — not exercised against 0.2.1. Applies the published Gradle
- * plugin in a disposable throwaway project (the same "generated project, isolated Gradle user home"
- * technique {@code scripts/verify-publication.sh}'s consumer smoke test already uses) and asks
- * Gradle for the resolved test runtime classpath — proving what a consumer's build actually
- * resolves, never what the plugin's source merely intends to add.
+ * {@code config-shape}. Applies the published Gradle plugin in a disposable throwaway project (the
+ * same "generated project, isolated Gradle user home" technique {@code
+ * scripts/verify-publication.sh}'s consumer smoke test already uses) and asks Gradle for the
+ * resolved test runtime classpath — proving what a consumer's build actually resolves, never what
+ * the plugin's source merely intends to add.
  *
  * <p>The generated project's {@code settings.gradle.kts} mirrors the DOCUMENTED consumer snippet
  * (README.md / installation-guide.md "Give Maven Central the first look in {@code

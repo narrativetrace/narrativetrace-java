@@ -65,6 +65,15 @@ class CorpusProseIsPublishableTest {
     }
   }
 
+  @Test
+  void noFeedbackRowsProseCarriesACommitShaOrTheVocabularyOfThePrivateProcess() {
+    for (var feedbackCase : HostileCorpus.feedbacks()) {
+      assertProseIsPublishable(
+          feedbackCase.id(),
+          Arrays.asList(feedbackCase.id(), feedbackCase.rule(), feedbackCase.description()));
+    }
+  }
+
   private static void assertProseIsPublishable(String id, List<String> fields) {
     var offending = new ArrayList<String>();
     for (var field : fields) {

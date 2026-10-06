@@ -282,6 +282,90 @@ class PublishPublicScriptTest {
   }
 
   // -----------------------------------------------------------------------------------------
+  // 2b. The marketplace plugin root: staged .claude/ holds nothing but skills/
+  // -----------------------------------------------------------------------------------------
+
+  /**
+   * {@code .claude-plugin/marketplace.json} roots its one plugin at {@code ./.claude}, so every
+   * directory that survives the strip under {@code .claude/} ships as plugin content. A {@code
+   * commands/}, {@code agents/} or {@code hooks/} directory there would silently become part of the
+   * published plugin, and a private {@code settings.local.json} would ship inside it. The guard
+   * fails the publish naming the offending path — and fails the other way too, on a plugin root the
+   * strip removed whole, which would publish a marketplace entry pointing at nothing.
+   */
+  @Nested
+  class PluginRootGuard {
+
+    private final String guardSnippet =
+        extract(
+            "plugin_root=\"\\$STAGE/\\.claude\".*?\n"
+                + "echo \">>   the plugin root holds only skills/\\.\"");
+
+    private ScriptResult runGuard(Path stage) throws IOException, InterruptedException {
+      var body = String.join("\n", "set -euo pipefail", "STAGE=\"" + stage + "\"", guardSnippet);
+      return runBash(body, Map.of());
+    }
+
+    @Test
+    void passesWhenTheStagedPluginRootHoldsOnlySkills(@TempDir Path stage) throws Exception {
+      Files.createDirectories(stage.resolve(".claude/skills/narrativetrace-doctor"));
+      Files.writeString(stage.resolve(".claude/skills/narrativetrace-doctor/SKILL.md"), "page");
+
+      var result = runGuard(stage);
+
+      assertThat(result.exitCode()).as("stdout: %s", result.stdout()).isZero();
+    }
+
+    @Test
+    void failsNamingASiblingDirectoryThatWouldShipAsPluginContent(@TempDir Path stage)
+        throws Exception {
+      Files.createDirectories(stage.resolve(".claude/skills"));
+      Files.createDirectories(stage.resolve(".claude/commands"));
+
+      var result = runGuard(stage);
+
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.stdout()).contains("holds more than skills/").contains(".claude/commands");
+    }
+
+    @Test
+    void failsNamingAStrayFileNextToSkills(@TempDir Path stage) throws Exception {
+      Files.createDirectories(stage.resolve(".claude/skills"));
+      Files.writeString(stage.resolve(".claude/settings.local.json"), "{}");
+
+      var result = runGuard(stage);
+
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.stdout()).contains(".claude/settings.local.json");
+    }
+
+    @Test
+    void failsWhenTheStripRemovedThePluginRootWhole(@TempDir Path stage) throws Exception {
+      var result = runGuard(stage);
+
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.stdout()).contains("plugin root").contains("missing");
+    }
+
+    @Test
+    void theStripPatternForClaudeLeavesTheMarketplaceDirectoryAlone(@TempDir Path stage)
+        throws Exception {
+      Files.createDirectories(stage.resolve(".claude/skills"));
+      Files.createDirectories(stage.resolve(".claude-plugin"));
+      Files.writeString(stage.resolve(".claude-plugin/marketplace.json"), "{}");
+      Files.writeString(stage.resolve(".claude/settings.local.json"), "{}");
+
+      // The exact matcher the strip loop uses for a non-`**/` pattern, against the `.claude` line.
+      var result = runBash("cd \"" + stage + "\" && find . -path \"./.claude\" -print", Map.of());
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.stdout().lines().toList())
+          .as(".claude-plugin must not be swept up by the .claude strip pattern")
+          .containsExactly("./.claude");
+    }
+  }
+
+  // -----------------------------------------------------------------------------------------
   // 3. AGENTS.md composed from its managed section only (2026-09-13 addition)
   // -----------------------------------------------------------------------------------------
 

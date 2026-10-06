@@ -31,6 +31,12 @@ dependencies {
     testImplementation(project(":narrativetrace-junit5"))
     testImplementation(project(":narrativetrace-slf4j"))
     testImplementation(project(":narrativetrace-opentelemetry"))
+    // The ONE module that may see both the runtime's redaction default and the tooling library's
+    // value-free gate. narrativetrace-tooling declares zero dependencies and may never link
+    // narrativetrace-core, so the design's "reuse, never copy" is kept by an assertion here
+    // instead of by a Java dependency there: every value the renderer redacts must also be
+    // refused by the gate. Drift becomes a build failure rather than a public issue.
+    testImplementation(project(":narrativetrace-tooling"))
     testImplementation("io.opentelemetry:opentelemetry-api:1.62.0")
     testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.62.0")
     testImplementation("org.slf4j:slf4j-api:2.0.16")

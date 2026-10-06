@@ -21,11 +21,15 @@ import java.io.File
  * The second half is the part a human cannot police by review: **dependency direction**. A licence
  * is only as strong as the graph beneath it. An `open` module that took a `free` dependency would
  * hand every consumer of the open contract a BSL jar they never agreed to; the check makes that a
- * build failure instead of a discovery.
+ * build failure instead of a discovery. `open` -> `open` is not that: Apache on Apache hands a
+ * consumer nothing but Apache-licensed code, which is what lets a published `open` launcher sit on
+ * a published `open` library (`narrativetrace-cli` over `narrativetrace-tooling`, 2026-09-24).
+ * "Depends on nothing" remains true of `narrativetrace-api` by its own ArchUnit rule, where it is a
+ * statement about the CONTRACT rather than about the licence.
  */
 enum class LicensingCategory(val propertyValue: String) {
 
-    /** Apache License 2.0 — the contract third parties compile against. Depends on nothing. */
+    /** Apache License 2.0 — the contract third parties compile against. May depend on `open`. */
     OPEN("open"),
 
     /** Business Source License 1.1 — the runtime. May depend on `open` and `free` only. */
@@ -34,7 +38,7 @@ enum class LicensingCategory(val propertyValue: String) {
     /** Categories a module of this category is permitted to depend on. */
     fun mayDependOn(): Set<LicensingCategory> =
         when (this) {
-            OPEN -> emptySet()
+            OPEN -> setOf(OPEN)
             FREE -> setOf(OPEN, FREE)
         }
 
@@ -110,6 +114,26 @@ object LicensingCategorySupport {
         return problems.sorted()
     }
 
+    /**
+     * Every `open` module that [notice] never names — the drift Q2 of the registry design found:
+     * `licensing.properties` had three modules `open` while NOTICE still said only the API was
+     * Apache and "every other artifact" was BSL, so the file a reader trusts contradicted the file
+     * the build enforces.
+     *
+     * Deliberately keyed on the DECLARED category rather than on the published-module set: a module
+     * leaving that set would silently drop out of this check, and an `open` module that is not
+     * published still ships in the source-available tree under Apache.
+     *
+     * @param declared module → category, from [read]
+     * @param notice the repository's NOTICE text
+     */
+    fun noticeOmissions(declared: Map<String, LicensingCategory>, notice: String): List<String> =
+        declared.filterValues { it == LicensingCategory.OPEN }
+            .keys
+            .filterNot { notice.contains(it) }
+            .sorted()
+            .map { "$it is `open` in $FILE_NAME but NOTICE never names it" }
+
     /** Every subproject needs a line: an undeclared module is one nobody chose a licence for. */
     private fun missingDeclarations(
         declared: Map<String, LicensingCategory>,
@@ -151,7 +175,8 @@ object LicensingCategorySupport {
     private fun forbiddenReason(category: LicensingCategory): String =
         when (category) {
             LicensingCategory.OPEN ->
-                "an `open` module may never do — the contract must depend on nothing"
+                "an `open` module may never do — an Apache-licensed module may depend only on " +
+                    "other `open` modules"
             LicensingCategory.FREE -> "a `free` module may not depend on"
         }
 

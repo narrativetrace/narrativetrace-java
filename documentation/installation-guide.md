@@ -9,7 +9,8 @@ This guide covers installing and wiring NarrativeTrace Java in a JVM project.
 
 ## Compatibility
 
-Versions as of 0.2.4. "Brought" means the module depends on it and Gradle
+These are the versions this release builds and tests against.
+"Brought" means the module depends on it and Gradle
 resolves it for you; "yours" means the module compiles against it but does not
 depend on it — you already have it, and NarrativeTrace uses whatever version
 you bring.
@@ -88,7 +89,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -135,23 +136,23 @@ Start with the minimum stack and then add only the integrations you need.
 ```kotlin
 dependencies {
     // Minimum
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
 
     // Optional integrations
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.4")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.4")  // for JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.4")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.5")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.5")  // for JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.5")
 }
 ```
 
@@ -210,7 +211,7 @@ Features:
 - Per-test `NarrativeContext` via parameter injection
 - Automatic failure trace printing to console
 - Scenario name derived from test method name (`customerPlacesOrder` → "Customer places order")
-- Writes `.md`, `.json`, `.mmd` per test by default *(since 0.2.3)*, plus a suite-level `clarity-report.md` — set `narrativetrace.output=false` to opt out
+- Writes `.md`, `.json`, `.mmd` per test by default, plus a suite-level `clarity-report.md` — set `narrativetrace.output=false` to opt out
 
 ### Option D: JUnit 4 Auto Context + Trace Output
 

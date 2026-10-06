@@ -91,6 +91,17 @@
     <Class name="ai.narrativetrace.skills.evals.EvalTrial"/>
     <Bug pattern="COMMAND_INJECTION"/>
   </Match>
+  <!--
+    EvalTrial.RealProcessRunner is where REAL_PROCESS_RUNNER's two ProcessBuilder calls now live —
+    the same operator-controlled argv as above, moved into a named nested class when the seam grew a
+    second method (standard output redirected into the trial's transcript). It is NAMED rather than
+    anonymous precisely so this entry can name it: an exclusion matching a generated `$1` would move
+    to a different class the moment another anonymous class is declared ahead of it.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.skills.evals.EvalTrial$RealProcessRunner"/>
+    <Bug pattern="COMMAND_INJECTION"/>
+  </Match>
   <Match>
     <Class name="ai.narrativetrace.skills.evals.TierPrecondition"/>
     <Method name="runViaProcessBuilder"/>

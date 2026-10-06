@@ -81,7 +81,8 @@ object SnippetSupport {
      *
      * <p>Every `SKILL.md` under `.claude/skills/` (any depth beneath it) is included too, despite
      * living under a dot-directory this walk otherwise never enters: those pages are BUILD OUTPUT
-     * (`ClaudeSkillRenderer`, rendered from the typed catalogue in `narrativetrace-skills`), and a
+     * (`ClaudeSkillRenderer`, rendered from the typed catalogue in
+     * `narrativetrace-skills-catalogue`), and a
      * catalogue step can itself be a snippet sourced from a real fixture file
      * (`StepBody.SnippetStep`) the exact same way a documentation page embeds one — the one
      * directory this mechanism must not silently skip over a naming convention aimed at every OTHER

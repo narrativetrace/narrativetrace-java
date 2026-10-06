@@ -4,7 +4,10 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-JAR="$(ls "$DIR"/build/libs/narrativetrace-cli-*.jar 2>/dev/null | grep -Ev -- '-sources\.jar$|-javadoc\.jar$' | head -n1 || true)"
+# Highest VERSION, not first alphabetically: build/libs accumulates every version ever built in
+# this working tree, and `head -n1` picked the OLDEST of them — which is how a jar that no longer
+# ran at all could answer `narrativetrace doctor` correctly for a whole session (2026-09-24).
+JAR="$(ls "$DIR"/build/libs/narrativetrace-cli-*.jar 2>/dev/null | grep -Ev -- '-sources\.jar$|-javadoc\.jar$' | sort -V | tail -n1 || true)"
 
 if [ -z "$JAR" ]; then
   echo "narrativetrace: no build/libs/narrativetrace-cli-*.jar found — run" \

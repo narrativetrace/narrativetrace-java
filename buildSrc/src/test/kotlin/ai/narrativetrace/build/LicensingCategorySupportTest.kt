@@ -155,11 +155,16 @@ class LicensingCategorySupportTest {
 
         assertEquals(1, problems.size, problems.toString())
         assertTrue(problems[0].contains("api (open) depends on core (free)"), problems[0])
-        assertTrue(problems[0].contains("must depend on nothing"), problems[0])
+        assertTrue(problems[0].contains("may depend only on other `open` modules"), problems[0])
     }
 
+    /**
+     * The Apache-on-Apache case: an `open` launcher over an `open` library hands a consumer nothing
+     * but Apache-licensed code, so the licence direction is intact. Only `open` -> `free` is a
+     * violation, because only that one relicenses BSL code under the open contract.
+     */
     @Test
-    fun rejectsAnOpenModuleThatDependsOnAnotherOpenOneToo() {
+    fun allowsAnOpenModuleToDependOnAnotherOpenOne() {
         val twoOpen = mapOf("api" to LicensingCategory.OPEN, "spec" to LicensingCategory.OPEN)
 
         val problems = LicensingCategorySupport.check(
@@ -167,8 +172,7 @@ class LicensingCategorySupportTest {
             listOf(ModuleLicensing("api", listOf("spec")), ModuleLicensing("spec", emptyList()))
         )
 
-        assertEquals(1, problems.size, problems.toString())
-        assertTrue(problems[0].contains("api (open) depends on spec (open)"), problems[0])
+        assertEquals(emptyList<String>(), problems)
     }
 
     @Test
@@ -244,11 +248,43 @@ class LicensingCategorySupportTest {
     }
 
     @Test
-    fun openMayDependOnNothingAndFreeOnOpenAndFree() {
-        assertEquals(emptySet<LicensingCategory>(), LicensingCategory.OPEN.mayDependOn())
+    fun openMayDependOnOpenOnlyAndFreeOnOpenAndFree() {
+        assertEquals(setOf(LicensingCategory.OPEN), LicensingCategory.OPEN.mayDependOn())
         assertEquals(
             setOf(LicensingCategory.OPEN, LicensingCategory.FREE),
             LicensingCategory.FREE.mayDependOn()
         )
+    }
+
+    // --- NOTICE consistency ------------------------------------------------
+
+    @Test
+    fun `notice omissions name every published open module the notice does not`() {
+        val declared = mapOf(
+            "narrativetrace-api" to LicensingCategory.OPEN,
+            "narrativetrace-skills" to LicensingCategory.OPEN,
+            "narrativetrace-core" to LicensingCategory.FREE,
+        )
+        val notice = "ai.narrativetrace:narrativetrace-api\n    Apache License, Version 2.0\n"
+
+        assertEquals(
+            listOf("narrativetrace-skills is `open` in licensing.properties but NOTICE never names it"),
+            LicensingCategorySupport.noticeOmissions(declared, notice),
+        )
+    }
+
+    @Test
+    fun `a free module absent from the notice is not an omission`() {
+        val declared = mapOf("narrativetrace-core" to LicensingCategory.FREE)
+
+        assertTrue(LicensingCategorySupport.noticeOmissions(declared, "nothing here").isEmpty())
+    }
+
+    @Test
+    fun `an open module the notice names is not an omission`() {
+        val declared = mapOf("narrativetrace-tooling" to LicensingCategory.OPEN)
+        val notice = "  ai.narrativetrace:narrativetrace-tooling\n      Apache License\n"
+
+        assertTrue(LicensingCategorySupport.noticeOmissions(declared, notice).isEmpty())
     }
 }

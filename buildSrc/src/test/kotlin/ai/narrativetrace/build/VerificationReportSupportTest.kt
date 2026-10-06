@@ -96,7 +96,7 @@ class VerificationReportSupportTest {
     fun `a category not on the fixed vocabulary is not representable (compile-time, by enum)`() {
         // The enum itself is the guard: VerificationCategory has exactly the §35E vocabulary,
         // so a caller cannot construct a row for an unlisted category name.
-        assertEquals(21, VerificationCategory.values().size)
+        assertEquals(22, VerificationCategory.values().size)
     }
 
     @Test

@@ -22,8 +22,28 @@ tasks.withType<Test> {
     // JarLicensePackagingTest reads real archives rather than trusting the build script that
     // produced them, so the archives have to exist: one `open` module and one `free` one, the two
     // branches `narrativetrace-license-packaging` chooses between.
-    dependsOn(":narrativetrace-api:jar", ":narrativetrace-core:jar")
+    // SkillsCarrierJarTest does the same for the carrier: the resource-only narrativetrace-skills
+    // jar and the narrativetrace-cli jar that bundles the identical resources (Phase 2 D4).
+    dependsOn(
+        ":narrativetrace-api:jar",
+        ":narrativetrace-core:jar",
+        ":narrativetrace-skills:jar",
+        ":narrativetrace-cli:jar"
+    )
     systemProperty("narrativetrace.buildVersion", project.version.toString())
+    // `projectDir` is a system PROPERTY, not a task input, so a test that reads a file through it
+    // stays UP-TO-DATE when only that file changes. That hole is exactly how SkillsCarrierJarTest's
+    // hard-coded seven-entry expectation stayed green through a whole `./gradlew check` after a
+    // FOURTH skill shipped: the expectation was stale, the jar on disk was stale too, and the test
+    // never re-ran to disagree with either. Its expectation is derived from the rendered layouts
+    // now, so those layouts are declared here — the same fix narrativetrace-tooling's own test task
+    // carries, for the same three stale greens.
+    for (layout in listOf(".agents", ".claude")) {
+        inputs
+            .dir(rootProject.file("$layout/skills"))
+            .withPropertyName("renderedSkills${layout.removePrefix(".")}")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
     // TaskInputInvalidationTest drives buildSrc's typed tasks in a throwaway fixture build, which
     // needs those classes (and what they call) on ITS build-script classpath. Taken from the
     // classes as loaded here — buildSrc's jar and its runtime dependencies are on every build

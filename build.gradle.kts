@@ -26,6 +26,10 @@ val publishedModules = subprojects.filter { sub ->
         "narrativetrace-agent-example",
         "narrativetrace-jcstress",
         "narrativetrace-security-tests",
+        // The typed catalogue, its renderers, lints and evals: the SOURCE the published
+        // narrativetrace-skills carrier jar is rendered from, consumed by nothing outside this
+        // repository. See narrativetrace-skills-catalogue/build.gradle.kts.
+        "narrativetrace-skills-catalogue",
         "sixty-seconds"
     )
 }
@@ -81,6 +85,10 @@ tasks.register("licensingCheck") {
     group = "verification"
     val licensingFile = rootProject.file(ai.narrativetrace.build.LicensingCategorySupport.FILE_NAME)
     inputs.file(licensingFile)
+    // NOTICE is the file a reader trusts about which licence covers what; licensing.properties is
+    // the one the build enforces. They are checked against each other here so they cannot drift.
+    val noticeFile = rootProject.file("NOTICE")
+    inputs.file(noticeFile)
     val moduleGraph = subprojects.map { sub ->
         ai.narrativetrace.build.ModuleLicensing(
             module = moduleKey(sub),
@@ -93,7 +101,8 @@ tasks.register("licensingCheck") {
     }
     doLast {
         val declared = ai.narrativetrace.build.LicensingCategorySupport.readText(licensingFile)
-        val problems = ai.narrativetrace.build.LicensingCategorySupport.check(declared, moduleGraph)
+        val problems = ai.narrativetrace.build.LicensingCategorySupport.check(declared, moduleGraph) +
+            ai.narrativetrace.build.LicensingCategorySupport.noticeOmissions(declared, noticeFile.readText())
         if (problems.isNotEmpty()) {
             throw GradleException(
                 "Licensing violations (see licensing.properties):\n" + problems.joinToString("\n")
@@ -220,11 +229,12 @@ tasks.register("printPublishedCoordinates") {
 /**
  * Publishes every `publishedModules` entry's `mavenJava` publication, plus the Gradle plugin's
  * own two publications (its marker POM and implementation jar), into
- * `narrativetrace-skills/build/test-repo` — the local Maven file repository the Tier A2 replay
+ * `narrativetrace-skills-catalogue/build/test-repo` — the local Maven file repository the Tier A2 replay
  * (`SkillReplayer.clarityScan`/`clarityCheck`) and the standalone fixture path resolve the
  * `ai.narrativetrace` plugin and its libraries from, instead of an `includeBuild` composite of
- * this whole checkout. `:narrativetrace-skills:test` is the only task that depends on this one
- * (narrativetrace-skills/build.gradle.kts) — never wired into `publishToMavenLocal`, `publish`, or
+ * this whole checkout. `:narrativetrace-skills-catalogue:test` is the only task that depends on
+ * this one (narrativetrace-skills-catalogue/build.gradle.kts) — never wired into
+ * `publishToMavenLocal`, `publish`, or
  * the Central/Plugin-Portal release flows. The repository itself is declared once, in
  * buildSrc's `narrativetrace-publish.gradle.kts` (every library) and here in spirit for the
  * plugin module's own `build.gradle.kts` — see either comment for why publishing to it never
@@ -232,7 +242,7 @@ tasks.register("printPublishedCoordinates") {
  */
 tasks.register("publishSkillsTestRepo") {
     description = "Publishes every library the ai.narrativetrace plugin can add to a consumer, " +
-        "plus the plugin itself, into narrativetrace-skills/build/test-repo"
+        "plus the plugin itself, into narrativetrace-skills-catalogue/build/test-repo"
     group = "verification"
     val narrativeTraceGradlePlugin = project(":narrativetrace-gradle-plugin")
     dependsOn(
@@ -275,39 +285,28 @@ tasks.register("translationCheck") {
 // documentation/sixty-seconds.md; its one test writes the byte-stable artifact the page's
 // output block embeds. Depending on that test (rather than only reading whatever happens to be on
 // disk) is what makes `snippetCheck` a docs-as-tests gate instead of a docs-as-whatever-was-left-
-// in-build check.
-// Docs-vs-published-gate design note, part (a): the git-ignored cache PublishedVersionSupport
-// reads/writes, shared by snippetCheck (read-only) and snippetSync (the only writer).
-val publishedVersionCacheFile =
-    layout.buildDirectory.file("narrativetrace-publish-cache/published-version.txt")
+// in-build check. `:narrativetrace-cli:printInitPlan` is the same arrangement for the installer's
+// preview, which documentation/agent-skills.md embeds: it runs the built launcher against an empty
+// directory it owns, so the page shows a real first-install plan and cannot show a stale one.
+// Layer 2, the same pair of tasks: the "no version talk anywhere" ruling — about NARRATIVETRACE's
+// versions. A public document describes the code it is committed with and never says which version
+// that is; the ONE literal of OURS it may carry is an install coordinate, which
+// VersionLiteralSupport writes (sync) and gates (check). Somebody else's version — a compatibility
+// table's row — is a fact about their release and passes. No network and no cache: the coordinate's
+// only source is gradle.properties.
 
 tasks.register("snippetCheck") {
-    description = "Verifies embedded doc code/output blocks match their source files (docs as tests, rule 8)"
+    description = "Verifies embedded doc blocks and version literals against their sources (docs as tests, rule 8)"
     group = "verification"
-    dependsOn(":sixty-seconds:test")
+    dependsOn(":sixty-seconds:test", ":narrativetrace-cli:printInitPlan")
     val repoVersion = providers.gradleProperty("narrativetraceVersion")
-    val cacheFileProvider = publishedVersionCacheFile
     doLast {
-        val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir).toMutableList()
-        // The published-version half is read-only here — never a fetch — so this task never
-        // fails merely because the current run is offline (thin-CI convention, docs-vs-
-        // published-gate design note 1.1 item 2): the repo-version half of the committed banner
-        // is always checked against gradle.properties; the published-version half only when a
-        // fresh (<1h) cache is already on disk. With no fresh cache, any of the three well-formed
-        // banner shapes is accepted.
-        val cache = ai.narrativetrace.build.PublishedVersionSupport.readCache(cacheFileProvider.get().asFile)
-        val llmsTxt = rootDir.resolve("documentation/llms.txt")
-        val actual = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
-        // Deterministic (pure file scan), so — unlike the published-version half — this is checked
-        // every run regardless of cache freshness (docs-vs-published-gate design note item 8).
-        val unreleasedCount = ai.narrativetrace.build.PublishedVersionSupport.countUnreleasedMarkers(rootDir)
-        problems += ai.narrativetrace.build.PublishedVersionSupport.bannerProblems(
-            actual, repoVersion.get(), cache, unreleasedCount,
-        )
+        val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir) +
+            ai.narrativetrace.build.VersionLiteralSupport.check(rootDir, repoVersion.get())
         if (problems.isNotEmpty()) {
             throw GradleException(
-                "Snippet check failed — an embedded doc block drifted from its source; " +
-                    "run snippetSync (rule 8, docs as tests):\n" +
+                "Snippet check failed — an embedded doc block drifted from its source, or a page " +
+                    "talks versions; run snippetSync (rule 8, docs as tests):\n" +
                     problems.joinToString("\n")
             )
         }
@@ -316,33 +315,23 @@ tasks.register("snippetCheck") {
     }
 }
 
-// English pages only — translated mirrors never carry markers (see SnippetSupport); a translator
-// restamps a mirror's own header after running this on the English source, same as translationCheck
-// already expects for every other kind of code-block drift.
+// Embedded blocks: English pages only — translated mirrors never carry markers (see
+// SnippetSupport); a translator restamps a mirror's own header after running this on the English
+// source, same as translationCheck already expects for every other kind of code-block drift.
+// Install coordinates: mirrors too, since a coordinate is language-neutral — and the mirrors whose
+// English source this run rewrote have their line-1 blob hash restamped by the same call.
 tasks.register("snippetSync") {
-    description = "Rewrites embedded doc code/output blocks to match their source files (English pages only)"
+    description = "Rewrites embedded doc blocks and install coordinates to match their sources"
     group = "verification"
-    dependsOn(":sixty-seconds:test")
+    dependsOn(":sixty-seconds:test", ":narrativetrace-cli:printInitPlan")
     val repoVersion = providers.gradleProperty("narrativetraceVersion")
-    val cacheFileProvider = publishedVersionCacheFile
     doLast {
-        val changed = ai.narrativetrace.build.SnippetSupport.sync(rootDir)
+        val changed = ai.narrativetrace.build.SnippetSupport.sync(rootDir) +
+            ai.narrativetrace.build.VersionLiteralSupport.sync(rootDir, repoVersion.get())
         if (changed.isEmpty()) {
             println("snippetSync: already in sync")
         } else {
             changed.forEach { println(it) }
-        }
-        // Best-effort network refresh — the only place this build makes that call. A registry
-        // hiccup falls back to whatever was already cached (or null); never thrown, never a
-        // build failure on its own.
-        val cache = ai.narrativetrace.build.PublishedVersionSupport.refreshCache(cacheFileProvider.get().asFile)
-        val unreleasedCount = ai.narrativetrace.build.PublishedVersionSupport.countUnreleasedMarkers(rootDir)
-        val line = ai.narrativetrace.build.PublishedVersionSupport.llmsTxtLine(repoVersion.get(), cache, unreleasedCount)
-        val llmsTxt = rootDir.resolve("documentation/llms.txt")
-        val before = ai.narrativetrace.build.LlmsTxtBannerSupport.currentLine(llmsTxt)
-        ai.narrativetrace.build.LlmsTxtBannerSupport.writeLine(llmsTxt, line)
-        if (before != line) {
-            println("snippetSync: documentation/llms.txt banner -> ${ai.narrativetrace.build.PublishedVersionSupport.stripCacheAgeComment(line)}")
         }
     }
 }
@@ -422,6 +411,10 @@ val mutationTestedModules = setOf(
     "narrativetrace-diagrams",
     "narrativetrace-junit5",
     "narrativetrace-opentelemetry",
+    // The doctor's checks moved out of narrativetrace-cli into this library 2026-09-24 (the D3
+    // split); they carry the same mutation tier they held there, so the split never quietly
+    // un-mutated them.
+    "narrativetrace-tooling",
 )
 
 /**
@@ -462,8 +455,13 @@ val pitestJunitBom = "org.junit:junit-bom:5.11.4"
  */
 val mutationExemptModules: Map<String, String> = mapOf(
     "narrativetrace-skills" to
+        "the skills CARRIER: resources only, zero classes (src/main/resources holds the rendered " +
+            "SKILL.md pages and catalogue.json) — there is nothing to mutate, and the pages are " +
+            "pinned byte-for-byte by RenderDriftTest and by the jar-content build tests",
+    "narrativetrace-skills-catalogue" to
         "typed skill catalogue + renderers; proven by Tier A lints and the Tier A2 oracle replay" +
-            " (narrativetrace-skills/src/test/.../replay), which nests real ./gradlew invocations" +
+            " (narrativetrace-skills-catalogue/src/test/.../replay), which nests real ./gradlew" +
+            " invocations" +
             " via GradleRunner — unsuited to per-mutant re-execution. DEFERRED — candidate once" +
             " the replay's slow paths are isolated from the classes pitest would re-test",
     "narrativetrace-examples" to
@@ -745,31 +743,25 @@ tasks.register("duplicationCheck") {
 }
 
 // ------------------------------------------------------------------------------------------------
-// contractLint (per commit, no network) — validates documentation/contract.yaml's shape and ties
-// it to part (a)'s since-markers. The registry-backed twin, `contractCheck`, runs contract-probe/
-// against a published version and is nightly-only (see scripts/contract-check.sh); it is
-// deliberately NOT registered here, because contract-probe/ is not `include()`d by
-// settings.gradle.kts — see documentation/contract-gate.md.
+// contractLint (per commit, no network) — validates documentation/contract.yaml's own shape: the
+// schema parses, no two entries make the same claim, every entry's probe file exists and every
+// page#anchor pointer resolves. Version talk in a document is snippetCheck's rule
+// (VersionLiteralSupport), so this task never scans prose for one. The registry-backed twin,
+// `contractCheck`, runs contract-probe/ against a published version and is nightly-only (see
+// scripts/contract-check.sh); it is deliberately NOT registered here, because contract-probe/ is
+// not `include()`d by settings.gradle.kts — see documentation/contract-gate.md.
 // ------------------------------------------------------------------------------------------------
 
 tasks.register("contractLint") {
-    description = "Validates documentation/contract.yaml's schema, anchors and since-markers (no network)"
+    description = "Validates documentation/contract.yaml's schema, anchors and probe pointers (no network)"
     group = "verification"
     val contractFile = rootProject.file("documentation/contract.yaml")
     val docsDir = rootProject.file("documentation")
     inputs.file(contractFile)
     inputs.dir(docsDir)
-    inputs.files(rootProject.fileTree(rootDir) { include("*.md") })
     doLast {
         val document = ai.narrativetrace.build.ContractLintSupport.parse(contractFile)
-        val unreleasedVersions = ai.narrativetrace.build.SnippetSupport.englishMarkdownFiles(rootDir)
-            .flatMap { file ->
-                Regex("""\(since (\d+\.\d+\.\d+), unreleased\)\*""").findAll(file.readText())
-                    .map { it.groupValues[1] }
-            }
-            .toSet()
-        val problems = ai.narrativetrace.build.ContractLintSupport.lint(rootDir, document, unreleasedVersions) +
-            ai.narrativetrace.build.ContractLintSupport.headingsWithSinceMarker(rootDir)
+        val problems = ai.narrativetrace.build.ContractLintSupport.lint(rootDir, document)
         if (problems.isNotEmpty()) {
             throw GradleException(
                 "contractLint: ${problems.size} problem(s):\n" +
@@ -793,8 +785,12 @@ tasks.register("commentHygiene") {
     description = "Lints published-module and buildSrc source comments for audit history and port-framing"
     group = "verification"
     val allowlistFile = rootProject.file("config/comment-hygiene/allowlist.json")
-    val moduleNames = publishedModules.map { it.name }
-    inputs.files(publishedModules.map { it.fileTree("src/main/java") })
+    // narrativetrace-skills-catalogue stopped being a `publishedModules` entry when the carrier
+    // split landed (2026-09-24) — its source still ships in the source-available tree, and a module
+    // split must never quietly drop a gate's coverage, so it is named here beside the published set.
+    val scannedModules = publishedModules + project(":narrativetrace-skills-catalogue")
+    val moduleNames = scannedModules.map { it.name }
+    inputs.files(scannedModules.map { it.fileTree("src/main/java") })
     inputs.dir(rootProject.file("buildSrc/src/main/kotlin"))
     inputs.file(allowlistFile)
     doLast {
@@ -1101,6 +1097,55 @@ tasks.register("osvScan") {
     }
 }
 
+// vendorValidate — the seam where a VENDOR's own validator checks an artifact this repository
+// publishes for that vendor to read (today: the plugin marketplace file the agent CLI reads).
+//
+// HEAVY TIER, never `check`: a per-commit gate may not depend on a third-party CLI being installed,
+// and the per-commit gate for the same file is already the JSON-shape/drift test in
+// narrativetrace-skills-catalogue. What this adds is the only thing a test of our own cannot: the
+// vendor's own opinion of the file.
+//
+// A REGISTRY, not one invocation (VendorValidationSupport.CHECKS, buildSrc, unit-tested there): each
+// vendor is a row — tool, probe, validate, artifact, what to stage — so the next registry artifact
+// joins as data. The precondition lives in the row's own run: an absent (or non-answering) CLI SKIPS
+// with one line naming it and how to install it, recorded as a skip so nothing reads it as a pass.
+// Never a CI-side exclusion list.
+//
+// The tree each row validates is staged from HEAD with `git archive`, never the working tree: what a
+// vendor validates must be what a publish would ship.
+tasks.register("vendorValidate") {
+    description = "Runs each vendor's own validator against the registry artifact it reads " +
+        "(heavy tier, never part of check; an absent vendor CLI skips, naming what to install)"
+    group = "verification"
+    doLast {
+        val reportsDir = layout.buildDirectory.dir("reports/vendor-validation").get().asFile
+        val results = ai.narrativetrace.build.VendorValidationSupport.CHECKS.map { check ->
+            val stage = layout.buildDirectory.dir("vendor-validate/${check.tool}").get().asFile
+            stage.deleteRecursively()
+            ai.narrativetrace.build.VendorValidationSupport.stageFromHead(rootDir, check.stagedPaths, stage)
+            val result = ai.narrativetrace.build.VendorValidationSupport.validate(check, stage, null)
+            ai.narrativetrace.build.VendorValidationSupport.record(reportsDir, result)
+            println("vendorValidate: ${check.tool} ${result.outcome.name.lowercase()} — ${result.message}")
+            if (result.outcome != ai.narrativetrace.build.VendorOutcome.PASSED && result.output.isNotBlank()) {
+                println(result.output.trim().prependIndent("  | "))
+            }
+            result
+        }
+        when (ai.narrativetrace.build.VendorValidationSupport.aggregate(results)) {
+            ai.narrativetrace.build.VendorOutcome.FAILED -> throw GradleException(
+                "vendorValidate: a vendor rejected an artifact this repository publishes — see the output above"
+            )
+            ai.narrativetrace.build.VendorOutcome.SKIPPED -> logger.warn(
+                "vendorValidate: every row SKIPPED — nothing was validated. A skip is not a pass; " +
+                    "statuses recorded under $reportsDir"
+            )
+            ai.narrativetrace.build.VendorOutcome.PASSED ->
+                println("vendorValidate: ${results.count { it.outcome == ai.narrativetrace.build.VendorOutcome.PASSED }} " +
+                    "of ${results.size} row(s) validated by their own vendor; statuses under $reportsDir")
+        }
+    }
+}
+
 // A typed task (DependencyReportTask, buildSrc) whose declared input is the declared module graph:
 // the ad-hoc predecessor had an output and no inputs, which Gradle reads as "up-to-date while the
 // output file is unchanged" — a dependency bump left the report stale. The provider is read once
@@ -1113,16 +1158,18 @@ tasks.register<ai.narrativetrace.build.DependencyReportTask>("dependencyReport")
     outputFile.set(layout.buildDirectory.file("reports/dependency-graph/module-dependencies.txt"))
 }
 
-// Modules JDepend cannot measure. The first four have no `main` source set worth
-// analysing at all: `narrativetrace-security-tests` and `narrativetrace-build-tests`
-// are test-only (no `build/classes/java/main` exists), and a module with no
-// production package has no afferent/efferent coupling to gate. They are excluded
-// from `jdependCrossModule` for the same reason — including them would add an empty
-// input, not a measurement.
+// Modules JDepend cannot measure. Most have no `main` source set worth analysing at
+// all: `narrativetrace-security-tests` and `narrativetrace-build-tests` are test-only
+// (no `build/classes/java/main` exists), `narrativetrace-skills` is the resource-only
+// carrier (its whole content is `src/main/resources`), and a module with no production
+// package has no afferent/efferent coupling to gate. They are excluded from
+// `jdependCrossModule` for the same reason — including them would add an empty input,
+// not a measurement.
 val jdependExcludedModules = setOf(
     "narrativetrace-benchmarks",
     "narrativetrace-build-tests",
     "narrativetrace-security-tests",
+    "narrativetrace-skills",
     "narrativetrace-jcstress",
     "narrativetrace-micronaut",
     "narrativetrace-micronaut-http"
@@ -1407,7 +1454,7 @@ subprojects {
                     fileTree(dir) { exclude("**/Main.class") }
                 })
             }
-            if (project.name == "narrativetrace-skills") {
+            if (project.name == "narrativetrace-skills-catalogue") {
                 // EvalRunner is the Tier B trial runner's untestable integration glue — real
                 // subprocess and filesystem orchestration (scaffolding a fixture, driving a
                 // subscription CLI, running a grader script) that a unit test would have to fake so
@@ -1768,6 +1815,36 @@ tasks.register("verifyAll") {
                 emptyMap(),
                 sca.seconds,
                 withLogHint("osvScan status: $osvStatus (needs network + the osv-scanner binary; see documentation/security-tooling.md)", sca, scaStatus),
+            )
+        )
+
+        // ------------------------------------------------------------------- vendor-validation
+        // A vendor's own validator against an artifact we publish for it to read. Its status comes
+        // from the RECORDED row statuses, never from the subprocess exit code alone: a row that
+        // skipped because the vendor CLI is absent also exits zero, and "nothing was validated"
+        // must not read as "validated".
+        val vendor = runGradleSubprocess(rootDir, "vendor-validation", "vendorValidate")
+        val vendorStatuses = ai.narrativetrace.build.VendorValidationSupport.CHECKS.associate { check ->
+            check.tool to ai.narrativetrace.build.VendorValidationSupport.recordedStatus(
+                layout.buildDirectory.dir("reports/vendor-validation").get().asFile, check.tool
+            )
+        }
+        val vendorStatus = when {
+            vendor.exitCode != 0 -> ai.narrativetrace.build.VerificationStatus.FAILED
+            vendorStatuses.values.any { it.startsWith("passed") } -> ai.narrativetrace.build.VerificationStatus.PASSED
+            else -> ai.narrativetrace.build.VerificationStatus.SKIPPED
+        }
+        addRow(
+            ai.narrativetrace.build.CategoryResult(
+                ai.narrativetrace.build.VerificationCategory.VENDOR_VALIDATION,
+                ai.narrativetrace.build.VendorValidationSupport.CHECKS.joinToString(" + ") { "${it.tool} ${it.validate.joinToString(" ")}" },
+                vendorStatus,
+                mapOf("rows" to ai.narrativetrace.build.VendorValidationSupport.CHECKS.size),
+                vendor.seconds,
+                withLogHint(
+                    vendorStatuses.entries.joinToString("; ") { (tool, status) -> "$tool: $status" },
+                    vendor, vendorStatus,
+                ),
             )
         )
 

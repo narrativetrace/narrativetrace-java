@@ -110,12 +110,13 @@ publishing {
     }
 }
 
-// A file-backed Maven repository consumed only by narrativetrace-skills' Tier A2 replay
-// (SkillReplayer.clarityScan/clarityCheck) and the standalone fixture path documented in
-// narrativetrace-skills/evals/README.md, resolving the plugin and its libraries without an
+// A file-backed Maven repository consumed only by narrativetrace-skills-catalogue's Tier A2
+// replay (SkillReplayer.clarityScan/clarityCheck) and the standalone fixture path documented in
+// narrativetrace-skills-catalogue/evals/README.md, resolving the plugin and its libraries without an
 // includeBuild composite of this whole checkout — that composite pushed the standalone snapshot
 // verify's JVM census high enough to get the outer Gradle daemon OOM-killed (2026-09-23).
-// `narrativetrace-skills:publishSkillsTestRepo` (root build.gradle.kts) is the only thing that
+// `narrativetrace-skills-catalogue:publishSkillsTestRepo` (root build.gradle.kts) is the only
+// thing that
 // depends on this repository's publish tasks; `publishToMavenLocal`, `publish`, and the
 // Central/Plugin-Portal release flows never reference it. Publishing here still goes through the
 // same `mavenJava` publication, signed exactly like every other repository when credentials are
@@ -125,7 +126,7 @@ publishing {
     repositories {
         maven {
             name = "narrativeTraceSkillsTest"
-            url = uri(project(":narrativetrace-skills").layout.buildDirectory.dir("test-repo"))
+            url = uri(project(":narrativetrace-skills-catalogue").layout.buildDirectory.dir("test-repo"))
         }
     }
 }

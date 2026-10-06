@@ -3,14 +3,19 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 #
-# Nightly docs-vs-published contract gate (docs-vs-published-gate-2026-09-12.md §2, ruling 4):
-# resolves the published version the same way scripts/verify-publication.sh does (newest v* tag
-# reachable from HEAD, else Maven Central's maven-metadata.xml <latest> for narrativetrace-core),
-# installs it into a FRESH temp dir (an isolated Gradle user home — never this checkout's own,
-# never mavenLocal) and runs contract-probe/'s `runContract` against it. This is the
-# "fresh-temp-dir install helper" the design note says gets built once, here, first — a future
-# layer 2 (the sixty-seconds cold walk, documentation/sixty-seconds.md, "not yet built") reuses
-# the same resolve-then-fresh-install shape rather than inventing a second one.
+# Nightly contract gate — what this repository's documentation CLAIMS, checked against what a
+# consumer actually downloads. Resolves the published version the same way
+# scripts/verify-publication.sh does (newest v* tag reachable from HEAD, else Maven Central's
+# maven-metadata.xml <latest> for narrativetrace-core), installs it into a FRESH temp dir (an
+# isolated Gradle user home — never this checkout's own, never mavenLocal) and runs
+# contract-probe/'s `runContract` against it. A future layer 2 (the sixty-seconds cold walk,
+# documentation/sixty-seconds.md, "not yet built") reuses the same resolve-then-fresh-install shape
+# rather than inventing a second one.
+#
+# THE CONTRACT IS THE WORKING TREE'S. Development is trunk-based and publishing is one step: the
+# public snapshot and the artifacts go out together from the same commit, so main IS the published
+# code. There is no "main ahead of published" gap for a tag-time read to close, and so no tag
+# lookup here — documentation/contract.yaml as it stands describes the code the release published.
 #
 # Usage:
 #   scripts/contract-check.sh [<version>] [options]
@@ -20,12 +25,12 @@
 # version instead (a manual rehearsal, or a specific past release).
 #
 # Options:
-#   --dry-run   Print the resolved version and the command that would run; no network calls
-#               beyond version resolution itself, no Gradle build.
+#   --dry-run   Print the resolved version and the command that would run; no network calls beyond
+#               version resolution itself, no Gradle build.
 #   -h, --help  Print this usage text and exit 0.
 #
-# Exit status: 0 only if every applicable contract.yaml entry HOLDS (contract-probe's own exit
-# code, propagated through Gradle's runContract task failing on any FAILS verdict).
+# Exit status: 0 only if every contract.yaml entry HOLDS (contract-probe's own exit code,
+# propagated through Gradle's runContract task failing on any FAILS verdict).
 set -euo pipefail
 [ -n "${BASH_VERSION:-}" ] || { echo "ERROR: run with bash, not another shell." >&2; exit 1; }
 
@@ -39,6 +44,9 @@ Usage: scripts/contract-check.sh [<version>] [options]
 <version> is optional: omitted, the LAST PUBLISHED version is checked (newest v* tag reachable
 from HEAD, else Maven Central's maven-metadata.xml <latest> for narrativetrace-core) — never this
 checkout's own gradle.properties version.
+
+The contract checked is documentation/contract.yaml as it stands in the working tree: main is the
+published code, so an entry describes the code the release published.
 
 Options:
   --dry-run   print the resolved version and the command that would run; no Gradle build.
@@ -63,9 +71,12 @@ done
 
 # Reuses verify-publication.sh's own version-resolution functions (resolve_version,
 # latest_tag_version, latest_metadata_version) rather than a second copy of the same logic — the
-# sourcing guard at that script's own bottom keeps its main() from also running here.
+# sourcing guard at that script's own bottom keeps its main() from also running here. Sourced from
+# THIS script's directory, not from $REPO_ROOT: the sibling script always lives next to this one,
+# while REPO_ROOT names the repository whose tags and contract are being read (a test points it at
+# a throwaway fixture).
 # shellcheck source=scripts/verify-publication.sh
-source "$REPO_ROOT/scripts/verify-publication.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/verify-publication.sh"
 
 if [ -z "$VERSION" ]; then
     resolve_version || exit 1
@@ -79,21 +90,23 @@ WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 GRADLE_HOME="$WORKDIR/gradle-home"
 RESULT_JSON="$WORKDIR/contract-result.json"
+CONTRACT_YAML="$REPO_ROOT/documentation/contract.yaml"
 
 if [ "$DRY_RUN" = 1 ]; then
     echo "Dry run — would install $VERSION into a fresh temp dir and run:"
     echo "  contract-probe/gradlew -g $GRADLE_HOME runContract -PcontractVersion=$VERSION" \
-        "-PcontractYaml=$REPO_ROOT/documentation/contract.yaml -Pout=$RESULT_JSON"
+        "-PcontractYaml=$CONTRACT_YAML -Pout=$RESULT_JSON"
     exit 0
 fi
 
+echo ">> checking documentation/contract.yaml (the working tree's) against the published artifacts" >&2
 echo ">> installing ai.narrativetrace:*:$VERSION into a fresh Gradle user home and running contract-probe" >&2
 
 set +e
 "$REPO_ROOT/contract-probe/gradlew" -g "$GRADLE_HOME" --console=plain --no-daemon \
     -p "$REPO_ROOT/contract-probe" runContract \
     -PcontractVersion="$VERSION" \
-    -PcontractYaml="$REPO_ROOT/documentation/contract.yaml" \
+    -PcontractYaml="$CONTRACT_YAML" \
     -Pout="$RESULT_JSON"
 STATUS=$?
 set -e

@@ -18,13 +18,15 @@ plugins {
 }
 
 dependencies {
-    // narrativetraceDoctor (NarrativeTraceDoctorTask) calls the free CLI's doctor classes
-    // in-process — a project dependency baked into this plugin's own published jar at build time,
-    // not an external coordinate resolved when the task runs. narrativetrace-cli takes zero
-    // dependencies of its own (licensing.properties: open; FREE may depend on OPEN), so this adds
-    // no further transitive resolution for an adopter applying the plugin, and needs no network
-    // access to run the task itself.
-    implementation(project(":narrativetrace-cli"))
+    // narrativetraceDoctor (NarrativeTraceDoctorTask) calls the free tooling LIBRARY's doctor
+    // classes in-process — a project dependency baked into this plugin's own published jar at build
+    // time, not an external coordinate resolved when the task runs. What is embedded here is
+    // narrativetrace-tooling, never the narrativetrace CLI: both entry points sit on the same
+    // library and neither depends on the other. narrativetrace-tooling takes zero dependencies of
+    // its own (licensing.properties: open; FREE may depend on OPEN), so this adds no further
+    // transitive resolution for an adopter applying the plugin, and needs no network access to run
+    // the task itself.
+    implementation(project(":narrativetrace-tooling"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
@@ -78,6 +80,13 @@ val functionalTestTask = tasks.register<Test>("functionalTest") {
     testClassesDirs = functionalTest.output.classesDirs
     classpath = functionalTest.runtimeClasspath
     useJUnitPlatform()
+    // narrativetraceInit resolves the skills carrier as an ordinary dependency (Phase 2 D4), so a
+    // TestKit project needs a repository that carries it. The tests lay the REAL jar this build
+    // produced out as a local Maven file repository rather than publishing the whole family into
+    // one: the carrier is the only artifact those tasks resolve, and a one-jar repository keeps
+    // every case offline and independent of `publishSkillsTestRepo`.
+    dependsOn(":narrativetrace-skills:jar")
+    systemProperty("projectDir", rootProject.projectDir.absolutePath)
 }
 
 tasks.named("check") {
@@ -137,7 +146,7 @@ publishing {
     repositories {
         maven {
             name = "narrativeTraceSkillsTest"
-            url = uri(project(":narrativetrace-skills").layout.buildDirectory.dir("test-repo"))
+            url = uri(project(":narrativetrace-skills-catalogue").layout.buildDirectory.dir("test-repo"))
         }
     }
 }

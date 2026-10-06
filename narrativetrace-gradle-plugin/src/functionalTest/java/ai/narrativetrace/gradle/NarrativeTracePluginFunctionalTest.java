@@ -13,6 +13,7 @@ import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -1258,6 +1259,112 @@ class NarrativeTracePluginFunctionalTest {
     assertThat(projectDir.resolve("build/nt/doctor-report.json")).exists();
   }
 
+  // --- narrativetraceDoctor: the twelfth check ------------------------------------------------
+
+  @Test
+  void narrativetraceDoctorSaysTheSkillsAreNotInstalledWhenItCanResolveTheCarrier(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(result.getOutput())
+        .contains("[FAIL] config.skills-installed")
+        .contains("narrativetraceInit --diff");
+  }
+
+  @Test
+  void narrativetraceDoctorSaysTheSkillsAreCurrentRightAfterAnInstall(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    runGradle(projectDir, "narrativetraceInit");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.getOutput())
+        .contains("[PASS] config.skills-installed")
+        .contains(CARRIER_VERSION);
+  }
+
+  /**
+   * Offline: nothing provides the carrier, so the doctor cannot compare and says so. The build is
+   * green either way — this task never fails on findings — but the FINDING must not be a failure,
+   * or an offline diagnosis would report a defect nobody introduced.
+   */
+  @Test
+  void narrativetraceDoctorCannotTellWhenNothingProvidesTheCarrier(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.getOutput())
+        .contains("[PASS] config.skills-installed")
+        .contains("could not be resolved");
+  }
+
+  @Test
+  void narrativetraceDoctorReportsSkillsInstalledFromAnOlderCarrier(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    runGradle(projectDir, "narrativetraceInit");
+    writeStaleSkill(projectDir);
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.getOutput())
+        .contains("[FAIL] config.skills-installed")
+        .contains("installed from " + STALE_COORDINATE)
+        .contains("resolves ai.narrativetrace:narrativetrace-skills:" + CARRIER_VERSION);
+  }
+
+  @Test
+  void narrativetraceDoctorNamesTheOneSkillAnInstallIsMissing(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    runGradle(projectDir, "narrativetraceInit");
+    deleteRecursively(projectDir.resolve(".agents/skills/narrativetrace-doctor"));
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.getOutput())
+        .contains("[FAIL] config.skills-installed")
+        .contains("narrativetrace-doctor is missing");
+  }
+
+  @Test
+  void narrativetraceDoctorReportsAForeignSkillDirectoryWithoutCountingIt(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    runGradle(projectDir, "narrativetraceInit");
+    Files.writeString(projectDir.resolve(DOCTOR_PAGE), "---\nname: mine\n---\n\nmine, thanks\n");
+
+    var result = runGradle(projectDir, "narrativetraceDoctor");
+
+    assertThat(result.getOutput()).contains("[FAIL] config.skills-installed").contains("not ours");
+  }
+
+  /** The finding's own field: the skill an agent should follow next, in the JSON report. */
+  @Test
+  void narrativetraceDoctorsJsonReportNamesTheSkillThatFixesEachFinding(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    runGradle(projectDir, "narrativetraceDoctor");
+
+    var json = Files.readString(projectDir.resolve("build/narrativetrace/doctor-report.json"));
+    assertThat(json).contains("\"skill\": \"narrativetrace-doctor\"").contains("\"skill\": null");
+  }
+
+  private static void deleteRecursively(Path root) throws IOException {
+    try (var walk = Files.walk(root)) {
+      for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+        Files.delete(path);
+      }
+    }
+  }
+
   private String scenarioJson(String name, double score) {
     return String.format(
         "{\"name\":\"%s\",\"overallScore\":%.2f"
@@ -1406,6 +1513,128 @@ class NarrativeTracePluginFunctionalTest {
             + "}\n");
   }
 
+  // --- narrativetraceFeedback -----------------------------------------------------------------
+
+  /**
+   * The options every feedback run needs, with text no value-free rule refuses, and whichever of
+   * them a case REPLACES. Gradle refuses a repeated command-line option, so an override has to
+   * replace rather than append — which is what the map is for.
+   */
+  private static String[] feedbackArgs(String channel, String... overrides) {
+    var options = new java.util.LinkedHashMap<String, String>();
+    options.put("--channel", channel);
+    options.put("--category", "library");
+    options.put("--step", "the install block");
+    options.put("--did", "applied the plugin and ran the build");
+    options.put("--happened", "nothing appeared under the output directory");
+    options.put("--expected", "one trace file per scenario");
+    for (int i = 0; i < overrides.length; i += 2) {
+      options.put(overrides[i], overrides[i + 1]);
+    }
+    var args = new java.util.ArrayList<String>(List.of("narrativetraceFeedback"));
+    options.forEach(
+        (option, value) -> {
+          args.add(option);
+          args.add(value);
+        });
+    return args.toArray(String[]::new);
+  }
+
+  @Test
+  void narrativetraceFeedbackTaskIsRegistered(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, "tasks", "--group", "help");
+
+    assertThat(result.getOutput()).contains("narrativetraceFeedback");
+  }
+
+  @Test
+  void narrativetraceFeedbackWritesBothFilesAndPrintsTheWholeDraft(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, feedbackArgs("draft"));
+
+    assertThat(result.task(":narrativetraceFeedback").getOutcome()).isEqualTo(SUCCESS);
+    var draft = projectDir.resolve("build/narrativetrace/feedback/feedback-draft.md");
+    var body = projectDir.resolve("build/narrativetrace/feedback/feedback-body.md");
+    assertThat(draft).exists();
+    assertThat(body).exists();
+    assertThat(Files.readString(draft)).contains(Files.readString(body));
+    assertThat(result.getOutput())
+        .contains("## What I did")
+        .contains("nothing appeared under the output directory")
+        .contains("Filing on GitHub is public");
+  }
+
+  @Test
+  void narrativetraceFeedbackPrintsThePreFilledUrlOnTheUrlChannel(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradle(projectDir, feedbackArgs("url"));
+
+    assertThat(result.getOutput())
+        .contains("https://github.com/narrativetrace/narrativetrace-java/issues/new?")
+        .contains("template=narrativetrace-report.yml")
+        .contains("category=library");
+  }
+
+  @Test
+  void narrativetraceFeedbackRefusesAReportCarryingAValueAndWritesNothing(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result =
+        runGradleAndFail(
+            projectDir,
+            feedbackArgs(
+                "draft", "--happened", "it rendered OrderService.placeOrder(customerId: \"C-1\")"));
+
+    assertThat(result.getOutput())
+        .contains("happened: vf.rendered-call")
+        .contains("Nothing was written");
+    assertThat(projectDir.resolve("build/narrativetrace/feedback")).doesNotExist();
+  }
+
+  @Test
+  void narrativetraceFeedbackHonoursACustomOutputDir(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir, "narrativeTrace {\n    outputDir.set(layout.buildDirectory.dir(\"nt\"))\n}\n");
+
+    runGradle(projectDir, feedbackArgs("draft"));
+
+    assertThat(projectDir.resolve("build/nt/feedback/feedback-body.md")).exists();
+  }
+
+  @Test
+  void narrativetraceFeedbackAttachesTheDoctorsReportWhenThisProjectHasOne(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+    runGradle(projectDir, "narrativetraceDoctor");
+
+    var result = runGradle(projectDir, feedbackArgs("draft", "--category", "doctor"));
+
+    assertThat(result.task(":narrativetraceFeedback").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(
+            Files.readString(projectDir.resolve("build/narrativetrace/feedback/feedback-body.md")))
+        .contains("\"findings\"")
+        .doesNotContain("No doctor report");
+  }
+
+  @Test
+  void aDoctorCategoryReportWithoutTheDoctorsReportFailsAndSaysWhatToDo(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "");
+
+    var result = runGradleAndFail(projectDir, feedbackArgs("draft", "--category", "doctor"));
+
+    assertThat(result.getOutput())
+        .contains("needs the doctor's JSON report")
+        .contains("file this under prompt or library instead");
+  }
+
   private void writeJavaSource(Path projectDir) throws IOException {
     var srcDir = projectDir.resolve("src/main/java");
     Files.createDirectories(srcDir);
@@ -1464,5 +1693,573 @@ class NarrativeTracePluginFunctionalTest {
         + "        }\n"
         + "    }\n"
         + "}\n";
+  }
+
+  // --- narrativetraceInit / narrativetraceUninstall / narrativetraceRefreshSkills --------------
+
+  /** The version every family artifact resolves at, and so the version of the carrier. */
+  private static final String CARRIER_VERSION =
+      System.getProperty("narrativetrace.test.publishedVersion");
+
+  private static final Path REPOSITORY_ROOT = Path.of(System.getProperty("projectDir"));
+
+  private static final String DOCTOR_PAGE = ".agents/skills/narrativetrace-doctor/SKILL.md";
+
+  private static final String STALE_COORDINATE = "ai.narrativetrace:narrativetrace-skills:0.0.1";
+
+  @Test
+  void theInstallerTasksAreRegisteredInTheirOwnGroup(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "tasks", "--group", "narrativetrace");
+
+    assertThat(result.getOutput())
+        .contains("narrativetraceInit")
+        .contains("narrativetraceUninstall");
+  }
+
+  @Test
+  void narrativetraceInitWritesTheSkillsAndTheStampedSection(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceInit");
+
+    assertThat(result.task(":narrativetraceInit").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(Files.readString(projectDir.resolve(DOCTOR_PAGE)))
+        .contains("installed by narrativetrace init from ai.narrativetrace:narrativetrace-skills:")
+        .contains(CARRIER_VERSION);
+    assertThat(Files.readString(projectDir.resolve("AGENTS.md")))
+        .contains(
+            "<!-- narrativetrace:start ai.narrativetrace:narrativetrace-skills:"
+                + CARRIER_VERSION
+                + " -->")
+        .contains("<!-- narrativetrace:end -->");
+  }
+
+  @Test
+  void narrativetraceInitDiffPrintsThePlanAndWritesNothing(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceInit", "--diff");
+
+    assertThat(result.getOutput()).contains("+++ b/AGENTS.md").contains("@@");
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+    assertThat(projectDir.resolve(".agents")).doesNotExist();
+  }
+
+  @Test
+  void aSecondNarrativetraceInitHasNothingToDo(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    runGradle(projectDir, "narrativetraceInit");
+
+    var result = runGradle(projectDir, "narrativetraceInit");
+
+    assertThat(result.getOutput()).contains("0 applied, 0 refused");
+  }
+
+  @Test
+  void narrativetraceInitOnlySkillsLeavesTheSectionAlone(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    runGradle(projectDir, "narrativetraceInit", "--only", "skills");
+
+    assertThat(projectDir.resolve(DOCTOR_PAGE)).exists();
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+  }
+
+  @Test
+  void narrativetraceInitOnlyAgentsMdLeavesTheSkillsAlone(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    runGradle(projectDir, "narrativetraceInit", "--only", "agents-md");
+
+    assertThat(projectDir.resolve(".agents")).doesNotExist();
+    assertThat(projectDir.resolve("AGENTS.md")).exists();
+  }
+
+  /**
+   * A carrier nothing provides fails {@code narrativetraceInit} — the task a person explicitly ran
+   * — with the coordinate named. The refresh task reads the same empty resolution and only warns,
+   * which is the whole reason the artifact view is lenient rather than strict.
+   */
+  @Test
+  void narrativetraceInitFailsWithTheCoordinateWhenNothingProvidesTheCarrier(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), "");
+
+    var result = runGradleAndFail(projectDir, "narrativetraceInit");
+
+    assertThat(result.getOutput())
+        .contains("could not resolve the NarrativeTrace skills carrier")
+        .contains("no repository in this build provides ai.narrativetrace:narrativetrace-skills");
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+  }
+
+  @Test
+  void anUnknownOnlyValueFailsTheTaskAndNamesWhatIsAccepted(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradleAndFail(projectDir, "narrativetraceInit", "--only", "everything");
+
+    assertThat(result.getOutput()).contains("Invalid --only 'everything'").contains("agents-md");
+  }
+
+  @Test
+  void narrativetraceInitJsonPrintsTheSameEnvelopeTheDoctorDoes(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceInit", "--json");
+
+    assertThat(result.getOutput())
+        .contains("\"carrier\": \"ai.narrativetrace:narrativetrace-skills:" + CARRIER_VERSION)
+        .contains("\"status\": \"applied\"")
+        .contains("\"exitCode\": 0");
+  }
+
+  /**
+   * D12 at the Gradle surface: a person is at the keyboard, so a refusal is red and names the flag
+   * that would allow it — never a log line under a green build.
+   */
+  @Test
+  void aRefusalFailsTheTaskAndNamesTheFlagThatWouldAllowIt(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    Files.writeString(projectDir.resolve("AGENTS.md"), "# Mine\n");
+
+    var result = runGradleAndFail(projectDir, "narrativetraceInit");
+
+    assertThat(result.getOutput())
+        .contains("narrativetraceInit refused to change this project")
+        .contains("--write-existing");
+    assertThat(Files.readString(projectDir.resolve("AGENTS.md"))).isEqualTo("# Mine\n");
+  }
+
+  @Test
+  void aProjectWithAClaudeMdGetsTheVendorCopyAndTheImportLineOnlyWithTheFlag(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    Path repository = carrierRepository(repo);
+    writeCarrierBuildFile(projectDir, repository, "");
+    Files.writeString(projectDir.resolve("CLAUDE.md"), "# Claude\n");
+
+    runGradleAndFail(projectDir, "narrativetraceInit");
+
+    assertThat(projectDir.resolve(".claude/skills/narrativetrace-doctor/SKILL.md")).exists();
+    assertThat(Files.readString(projectDir.resolve("CLAUDE.md"))).isEqualTo("# Claude\n");
+
+    runGradle(projectDir, "narrativetraceInit", "--write-existing");
+
+    assertThat(Files.readString(projectDir.resolve("CLAUDE.md"))).contains("@AGENTS.md");
+  }
+
+  @Test
+  void narrativetraceUninstallLeavesTheTreeExactlyAsItWas(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    Files.writeString(projectDir.resolve("CLAUDE.md"), "# Claude\n");
+    var before = tree(projectDir);
+
+    runGradle(projectDir, "narrativetraceInit", "--write-existing");
+    runGradle(projectDir, "narrativetraceUninstall");
+
+    assertThat(tree(projectDir)).isEqualTo(before);
+  }
+
+  @Test
+  void theInstallerTasksRunUnderTheConfigurationCache(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var first = runGradle(projectDir, "narrativetraceInit", "--diff", "--configuration-cache");
+    var second = runGradle(projectDir, "narrativetraceInit", "--diff", "--configuration-cache");
+
+    assertThat(first.getOutput()).doesNotContain("problems were found storing");
+    assertThat(second.getOutput()).contains("Reusing configuration cache.");
+    assertThat(second.task(":narrativetraceInit").getOutcome()).isEqualTo(SUCCESS);
+  }
+
+  /**
+   * {@code --dry-run} is Gradle's own flag: it skips every task, so the obvious command for "show
+   * me what this would do" prints nothing. The plugin says so while it is still being configured,
+   * which is the last moment anything can.
+   */
+  @Test
+  void gradlesOwnDryRunSaysWhyTheTaskDidNotRun(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result = runGradle(projectDir, "narrativetraceInit", "--dry-run");
+
+    assertThat(result.getOutput())
+        .contains("--dry-run is Gradle's own flag")
+        .contains("./gradlew narrativetraceInit --diff");
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+  }
+
+  /**
+   * D5 at the Gradle surface: the tree {@code npx skills add} leaves is adopted by one plain {@code
+   * narrativetraceInit}, no flag — and the link it put at the vendor path is REPLACED rather than
+   * written through.
+   *
+   * <p>The discriminator is the vendor-only frontmatter key. A write that followed the link would
+   * have landed the vendor flavour in the open-standard page, so asserting that each path holds its
+   * OWN flavour is the same assertion as "nothing was written through the link", stated in bytes a
+   * person can read.
+   */
+  @Test
+  void aRegistryTreeIsAdoptedAndItsLinkReplacedRatherThanWrittenThrough(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+    registryTree(projectDir);
+
+    var result = runGradle(projectDir, "narrativetraceInit");
+
+    assertThat(result.task(":narrativetraceInit").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(result.getOutput())
+        .contains("adopted: identical to this carrier's page")
+        .contains("replaces the symbolic link .claude/skills/narrativetrace-doctor");
+    assertThat(Files.readString(projectDir.resolve(DOCTOR_PAGE)))
+        .contains(CARRIER_VERSION)
+        .doesNotContain(VENDOR_ONLY_FRONTMATTER);
+    assertThat(Files.readString(projectDir.resolve(CLAUDE_DOCTOR_PAGE)))
+        .contains(CARRIER_VERSION)
+        .contains(VENDOR_ONLY_FRONTMATTER);
+    assertThat(linksUnder(projectDir)).as("every link was replaced, none followed").isEmpty();
+    assertThat(Files.readString(projectDir.resolve(REGISTRY_LOCK_FILE))).isEqualTo(REGISTRY_LOCK);
+  }
+
+  // --- refresh on build -----------------------------------------------------------------------
+
+  @Test
+  void aProjectThatNeverRanInitIsNeverTouchedByABuild(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput()).doesNotContain("NarrativeTrace:");
+    assertThat(projectDir.resolve(".agents")).doesNotExist();
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+  }
+
+  @Test
+  void aSkillDirectorySomebodyElseOwnsIsNeverTouchedByABuild(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    Path theirs = projectDir.resolve(".agents/skills/narrativetrace-doctor/SKILL.md");
+    Files.createDirectories(theirs.getParent());
+    Files.writeString(theirs, "---\nname: narrativetrace-doctor\n---\n\nmine, thanks\n");
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput()).doesNotContain("NarrativeTrace:");
+    assertThat(Files.readString(theirs))
+        .isEqualTo("---\nname: narrativetrace-doctor\n---\n\nmine, thanks\n");
+  }
+
+  @Test
+  void anUpToDateInstallIsLeftAloneAndSaysNothing(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    runGradle(projectDir, "narrativetraceInit");
+    var installed = tree(projectDir);
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput()).doesNotContain("NarrativeTrace: refreshed");
+    assertThat(tree(projectDir)).isEqualTo(installed);
+  }
+
+  @Test
+  void aStaleInstallIsRefreshedByTheBuildWithOneLine(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    writeStaleSkill(projectDir);
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput())
+        .contains(
+            "NarrativeTrace: refreshed 1 file to ai.narrativetrace:narrativetrace-skills:"
+                + CARRIER_VERSION)
+        .contains(DOCTOR_PAGE);
+    assertThat(Files.readString(projectDir.resolve(DOCTOR_PAGE)))
+        .doesNotContain(STALE_COORDINATE)
+        .contains(CARRIER_VERSION);
+  }
+
+  /** A build never creates what init did not: a stale page is refreshed, AGENTS.md is not born. */
+  @Test
+  void aRefreshNeverStartsAnInstallOfItsOwn(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    writeStaleSkill(projectDir);
+
+    runGradle(projectDir, "classes");
+
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+    assertThat(projectDir.resolve(".claude")).doesNotExist();
+  }
+
+  @Test
+  void aCarrierThatWillNotResolveWarnsOnceAndChangesNothing(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    writeStaleSkill(projectDir);
+    var stale = tree(projectDir);
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput())
+        .contains("could not check whether this project's agent skills are up to date")
+        .contains("no repository in this build provides ai.narrativetrace:narrativetrace-skills");
+    assertThat(tree(projectDir)).isEqualTo(stale);
+  }
+
+  /**
+   * The refresh task sits on the {@code classes} path, so it is in EVERY consumer build. A
+   * configuration-cache problem there would not cost a person one command, it would cost them their
+   * build — which is why this is asserted on {@code classes} and not only on the task a person
+   * types.
+   */
+  @Test
+  void aBuildThatRefreshesStaysConfigurationCacheable(@TempDir Path projectDir, @TempDir Path repo)
+      throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    writeStaleSkill(projectDir);
+
+    var first = runGradle(projectDir, "classes", "--configuration-cache");
+    var second = runGradle(projectDir, "classes", "--configuration-cache");
+
+    assertThat(first.getOutput())
+        .doesNotContain("problems were found storing")
+        .contains("NarrativeTrace: refreshed 1 file to ");
+    assertThat(second.getOutput()).contains("Reusing configuration cache.");
+    assertThat(Files.readString(projectDir.resolve(DOCTOR_PAGE))).contains(CARRIER_VERSION);
+  }
+
+  @Test
+  void aProjectThatNeverRanInitStaysConfigurationCacheableToo(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, emptyRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+
+    var first = runGradle(projectDir, "classes", "--configuration-cache");
+    var second = runGradle(projectDir, "classes", "--configuration-cache");
+
+    assertThat(first.getOutput()).doesNotContain("problems were found storing");
+    assertThat(second.getOutput()).contains("Reusing configuration cache.");
+    assertThat(projectDir.resolve(".agents")).doesNotExist();
+  }
+
+  /**
+   * A build refreshes what {@code init} wrote and adopts NOTHING. The tree here is part registry
+   * and part one-release-stale install on purpose: a build that refreshed nothing at all would also
+   * pass a test where there was nothing to refresh, so the stale page of ours has to be rewritten
+   * in the same run that leaves the registry's unstamped pages and its links untouched.
+   */
+  @Test
+  void aBuildRefreshesOnlyWhatIsAlreadyOursAndAdoptsNoRegistryPage(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), COMPILE_WITHOUT_THE_FAMILY);
+    registryTree(projectDir);
+    writeStaleSkill(projectDir);
+    var theirPages = pagesNoInstallOfOursOwns(projectDir);
+    var theirLinks = linksUnder(projectDir);
+
+    var result = runGradle(projectDir, "classes");
+
+    assertThat(result.getOutput())
+        .contains(
+            "NarrativeTrace: refreshed 1 file to ai.narrativetrace:narrativetrace-skills:"
+                + CARRIER_VERSION)
+        .contains(DOCTOR_PAGE);
+    assertThat(Files.readString(projectDir.resolve(DOCTOR_PAGE)))
+        .doesNotContain(STALE_COORDINATE)
+        .contains(CARRIER_VERSION);
+    assertThat(pagesNoInstallOfOursOwns(projectDir))
+        .as("a build adopts no page a registry left")
+        .isEqualTo(theirPages);
+    assertThat(linksUnder(projectDir))
+        .as("a build replaces no link, however adoptable what it reaches is")
+        .isEqualTo(theirLinks);
+    assertThat(projectDir.resolve("AGENTS.md")).doesNotExist();
+  }
+
+  // --- fixtures -------------------------------------------------------------------------------
+
+  private static final String CLAUDE_DOCTOR_PAGE = ".claude/skills/narrativetrace-doctor/SKILL.md";
+
+  /**
+   * A frontmatter key only the VENDOR flavour carries, so "which flavour is this page" is one
+   * {@code contains}. If the carrier ever renders the two flavours identically this stops
+   * discriminating, and the registry-tree tests say nothing — which is why it is named here once
+   * rather than spelled inline at each assertion.
+   */
+  private static final String VENDOR_ONLY_FRONTMATTER = "allowed-tools:";
+
+  /** Anchored at column 0 in a stamped page, and absent from every page the carrier renders. */
+  private static final String PROVENANCE_PREFIX = "<!-- installed by narrativetrace init from ";
+
+  /** What {@code npx skills add} writes at the project root; nothing of ours may touch it. */
+  private static final String REGISTRY_LOCK_FILE = "skills-lock.json";
+
+  private static final String REGISTRY_LOCK = "{\"skills\": []}\n";
+
+  /**
+   * The tree {@code npx skills add} leaves behind: this release's own pages under the open-standard
+   * root with NO provenance line, the vendor path a relative link to each one, and the registry's
+   * own lock file at the project root.
+   *
+   * <p><b>@llmNote</b> Built by installing and then un-stamping, rather than from checked-in
+   * fixtures. Adoption's whole premise is that the pages are byte-identical to what this carrier
+   * renders, so a fixture copy would quietly stop testing adoption the first time a skill page is
+   * edited — it would be testing a refusal instead, and passing.
+   */
+  private void registryTree(Path projectDir) throws IOException {
+    runGradle(projectDir, "narrativetraceInit", "--only", "skills");
+    for (Path skill : skillDirectories(projectDir)) {
+      unstamp(skill.resolve("SKILL.md"));
+      String name = skill.getFileName().toString();
+      Path vendor = projectDir.resolve(".claude/skills").resolve(name);
+      Files.createDirectories(vendor.getParent());
+      Files.createSymbolicLink(vendor, Path.of("../../.agents/skills", name));
+    }
+    Files.writeString(projectDir.resolve(REGISTRY_LOCK_FILE), REGISTRY_LOCK);
+  }
+
+  private static java.util.List<Path> skillDirectories(Path projectDir) throws IOException {
+    try (var children = Files.list(projectDir.resolve(".agents/skills"))) {
+      return children.toList();
+    }
+  }
+
+  /** The page as a registry checked it out: ours, minus the one line that says so. */
+  private static void unstamp(Path page) throws IOException {
+    String stamped = Files.readString(page);
+    int start = stamped.indexOf(PROVENANCE_PREFIX);
+    assertThat(start).as("%s carries a provenance line to remove", page).isNotNegative();
+    Files.writeString(
+        page, stamped.substring(0, start) + stamped.substring(stamped.indexOf('\n', start) + 1));
+  }
+
+  /**
+   * The pages in the open-standard root that no install of ours owns — in a part-and-part tree,
+   * exactly the ones a registry left. The doctor's page is the one {@link #writeStaleSkill} makes
+   * ours, so it is what this excludes.
+   */
+  private static java.util.Map<String, String> pagesNoInstallOfOursOwns(Path projectDir)
+      throws IOException {
+    var pages = tree(projectDir);
+    pages.keySet().removeIf(path -> !path.startsWith(".agents") || path.contains("-doctor"));
+    return pages;
+  }
+
+  /**
+   * Every symbolic link under the project, by relative path. Listed, never followed: {@link
+   * Files#walk} does not descend through one, so a link's own target tree contributes nothing here.
+   */
+  private static java.util.List<String> linksUnder(Path projectDir) throws IOException {
+    try (var walk = Files.walk(projectDir)) {
+      return walk.filter(Files::isSymbolicLink)
+          .map(link -> projectDir.relativize(link).toString())
+          .sorted()
+          .toList();
+    }
+  }
+
+  /**
+   * The family's own artifacts are not in the one-jar carrier repository these tests use, and
+   * {@code classes} resolves the compile classpath. Excluding them there keeps the plugin ENABLED —
+   * which is the state the refresh task has to behave correctly in — without asking a nested build
+   * to reach a network.
+   */
+  private static final String COMPILE_WITHOUT_THE_FAMILY =
+      "configurations.named(\"compileClasspath\") { exclude(group = \"ai.narrativetrace\") }\n";
+
+  /** The real carrier jar this build produced, laid out as a local Maven file repository. */
+  private Path carrierRepository(Path repo) throws IOException {
+    Path target = repo.resolve("ai/narrativetrace/narrativetrace-skills/" + CARRIER_VERSION);
+    Files.createDirectories(target);
+    Files.copy(
+        REPOSITORY_ROOT.resolve(
+            "narrativetrace-skills/build/libs/narrativetrace-skills-" + CARRIER_VERSION + ".jar"),
+        target.resolve("narrativetrace-skills-" + CARRIER_VERSION + ".jar"));
+    Files.writeString(
+        target.resolve("narrativetrace-skills-" + CARRIER_VERSION + ".pom"), carrierPom());
+    return repo;
+  }
+
+  /** A repository that exists and carries nothing — what being offline looks like to Gradle. */
+  private Path emptyRepository(Path repo) throws IOException {
+    Files.createDirectories(repo);
+    return repo;
+  }
+
+  private static String carrierPom() {
+    return "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n"
+        + "  <modelVersion>4.0.0</modelVersion>\n"
+        + "  <groupId>ai.narrativetrace</groupId>\n"
+        + "  <artifactId>narrativetrace-skills</artifactId>\n"
+        + "  <version>"
+        + CARRIER_VERSION
+        + "</version>\n"
+        + "  <packaging>jar</packaging>\n"
+        + "</project>\n";
+  }
+
+  /** A page of ours from an older carrier — what an install looks like one release later. */
+  private void writeStaleSkill(Path projectDir) throws IOException {
+    Path page = projectDir.resolve(DOCTOR_PAGE);
+    Files.createDirectories(page.getParent());
+    Files.writeString(
+        page,
+        "---\nname: narrativetrace-doctor\n---\n\n<!-- installed by narrativetrace init from "
+            + STALE_COORDINATE
+            + " — edit the catalogue, not this file -->\n\nolder words\n");
+  }
+
+  private void writeCarrierBuildFile(Path projectDir, Path repo, String extraConfig)
+      throws IOException {
+    Files.writeString(
+        projectDir.resolve("settings.gradle.kts"), "rootProject.name = \"test-project\"");
+    Files.writeString(
+        projectDir.resolve("build.gradle.kts"),
+        "plugins {\n"
+            + "    java\n"
+            + "    id(\"ai.narrativetrace\")\n"
+            + "}\n"
+            + "repositories { maven { url = uri(\""
+            + repo.toUri()
+            + "\") } }\n"
+            + extraConfig);
+  }
+
+  /** Every file under the project, by relative path — the comparison an uninstall has to pass. */
+  private static java.util.Map<String, String> tree(Path projectDir) throws IOException {
+    var files = new java.util.TreeMap<String, String>();
+    try (var walk = Files.walk(projectDir)) {
+      for (Path file : walk.filter(Files::isRegularFile).toList()) {
+        String relative = projectDir.relativize(file).toString();
+        if (!relative.startsWith("build") && !relative.startsWith(".gradle")) {
+          files.put(relative, Files.readString(file));
+        }
+      }
+    }
+    return files;
+  }
+
+  private org.gradle.testkit.runner.BuildResult runGradleAndFail(Path projectDir, String... args) {
+    return GradleRunner.create()
+        .withProjectDir(projectDir.toFile())
+        .withPluginClasspath()
+        .withArguments(args)
+        .buildAndFail();
   }
 }

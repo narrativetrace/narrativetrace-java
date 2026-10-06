@@ -36,21 +36,29 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
- * INTENT: The standalone runner behind {@code contract-probe} (docs-vs-published-gate §2) — reads
- * {@code documentation/contract.yaml}, decides which entries apply at the installed version (ruling
- * 1: exempt only while {@code since} is strictly later than installed), runs the applicable ones'
- * dispatched probe against a PUBLISHED install (never {@code mavenLocal}, never {@code
- * project(...)}), and prints holds/fails/not-applicable-before-since per entry plus one summary
- * line. Writes a JSON result when {@code --out} is given. Exits 1 on any FAILS — the signal {@code
+ * INTENT: The standalone runner behind {@code contract-probe} — reads the {@code contract.yaml} it
+ * is pointed at, runs every entry's dispatched probe against a PUBLISHED install (never {@code
+ * mavenLocal}, never {@code project(...)}), and prints holds/fails per entry plus one summary line.
+ * Writes a JSON result when {@code --out} is given. Exits 1 on any FAILS — the signal {@code
  * scripts/contract-check.sh} (the nightly wrapper) and the root {@code contractCheck} Gradle task
  * both key off.
+ *
+ * <p>EVERY entry is checked. An entry describes the code it was committed with, and the wrapper
+ * hands this runner the contract as of the tag whose artifact it installed, so "this claim has not
+ * shipped yet" is not a state that can arise and there is no verdict for it. The installed version
+ * is still NAMED in the report and the JSON: that is machine-written metadata saying which artifact
+ * answered, not a claim about when a rule began.
+ *
+ * @llmNote A probe that cannot answer at all returns null, and null is a FAILS with its own
+ *     explaining detail — never a skip. Adding a third verdict here means the gate can go quiet,
+ *     which is the failure mode this design exists to prevent.
  */
 public final class ContractRunner {
 
   /**
    * Entry id → the probe that answers it. A map rather than a {@code switch} so the set of
-   * dispatched ids is readable at runtime: {@link ContractDispatchCoverageTest} reads
-   * documentation/contract.yaml and asserts every id in it appears here, which is the guard that
+   * dispatched ids is readable at runtime: {@link ContractDispatchCoverageTest} reads the contract
+   * file this runner is pointed at and asserts every id in it appears here, which is the guard that
    * was missing when {@code probed-run-name-console-footer} and {@code
    * probed-run-name-manifest-field} shipped in the contract with their probe classes written but
    * never wired — the nightly gate crashed instead of reporting. A {@code switch}'s cases cannot be
@@ -109,6 +117,12 @@ public final class ContractRunner {
               "probed-run-name-manifest-field",
               (entry, options) -> RunNameManifestFieldProbe.observe()));
 
+  /** The probe observed exactly the value the entry documents. */
+  static final String HOLDS = "holds";
+
+  /** It observed something else — a probe that could not answer at all included. */
+  static final String FAILS = "fails";
+
   private ContractRunner() {}
 
   /** The entry ids this runner can answer — the coverage guard's half of the comparison. */
@@ -116,96 +130,109 @@ public final class ContractRunner {
     return PROBES.keySet();
   }
 
+  /** The verdict for one entry: exact string equality, or it fails. There is no third answer. */
+  static String verdictOf(ContractEntry entry, String observed) {
+    return entry.expect().equals(observed) ? HOLDS : FAILS;
+  }
+
   private static String entryPoint(ContractEntry entry, Args options) {
     return EntryPointProbe.observe(entry.coordinate(), options.registryBase(), options.version());
   }
 
+  /** One entry's line in the report and in the JSON, carried together so they cannot disagree. */
+  private record Outcome(String verdict, String detail) {}
+
+  /** What the whole run produced: the two tallies and one JSON object per entry, in file order. */
+  private record Report(int holds, int fails, List<String> jsonEntries) {}
+
   public static void main(String[] args) throws IOException {
     Args options = Args.parse(args);
     List<ContractEntry> entries = ContractYaml.read(new File(options.contractPath()));
-
-    int holds = 0;
-    int notApplicable = 0;
-    int fails = 0;
-    List<String> jsonEntries = new ArrayList<>();
-
-    for (ContractEntry entry : entries) {
-      String verdict;
-      String detail;
-      if (!Versions.isApplicable(entry.since(), options.version())) {
-        verdict = "not-applicable-before-since";
-        detail = "since " + entry.since() + " is later than installed " + options.version();
-        notApplicable++;
-      } else {
-        String observed = observe(entry, options);
-        if (entry.expect().equals(observed)) {
-          verdict = "holds";
-          detail = "observed \"" + observed + "\"";
-          holds++;
-        } else {
-          verdict = "fails";
-          detail = failureMessage(entry, options.version(), observed);
-          fails++;
-        }
-      }
-      System.out.printf(Locale.ROOT, "%-45s %-30s %s%n", entry.id(), verdict, detail);
-      jsonEntries.add(
-          "{\"id\":\""
-              + escape(entry.id())
-              + "\",\"kind\":\""
-              + escape(entry.kind())
-              + "\",\"since\":\""
-              + escape(entry.since())
-              + "\",\"verdict\":\""
-              + verdict
-              + "\",\"detail\":\""
-              + escape(detail)
-              + "\"}");
-    }
-
-    String summary =
-        holds
-            + " holds, "
-            + notApplicable
-            + " not-applicable-before-since, "
-            + fails
-            + " fails (installed version "
-            + options.version()
-            + ")";
+    Report report = runAll(entries, options);
     System.out.println();
-    System.out.println(summary);
-
+    System.out.println(summary(report, options.version()));
     if (options.outPath() != null) {
-      String json =
-          "{\"version\":\""
-              + escape(options.version())
-              + "\",\"entries\":["
-              + String.join(",", jsonEntries)
-              + "],\"summary\":{\"holds\":"
-              + holds
-              + ",\"notApplicableBeforeSince\":"
-              + notApplicable
-              + ",\"fails\":"
-              + fails
-              + "}}";
-      Files.writeString(new File(options.outPath()).toPath(), json);
+      Files.writeString(
+          new File(options.outPath()).toPath(), resultJson(report, options.version()));
     }
-
-    if (fails > 0) {
+    if (report.fails() > 0) {
       System.exit(1);
     }
   }
 
-  private static String failureMessage(
-      ContractEntry entry, String installedVersion, String observed) {
+  /** Runs every entry in file order, printing each verdict as it lands rather than at the end. */
+  private static Report runAll(List<ContractEntry> entries, Args options) {
+    int holds = 0;
+    int fails = 0;
+    List<String> jsonEntries = new ArrayList<>();
+    for (ContractEntry entry : entries) {
+      Outcome outcome = run(entry, options);
+      if (HOLDS.equals(outcome.verdict())) {
+        holds++;
+      } else {
+        fails++;
+      }
+      System.out.printf(
+          Locale.ROOT, "%-45s %-30s %s%n", entry.id(), outcome.verdict(), outcome.detail());
+      jsonEntries.add(entryJson(entry, outcome));
+    }
+    return new Report(holds, fails, jsonEntries);
+  }
+
+  private static Outcome run(ContractEntry entry, Args options) {
+    String observed = observe(entry, options);
+    String verdict = verdictOf(entry, observed);
+    String detail =
+        HOLDS.equals(verdict)
+            ? "observed \"" + observed + "\""
+            : failureMessage(entry, options.version(), observed);
+    return new Outcome(verdict, detail);
+  }
+
+  private static String summary(Report report, String installedVersion) {
+    return report.holds()
+        + " holds, "
+        + report.fails()
+        + " fails (installed version "
+        + installedVersion
+        + ")";
+  }
+
+  private static String entryJson(ContractEntry entry, Outcome outcome) {
+    return "{\"id\":\""
+        + escape(entry.id())
+        + "\",\"kind\":\""
+        + escape(entry.kind())
+        + "\",\"verdict\":\""
+        + outcome.verdict()
+        + "\",\"detail\":\""
+        + escape(outcome.detail())
+        + "\"}";
+  }
+
+  private static String resultJson(Report report, String installedVersion) {
+    return "{\"version\":\""
+        + escape(installedVersion)
+        + "\",\"entries\":["
+        + String.join(",", report.jsonEntries())
+        + "],\"summary\":{\"holds\":"
+        + report.holds()
+        + ",\"fails\":"
+        + report.fails()
+        + "}}";
+  }
+
+  /**
+   * All four facts on one line — the entry, the value the docs promise, the artifact that answered,
+   * and what it actually read — so a skim of a failing run is enough to act on.
+   */
+  static String failureMessage(ContractEntry entry, String installedVersion, String observed) {
     String coordinate = entry.coordinate() != null ? entry.coordinate() : entry.id();
-    return "documentation/contract.yaml: "
+    return "contract.yaml: "
         + entry.id()
         + " documented default \""
         + entry.expect()
-        + "\" (since "
-        + entry.since()
-        + ") but "
+        + "\" but "
         + coordinate
         + " "
         + installedVersion

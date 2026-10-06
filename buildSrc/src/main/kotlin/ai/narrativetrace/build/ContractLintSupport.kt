@@ -10,7 +10,7 @@ package ai.narrativetrace.build
 import java.io.File
 import org.yaml.snakeyaml.Yaml
 
-/** The four claim shapes `documentation/contract.yaml` can make (docs-vs-published-gate §2). */
+/** The four claim shapes `documentation/contract.yaml` can make. */
 enum class ContractKind {
     ENTRY_POINT,
     REFLECTABLE_DEFAULT,
@@ -35,19 +35,24 @@ enum class ContractKind {
 /**
  * One `documentation/contract.yaml` entry. `expect` is the single observed string a probe must
  * produce for the claim to hold — the YAML spells it `documented_default` (reflectable-default,
- * probed-default) or `expected_effect` (config-shape, docs-vs-published-gate §2's own field
- * names); both land here as one field because every probe this repo runs already reduces to "one
- * stdout line, string-compared" (see `contract-probe/`'s `ContractRunner`) regardless of which
- * document field named it. `coordinate`/`registry` apply to `ENTRY_POINT` only; `probe` names the
- * source file (relative to the repo root) implementing the check — required for every kind so a
- * reader always finds the code proving the claim next to the claim itself.
+ * probed-default) or `expected_effect` (config-shape); both land here as one field because every
+ * probe this repo runs already reduces to "one stdout line, string-compared" (see
+ * `contract-probe/`'s `ContractRunner`) regardless of which document field named it.
+ * `coordinate`/`registry` apply to `ENTRY_POINT` only; `probe` names the source file (relative to
+ * the repo root) implementing the check — required for every kind so a reader always finds the
+ * code proving the claim next to the claim itself.
+ *
+ * @llmNote There is no version field, and adding one back is the mistake this shape exists to
+ * prevent: an entry describes the code it is committed with, like every other document here, and
+ * the gate reads the contract at the tag whose artifact it installs, so claim and artifact already
+ * come from one commit. An older release's file may still carry a `since:` key — parsing ignores
+ * any key this record does not name.
  */
 data class ContractEntry(
     val id: String,
     val kind: ContractKind,
     val page: String,
     val claim: String,
-    val since: String,
     val expect: String,
     val probe: String,
     val coordinate: String? = null,
@@ -60,23 +65,22 @@ data class ContractDocument(val versionSource: String, val entries: List<Contrac
 data class ContractPageRef(val relativePath: String, val anchor: String)
 
 /**
- * INTENT: Backs the root `contractLint` task (docs-vs-published-gate §2/§5.1) — everything about
- * `documentation/contract.yaml` a per-commit gate can check WITHOUT the network: the schema
- * parses, every `since` is a real version string, no two entries make the same claim, every
- * `page#anchor` pointer resolves to a heading that actually exists, and every `*(since X,
- * unreleased)*` marker in the English docs (part (a)) is backed by at least one contract entry at
- * that version — the mechanical link between (a) and (c) the gate's design note calls for. What
- * this class deliberately does NOT do: run a probe, touch the registry, or decide holds/fails/
- * not-applicable-before-since for an actual probe result — that decision lives in
+ * INTENT: Backs the root `contractLint` task — everything about `documentation/contract.yaml` a
+ * per-commit gate can check WITHOUT the network: the schema parses, no two entries make the same
+ * claim, every entry's `probe` file exists, and every `page#anchor` pointer resolves to a heading
+ * that actually exists. What this class deliberately does NOT do: run a probe, touch the
+ * registry, or decide holds/fails for an actual probe result — that decision lives in
  * [ContractDecisionSupport], exercised nightly by `contract-probe/` and, standalone, by
- * `contractLint`'s own fixture tests for the four historical instances (docs-vs-published-gate
- * §3) so the decision logic is provable without a release.
+ * `contractLint`'s own fixture tests for the four historical instances, so the decision logic is
+ * provable without a release.
+ *
+ * @llmNote Version talk in a document — a `*(since X)*` marker included, in a heading or anywhere
+ * else — is [VersionLiteralSupport]'s rule, enforced by `snippetCheck`. This class never scans
+ * prose for one; two scans for one rule is how the two drift apart.
  */
 object ContractLintSupport {
 
-    private val SINCE_PATTERN = Regex("""^\d+\.\d+\.\d+$""")
     private val HEADING = Regex("""^(#{1,6})\s+(.+?)\s*$""")
-    private val HEADING_SINCE = Regex("""^#{1,6}\s.*\(since """)
 
     /** The GitHub-flavoured-Markdown heading slug: lowercase, strip anything but
      * `[a-z0-9 _-]`, then turn spaces into hyphens. Deliberately does not collapse repeated
@@ -108,58 +112,6 @@ object ContractLintSupport {
             anchors += if (count == 0) base else "$base-$count"
         }
         return anchors
-    }
-
-    /**
-     * Every heading line, across every Markdown file and `llms.txt` anywhere under `documentation/`
-     * and the root README's language mirrors, that carries an inline `*(since X.Y.Z...)*` marker —
-     * ported from the TS repo's `tools/contract-lint.ts` `headingsWithSinceMarker` (read-only
-     * reference, not shared code). A heading's GitHub-rendered anchor slug is exactly the text
-     * [headingAnchors] above computes from it; a since-marker's own tag rewrite (settle-markers.sh,
-     * the release publish script) can later shorten or drop the parenthetical, and that mutates the
-     * slug — any reader link into that anchor breaks the instant a release settles. Keeping the
-     * marker in the section's body, never the heading itself, is the only shape immune to that.
-     * One entry per hit, `"<relative path>:<line>: <reason>"`, sorted; empty when the tree is clean.
-     */
-    fun headingsWithSinceMarker(repoRoot: File): List<String> {
-        val hits = mutableListOf<String>()
-        for (file in sinceMarkerHeadingScanScope(repoRoot)) {
-            file.readLines().forEachIndexed { index, line ->
-                if (HEADING_SINCE.containsMatchIn(line)) {
-                    val relative = file.relativeTo(repoRoot).path
-                    hits += "$relative:${index + 1}: since-markers belong in the body: heading " +
-                        "anchors must survive the tag rewrite"
-                }
-            }
-        }
-        return hits.sorted()
-    }
-
-    /**
-     * Every Markdown file and `llms.txt` anywhere under `documentation/` (every language —
-     * translated mirrors live under `documentation/<lang>/` and are in scope too), plus the root README and
-     * its own language mirrors: `README.md` itself, and any other root-level `*.md` file whose
-     * line-1 translation header ([TranslationCheckSupport.parseHeader]) names `README.md` as its
-     * source — the same header-driven "is this a translation of X" test `TranslationCheckSupport`
-     * already uses, so this never keeps a second, independent list of root README mirror filenames.
-     */
-    private fun sinceMarkerHeadingScanScope(repoRoot: File): List<File> {
-        val docsDir = repoRoot.resolve("documentation")
-        val docs = if (docsDir.isDirectory) {
-            docsDir.walkTopDown()
-                .filter { it.isFile && (it.extension == "md" || it.name == "llms.txt") }
-                .toList()
-        } else {
-            emptyList()
-        }
-        val readmeMirrors = repoRoot.listFiles().orEmpty()
-            .filter { it.isFile && it.extension == "md" && (it.name == "README.md" || isReadmeMirror(it)) }
-        return docs + readmeMirrors
-    }
-
-    private fun isReadmeMirror(file: File): Boolean {
-        val firstLine = file.useLines { it.firstOrNull() } ?: return false
-        return TranslationCheckSupport.parseHeader(firstLine)?.sourcePath == "README.md"
     }
 
     /** Splits `"documentation/foo.md#some-anchor"` into path and anchor; throws on a pointer with
@@ -196,7 +148,6 @@ object ContractLintSupport {
 
         val id = field("id")
         val kind = ContractKind.fromYaml(field("kind"))
-        val since = field("since")
         val expect = (raw["documented_default"] as? String) ?: (raw["expected_effect"] as? String)
             ?: throw IllegalArgumentException(
                 "${file.path}: entry \"$id\" needs \"documented_default\" or \"expected_effect\""
@@ -209,7 +160,6 @@ object ContractLintSupport {
             kind = kind,
             page = field("page"),
             claim = field("claim"),
-            since = since,
             expect = expect,
             probe = field("probe"),
             coordinate = raw["coordinate"] as? String,
@@ -219,12 +169,9 @@ object ContractLintSupport {
 
     /**
      * Every problem `contractLint` reports, empty when the contract is internally consistent.
-     * `repoRoot` resolves `page` and `probe` pointers; `unreleasedMarkerVersions` is the distinct
-     * set of versions cited by `*(since X.Y.Z, unreleased)*` across the English docs ([SnippetSupport]
-     * already walks that file set for part (a) — passed in rather than re-walked here so the two
-     * checks can never quietly disagree on which files count as "the English docs").
+     * `repoRoot` resolves the `page` and `probe` pointers each entry carries.
      */
-    fun lint(repoRoot: File, document: ContractDocument, unreleasedMarkerVersions: Set<String>): List<String> {
+    fun lint(repoRoot: File, document: ContractDocument): List<String> {
         val problems = mutableListOf<String>()
         val seenIds = mutableSetOf<String>()
         val seenClaims = mutableMapOf<String, String>()
@@ -235,9 +182,6 @@ object ContractLintSupport {
             }
             seenClaims.put(entry.claim, entry.id)?.let { firstId ->
                 problems += "\"${entry.id}\" and \"$firstId\" make the same claim: \"${entry.claim}\""
-            }
-            if (!SINCE_PATTERN.matches(entry.since)) {
-                problems += "\"${entry.id}\": since \"${entry.since}\" is not a real version string (x.y.z)"
             }
             if (entry.kind == ContractKind.ENTRY_POINT && entry.coordinate.isNullOrBlank()) {
                 problems += "\"${entry.id}\": entry-point requires \"coordinate\""
@@ -264,65 +208,40 @@ object ContractLintSupport {
             }
         }
 
-        val coveredVersions = document.entries.map { it.since }.toSet()
-        for (version in unreleasedMarkerVersions.sorted()) {
-            if (version !in coveredVersions) {
-                problems += "documentation carries \"*(since $version, unreleased)*\" but no " +
-                    "contract.yaml entry has since: \"$version\" — add one in the same commit as " +
-                    "the feature (docs-vs-published-gate §5.1 ruling 3)"
-            }
-        }
-
         return problems.sorted()
     }
 }
 
-/** holds: the probe observed exactly what the docs claim. fails: it observed something else.
- * not-applicable-before-since: the claim's `since` is later than the version actually installed —
- * ruling 1 (docs-vs-published-gate §5.1): exempt only while later than the INSTALLED published
- * version, never the repo's own. */
-enum class ContractVerdict { HOLDS, FAILS, NOT_APPLICABLE_BEFORE_SINCE }
+/** holds: the probe observed exactly what the docs claim. fails: it observed something else — a
+ * probe that could not answer at all included. There is no third verdict: an entry describes the
+ * code it was committed with, and the gate reads the contract at the tag whose artifact it
+ * installs, so no entry can ever be "not released yet". */
+enum class ContractVerdict { HOLDS, FAILS }
 
 data class ContractOutcome(val entry: ContractEntry, val verdict: ContractVerdict, val message: String)
 
 /**
  * INTENT: The decision `contractCheck` (nightly, against a real probe) and `contractLint`'s own
  * fixture tests (offline, against a fake probe result standing in for one of the four historical
- * instances, docs-vs-published-gate §3) both go through — so "would the gate have fired" is
- * exactly the same code path whether the probe result came from Maven Central or from a test
- * fixture.
+ * instances) both go through — so "would the gate have fired" is exactly the same code path
+ * whether the probe result came from Maven Central or from a test fixture.
+ *
+ * <p>Where `installedVersion` comes from, and why it is only ever NAMED here: it is passed in by
+ * the caller, never inferred, and it decides nothing — every entry is checked, always. It is
+ * reported so a failure line says which artifact answered. `scripts/contract-check.sh` resolves it
+ * the way `scripts/verify-publication.sh` does — the newest `v*` tag reachable from HEAD, else
+ * Maven Central's `maven-metadata.xml <latest>` for `narrativetrace-core` — hands it to
+ * `contract-probe`'s `-PcontractVersion`, and reads the contract itself from that same tag, so a
+ * claim and the artifact it is checked against always come from one commit.
  */
 object ContractDecisionSupport {
 
-    /** `x.y.z` -> `[x, y, z]`, for a plain lexicographic-after-parse compare — every `since` string
-     * is already validated against [ContractLintSupport]'s pattern before this is ever called. */
-    private fun parts(version: String): List<Int> = version.split(".").map { it.toInt() }
-
-    /** True while `since` is NOT strictly later than `installedVersion` — the only case
-     * docs-vs-published-gate §5.1 ruling 1 exempts a claim from being checked at all. */
-    fun isApplicable(since: String, installedVersion: String): Boolean {
-        val a = parts(since)
-        val b = parts(installedVersion)
-        for (i in 0 until maxOf(a.size, b.size)) {
-            val x = a.getOrElse(i) { 0 }
-            val y = b.getOrElse(i) { 0 }
-            if (x != y) return x < y
-        }
-        return true // equal versions: since holds AT the installed version, so it is applicable
-    }
-
     /**
      * `observed` is null when the probe itself could not even run (registry unreachable, artifact
-     * missing) — treated as a failure with its own explaining message, never silently skipped;
-     * only a `since` later than [installedVersion] is ever skipped.
+     * missing) — treated as a failure with its own explaining message, never silently skipped.
+     * Nothing is ever skipped: there is no verdict for it.
      */
     fun decide(entry: ContractEntry, installedVersion: String, observed: String?): ContractOutcome {
-        if (!isApplicable(entry.since, installedVersion)) {
-            return ContractOutcome(
-                entry, ContractVerdict.NOT_APPLICABLE_BEFORE_SINCE,
-                "\"${entry.id}\": since ${entry.since} is later than installed $installedVersion — skipped"
-            )
-        }
         if (observed == entry.expect) {
             return ContractOutcome(entry, ContractVerdict.HOLDS, "\"${entry.id}\": holds")
         }
@@ -330,8 +249,7 @@ object ContractDecisionSupport {
         return ContractOutcome(
             entry, ContractVerdict.FAILS,
             "documentation/contract.yaml: ${entry.id} documented default \"${entry.expect}\" " +
-                "(since ${entry.since}) but $coordinate $installedVersion (published) reads " +
-                "\"${observed ?: "<no answer>"}\""
+                "but $coordinate $installedVersion (published) reads \"${observed ?: "<no answer>"}\""
         )
     }
 }

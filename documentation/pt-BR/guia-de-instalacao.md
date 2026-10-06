@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 596c377cac63 | translated: 2026-09-20 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 58129d0d2838 | translated: 2026-09-20 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -12,7 +12,8 @@ Este guia cobre a instalação e o wiring do NarrativeTrace Java em um projeto J
 
 ## Compatibilidade
 
-Versões a partir da 0.2.4. "Incluída" significa que o módulo depende dela e o
+Estas são as versões com as quais esta release é compilada e testada.
+"Incluída" significa que o módulo depende dela e o
 Gradle a resolve para você; "sua" significa que o módulo compila contra ela,
 mas não depende dela — você já a tem, e o NarrativeTrace usa qualquer versão
 que você trouxer.
@@ -97,7 +98,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -154,23 +155,23 @@ precisa.
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.4")
+    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
 
     // Integrações opcionais
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.4")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.4")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.4")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.4")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.5")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.5")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.5")
 }
 ```
 
@@ -235,7 +236,7 @@ Funcionalidades:
 - Impressão automática do trace de falha no console
 - Nome do cenário derivado do nome do método de teste (`customerPlacesOrder`
   → "Customer places order")
-- Grava `.md`, `.json`, `.mmd` por teste por padrão *(since 0.2.3)*, além de um
+- Grava `.md`, `.json`, `.mmd` por teste por padrão, além de um
   `clarity-report.md` no nível da suíte — defina `narrativetrace.output=false`
   para desativar
 

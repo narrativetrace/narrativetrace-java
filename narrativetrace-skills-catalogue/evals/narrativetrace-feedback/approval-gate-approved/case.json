@@ -1,0 +1,6 @@
+{
+  "fixture": "narrativetrace-skills-catalogue/evals/fixtures/feedback-false-positive",
+  "turns": {
+    "2": "yes, file it"
+  }
+}

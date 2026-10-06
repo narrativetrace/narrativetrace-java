@@ -10,7 +10,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 - [Modules Block](#modules-block)
 - [Agent Block](#agent-block)
 - [Clarity Block](#clarity-block)
-- [Tasks](#tasks) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives)
+- [Tasks](#tasks) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives) | [narrativetraceDoctor](#narrativetracedoctor) | [narrativetraceInit](#narrativetraceinit) | [narrativetraceUninstall](#narrativetraceuninstall) | [narrativetraceRefreshSkills](#narrativetracerefreshskills)
 - [Requirements](#requirements)
 - [Version Resolution](#version-resolution)
 - [Common Recipes](#common-recipes)
@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -42,6 +42,8 @@ You do not need to add a JUnit dependency. With the default `testFramework = "ju
 | Registers `clarityScan` task | Standalone clarity analysis from compiled classes (no tests required) |
 | Registers `glossaryScan` task | Standalone glossary harvest from compiled classes, including annotation templates |
 | Registers `approveNarratives` task | Promotes reviewed `*.received.nt` narratives to `*.approved.nt` baselines |
+| Registers the `narrativetrace` task group | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — diagnosis and the agent-skills installer, none of which runs on its own |
+| Registers `narrativetraceRefreshSkills` task | Runs before `classes`; rewrites installed agent skills older than the resolved carrier, and does nothing at all in a project that never ran `narrativetraceInit` |
 | Configures agent JVM arg | When `mode = "agent"`: resolves agent JAR, adds `-javaagent` to Test tasks |
 
 ## Properties
@@ -300,6 +302,83 @@ Accepts intended structural changes in [approval mode](#approval): promotes ever
 - Always safe to run — prints `Approved: <path>` per promoted baseline, or `No received narratives to approve.` when there is nothing to promote
 - Never runs tests: review the received files first, approve, then re-run the suite green
 
+### `narrativetraceDoctor`
+
+Runs the doctor's twelve read-only checks against this project, in process — the same checks the
+standalone launcher's `doctor` verb runs. Writes `build/narrativetrace/doctor-report.json` and
+prints the human report.
+
+```bash
+./gradlew narrativetraceDoctor
+```
+
+- **Group**: `narrativetrace`
+- **Read-only**: reads build files, sources, rendered output and installed agent skills; changes nothing
+- **Never fails the build on its own findings** — a finding is a normal outcome, not a crash
+- `--json` prints the machine-readable report instead of the human one
+
+### `narrativetraceInit`
+
+Installs the [agent skills](agent-skills.md) into this project and writes the marked `AGENTS.md`
+section. Reads them from `ai.narrativetrace:narrativetrace-skills`, resolved at task time from the
+repositories the project already declares — the same version every other NarrativeTrace artifact
+resolves at.
+
+```bash
+./gradlew narrativetraceInit --diff    # show the plan, write nothing
+./gradlew narrativetraceInit           # apply it
+```
+
+- **Group**: `narrativetrace`
+- **Runs only when you type it.** No lifecycle task depends on it
+
+| Option | Effect |
+|---|---|
+| `--diff` | Preview: prints the plan and a unified diff of every file it would write, and writes nothing. Never fails |
+| `--write-existing` | Permission to touch an `AGENTS.md` or `CLAUDE.md` that is already there without our markers |
+| `--force` | Permission to overwrite a skill directory that somebody else owns (a page without our stamp) |
+| `--only <half>` | `skills` or `agents-md` — install one half only |
+| `--vendor <v>` | `claude` or `none` — force the vendor copy on or off. Detected by default from a `.claude/` directory or a `CLAUDE.md` |
+| `--json` | The `{carrier, actions, exitCode}` envelope instead of human text |
+
+The preview flag is `--diff`, not `--dry-run`: Gradle's own built-in `--dry-run` skips every task in
+the graph, so a task option of that name could never run. The launcher's verb, where nothing shadows
+it, keeps `narrativetrace init --dry-run`. Both set the same option.
+
+A refusal — two marker pairs in one `AGENTS.md`, a file sitting where a skill directory belongs —
+is printed with the flag that would allow it, and fails the task. Every other planned action is
+still applied.
+
+There are no DSL properties for any of this: nothing about the installer is configured in
+`narrativeTrace { }`, because every choice it makes belongs to the run you are typing, not to the
+build's committed configuration.
+
+### `narrativetraceUninstall`
+
+Removes exactly what `narrativetraceInit` wrote, and nothing beside it: a skill page only when it
+carries the installer's own stamp, a file only when the installer created it and nothing of yours is
+left in it, the `AGENTS.md` section only between its own markers.
+
+```bash
+./gradlew narrativetraceUninstall --diff
+./gradlew narrativetraceUninstall
+```
+
+- **Group**: `narrativetrace`
+- **Options**: `--diff`, `--only <half>`, `--json`, as above
+- The one line it leaves behind is the `@AGENTS.md` import in a `CLAUDE.md` it did not create
+
+### `narrativetraceRefreshSkills`
+
+Bookkeeping, not something you type: it runs before `classes` and rewrites installed skill pages
+that carry our stamp with an older release than the carrier the project now resolves, plus the
+`AGENTS.md` section the same way. It prints one line naming what it rewrote.
+
+- **No group** — it is the build's own housekeeping
+- **Only ever rewrites.** It never creates a skill, a section or a file, so a project that never ran
+  `narrativetraceInit` is never touched and never even resolves the carrier
+- Offline, or with no repository providing the carrier, it warns once and carries on
+
 ## Requirements
 
 The plugin checks its environment when it is applied, and fails with one line
@@ -325,7 +404,7 @@ To pin a different version — for example to dogfood a local `-SNAPSHOT` whose 
 
 ```kotlin
 narrativeTrace {
-    libraryVersion.set("0.2.0-SNAPSHOT")
+    libraryVersion.set("<your-snapshot-version>")
 }
 ```
 
@@ -337,7 +416,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -445,7 +524,7 @@ This is ordinary Gradle behaviour rather than anything NarrativeTrace does, but 
 Two things worth knowing:
 
 - **Nothing needs publishing.** Do not run `publishToMavenLocal` — composite substitution replaces the coordinates before resolution, so a local publish would only add a stale copy that may shadow your edits.
-- **The version does not have to match.** Substitution is by group and module name, so the included build's `0.2.0-SNAPSHOT` satisfies whatever version the plugin asks for. If you would rather resolve real artifacts and skip the composite, set `libraryVersion` instead — see [Version Resolution](#version-resolution).
+- **The version does not have to match.** Substitution is by group and module name, so the included build's own version satisfies whatever version the plugin asks for. If you would rather resolve real artifacts and skip the composite, set `libraryVersion` instead — see [Version Resolution](#version-resolution).
 
 ### Multi-project setup
 
@@ -473,7 +552,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.4'
+    id 'ai.narrativetrace' version '0.2.5'
 }
 
 narrativeTrace {
@@ -519,7 +598,7 @@ narrativeTrace {
     glossary.set(false)                        // default: false — harvest glossary.json at suite end
     approval.set(false)                        // default: false — verify structure against committed baselines
     approvedDir.set(layout.projectDirectory.dir("src/test/narratives"))
-    // libraryVersion.set("0.2.0-SNAPSHOT")    // default: plugin's embedded version — override to dogfood a snapshot
+    // libraryVersion.set("<your-snapshot-version>")  // default: plugin's embedded version — override to dogfood a snapshot
 
     modules {                                  // fine-grained opt-in (all default false)
         slf4j.set(false)

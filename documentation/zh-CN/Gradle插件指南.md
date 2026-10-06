@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob ca458a3d16a9 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob b243747ec49c | translated: 2026-09-12 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -13,7 +13,7 @@
 - [Modules 块](#modules-块)
 - [Agent 块](#agent-块)
 - [Clarity 块](#clarity-块)
-- [任务](#任务) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives)
+- [任务](#任务) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives) | [narrativetraceDoctor](#narrativetracedoctor) | [narrativetraceInit](#narrativetraceinit) | [narrativetraceUninstall](#narrativetraceuninstall) | [narrativetraceRefreshSkills](#narrativetracerefreshskills)
 - [环境要求](#环境要求)
 - [版本解析](#版本解析)
 - [常用配置示例](#常用配置示例)
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -45,6 +45,8 @@ plugins {
 | 注册 `clarityScan` 任务 | 基于编译后的类进行独立的清晰度分析(无需运行测试) |
 | 注册 `glossaryScan` 任务 | 基于编译后的类独立采集术语表,包括注解模板 |
 | 注册 `approveNarratives` 任务 | 将已审阅的 `*.received.nt` 叙事提升为 `*.approved.nt` 基线 |
+| 注册 `narrativetrace` 任务组 | `narrativetraceDoctor`、`narrativetraceInit`、`narrativetraceUninstall` ——诊断与智能体技能安装器,它们都不会自行运行 |
+| 注册 `narrativetraceRefreshSkills` 任务 | 在 `classes` 之前运行;重写那些比已解析载体更旧的已安装智能体技能,而在从未执行过 `narrativetraceInit` 的项目里什么都不做 |
 | 配置 Agent 的 JVM 参数 | 当 `mode = "agent"` 时:解析 Agent JAR,并向 Test 任务添加 `-javaagent` |
 
 ## 属性
@@ -299,6 +301,79 @@ narrativeTrace {
 - 随时运行都安全 —— 每提升一个基线打印 `Approved: <路径>`;没有可提升的文件时打印 `No received narratives to approve.`
 - 从不运行测试:先审阅 received 文件,再批准,然后重新把套件跑绿
 
+### `narrativetraceDoctor`
+
+在同一个进程内针对本项目运行 doctor 的十二项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
+检查。它会写出 `build/narrativetrace/doctor-report.json`,并打印人类可读的报告。
+
+```bash
+./gradlew narrativetraceDoctor
+```
+
+- **分组**:`narrativetrace`
+- **只读**:读取构建文件、源码、渲染输出以及已安装的智能体技能;不改动任何东西
+- **绝不会因为自己的结论让构建失败**——出现结论是正常结果,而不是崩溃
+- `--json` 打印机器可读的报告,而不是人类可读的那份
+
+### `narrativetraceInit`
+
+把[智能体技能](智能体技能.md)安装进本项目,并写入 `AGENTS.md` 中带标记的小节。它从
+`ai.narrativetrace:narrativetrace-skills` 读取这些技能,在任务执行时从项目已声明的仓库中解析——版本
+与其他所有 NarrativeTrace 构件解析到的版本相同。
+
+```bash
+./gradlew narrativetraceInit --diff    # 只展示计划,什么都不写
+./gradlew narrativetraceInit           # 实际应用
+```
+
+- **分组**:`narrativetrace`
+- **只有你亲手输入它时才会运行。** 没有任何生命周期任务依赖它
+
+| 选项 | 作用 |
+|---|---|
+| `--diff` | 预览:打印计划,以及它将要写入的每个文件的统一 diff,并且什么都不写。绝不会失败 |
+| `--write-existing` | 允许改动一个已经存在、但没有我们标记的 `AGENTS.md` 或 `CLAUDE.md` |
+| `--force` | 允许覆盖属于别人的技能目录(一份没有我们印记的页面) |
+| `--only <一半>` | `skills` 或 `agents-md` ——只安装其中一半 |
+| `--vendor <v>` | `claude` 或 `none` ——强制开启或关闭厂商副本。默认根据 `.claude/` 目录或 `CLAUDE.md` 自动检测 |
+| `--json` | 输出 `{carrier, actions, exitCode}` 信封,而不是人类可读文本 |
+
+预览参数是 `--diff`,不是 `--dry-run`:Gradle 自带的 `--dry-run` 会跳过任务图里的每一个任务,所以
+叫这个名字的任务选项永远不可能被执行。启动器的动词那边没有东西遮挡它,因此保留
+`narrativetrace init --dry-run`。两者设置的是同一个选项。
+
+一次拒绝——同一个 `AGENTS.md` 里出现两对标记,或者技能目录的位置上是一个文件——会连同那个可以允许
+它的参数一起打印出来,并让任务失败。其余每一个已计划的动作仍然会被应用。
+
+这一切都没有对应的 DSL 属性:安装器的任何部分都不在 `narrativeTrace { }` 里配置,因为它做的每个
+决定都属于你正在输入的这次运行,而不属于构建中已提交的配置。
+
+### `narrativetraceUninstall`
+
+只移除 `narrativetraceInit` 写下的东西,别的一概不动:只有带着安装器自己印记的技能页面才会被删,
+只有安装器创建、且里面没剩下任何属于你的内容的文件才会被删,`AGENTS.md` 的小节只在它自己的标记
+之间被移除。
+
+```bash
+./gradlew narrativetraceUninstall --diff
+./gradlew narrativetraceUninstall
+```
+
+- **分组**:`narrativetrace`
+- **选项**:`--diff`、`--only <一半>`、`--json`,同上
+- 它唯一留下的一行,是它并未创建的那个 `CLAUDE.md` 里的 `@AGENTS.md` 导入语句
+
+### `narrativetraceRefreshSkills`
+
+这是构建自己的记账工作,不是你要输入的命令:它在 `classes` 之前运行,把那些带着我们印记、但版本
+早于项目当前解析到的载体的已安装技能页面重写一遍,`AGENTS.md` 的小节同理。它会打印一行,说明自己
+重写了什么。
+
+- **没有分组** ——这是构建自身的内务
+- **只做重写。** 它绝不创建技能、小节或文件,所以从未执行过 `narrativetraceInit` 的项目不会被碰,
+  甚至根本不会去解析载体
+- 没有网络,或者没有任何仓库提供载体时,它只警告一次,然后继续
+
 ## 环境要求
 
 插件在被应用时检查运行环境,并以一行文字写明要求后失败,而不是让构建在稍后撞上
@@ -322,7 +397,7 @@ narrativeTrace {
 
 ```kotlin
 narrativeTrace {
-    libraryVersion.set("0.2.0-SNAPSHOT")
+    libraryVersion.set("<你的快照版本>")
 }
 ```
 
@@ -334,7 +409,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -441,7 +516,7 @@ repositories { mavenCentral() }
 有两点值得知道:
 
 - **无需发布任何东西。** 不要运行 `publishToMavenLocal`:composite 替换发生在解析之前,本地发布只会多出一份可能遮蔽你改动的陈旧副本。
-- **版本不必一致。** 替换按 group 与模块名进行,因此被包含构建的 `0.2.0-SNAPSHOT` 能满足插件请求的任何版本。如果你更愿意解析真实制品、跳过 composite,请改用 `libraryVersion`——参见[版本解析](#版本解析)。
+- **版本不必一致。** 替换按 group 与模块名进行,因此被包含构建自身的版本就能满足插件请求的任何版本。如果你更愿意解析真实制品、跳过 composite,请改用 `libraryVersion`——参见[版本解析](#版本解析)。
 
 ### 多项目设置
 
@@ -469,7 +544,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.4'
+    id 'ai.narrativetrace' version '0.2.5'
 }
 
 narrativeTrace {
@@ -515,7 +590,7 @@ narrativeTrace {
     glossary.set(false)                        // 默认: false — 套件结束时采集 glossary.json
     approval.set(false)                        // 默认: false — 将结构与已提交的基线进行核对
     approvedDir.set(layout.projectDirectory.dir("src/test/narratives"))
-    // libraryVersion.set("0.2.0-SNAPSHOT")    // 默认:插件内嵌版本 —— 覆盖它以对 snapshot 做 dogfooding
+    // libraryVersion.set("<你的快照版本>")  // 默认:插件内嵌版本 —— 覆盖它以对 snapshot 做 dogfooding
 
     modules {                                  // 细粒度可选启用 (全部默认 false)
         slf4j.set(false)

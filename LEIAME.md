@@ -1,11 +1,40 @@
-<!-- source: README.md blob d1a9824fbfd9 | translated: 2026-09-22 | reviewed: - -->
+<!-- source: README.md blob 10dd41d9bd3c | translated: 2026-09-22 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
 
 ## Comece aqui
 
-[Veja um trace em 60 segundos](documentation/sixty-seconds.md) — um aplicativo de console, uma execução, e o trace aparece no seu terminal.
+- [Veja um trace em 60 segundos](documentation/sixty-seconds.md) — um aplicativo de console, uma execução, e o trace aparece no seu terminal.
+- Trabalhando com um agente de IA? Cole isto (o prompt fica em inglês de propósito: é o texto publicado e reproduzido como teste):
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+
+1. Read https://narrativetrace.ai/java/llms.txt first. It carries the
+   install block and the known traps. Do not guess versions or artifact
+   names.
+2. If this directory has no project yet, create the smallest console app
+   that llms.txt's "Install and first trace" block describes. Otherwise
+   work inside the existing project and trace one real service boundary.
+3. Add the plugin the way llms.txt shows, then run
+   `./gradlew narrativetraceInit --diff` and show me the diff. It installs
+   the NarrativeTrace agent skills into this project and adds a marked
+   section to AGENTS.md. Run it for real only after I have seen the diff.
+4. If the `add-narrative-tracing` skill is now available, follow it.
+   Otherwise follow the "Install and first trace (copy this)" block in
+   llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and
+   asserts the trace shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`./gradlew narrativetraceDoctor`).
+   Paste the trace and the doctor report, explain the trace in two
+   sentences, and list exactly what changed in the project.
+
+Rules: never disable redaction; do not commit `.received.nt` files; keep
+the `-parameters` compiler flag; run everything in the foreground and
+read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Demo
 
@@ -246,7 +275,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -318,7 +347,7 @@ também renderiza todas elas em Markdown.
 ### Gradle ou Maven?
 
 Os jars de runtime são artefatos Maven comuns.
-`ai.narrativetrace:narrativetrace-core:0.2.4` e todos os módulos ao lado dele
+`ai.narrativetrace:narrativetrace-core:0.2.5` e todos os módulos ao lado dele
 se resolvem e funcionam exatamente da mesma forma a partir de um build Maven;
 nada na própria biblioteca é específico do Gradle. O que *é* específico do
 Gradle é o plugin acima — uma conveniência que conecta a flag do compilador,

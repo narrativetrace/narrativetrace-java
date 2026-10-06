@@ -5,7 +5,7 @@
  * Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
  * years from publication; Change License: Apache-2.0
  */
-// contract-probe: a small, STANDALONE Gradle project (docs-vs-published-gate §2/§5.1 ruling 2) —
+// contract-probe: a small, STANDALONE Gradle project —
 // it is not `include()`d by the root build's settings.gradle.kts, has its own Gradle wrapper, and
 // consumes ONLY registry artifacts at a version given on the command line (`-PcontractVersion=`),
 // never `mavenLocal()`, never `project(...)`, never a `file:` repository. That is the whole point:
@@ -79,8 +79,9 @@ tasks.test {
 }
 
 /**
- * Runs every applicable contract.yaml entry against the published `contractVersion` and writes
- * the JSON result `scripts/contract-check.sh` reads. Exits non-zero (via `ContractRunner.main`'s
+ * Runs every contract.yaml entry against the published `contractVersion` and writes the JSON
+ * result `scripts/contract-check.sh` reads. Every entry, not a subset: the wrapper hands this task
+ * the contract as of the tag whose artifact it installs, so there is nothing to exempt. Exits non-zero (via `ContractRunner.main`'s
  * own `System.exit`) on any FAILS verdict — Gradle surfaces that as this task failing.
  *
  * Depends on `test` so this project's own unit tests run first. That is the only place they run at
@@ -90,7 +91,7 @@ tasks.test {
  */
 tasks.register<JavaExec>("runContract") {
     group = "verification"
-    description = "Proves or disproves every documentation/contract.yaml claim against a published version"
+    description = "Proves or disproves every contract.yaml claim against a published version"
     dependsOn(tasks.test)
     mainClass.set("ai.narrativetrace.contract.ContractRunner")
     classpath = sourceSets["main"].runtimeClasspath

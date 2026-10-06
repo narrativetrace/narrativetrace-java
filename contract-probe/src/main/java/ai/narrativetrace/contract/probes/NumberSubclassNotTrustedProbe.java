@@ -13,11 +13,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * {@code probed-default}, since 0.2.4 — the rule before that read a {@code Number}'s own {@code
- * toString()} on the flat path once the text was escaped and capped. Extending {@code Number} says
- * nothing about what a value holds: this one carries a deny-listed field and prints it, so only a
- * walk hides it. The sentinel must appear nowhere in the trace and the marker must stand in its
- * place, exactly as it does for any other composite.
+ * {@code probed-default}: extending {@code Number} says nothing about what a value holds: this one
+ * carries a deny-listed field and prints it, so only a walk hides it. The sentinel must appear
+ * nowhere in the trace and the marker must stand in its place, exactly as it does for any other
+ * composite.
  */
 public final class NumberSubclassNotTrustedProbe {
 

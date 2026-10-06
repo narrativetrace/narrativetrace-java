@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 9638b47a5636 | translated: 2026-09-23 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob 0db742be4809 | translated: 2026-09-23 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -15,7 +15,7 @@ System.out.println(renderer.render("Order Placement", result));
 ```
 
 Con JUnit 5, una `NarrativeTraceExtension` registrada genera informes de claridad automáticamente
-a partir de las llamadas que trazan tus pruebas *(since 0.2.3)*. No hay un flag independiente para
+a partir de las llamadas que trazan tus pruebas. No hay un flag independiente para
 activar Clarity. El plugin de Gradle proporciona las dependencias y la configuración de pruebas,
 pero la prueba debe registrar la extensión y capturar una traza. `narrativetrace.output=false`
 desactiva los informes junto con los demás artefactos de traza.
@@ -311,7 +311,7 @@ El plugin de Gradle proporciona una tarea `clarityCheck` que hace fallar el buil
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 
 narrativeTrace {

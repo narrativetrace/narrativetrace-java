@@ -12,7 +12,10 @@ import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.compile.JavaCompile;
@@ -29,6 +32,14 @@ import org.gradle.api.tasks.testing.Test;
  * {@code afterEvaluate} because they read eagerly-evaluated extension properties.
  */
 public class NarrativeTracePlugin implements Plugin<Project> {
+
+  /**
+   * Where the tasks a person types to manage the agent skills appear in {@code ./gradlew tasks}.
+   */
+  private static final String TASK_GROUP = "narrativetrace";
+
+  /** The carrier's own module — the published jar that holds the agent skills as resources. */
+  private static final String CARRIER_MODULE = "ai.narrativetrace:narrativetrace-skills";
 
   private static final Set<String> VALID_MODES = Set.of("proxy", "agent", "spring");
   private static final Set<String> VALID_TEST_FRAMEWORKS = Set.of("junit4", "junit5");
@@ -58,7 +69,11 @@ public class NarrativeTracePlugin implements Plugin<Project> {
               registerClarityScanTask(project, extension);
               registerGlossaryScanTask(project, extension);
               registerApproveNarrativesTask(project, extension);
-              registerNarrativeTraceDoctorTask(project, extension);
+              var coordinate = carrierCoordinate(extension);
+              var carrier = carrierFiles(project, coordinate);
+              registerNarrativeTraceDoctorTask(project, extension, carrier, coordinate);
+              registerNarrativeTraceFeedbackTask(project, extension, carrier, coordinate);
+              registerInstallerTasks(project, carrier, coordinate);
             });
 
     project.afterEvaluate(
@@ -313,14 +328,21 @@ public class NarrativeTracePlugin implements Plugin<Project> {
 
   /**
    * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
-   * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free CLI's
-   * eleven doctor checks against this project, in-process, and writes the JSON report to the
-   * extension's own output directory. Not gated on {@code enabled}: diagnosing a misconfigured
-   * install is exactly the case where the plugin's own tracing behaviour should not stand in the
-   * way.
+   * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free
+   * tooling library's twelve doctor checks against this project, in-process, and writes the JSON
+   * report to the extension's own output directory. Not gated on {@code enabled}: diagnosing a
+   * misconfigured install is exactly the case where the plugin's own tracing behaviour should not
+   * stand in the way.
+   *
+   * <p>It takes the same carrier the installer tasks take, because one of the twelve checks reports
+   * on the agent skills this project has installed — and reads it leniently, so a build with no
+   * repository for it still gets a diagnosis.
    */
   private void registerNarrativeTraceDoctorTask(
-      Project project, NarrativeTraceExtension extension) {
+      Project project,
+      NarrativeTraceExtension extension,
+      FileCollection carrier,
+      Provider<String> coordinate) {
     project
         .getTasks()
         .register(
@@ -333,7 +355,183 @@ public class NarrativeTracePlugin implements Plugin<Project> {
               task.setGroup("verification");
               task.getTargetDir().set(project.getLayout().getProjectDirectory());
               task.getReportFile().set(extension.getOutputDir().file("doctor-report.json"));
+              task.getCarrier().from(carrier);
+              task.getCarrierCoordinate().set(coordinate);
             });
+  }
+
+  /**
+   * Registers {@code narrativetraceFeedback}: the problem-report skill's own command. Drafts a
+   * report about NarrativeTrace from this project, refuses one that carries a value from the
+   * project's own traces, and prints the whole draft or the pre-filled issue-form URL. It sends
+   * nothing and opens nothing.
+   *
+   * <p>Not gated on {@code enabled}, and it takes the same carrier the doctor takes for the same
+   * reason: a project reporting that NarrativeTrace does not work is exactly a project whose
+   * tracing may be switched off, and the report names what this project has installed.
+   */
+  private void registerNarrativeTraceFeedbackTask(
+      Project project,
+      NarrativeTraceExtension extension,
+      FileCollection carrier,
+      Provider<String> coordinate) {
+    project
+        .getTasks()
+        .register(
+            "narrativetraceFeedback",
+            NarrativeTraceFeedbackTask.class,
+            task -> {
+              task.setDescription(
+                  "Drafts a problem report about NarrativeTrace from this project, checks it"
+                      + " carries no values from your traces, and prints the draft or the"
+                      + " pre-filled issue-form URL. Sends nothing.");
+              task.setGroup("help");
+              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getOutputDir().set(extension.getOutputDir());
+              task.getCarrier().from(carrier);
+              task.getCarrierCoordinate().set(coordinate);
+              task.getChannel().convention("draft");
+              task.getCategory().convention("library");
+              task.getStep().convention("");
+              task.getDid().convention("");
+              task.getHappened().convention("");
+              task.getExpected().convention("");
+              task.getLanguage().convention("en");
+              task.getAgentProduct().convention("");
+              task.getAgentModel().convention("");
+              task.getTrace().convention("");
+            });
+  }
+
+  /**
+   * Registers the three tasks that own the agent skills in a consumer project: {@code
+   * narrativetraceInit}, {@code narrativetraceUninstall}, and the {@code
+   * narrativetraceRefreshSkills} that runs in front of {@code classes}. Not gated on {@code
+   * enabled}: installing the skills that explain NarrativeTrace is exactly what a project with
+   * tracing switched off may still want.
+   */
+  private void registerInstallerTasks(
+      Project project, FileCollection carrier, Provider<String> coordinate) {
+    registerInitTask(project, carrier, coordinate);
+    registerUninstallTask(project);
+    registerRefreshSkillsTask(project, carrier, coordinate);
+  }
+
+  /**
+   * The carrier's coordinate, on the same version every other family artifact resolves at. A
+   * PROVIDER so the extension's {@code libraryVersion} is read when the configuration resolves,
+   * rather than while this method runs — which is before a build script has set it.
+   */
+  private Provider<String> carrierCoordinate(NarrativeTraceExtension extension) {
+    return extension
+        .getLibraryVersion()
+        .orElse(VersionResolver.resolve())
+        .map(version -> CARRIER_MODULE + ":" + version);
+  }
+
+  /**
+   * The carrier's own configuration — invisible, non-transitive — read through a LENIENT artifact
+   * view.
+   *
+   * <p>Lenient because the configuration cache resolves a task's file collection while it STORES
+   * the task, not while the task runs: a strict view turns "no repository provides the carrier"
+   * into a build failure at configuration time, and {@code narrativetraceRefreshSkills} is on the
+   * {@code classes} path of every build. An offline build must not fail because of a task that
+   * would have decided to do nothing. A lenient view resolves to NO files instead, and both tasks
+   * already treat that as the reason they could not open a carrier.
+   */
+  private FileCollection carrierFiles(Project project, Provider<String> coordinate) {
+    var carrier =
+        project
+            .getConfigurations()
+            .create(
+                "narrativeTraceSkills",
+                c -> {
+                  c.setDescription(
+                      "The NarrativeTrace agent-skills carrier narrativetraceInit installs from");
+                  c.setVisible(false);
+                  c.setTransitive(false);
+                });
+    project.getDependencies().addProvider("narrativeTraceSkills", coordinate);
+    return carrier.getIncoming().artifactView(view -> view.setLenient(true)).getFiles();
+  }
+
+  private void registerInitTask(
+      Project project, FileCollection carrier, Provider<String> coordinate) {
+    project
+        .getTasks()
+        .register(
+            "narrativetraceInit",
+            NarrativeTraceInitTask.class,
+            task -> {
+              task.setDescription(
+                  "Installs the NarrativeTrace agent skills into this project and writes the"
+                      + " AGENTS.md section. Use --diff to see the plan first.");
+              task.setGroup(TASK_GROUP);
+              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getCarrier().from(carrier);
+              task.getCarrierCoordinate().set(coordinate);
+              task.getDiff().convention(false);
+              task.getWriteExisting().convention(false);
+              task.getForce().convention(false);
+              task.getOnly().convention("");
+              task.getVendor().convention("");
+              task.getJson().convention(false);
+              hintAtGradlesOwnDryRun(project, task);
+            });
+  }
+
+  private void registerUninstallTask(Project project) {
+    project
+        .getTasks()
+        .register(
+            "narrativetraceUninstall",
+            NarrativeTraceUninstallTask.class,
+            task -> {
+              task.setDescription(
+                  "Removes exactly what narrativetraceInit wrote, and nothing beside it.");
+              task.setGroup(TASK_GROUP);
+              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getDiff().convention(false);
+              task.getOnly().convention("");
+              task.getJson().convention(false);
+              hintAtGradlesOwnDryRun(project, task);
+            });
+  }
+
+  /**
+   * Registers {@code narrativetraceRefreshSkills} and puts it in front of {@code classes}. No
+   * group: this is the build's own bookkeeping, not something a person types. It does nothing at
+   * all in a project that never ran {@code narrativetraceInit}.
+   */
+  private void registerRefreshSkillsTask(
+      Project project, FileCollection carrier, Provider<String> coordinate) {
+    var refresh =
+        project
+            .getTasks()
+            .register(
+                "narrativetraceRefreshSkills",
+                NarrativeTraceRefreshSkillsTask.class,
+                task -> {
+                  task.setDescription(
+                      "Rewrites installed NarrativeTrace agent skills that are older than the"
+                          + " resolved carrier. Never installs anything.");
+                  task.getTargetDir().set(project.getLayout().getProjectDirectory());
+                  task.getCarrier().from(carrier);
+                  task.getCarrierCoordinate().set(coordinate);
+                });
+    project.getTasks().named("classes").configure(classes -> classes.dependsOn(refresh));
+  }
+
+  /**
+   * Gradle's built-in {@code --dry-run} skips every task, so a person typing the obvious command
+   * for "show me what this would do" gets silence. Said here, while the task is being configured,
+   * because by execution time there is nothing left to say it from.
+   */
+  private void hintAtGradlesOwnDryRun(Project project, Task task) {
+    if (project.getGradle().getStartParameter().isDryRun()) {
+      task.getLogger().lifecycle(InstallerTasks.dryRunHint(task.getName()));
+    }
   }
 
   private void configureTestTasks(

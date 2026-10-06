@@ -16,11 +16,10 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * {@code probed-default}, since 0.2.4 — the rule before that granted a class with no instance field
- * its own {@code toString()}. A value carrying no field reflection can read is NOT thereby a
- * stateless leaf: this one keeps its state in a static table keyed by the instance and prints it
- * from its own {@code toString()}, which no field walk could ever see. Only a platform leaf type
- * keeps its own text now, so the sentinel must not appear anywhere in the trace.
+ * {@code probed-default}: a value carrying no field reflection can read is NOT thereby a stateless
+ * leaf: this one keeps its state in a static table keyed by the instance and prints it from its own
+ * {@code toString()}, which no field walk could ever see. Only a platform leaf type keeps its own
+ * text now, so the sentinel must not appear anywhere in the trace.
  *
  * <p>The rule this probe measures: a traced ARGUMENT is rendered (that is what the redaction probes
  * in this package prove); this probe measures the RETURN rendering only. The sentinel must

@@ -14,9 +14,9 @@ import ch.qos.logback.core.read.ListAppender;
 import java.util.UUID;
 
 /**
- * {@code probed-default}, since 0.2.3 — not exercised against 0.2.1. A JDK-defined type ({@link
- * UUID} here) declares no field of application code's choosing and cannot carry a
- * {@code @NotTraced} member, so it keeps its own {@code toString()} rather than being walked.
+ * {@code probed-default}. A JDK-defined type ({@link UUID} here) declares no field of application
+ * code's choosing and cannot carry a {@code @NotTraced} member, so it keeps its own {@code
+ * toString()} rather than being walked.
  */
 public final class PlatformTypeCarveoutProbe {
 

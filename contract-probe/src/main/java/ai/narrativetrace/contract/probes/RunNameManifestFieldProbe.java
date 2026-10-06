@@ -14,8 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * {@code probed-default}, since 0.2.3: {@code manifest.json} carries a top-level {@code run} object
- * naming the run this manifest belongs to (configuration-guide.md § The run has a name). {@code
+ * {@code probed-default}: {@code manifest.json} carries a top-level {@code run} object naming the
+ * run this manifest belongs to (configuration-guide.md § The run has a name). {@code
  * narrativetrace.output=true} is this probe's own setup, matching {@link ManifestJsonProbe}.
  */
 public final class RunNameManifestFieldProbe {

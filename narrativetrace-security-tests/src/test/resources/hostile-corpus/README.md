@@ -1,11 +1,13 @@
 # The hostile corpus
 
-Seven JSON fixtures describing input that a NarrativeTrace runtime does not
+Nine JSON fixtures describing input that a NarrativeTrace runtime does not
 control: values a traced method returned, headers a stranger sent, templates an
-author wrote, object graphs a third-party DTO produced, instruction-shaped text
-aimed at whatever reads the narrative afterwards, the names the artifacts are
-written under, and the sensitive-field vocabulary the redaction default is
-measured against.
+author wrote, object graphs a third-party DTO produced, call trees a hand-built
+node list produced, instruction-shaped text aimed at whatever reads the
+narrative afterwards, the names the artifacts are written under, the
+sensitive-field vocabulary the redaction default is measured against, and the
+problem-report text the value-free gate decides about before anything can be
+filed publicly.
 
 **This directory is the cross-runtime corpus.** Every NarrativeTrace runtime
 copies these files verbatim — the way the conformance schemas are copied — so
@@ -31,6 +33,7 @@ bytes are, and keep the file ASCII — every non-ASCII character is written as a
 | `names.json` | the artifact writers, which turn a name into a path | test class and method names: separators and parent traversal, control characters, lone surrogates, noncharacters, bidi overrides, and names past the filesystem's per-element limit in characters *and* in bytes |
 | `redaction.json` | the name deny-list, the value-shape matcher and the capture path | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; four composite shapes (curated stringification, a sensitive map key, a throwing summary) replayed through a real traced call rather than the value renderer alone; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
 | `trace-shapes.json` | every recursive renderer/exporter, via `ai.narrativetrace.core.tree.TreeWalk` | declarative `TraceNode` call-tree *shapes*: a legitimate deep chain, and a hand-built cyclic child list (`TraceNode.children` is undefended) — the tree-structure counterpart to `graphs.json`'s value-graph shapes |
+| `feedback.json` | the value-free gate every runtime's problem-report verb runs before it will build a URL or a body file | problem-report text: rendered call lines, outcomes and durations; the redaction marker; deny-listed names carrying values in five languages; credential prefixes, key blocks, national-id and card shapes; high-density encoded runs; addresses, home paths, control and bidi characters — and, carrying equal weight, the install coordinates, doctor finding ids, doc URLs, artifact paths and hyphenated sentences that must stay **filable** |
 
 ## Case shapes
 
@@ -138,6 +141,37 @@ succeeds, and the failed part renders `<error: <TypeName>>` — the raised
 exception's type name and **never** its message, which in this case carries the
 sentinel. See the oracle contract's clauses 7 and 8 (2026-09-11 addendum).
 
+**Feedback case** (`feedback.json`) — `value` is the report text and `expect`
+says which way the gate must decide. A `rejected` row names the `rule` whose id
+must appear among the rules refusing it; an `accepted` row names none and must
+be refused by no rule at all:
+
+```json
+{ "id": "duration-milliseconds", "description": "an elapsed time, which only a value-carrying artifact measures", "value": "OrderService.placeOrder(customerId) \u2014 1ms", "expect": "rejected", "rule": "vf.duration" }
+{ "id": "accepted-doctor-finding-id", "description": "a doctor check id, which is what the step field names", "value": "trap.redaction-proof", "expect": "accepted" }
+```
+
+A rejected row asserts CONTAINMENT, not equality: several rules firing on one
+line is the normal case — a pasted rendered trace breaks the call rule and the
+duration rule together — and demanding exactness would make the corpus a record
+of one implementation's internals instead of the product's promise.
+
+The `accepted` half is not decoration, for the same reason `redaction.json`'s
+`visible` half is not: a gate that refuses an install coordinate, a doctor
+finding id or a hyphenated sentence is a gate whose users learn to work around
+it, and a report nobody can file is a defect nobody reports. Three rows document
+a decided LIMIT rather than a capability and say so in their own description
+(`entropy-hex-run-32`, `accepted-unqualified-rendered-call`,
+`accepted-hyphenated-prose`), so flipping one is a decision and not a fix.
+
+The gate is deliberately STRICTER than the renderer's own redaction, and
+`value-shape-checksum-failing-lookalike` is the row that pins it: the renderer
+leaves a checksum-failing lookalike visible because blanking a user's data on a
+guess is worse than showing it, while the gate refuses it because an unfilable
+report costs a sentence and a public national id cannot be taken back. The
+implication between the two is therefore asserted one way only — every value the
+renderer redacts is also refused by the gate, never the reverse.
+
 **Declarative trace shape** (`trace-shapes.json`) — `kind` names the call-tree
 shape, `n` its size:
 
@@ -178,3 +212,8 @@ in `documentation/security-testing.md`.
 8. **A name is a path** — every element a writer builds fits the filesystem's
    per-element limit *in bytes*, no name places an artifact outside the output
    directory, and two different names never resolve to one artifact.
+9. **Value-free before public** — every `feedback.json` row is decided the way it
+   declares, and every name and value shape the redaction default redacts is also
+   refused by the gate. The second half is what keeps one vocabulary from becoming
+   two: the gate restates the deny-list because the tooling library may not link
+   the runtime, so the only thing stopping drift is this assertion.

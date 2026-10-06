@@ -18,6 +18,26 @@ Which licence applies to what
       third-party code compiles against. Every source file in this artifact
       carries "SPDX-License-Identifier: Apache-2.0".
 
+  ai.narrativetrace:narrativetrace-skills
+  ai.narrativetrace:narrativetrace-cli
+  ai.narrativetrace:narrativetrace-tooling
+      Apache License, Version 2.0 — see LICENSE-APACHE.
+      The agent-skill carrier and the tooling around it: the artifact that
+      ships the skill pages, the `narrativetrace` launcher, and the installer
+      and doctor library behind it. Open for the same reason the API is —
+      what a consumer's own agents and build read has to be readable, and
+      reusable, without agreeing to anything.
+
+  the rendered agent-skill pages in this repository, and the marketplace file
+  that lists them: .claude/skills/**, .agents/skills/** and
+  .claude-plugin/marketplace.json
+      Apache License, Version 2.0.
+      Build output of the same catalogue the skills artifact carries,
+      published at the paths agent tools discover them at. Whoever installs
+      them — by copying a directory, through the installer, or from a plugin
+      marketplace — receives Apache-licensed pages, and the marketplace
+      listing says so.
+
   every other ai.narrativetrace artifact in this repository
       Business Source License 1.1 — see LICENSE.
       The runtime and its integrations. Free to use in production, including

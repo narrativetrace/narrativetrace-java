@@ -121,6 +121,26 @@ public final class HostileCorpus {
     return List.copyOf(result);
   }
 
+  /** Problem-report text, each row saying whether the value-free gate must refuse it. */
+  @SuppressWarnings("unchecked")
+  public static List<FeedbackCase> feedbacks() {
+    return (List<FeedbackCase>) CASES.computeIfAbsent("feedback", key -> parseFeedbacks());
+  }
+
+  private static List<FeedbackCase> parseFeedbacks() {
+    var result = new ArrayList<FeedbackCase>();
+    for (var node : read("feedback.json").get("cases")) {
+      result.add(
+          new FeedbackCase(
+              text(node, "id"),
+              text(node, "description"),
+              materialize(node),
+              text(node, "expect"),
+              text(node, "rule")));
+    }
+    return List.copyOf(result);
+  }
+
   /** Declarative object-graph shapes; {@link HostileGraphs} turns one into a live graph. */
   @SuppressWarnings("unchecked")
   public static List<GraphCase> graphs() {

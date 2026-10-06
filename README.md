@@ -4,7 +4,36 @@
 
 ## Start here
 
-[See a trace in 60 seconds](documentation/sixty-seconds.md) — a console app, one run, and the trace is in your terminal.
+- [See a trace in 60 seconds](documentation/sixty-seconds.md) — a console app, one run, and the trace is in your terminal.
+- Working with an AI agent? Paste this:
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+
+1. Read https://narrativetrace.ai/java/llms.txt first. It carries the
+   install block and the known traps. Do not guess versions or artifact
+   names.
+2. If this directory has no project yet, create the smallest console app
+   that llms.txt's "Install and first trace" block describes. Otherwise
+   work inside the existing project and trace one real service boundary.
+3. Add the plugin the way llms.txt shows, then run
+   `./gradlew narrativetraceInit --diff` and show me the diff. It installs
+   the NarrativeTrace agent skills into this project and adds a marked
+   section to AGENTS.md. Run it for real only after I have seen the diff.
+4. If the `add-narrative-tracing` skill is now available, follow it.
+   Otherwise follow the "Install and first trace (copy this)" block in
+   llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and
+   asserts the trace shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`./gradlew narrativetraceDoctor`).
+   Paste the trace and the doctor report, explain the trace in two
+   sentences, and list exactly what changed in the project.
+
+Rules: never disable redaction; do not commit `.received.nt` files; keep
+the `-parameters` compiler flag; run everything in the foreground and
+read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Demo
 
@@ -239,7 +268,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -307,7 +336,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.4`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.2.5`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the

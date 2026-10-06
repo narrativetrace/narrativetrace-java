@@ -39,6 +39,7 @@ enum class VerificationCategory(val id: String) {
     COMPLEXITY("complexity"),
     TRANSLATION("translation"),
     CLARITY("clarity"),
+    VENDOR_VALIDATION("vendor-validation"),
 }
 
 enum class VerificationStatus(val id: String) {

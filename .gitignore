@@ -54,3 +54,9 @@ narrativetrace-examples/*/\?/
 narrativetrace-soak/logs/
 narrativetrace-soak/results/
 narrativetrace-soak/.soak.lock
+
+# A grader importing a shared Python helper leaves this inside the committed case directory. The
+# eval runner sets PYTHONDONTWRITEBYTECODE for every command of a trial; this covers a grader run
+# by hand, as every grader is before a trial is spent on it.
+__pycache__/
+*.pyc

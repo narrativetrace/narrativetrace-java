@@ -14,11 +14,6 @@ extra["publishDescription"] = "JUnit 5 extension for automatic trace output"
 
 tasks.test {
     exclude("**/FailingTestFixture.class")
-    // AutodetectionFixture deliberately carries no @ExtendWith — ExtensionAutodetectionTest runs
-    // it through a nested Launcher with autodetection turned on for that one request. Run
-    // directly by this task instead (no autodetection enabled for the module's own test JVM), its
-    // NarrativeContext parameter cannot resolve, the same reason FailingTestFixture is excluded.
-    exclude("**/AutodetectionFixture.class")
     // The suite's own fixtures (IoErrorFixture, MultiTestFixture, ...) carry real @Test methods
     // and can be selected directly (`--tests`, an IDE run) outside the runSuite() harness that
     // otherwise always points narrativetrace.outputDir at a @TempDir. A directly-run fixture then

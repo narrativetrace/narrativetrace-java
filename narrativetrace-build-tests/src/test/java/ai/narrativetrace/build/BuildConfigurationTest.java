@@ -82,8 +82,9 @@ class BuildConfigurationTest {
         .contains("LIBRARY ai.narrativetrace narrativetrace-opentelemetry")
         .contains("LIBRARY ai.narrativetrace narrativetrace-junit4")
         .contains("LIBRARY ai.narrativetrace narrativetrace-junit5")
-        .contains("LIBRARY ai.narrativetrace narrativetrace-skills");
-    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(19);
+        .contains("LIBRARY ai.narrativetrace narrativetrace-skills")
+        .contains("LIBRARY ai.narrativetrace narrativetrace-tooling");
+    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(20);
   }
 
   @Test
@@ -514,13 +515,13 @@ class BuildConfigurationTest {
   }
 
   /**
-   * The real tree side of the since-marker heading guard (the fixture side — a planted heading is
-   * flagged, a body marker is not — lives in buildSrc's {@code ContractLintSupportTest}): this
-   * repository's actual documentation carries zero heading-line since-markers today, so wiring the
-   * guard into {@code contractLint} must not turn a real, legitimate doc tree red.
+   * The real-tree side of {@code contractLint} (the fixture side — a duplicate id, a dangling
+   * anchor, a missing probe file — lives in buildSrc's {@code ContractLintSupportTest}): this
+   * repository's actual {@code documentation/contract.yaml} passes every rule the task enforces, so
+   * a rule wired into it must not turn a real, legitimate contract red.
    */
   @Test
-  void contractLintFindsNoSinceMarkerHeadingsInTheRealDocumentationTree() {
+  void contractLintReportsNoProblemsOnTheRealContractDocument() {
     var result = gradle("contractLint");
 
     assertThat(result.getOutput()).contains("contractLint:").contains("0 problems");

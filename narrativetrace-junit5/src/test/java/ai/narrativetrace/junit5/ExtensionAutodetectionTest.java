@@ -30,9 +30,22 @@ import org.junit.platform.launcher.listeners.TestExecutionSummary;
 class ExtensionAutodetectionTest {
 
   @Test
+  void selectedWithoutTheHarnessParameterTheFixtureSkipsItselfInsteadOfFailing() {
+    TestExecutionSummary summary = runSuiteWithSummary(Map.of());
+
+    assertThat(summary.getTestsFailedCount()).isZero();
+    assertThat(summary.getTestsSkippedCount()).isOne();
+  }
+
+  @Test
   void withoutAutodetectionAnUnannotatedFixtureFailsParameterResolution(@TempDir Path outputDir) {
     TestExecutionSummary summary =
-        runSuiteWithSummary(Map.of("narrativetrace.outputDir", outputDir.toString()));
+        runSuiteWithSummary(
+            Map.of(
+                AutodetectionFixture.HARNESS_PARAMETER,
+                "true",
+                "narrativetrace.outputDir",
+                outputDir.toString()));
 
     assertThat(summary.getTestsFailedCount()).isOne();
     assertThat(outputDir.resolve("clarity-report.md")).doesNotExist();
@@ -43,6 +56,8 @@ class ExtensionAutodetectionTest {
     TestExecutionSummary summary =
         runSuiteWithSummary(
             Map.of(
+                AutodetectionFixture.HARNESS_PARAMETER,
+                "true",
                 "junit.jupiter.extensions.autodetection.enabled",
                 "true",
                 "narrativetrace.outputDir",

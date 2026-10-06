@@ -6,7 +6,8 @@
  * years from publication; Change License: Apache-2.0
  */
 // Applied by every module whose tests start nested Gradle builds through GradleTestKit
-// (narrativetrace-build-tests, narrativetrace-gradle-plugin, narrativetrace-skills). Each nested build leaves JVMs
+// (narrativetrace-build-tests, narrativetrace-gradle-plugin, narrativetrace-skills-catalogue). Each
+// nested build leaves JVMs
 // resident: a Gradle daemon per distinct set of daemon parameters, and a Kotlin compile daemon
 // behind it, which idles for two hours by default. They do not run concurrently — these tasks and
 // tests are sequential — they ACCUMULATE, and the accumulation is what a memory ceiling meets.

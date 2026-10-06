@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob ca458a3d16a9 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob b243747ec49c | translated: 2026-09-12 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -13,7 +13,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 - [Bloco de Módulos](#bloco-de-módulos)
 - [Bloco do Agente](#bloco-do-agente)
 - [Bloco de Clareza](#bloco-de-clareza)
-- [Tarefas](#tarefas) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives)
+- [Tarefas](#tarefas) — [clarityCheck](#claritycheck) | [clarityScan](#clarityscan) | [glossaryScan](#glossaryscan) | [approveNarratives](#approvenarratives) | [narrativetraceDoctor](#narrativetracedoctor) | [narrativetraceInit](#narrativetraceinit) | [narrativetraceUninstall](#narrativetraceuninstall) | [narrativetraceRefreshSkills](#narrativetracerefreshskills)
 - [Requisitos](#requisitos)
 - [Resolução de Versão](#resolução-de-versão)
 - [Receitas Comuns](#receitas-comuns)
@@ -25,7 +25,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -45,6 +45,8 @@ Você não precisa adicionar nenhuma dependência do JUnit. Com o valor padrão 
 | Registra a task `clarityScan` | Análise de clareza independente a partir das classes compiladas (não requer testes) |
 | Registra a task `glossaryScan` | Coleta independente do glossário a partir das classes compiladas, incluindo templates de anotações |
 | Registra a task `approveNarratives` | Promove narrativas `*.received.nt` revisadas para baselines `*.approved.nt` |
+| Registra o grupo de tasks `narrativetrace` | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — o diagnóstico e o instalador das habilidades de agente; nenhuma delas roda por conta própria |
+| Registra a task `narrativetraceRefreshSkills` | Roda antes de `classes`; reescreve as habilidades de agente instaladas que sejam mais antigas que o portador resolvido, e não faz absolutamente nada em um projeto que nunca executou `narrativetraceInit` |
 | Configura o argumento de JVM do agente | Quando `mode = "agent"`: resolve o JAR do agente, adiciona `-javaagent` às tasks Test |
 
 ## Propriedades
@@ -303,6 +305,84 @@ Aceita mudanças estruturais intencionais no [modo de aprovação](#approval): p
 - Sempre seguro de executar — imprime `Approved: <path>` para cada baseline promovida, ou `No received narratives to approve.` quando não há nada para promover
 - Nunca executa testes: revise os arquivos received primeiro, aprove e então rode a suíte novamente até ficar verde
 
+### `narrativetraceDoctor`
+
+Executa as doze verificações somente-leitura do doctor contra este projeto, no mesmo processo — as
+mesmas que o verbo `doctor` do launcher independente executa. Escreve
+`build/narrativetrace/doctor-report.json` e imprime o relatório legível.
+
+```bash
+./gradlew narrativetraceDoctor
+```
+
+- **Grupo**: `narrativetrace`
+- **Somente leitura**: lê arquivos de build, fontes, saída renderizada e habilidades de agente instaladas; não muda nada
+- **Nunca faz o build falhar pelos seus próprios achados** — um achado é um resultado normal, não uma falha
+- `--json` imprime o relatório legível por máquina em vez do humano
+
+### `narrativetraceInit`
+
+Instala as [habilidades de agente](habilidades-de-agente.md) neste projeto e escreve a seção marcada
+de `AGENTS.md`. Ele as lê de `ai.narrativetrace:narrativetrace-skills`, resolvido em tempo de task a
+partir dos repositórios que o projeto já declara — na mesma versão em que qualquer outro artefato do
+NarrativeTrace é resolvido.
+
+```bash
+./gradlew narrativetraceInit --diff    # mostra o plano, não escreve nada
+./gradlew narrativetraceInit           # aplica
+```
+
+- **Grupo**: `narrativetrace`
+- **Só roda quando você a digita.** Nenhuma task do ciclo de vida depende dela
+
+| Opção | Efeito |
+|---|---|
+| `--diff` | Pré-visualização: imprime o plano e um diff unificado de cada arquivo que escreveria, e não escreve nada. Nunca falha |
+| `--write-existing` | Permissão para tocar um `AGENTS.md` ou `CLAUDE.md` que já existe sem os nossos marcadores |
+| `--force` | Permissão para sobrescrever um diretório de habilidade que pertence a outra pessoa (uma página sem o nosso selo) |
+| `--only <metade>` | `skills` ou `agents-md` — instala apenas uma metade |
+| `--vendor <v>` | `claude` ou `none` — força a cópia do fornecedor. Detectada por padrão a partir de um diretório `.claude/` ou de um `CLAUDE.md` |
+| `--json` | O envelope `{carrier, actions, exitCode}` em vez do texto humano |
+
+A flag de pré-visualização é `--diff`, não `--dry-run`: o próprio `--dry-run` embutido no Gradle pula
+todas as tasks do grafo, então uma opção de task com esse nome nunca poderia rodar. O verbo do
+launcher, onde nada o encobre, mantém `narrativetrace init --dry-run`. Ambos ligam a mesma opção.
+
+Uma recusa — dois pares de marcadores em um mesmo `AGENTS.md`, um arquivo onde deveria haver um
+diretório de habilidade — é impressa junto com a flag que a permitiria, e faz a task falhar. Todas as
+outras ações planejadas são aplicadas de qualquer forma.
+
+Não há propriedades de DSL para nada disso: nada do instalador é configurado em
+`narrativeTrace { }`, porque cada escolha que ele faz pertence à execução que você está digitando,
+não à configuração commitada do build.
+
+### `narrativetraceUninstall`
+
+Remove exatamente o que `narrativetraceInit` escreveu, e nada além: uma página de habilidade só
+quando ela carrega o selo do próprio instalador, um arquivo só quando o instalador o criou e nada seu
+sobrou dentro dele, a seção de `AGENTS.md` só entre os seus próprios marcadores.
+
+```bash
+./gradlew narrativetraceUninstall --diff
+./gradlew narrativetraceUninstall
+```
+
+- **Grupo**: `narrativetrace`
+- **Opções**: `--diff`, `--only <metade>`, `--json`, como acima
+- A única linha que ele deixa para trás é a importação `@AGENTS.md` em um `CLAUDE.md` que não criou
+
+### `narrativetraceRefreshSkills`
+
+Contabilidade interna, não algo que você digita: roda antes de `classes` e reescreve as páginas de
+habilidade instaladas que carregam o nosso selo com uma versão mais antiga que a do portador que o
+projeto agora resolve, e a seção de `AGENTS.md` do mesmo jeito. Imprime uma linha nomeando o que
+reescreveu.
+
+- **Sem grupo** — é a manutenção interna do build
+- **Só reescreve.** Nunca cria uma habilidade, uma seção ou um arquivo, então um projeto que nunca
+  executou `narrativetraceInit` não é tocado e nem sequer resolve o portador
+- Sem rede, ou sem nenhum repositório que forneça o portador, ele avisa uma vez e segue adiante
+
 ## Requisitos
 
 O plugin verifica seu ambiente quando é aplicado, e falha com uma linha
@@ -329,7 +409,7 @@ Para fixar uma versão diferente — por exemplo, para fazer dogfooding de um `-
 
 ```kotlin
 narrativeTrace {
-    libraryVersion.set("0.2.0-SNAPSHOT")
+    libraryVersion.set("<sua-versao-snapshot>")
 }
 ```
 
@@ -341,7 +421,7 @@ Quando definida, toda dependência gerenciada do NarrativeTrace é resolvida nes
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.4"
+    id("ai.narrativetrace") version "0.2.5"
 }
 ```
 
@@ -449,7 +529,7 @@ Este é um comportamento normal do Gradle, não algo que o NarrativeTrace faz, m
 Duas coisas que vale a pena saber:
 
 - **Nada precisa ser publicado.** Não execute `publishToMavenLocal` — a substituição do composite troca as coordenadas antes da resolução, então uma publicação local só adicionaria uma cópia obsoleta que pode encobrir suas alterações.
-- **A versão não precisa coincidir.** A substituição é por grupo e nome do módulo, então o `0.2.0-SNAPSHOT` do build incluído satisfaz qualquer versão que o plugin peça. Se você preferir resolver artefatos reais e pular o composite, defina `libraryVersion` — veja [Resolução de Versão](#resolução-de-versão).
+- **A versão não precisa coincidir.** A substituição é por grupo e nome do módulo, então a própria versão do build incluído satisfaz qualquer versão que o plugin peça. Se você preferir resolver artefatos reais e pular o composite, defina `libraryVersion` — veja [Resolução de Versão](#resolução-de-versão).
 
 ### Configuração multiprojeto
 
@@ -477,7 +557,7 @@ Todos os exemplos acima usam o DSL do Kotlin. O equivalente em Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.4'
+    id 'ai.narrativetrace' version '0.2.5'
 }
 
 narrativeTrace {
@@ -523,7 +603,7 @@ narrativeTrace {
     glossary.set(false)                        // padrão: false — coleta glossary.json ao final da suíte
     approval.set(false)                        // padrão: false — verifica a estrutura contra baselines commitadas
     approvedDir.set(layout.projectDirectory.dir("src/test/narratives"))
-    // libraryVersion.set("0.2.0-SNAPSHOT")    // padrão: versão embutida do plugin — sobrescreva para dogfooding de um snapshot
+    // libraryVersion.set("<sua-versao-snapshot>")  // padrão: versão embutida do plugin — sobrescreva para dogfooding de um snapshot
 
     modules {                                  // ativação granular e opcional (tudo false por padrão)
         slf4j.set(false)

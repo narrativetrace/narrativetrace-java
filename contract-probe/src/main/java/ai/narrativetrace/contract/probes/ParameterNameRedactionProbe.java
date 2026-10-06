@@ -14,8 +14,7 @@ import ch.qos.logback.core.read.ListAppender;
 
 /**
  * {@code probed-default}: a parameter literally named {@code password} is redacted at capture — no
- * {@code @NotTraced}, no name-shape heuristic beyond the deny-list itself. Landed 2026-09-10,
- * before the {@code v0.2.1} tag (2026-09-11), so this is checked at, not before, {@code since}.
+ * {@code @NotTraced}, no name-shape heuristic beyond the deny-list itself.
  */
 public final class ParameterNameRedactionProbe {
 

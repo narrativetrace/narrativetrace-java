@@ -121,7 +121,7 @@ In priority order, which is the order every runtime implements them in.
 
 ## The hostile corpus
 
-`narrativetrace-security-tests/src/test/resources/hostile-corpus/` holds six
+`narrativetrace-security-tests/src/test/resources/hostile-corpus/` holds nine
 JSON fixtures with a `README.md` beside them describing every case shape:
 
 | File | What it holds |
@@ -132,6 +132,9 @@ JSON fixtures with a `README.md` beside them describing every case shape:
 | `graphs.json` | declarative object-graph *shapes*: depth, width, cycles, self-reference, wrapper chains, throwing/blocking/recursive `toString`, a curated `toString` that interpolates a sensitive field (directly and one level down), a composite map key, a throwing `@NarrativeSummary`, the platform-type carve-out (trusted short value, name-redacted, lookalike, subclass), huge collections |
 | `injection.json` | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, link exfiltration, fence and frontmatter terminators, homoglyph variants |
 | `names.json` | test class and method names as the writers receive them: separators and parent traversal, control characters, lone surrogates, noncharacters, and names past the filesystem's per-element limit in characters *and* in bytes |
+| `redaction.json` | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay visible |
+| `trace-shapes.json` | declarative call-tree *shapes*: a legitimate deep chain, and a hand-built cyclic child list — the tree-structure counterpart to `graphs.json` |
+| `feedback.json` | problem-report text the value-free gate must refuse before anything can be filed publicly: rendered call lines, outcomes and durations, the redaction marker, deny-listed names carrying values, credential prefixes and national-id shapes, high-density encoded runs, addresses, home paths, control and bidi characters — and the install coordinates, finding ids, doc URLs and ordinary sentences that must stay filable |
 
 Two rules keep the corpus portable, and both are enforced by a test rather
 than by agreement:

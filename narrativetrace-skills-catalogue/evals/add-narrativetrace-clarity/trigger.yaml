@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+positive:
+  - "add a clarity report to this Gradle project"
+  - "run NarrativeTrace clarityScan"
+  - "explain our clarity scores"
+  - "show which method names make the trace hard to read"
+  - "set up a clarity quality gate"
+  - "why is the clarity report empty"
+  - "give me per-element clarity notes"
+  - "check naming quality in our NarrativeTrace traces"
+  - "make clarityCheck fail on low scores"
+  - "scan this Java project for NarrativeTrace clarity"
+  - "our JUnit 4 tests write traces but no Clarity report"
+
+negative:
+  - "add narrative tracing to my service"
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "generate a glossary from these classes"
+  - "render a Mermaid sequence diagram"
+  - "upgrade narrativetrace to the latest version"
+  - "instrument this class with the agent"
+  - "configure the Spring filter"
+  - "what does NarrativeTraceProxy.trace do"
+  - "fix the doctor's redaction finding"
