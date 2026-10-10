@@ -33,6 +33,34 @@ class StructuralTraceRendererTest {
   private final StructuralTraceRenderer renderer = new StructuralTraceRenderer();
 
   @Test
+  void eachCallLineOpensWithItsPositionPathId() {
+    var child =
+        new TraceNode(
+            new MethodSignature("TripLedger", "recordExpense", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null),
+            1_000_000L);
+    var root =
+        new TraceNode(
+            new MethodSignature("TripSettlementService", "recordExpense", List.of()),
+            List.of(child),
+            new TraceOutcome.Returned(null),
+            1_000_000L);
+    var second =
+        new TraceNode(
+            new MethodSignature("TripSettlementService", "settleTrip", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null),
+            1_000_000L);
+
+    assertThat(renderer.render(new DefaultTraceTree(List.of(root, second))))
+        .isEqualTo(
+            "#1 - TripSettlementService.recordExpense()\n"
+                + "  #1.1 - TripLedger.recordExpense()\n"
+                + "#2 - TripSettlementService.settleTrip()\n");
+  }
+
+  @Test
   void voidCallRendersNoOutcomeKind() {
     var node =
         new TraceNode(
@@ -43,7 +71,7 @@ class StructuralTraceRendererTest {
             1_000_000L);
     var tree = new DefaultTraceTree(List.of(node));
 
-    assertThat(renderer.render(tree)).isEqualTo("- AuditSink.record(entry)\n");
+    assertThat(renderer.render(tree)).isEqualTo("#1 - AuditSink.record(entry)\n");
   }
 
   @Test
@@ -58,7 +86,7 @@ class StructuralTraceRendererTest {
 
     var result = renderer.render(tree);
 
-    assertThat(result).isEqualTo("- PaymentGateway.charge() !! IllegalStateException\n");
+    assertThat(result).isEqualTo("#1 - PaymentGateway.charge() !! IllegalStateException\n");
     assertThat(result).doesNotContain("4111");
   }
 
@@ -93,9 +121,9 @@ class StructuralTraceRendererTest {
     assertThat(renderer.render(tree))
         .isEqualTo(
             """
-            - TripSettlementService.recordExpense(tripName)
-              - ExpenseValidator.ensureValid(expense)
-              - TripLedger.recordExpense()
+            #1 - TripSettlementService.recordExpense(tripName)
+              #1.1 - ExpenseValidator.ensureValid(expense)
+              #1.2 - TripLedger.recordExpense()
             """);
   }
 
@@ -109,7 +137,7 @@ class StructuralTraceRendererTest {
             0L);
     var tree = new DefaultTraceTree(List.of(node));
 
-    assertThat(renderer.render(tree)).isEqualTo("- Svc.hang() ?? incomplete\n");
+    assertThat(renderer.render(tree)).isEqualTo("#1 - Svc.hang() ?? incomplete\n");
   }
 
   @Test
@@ -174,10 +202,10 @@ class StructuralTraceRendererTest {
     assertThat(result)
         .isEqualTo(
             """
-            - CheckoutService.quote() → value
+            #1 - CheckoutService.quote() → value
               ~ fork [2]
-                - DiscountEngine.calculate() → value
-                - StockService.check() → value
+                #1.1 - DiscountEngine.calculate() → value
+                #1.2 - StockService.check() → value
             """);
     assertThat(result).doesNotContain("pool-1");
   }
@@ -210,10 +238,52 @@ class StructuralTraceRendererTest {
     assertThat(renderer.render(tree))
         .isEqualTo(
             """
-            - CheckoutService.complete()
-              ~ fire-and-forget
-                - NotificationService.send()
+            #1 - CheckoutService.complete()
+              #1.1 ~ fire-and-forget
+                #1.1.1 - NotificationService.send()
             """);
+  }
+
+  @Test
+  void aForkInsideFireAndForgetWorkKeepsItsMarkerAndItsIds() {
+    var fork = new ConcurrencyInfo("fork-1", "pool-1", 1, false, ConcurrencyKind.FORK_JOIN);
+    var launched = new ConcurrencyInfo("faf-1", "bg-1", 1, false, ConcurrencyKind.FIRE_AND_FORGET);
+    var sms = leafWith("SmsService", "send", fork);
+    var mail = leafWith("MailService", "send", fork);
+    var launcher =
+        new TraceNode(
+            new MethodSignature("CheckoutService", "launch", List.of()),
+            List.of(sms, mail),
+            null,
+            0L,
+            0L,
+            launched);
+    var root =
+        new TraceNode(
+            new MethodSignature("CheckoutService", "complete", List.of()),
+            List.of(launcher),
+            new TraceOutcome.Returned(null),
+            1_000_000L);
+
+    assertThat(renderer.render(new DefaultTraceTree(List.of(root))))
+        .isEqualTo(
+            """
+            #1 - CheckoutService.complete()
+              #1.1 ~ fire-and-forget
+                ~ fork [2]
+                  #1.1.1 - MailService.send()
+                  #1.1.2 - SmsService.send()
+            """);
+  }
+
+  private static TraceNode leafWith(String type, String method, ConcurrencyInfo info) {
+    return new TraceNode(
+        new MethodSignature(type, method, List.of()),
+        List.of(),
+        new TraceOutcome.Returned(null),
+        0L,
+        0L,
+        info);
   }
 
   @Test
@@ -233,7 +303,7 @@ class StructuralTraceRendererTest {
             """
             scenario: Weekend trip settles with three transfers
 
-            - Svc.run()
+            #1 - Svc.run()
             """);
   }
 
@@ -254,7 +324,7 @@ class StructuralTraceRendererTest {
 
     var result = renderer.render(tree);
 
-    assertThat(result).isEqualTo("- OrderService.placeOrder(customerId, quantity) → value\n");
+    assertThat(result).isEqualTo("#1 - OrderService.placeOrder(customerId, quantity) → value\n");
     assertThat(result).doesNotContain("C-123");
     assertThat(result).doesNotContain("412");
   }

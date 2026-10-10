@@ -24,6 +24,47 @@ class PlantUmlSequenceDiagramRendererTest {
   private final PlantUmlSequenceDiagramRenderer renderer = new PlantUmlSequenceDiagramRenderer();
 
   @Test
+  void eachCallArrowIsFollowedByANoteCitingItsSpanId() {
+    var info =
+        new ai.narrativetrace.api.event.ConcurrencyInfo(
+            "fork-1", "pool-1", 1, false, ai.narrativetrace.api.event.ConcurrencyKind.FORK_JOIN);
+    var stock =
+        new TraceNode(
+            new MethodSignature("Stock", "check", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null),
+            0L,
+            0L,
+            info);
+    var discount =
+        new TraceNode(
+            new MethodSignature("Discount", "calculate", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null),
+            0L,
+            0L,
+            info);
+    var root =
+        new TraceNode(
+            new MethodSignature("Checkout", "complete", List.of()),
+            List.of(stock, discount),
+            new TraceOutcome.Returned(null));
+    var audit =
+        new TraceNode(
+            new MethodSignature("Audit", "record", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null));
+
+    var diagram = renderer.render(new DefaultTraceTree(List.of(root, audit)));
+
+    assertThat(diagram)
+        .contains("hnote over Checkout : #1\n")
+        .contains("hnote over Stock : #1.2\n")
+        .contains("hnote over Discount : #1.1\n")
+        .contains("hnote over Audit : #2\n");
+  }
+
+  @Test
   void summarizesCollectionReturnAsCountPlusNoun() {
     var list =
         new RenderedValue.ListVal(

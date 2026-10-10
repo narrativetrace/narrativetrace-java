@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 2f06bbd56300 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 79f3e2687ff8 | translated: 2026-10-09 | reviewed: - -->
 # Ve una traza en 60 segundos
 
 [English](../sixty-seconds.md) | **Español** | [Português](../pt-BR/sessenta-segundos.md) | [简体中文](../zh-CN/60秒.md)
@@ -25,8 +25,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
 }
 
 tasks.withType<JavaCompile> {
@@ -124,7 +124,7 @@ gradle wrapper
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 23ms #1
 ```
 
 Esa es la salida real, sin editar, de la ejecución de arriba. La duración
@@ -159,9 +159,9 @@ son el cambio:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.5")   // nuevo: se conecta al pipeline
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.3.0")   // nuevo: se conecta al pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // nuevo: el backend de SLF4J que necesita
 }
 ```
@@ -190,7 +190,7 @@ dependencies {
 ```text
 22:24:53.632 TRACE [loose hook parks] [] [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
 22:24:53.637 TRACE [loose hook parks] [] [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms #1
 ```
 
 `traceName` está poblado porque `Main` adoptó la traza fija de arriba; `runName`

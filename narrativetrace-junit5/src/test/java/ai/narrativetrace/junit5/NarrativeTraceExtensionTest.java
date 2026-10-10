@@ -314,7 +314,7 @@ class NarrativeTraceExtensionTest {
 
     var output = captured.toString();
     assertThat(output).contains("Changed since last green (+1 call Ledger.record):");
-    assertThat(output).contains("+  - Ledger.record()");
+    assertThat(output).contains("+  #1.1 - Ledger.record()");
     assertThat(output).doesNotContain("Execution trace:");
   }
 

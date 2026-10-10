@@ -36,12 +36,20 @@ class FindingSkillsTest {
     "toolchain.launcher, add-narrative-tracing",
     "config.extension-registered, add-narrative-tracing",
     "config.output-property, narrativetrace-doctor",
+    "config.approval-mode, narrativetrace-verify",
     "trap.silent-sink, narrativetrace-doctor",
     "trap.parameter-arg0, add-narrative-tracing",
     "trap.unused-not-traced-import, narrativetrace-doctor",
     "trap.redaction-proof, narrativetrace-doctor",
     "trap.approval-traces, narrativetrace-doctor",
     "trap.llms-before-you-start, add-narrative-tracing",
+    "config.spring-enabled, add-narrative-tracing",
+    "config.spring-web-filter, add-narrative-tracing",
+    "config.micronaut-base-packages, add-narrative-tracing",
+    "config.servlet-filter, add-narrative-tracing",
+    "config.junit4-rule, add-narrative-tracing",
+    "config.micrometer-accessor, add-narrative-tracing",
+    "config.otel-listener, add-narrative-tracing",
   })
   void namesTheSkillThatFixesEachFindingClass(String id, String skill) {
     assertThat(FindingSkills.forCheck(id)).isEqualTo(skill);

@@ -89,10 +89,13 @@ class DiagramMetadataInjectionTest {
         plantUml.render(treeWith(className, methodName, paramName)), "@startuml", PLANTUML_LINES);
   }
 
-  /** One participant, one call arrow, one return arrow — plus the format's own framing lines. */
-  private static final int MERMAID_LINES = 4;
+  /**
+   * One participant, one call arrow, its span-id note, one return arrow — plus the format's own
+   * framing lines.
+   */
+  private static final int MERMAID_LINES = 5;
 
-  private static final int PLANTUML_LINES = 5;
+  private static final int PLANTUML_LINES = 6;
 
   /**
    * The invariant that actually matters: hostile metadata may appear as inert text inside a name,
@@ -159,5 +162,45 @@ class DiagramMetadataInjectionTest {
 
     assertThat(mermaid.render(tree)).contains("participant \"com.acme.OrderService\"");
     assertThat(plantUml.render(tree)).contains("participant \"com.acme.OrderService\"");
+  }
+
+  /**
+   * The 2026-10-10 nightly's fuzz find: U+2028/U+2029 are not ISO controls, but they end a line for
+   * {@code java.util.regex} and JavaScript, so a name carrying one mid-string left a participant
+   * declaration the Mermaid grammar oracle could not read as one statement.
+   */
+  @ParameterizedTest(name = "[{index}] {0}")
+  @MethodSource("unicodeLineTerminators")
+  void unicodeLineTerminatorsInMetadataFoldToASpaceAndNeverSplitAStatement(
+      String label, String separator) {
+    var hostile = "Pay/" + separator + "ment";
+    var tree = treeWith(hostile, hostile, hostile);
+
+    for (var diagram :
+        List.of(mermaid.render(tree), mermaid.renderWithAliases(tree), plantUml.render(tree))) {
+      assertThat(diagram).doesNotContain(separator);
+      assertThat(diagram).contains("Pay/ ment");
+    }
+  }
+
+  static Stream<Arguments> unicodeLineTerminators() {
+    return Stream.of(
+        Arguments.of("U+2028 line separator", "\u2028"),
+        Arguments.of("U+2029 paragraph separator", "\u2029"),
+        Arguments.of("U+0085 next line", "\u0085"));
+  }
+
+  @Test
+  void unicodeLineTerminatorInAReturnValueFoldsToASpaceOnBothGrammars() {
+    var node =
+        new TraceNode(
+            new MethodSignature("C", "m", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("\"a\u2029b\u2028c\"", null),
+            1_000_000L);
+    var tree = new DefaultTraceTree(List.of(node));
+
+    assertThat(mermaid.render(tree)).doesNotContain("\u2028").doesNotContain("\u2029");
+    assertThat(plantUml.render(tree)).doesNotContain("\u2028").doesNotContain("\u2029");
   }
 }

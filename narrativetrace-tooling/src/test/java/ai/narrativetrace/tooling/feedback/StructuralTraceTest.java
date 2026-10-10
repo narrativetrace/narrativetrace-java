@@ -42,6 +42,56 @@ class StructuralTraceTest {
   }
 
   @Test
+  void acceptsCallAndMarkerLinesCitedBySpanIds() {
+    assertThat(
+            StructuralTrace.looksStructural(
+                """
+                scenario: Weekend trip settles with three transfers
+
+                #1 - TripSettlementService.settleTrip(tripName) → value
+                  #1.1 - TripLedger.expensesOf(tripName) !! IllegalStateException
+                  ~ fork [2]
+                    #1.2 - BalanceCalculator.computeBalances(expenses) ?? incomplete
+                  #1.4 ~ fire-and-forget
+                    #1.4.1 - Notifier.send(event)
+                """))
+        .isTrue();
+  }
+
+  @Test
+  void acceptsSpanIdsMadeOfEveryDigitIncludingZeroAndNine() {
+    assertThat(
+            StructuralTrace.looksStructural(
+                "scenario: s\n\n#10 - OrderService.placeOrder(customerId)\n"
+                    + "  #10.9 - Stock.check(sku)\n"))
+        .isTrue();
+  }
+
+  @Test
+  void refusesALineThatIsOnlyAnId() {
+    assertThat(StructuralTrace.looksStructural("scenario: s\n\n#1\n  #1.2\n")).isFalse();
+  }
+
+  @Test
+  void refusesALineWhoseFirstTokenOnlyLooksLikeAnIdAfterItsFirstCharacter() {
+    assertThat(
+            StructuralTrace.looksStructural(
+                "scenario: s\n\nx1 - OrderService.placeOrder(customerId)\n"))
+        .isFalse();
+  }
+
+  @Test
+  void refusesASpanIdThatIsNotADottedNumberPath() {
+    for (var id : new String[] {"#", "#1.", "#.1", "#1..2", "#a", "#1:value", "1.1"}) {
+      assertThat(
+              StructuralTrace.looksStructural(
+                  "scenario: s\n\n" + id + " - OrderService.placeOrder(customerId)\n"))
+          .as(id)
+          .isFalse();
+    }
+  }
+
+  @Test
   void acceptsAnInvocationHeaderAndAnEmptyParameterList() {
     assertThat(
             StructuralTrace.looksStructural(

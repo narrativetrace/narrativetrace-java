@@ -19,7 +19,7 @@ Choose the path that matches the request:
 ```kotlin
 plugins {
     java
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 
 repositories {
@@ -154,7 +154,7 @@ narrativeTrace {
 
 ## 11. Hand missing tracing or output setup to the doctor
 
-**verify:** if trace reports remain missing, run narrativetrace-doctor for diagnosis. Its extension, Jupiter-version, and launcher checks target JUnit 5; they do not validate JUnit 4 rule linkage and are not a reason to migrate a JUnit 4 suite. Inspect JUnit 4 rules and test JVM properties directly. When the user requested setup or repair, apply the identified configuration fix and repeat verification; do not stop after merely naming the doctor
+**verify:** if trace reports remain missing, run narrativetrace-doctor for diagnosis. For a JUnit 4 suite its config.junit4-rule check reports a suite with no NarrativeTrace rule linked; it does not tell a standalone NarrativeTraceRule from one created by classRule.testRule(), so confirm that linkage for the aggregate report yourself. Its extension, Jupiter-version, and launcher checks target JUnit 5 and are not a reason to migrate a JUnit 4 suite. When the user requested setup or repair, apply the identified configuration fix and repeat verification; do not stop after merely naming the doctor
 
 ## Always
 

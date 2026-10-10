@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob b243747ec49c | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 03b2eb50d3ce | translated: 2026-10-09 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,13 +25,13 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
 就这么简单。运行 `./gradlew test`,追踪输出就会出现在 `build/narrativetrace/` 中。
 
-你无需添加任何 JUnit 依赖。在默认的 `testFramework = "junit5"` 下,插件会把测试任务切换到 JUnit Platform,*并且*把 Jupiter 引擎(`org.junit.jupiter:junit-jupiter-engine`,固定为 NarrativeTrace 所测试的版本)加到 `testRuntimeOnly`,因为没有引擎时该平台拒绝启动。你仍然可以声明自己的 JUnit 版本——Gradle 的冲突解析会选择两者中较高的那个。
+你无需添加任何 JUnit 依赖。在默认的 `testFramework = "junit5"` 下,插件会把测试任务切换到 JUnit Platform,*并且*把 Jupiter 引擎(`org.junit.jupiter:junit-jupiter-engine`,固定为 NarrativeTrace 所测试的版本)加到 `testRuntimeOnly`,因为没有引擎时该平台拒绝启动。你仍然可以声明自己的 JUnit 版本:该固定版本只是下限(一个版本约束,而非直接版本),因此 Gradle 的冲突解析——或 Spring Boot 等 BOM——会选择两者中较高的那个,引擎与 API 保持一致。
 
 ## 插件自动完成的工作
 
@@ -303,7 +303,7 @@ narrativeTrace {
 
 ### `narrativetraceDoctor`
 
-在同一个进程内针对本项目运行 doctor 的十二项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
+在同一个进程内针对本项目运行 doctor 的二十项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
 检查。它会写出 `build/narrativetrace/doctor-report.json`,并打印人类可读的报告。
 
 ```bash
@@ -409,7 +409,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
@@ -544,7 +544,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.5'
+    id 'ai.narrativetrace' version '0.3.0'
 }
 
 narrativeTrace {

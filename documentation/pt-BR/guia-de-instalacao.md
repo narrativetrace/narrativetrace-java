@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 58129d0d2838 | translated: 2026-09-20 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 3a80abd150cc | translated: 2026-09-20 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -98,7 +98,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
@@ -155,23 +155,23 @@ precisa.
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
 
     // Integrações opcionais
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.5")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.2.5")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.5")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.3.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.3.0")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
 }
 ```
 

@@ -61,7 +61,7 @@ class SixtySecondsTest {
             Pattern.quote(traceHeader)
                 + " \\([0-9a-f]{7}\\)\n\n"
                 + "OrderService\\.placeOrder\\(customerId: \"C-1234\", productId: \"SKU-KB\", "
-                + "quantity: 2\\) → \"ORD-C-1234-SKU-KB-2\" — \\d+ms");
+                + "quantity: 2\\) → \"ORD-C-1234-SKU-KB-2\" — \\d+ms #1");
 
     var consoleCapture = Path.of("build/narrativetrace/sixty-seconds/see-a-trace.txt");
     Files.createDirectories(consoleCapture.getParent());

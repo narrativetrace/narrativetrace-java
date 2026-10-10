@@ -42,6 +42,7 @@ class SequenceWalkContractTest {
   private static final class CountingGrammar implements SequenceGrammar {
     private final SequenceGrammar delegate;
     private int callArrows;
+    private int spanNotes;
     private int returns;
     private int throwsCount;
     private int incompletes;
@@ -69,6 +70,12 @@ class SequenceWalkContractTest {
     public String callArrow(DiagramLabel caller, DiagramLabel target, DiagramLabel signature) {
       callArrows++;
       return delegate.callArrow(caller, target, signature);
+    }
+
+    @Override
+    public String spanNote(DiagramLabel target, DiagramLabel spanId) {
+      spanNotes++;
+      return delegate.spanNote(target, spanId);
     }
 
     @Override
@@ -185,9 +192,10 @@ class SequenceWalkContractTest {
     assertThat(nodeCount(root)).isEqualTo(expectedNodes);
 
     var counting = new CountingGrammar(real);
-    SequenceWalk.render(root, counting, PLAIN_LABEL, new StringBuilder());
+    SequenceWalk.renderAll(List.of(root), counting, PLAIN_LABEL, new StringBuilder());
 
     assertThat(counting.callArrows).as("call arrows").isEqualTo(expectedNodes);
+    assertThat(counting.spanNotes).as("span notes").isEqualTo(expectedNodes);
     assertThat(counting.outcomes())
         .as("outcomes (return + throw + incomplete)")
         .isEqualTo(expectedNodes);
@@ -200,8 +208,8 @@ class SequenceWalkContractTest {
 
     var mermaid = new CountingGrammar(MermaidSequenceGrammar.INSTANCE);
     var plantUml = new CountingGrammar(PlantUmlSequenceGrammar.INSTANCE);
-    SequenceWalk.render(root, mermaid, PLAIN_LABEL, new StringBuilder());
-    SequenceWalk.render(root, plantUml, PLAIN_LABEL, new StringBuilder());
+    SequenceWalk.renderAll(List.of(root), mermaid, PLAIN_LABEL, new StringBuilder());
+    SequenceWalk.renderAll(List.of(root), plantUml, PLAIN_LABEL, new StringBuilder());
 
     assertThat(mermaid.callArrows).isEqualTo(plantUml.callArrows);
     assertThat(mermaid.outcomes()).isEqualTo(plantUml.outcomes());

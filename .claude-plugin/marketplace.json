@@ -9,7 +9,7 @@
     {
       "name": "narrativetrace-java",
       "source": "./.claude",
-      "description": "Install NarrativeTrace in a Java project and reach a first trace, diagnose an install that traces nothing, add or verify a Clarity naming report, and report a defect in NarrativeTrace itself with your approval.",
+      "description": "Install NarrativeTrace in a Java project and reach a first trace, diagnose an install that traces nothing, add or verify a Clarity naming report, verify a change by reading what its code actually did and pin it as an approval baseline, find the cause of a wrong result by reading the values at each span, and report a defect in NarrativeTrace itself with your approval.",
       "license": "Apache-2.0",
       "homepage": "https://narrativetrace.ai",
       "keywords": ["narrativetrace", "java", "tracing", "observability", "agent-skills"]

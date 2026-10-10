@@ -4,8 +4,9 @@
 # Copyright (c) 2026 Empower Agile
 # The whole of what the PUBLISHED init prompt promises, graded as world state
 # (skill-harness-design.md principle 1: assert the world, never output text equality). Shared by
-# both init-prompt cases; run with cwd set to the scaffolded fixture copy, from a case's
-# graders/verify.sh, with $1 naming the service boundary that case's fixture defines.
+# every init-prompt case; run with cwd set to the scaffolded fixture copy, from a case's
+# graders/verify.sh, with $1 naming the service boundary that case's fixture defines and, for a
+# server, `run_the_server.sh <request-path>` after it.
 #
 # $NARRATIVETRACE_CLI_JAR is the built, zero-dependency narrativetrace-cli jar the runner points at
 # (`./gradlew :narrativetrace-cli:jar` first). $NARRATIVETRACE_AGENT_TRANSCRIPT is OPTIONAL: set it
@@ -15,10 +16,24 @@ set -e
 
 service="$1"
 if [ -z "$service" ]; then
-  echo "usage: grade_the_prompt.sh <TracedServiceName>" >&2
+  echo "usage: grade_the_prompt.sh <TracedServiceName> [run_the_server.sh <request-path>]" >&2
   exit 1
 fi
+shift
 here=$(dirname "$0")
+
+# How step 6's "Run the program" is graded: a console program by default; a server — a case on a
+# web framework — started and requested by run_the_server.sh. A closed list: the name is a file the
+# grader runs, so a case may choose between ours and nothing else.
+runner="${1:-run_the_program.sh}"
+[ $# -gt 0 ] && shift
+case "$runner" in
+  run_the_program.sh | run_the_server.sh) ;;
+  *)
+    echo "unknown program runner \"$runner\" — run_the_program.sh or run_the_server.sh" >&2
+    exit 1
+    ;;
+esac
 
 # Step 2 and 4, at their cheapest observable: the build declares NarrativeTrace at all.
 grep -q "ai.narrativetrace" build.gradle.kts || {
@@ -50,7 +65,7 @@ fi
 export NT_SKILLS_APPLIED="$skills_applied"
 
 # Step 6's first half, graded where the prompt puts it: the program's own standard output.
-sh "$here/run_the_program.sh" "$service"
+sh "$here/$runner" "$service" "$@"
 
 # Step 5: the redaction test exists, and passes. Existing is not enough — a test nobody can run
 # proves nothing, and the doctor's trap.redaction-proof only ever reads the source.
@@ -65,12 +80,12 @@ fi
 # Step 6's second half: the doctor report, and every finding in it.
 report=$(java -jar "$NARRATIVETRACE_CLI_JAR" doctor --json || true)
 
-echo "$report" | python3 -c '
+printf '%s\n' "$report" | python3 -c '
 import json, os, sys
 report = json.load(sys.stdin)
 findings = {f["id"]: f.get("status") for f in report.get("findings", [])}
-if len(findings) != 12:
-    print("expected the doctor to report twelve findings, got", len(findings), file=sys.stderr)
+if len(findings) != 20:
+    print("expected the doctor to report twenty findings, got", len(findings), file=sys.stderr)
     sys.exit(1)
 # The prompt now reaches every check: it declares JUnit (the range and launcher rules apply again),
 # registers the extension, keeps -parameters, and writes the redaction test. The one finding it

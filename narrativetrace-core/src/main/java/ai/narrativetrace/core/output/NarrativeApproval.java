@@ -115,14 +115,15 @@ public final class NarrativeApproval {
    */
   private static String verifyLossy(
       String baseline, String current, Path incompleteFile, TraceLoss loss) throws IOException {
-    if (LineDiff.isSubsequence(baseline, current)) {
+    var delta = StructuralDelta.between(baseline, current);
+    if (delta.onlyOmits()) {
       Files.deleteIfExists(incompleteFile);
       return "consistent with baseline, but this run was incomplete (" + describe(loss) + ")";
     }
     new TraceFileWriter().write(current, incompleteFile);
     throw new AssertionError(
         "Narrative changed against the approved baseline in a way loss cannot explain:\n"
-            + LineDiff.unified(baseline, current)
+            + delta.diff()
             + "This run was also incomplete ("
             + describe(loss)
             + "), so its structure was written to "

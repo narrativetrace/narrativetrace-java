@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 93cebb3e6215 | translated: 2026-10-04 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 323fe87c2f42 | translated: 2026-10-09 | reviewed: - -->
 # Habilidades de agente
 
 O NarrativeTrace traz **habilidades** (*skills*): procedimentos carregáveis por um agente que
@@ -7,12 +7,14 @@ documentação que um agente pode ou não ler. Uma habilidade é propositalmente
 verificação, diagnóstico ou geração vive em código de biblioteca testado; o trabalho da própria
 habilidade é saber quando agir, invocar esse código testado e interpretar o resultado no contexto.
 
-## Quatro habilidades: configuração, diagnóstico, clareza e relatos
+## Seis habilidades: configuração, diagnóstico, clareza, relatos, verificação e depuração
 
 - **`add-narrative-tracing`** — instala o NarrativeTrace em um projeto e o leva ao primeiro trace:
   instala com o toolchain real, envolve uma classe com `NarrativeTraceProxy.trace`, renderiza e
   executa o primeiro trace, e então conecta um logger real (`narrativetrace-slf4j` mais Logback).
-  Executa `narrativetrace-doctor` e passa o bastão — a costura entre as duas habilidades — e fecha
+  Logo após a instalação, também executa o doctor e aplica, em ordem, cada correção
+  `config.<framework>-*` que ele imprime — a página não nomeia nenhum framework; a própria tabela de
+  frameworks do doctor instalado decide quais o projeto precisa. Executa `narrativetrace-doctor` e passa o bastão — a costura entre as duas habilidades — e fecha
   pré-visualizando `narrativetraceInit`, para que a próxima sessão encontre estas habilidades já
   instaladas. Ela pré-visualiza e nunca aplica: uma habilidade que escrevesse em `AGENTS.md` por
   iniciativa própria seria exatamente o hook de pós-instalação que o instalador existe para evitar.
@@ -38,6 +40,29 @@ habilidade é saber quando agir, invocar esse código testado e interpretar o re
   de um aviso a ignorar. A habilidade então mostra o rascunho inteiro e pergunta uma única vez se
   ele deve ser publicado. Não envia nada a lugar algum e não publica nada sem uma resposta dada em
   um turno próprio.
+- **`narrativetrace-verify`** — lê o que uma mudança realmente fez antes de o agente dizer que ela
+  está pronta. Roda depois que os testes estão verdes e primeiro decide se vale a pena fazer o trace
+  da mudança — uma função pura ou uma edição de uma única classe não vale, e a habilidade diz isso e
+  para. Caso contrário, escreve a intenção antes de rodar qualquer coisa (quais colaboradores, em
+  que ordem, em qual ramo, quantas vezes), roda o menor caminho real com o tracing ligado, lê o trace
+  estrutural sem valores contra essa intenção, abre valores só no span que parece errado, corrige e
+  lê de novo, e então fixa o fluxo como baseline `.approved.nt` — liga o modo de aprovação se estiver
+  desligado, mostra o `.received.nt` inteiro e só o promove depois do seu sim, num turno próprio. O
+  relatório cita ids de span (`#2.1`), a posição que toda variante imprime para a mesma chamada, de
+  modo que uma afirmação sobre o trace pode ser conferida contra o trace.
+- **`narrativetrace-debug`** — encontra a causa de um resultado errado lendo o que o código fez com
+  os valores, não percorrendo-o passo a passo. Começa de um sintoma, não de uma mudança: reproduz
+  com a menor entrada e o tracing ligado, lê primeiro o diagrama de sequência quando o caminho
+  cruza threads, e então nomeia — pelo id de span, antes de mexer em qualquer código — o primeiro
+  span cujas entradas estão certas e cujo resultado está errado. Estreita por span, nunca por
+  arquivo: lê a subárvore sob esse id e, quando o trabalho dentro do span não tem trace, envolve
+  mais um colaborador em vez de ocultar qualquer coisa (`@NotTraced` oculta um valor; não delimita
+  um trace). Corrige o defeito nesse span, roda de novo a mesma entrada e confere que nada mais se
+  mexeu — uma execução vermelha não grava `.nt`, então a forma antes da correção são as linhas de
+  chamada do Markdown da reprodução sem os valores. Mantém a reprodução como teste de regressão,
+  fixa o trace estrutural dela pelo mesmo portão de aprovação do `narrativetrace-verify` e relata a
+  causa raiz pelo id de span. Quando o trace e o código discordam, ou o defeito é do próprio
+  NarrativeTrace, passa para o `narrativetrace-feedback` em vez de contornar o problema.
 
 Elas se combinam: um projeto totalmente novo começa com `add-narrative-tracing`; um projeto que já
 tem o NarrativeTrace instalado, no qual algo não está funcionando, começa com
@@ -45,7 +70,13 @@ tem o NarrativeTrace instalado, no qual algo não está funcionando, começa com
 `add-narrativetrace-clarity` cuida dos primeiros relatórios estáticos de nomes e da aplicação
 opcional de limiares de clareza; não instala tracing nem colhe um glossário.
 `narrativetrace-feedback` é onde um caminho termina quando o problema acaba sendo nosso e não do
-projeto — a própria regra de encerramento do doctor aponta para ele.
+projeto — a própria regra de encerramento do doctor aponta para ele. `narrativetrace-verify` é o
+que uma sessão com o NarrativeTrace instalado faz depois de cada mudança que mereça trace — o último
+passo da habilidade de instalação aponta a próxima sessão para ela, e o achado
+`config.approval-mode` do doctor (baselines que nada compara) é corrigido pelo seu passo de fixação.
+`narrativetrace-debug` é por onde começa um sintoma relatado; compartilha com a habilidade de
+verificação a referência de leitura (qual variante responde a qual pergunta, e as formas que indicam
+que algo deu errado) e a fixação, e termina no `narrativetrace-feedback` quando o defeito é nosso.
 
 ## Instalando-as
 
@@ -60,12 +91,14 @@ como um envelope sobre o qual um script pode decidir:
 
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.2.5",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.3.0",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrative-tracing/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrativetrace-clarity/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-feedback/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".agents/skills/narrativetrace-verify/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".agents/skills/narrativetrace-debug/SKILL.md", "status": "planned"},
     {"kind": "create", "path": "AGENTS.md", "status": "planned"}
   ],
   "exitCode": 0
@@ -119,7 +152,7 @@ Copiar também funciona, e é o único caminho para um agente sem build próprio
   `.agents/skills/<nome>/` do seu próprio projeto e o Codex a reconhece da mesma forma.
 - **Qualquer agente, qualquer plataforma**: todo agente que lê `AGENTS.md` vê o aviso sempre ativo
   que o próprio `AGENTS.md` deste repositório carrega entre seus marcadores
-  `<!-- narrativetrace:skills:start -->` — o nome e a descrição das quatro habilidades, para que um
+  `<!-- narrativetrace:skills:start -->` — o nome e a descrição das seis habilidades, para que um
   agente que nunca pensou em procurar ainda assim saiba que elas existem.
 - **Gemini** roda contra o mesmo catálogo em uma cadência esporádica e limitada por cota (veja
   [Tier B — testes com LLM](../../narrativetrace-skills-catalogue/evals/README.md)) em vez de a cada commit;
@@ -217,13 +250,13 @@ estão presentes mas não carregam nada disso:
 ## Como são construídas
 
 Nenhuma habilidade é editada manualmente.
-`narrativetrace-skills-catalogue/src/main/java/ai/narrativetrace/skills/catalogue/` contém as quatro fontes
-da verdade; seus passos tipados geram quatro páginas do Claude, quatro do Codex, a cópia que o portador
+`narrativetrace-skills-catalogue/src/main/java/ai/narrativetrace/skills/catalogue/` contém as seis fontes
+da verdade; seus passos tipados geram seis páginas do Claude, seis do Codex, a cópia que o portador
 guarda de ambos os sabores mais o seu índice `catalogue.json` — o que o jar publicado entrega ao
 `narrativetraceInit` — a seção de `AGENTS.md` deste repositório, e o listing
 `.claude-plugin/marketplace.json` que torna este repositório um marketplace de plugins do Claude
 Code: um teste de deriva (`RenderDriftTest`, ligado ao `./gradlew check`) faz o build falhar quando
-qualquer uma dessas dezenove saídas diverge da fonte tipada, e um segundo o faz falhar se qualquer
+qualquer uma dessas vinte e sete saídas diverge da fonte tipada, e um segundo o faz falhar se qualquer
 outra coisa aparecer dentro do portador. O `name:` renderizado de uma
 habilidade é sempre seu nome canônico, nunca um "segmento claude" abreviado — um diretório
 `.claude/skills/` ou `.agents/skills/` mantido no próprio repositório é um espaço de nomes plano,
@@ -240,7 +273,9 @@ cuja ausência é uma funcionalidade: uma habilidade cujos passos podem tornar a
 `narrativetrace-feedback` — não deve declarar nenhum `allowed-tools`, porque esse campo
 pré-aprova as ferramentas que lista durante o turno que carrega a habilidade, e uma habilidade de
 relato que pré-aprovasse o seu próprio comando de relato deixaria o ambiente de perguntar
-justamente onde perguntar é o ponto.
+justamente onde perguntar é o ponto. Um terceiro lint limita uma habilidade que promove uma baseline
+de aprovação — hoje, `narrativetrace-verify` e `narrativetrace-debug` — a nenhuma ferramenta permitida além de `find`, só de
+leitura, pela mesma razão: a promoção passa pelo `./gradlew`, e o sim que ela espera é o seu.
 
 ## Veja também
 

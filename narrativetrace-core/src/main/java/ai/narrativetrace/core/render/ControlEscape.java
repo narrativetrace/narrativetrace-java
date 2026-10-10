@@ -19,8 +19,8 @@ package ai.narrativetrace.core.render;
  * <p><b>@llmNote</b> Unlike {@code JsonEscape}, this does NOT escape {@code "} or {@code \\} —
  * those are legitimate value content and safe in logs/terminals. It touches control characters
  * only, so a value like {@code C:\temp} stays readable. Common controls map to their {@code
- * \n}/{@code \t} mnemonics; every other {@link Character#isISOControl(char)} code point maps to
- * {@code \\uXXXX}.
+ * \n}/{@code \t} mnemonics; every other {@link Character#isISOControl(char)} code point, and the
+ * Unicode line and paragraph separators U+2028/U+2029, map to {@code \\uXXXX}.
  *
  * <p><b>@edgeCase</b> Unpaired surrogates are escaped the same way, and for the same reason. A lone
  * {@code \\uD800} is not a control character, but it is not a code point either: no UTF-8 sink can
@@ -77,7 +77,7 @@ public final class ControlEscape {
    */
   private static int appendPlainOrEscaped(StringBuilder sb, String text, int index) {
     char c = text.charAt(index);
-    if (Character.isISOControl(c)) {
+    if (Character.isISOControl(c) || isLineSeparator(c)) {
       appendUnicodeEscape(sb, c);
       return index + 1;
     }
@@ -93,6 +93,14 @@ public final class ControlEscape {
     }
     sb.append(c);
     return index + 1;
+  }
+
+  /**
+   * U+2028 and U+2029: not ISO controls, but line terminators to {@code java.util.regex},
+   * JavaScript and many log viewers, so a raw one forges a line exactly as {@code \n} does.
+   */
+  private static boolean isLineSeparator(char c) {
+    return c == '\u2028' || c == '\u2029';
   }
 
   private static void appendUnicodeEscape(StringBuilder sb, char c) {

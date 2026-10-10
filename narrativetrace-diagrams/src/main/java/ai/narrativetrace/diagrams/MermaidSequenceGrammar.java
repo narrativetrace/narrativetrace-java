@@ -39,6 +39,11 @@ final class MermaidSequenceGrammar implements SequenceGrammar {
   }
 
   @Override
+  public String spanNote(DiagramLabel target, DiagramLabel spanId) {
+    return "    Note over " + target.text() + ": " + spanId.text() + "\n";
+  }
+
+  @Override
   public String returnArrow(DiagramLabel target, DiagramLabel caller, DiagramLabel message) {
     return "    " + target.text() + "-->>" + caller.text() + ": " + message.text() + "\n";
   }

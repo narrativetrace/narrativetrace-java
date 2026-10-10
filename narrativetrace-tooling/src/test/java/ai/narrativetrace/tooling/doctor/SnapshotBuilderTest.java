@@ -350,4 +350,103 @@ class SnapshotBuilderTest {
 
     assertThat(SnapshotBuilder.build(project).launcherOnTestRuntimeOnly()).isFalse();
   }
+
+  /**
+   * Framework markers live where the module that uses the framework lives: a module's own build
+   * file, the settings file's plugin management, the version catalog. All of them are manifests; a
+   * copy of one under a {@code build/} directory is build output and is not.
+   */
+  @Test
+  void collectsEveryManifestButNotBuildOutput() throws IOException {
+    write("app/build.gradle.kts", "plugins { id(\"org.springframework.boot\") }");
+    write("settings.gradle.kts", "include(\"app\")");
+    write("gradle/libs.versions.toml", "[libraries]");
+    write("lib/build.gradle", "apply plugin: 'java'");
+    write("build/tmp/copy/build.gradle.kts", "copied");
+
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+
+    assertThat(s.manifestFiles())
+        .containsOnlyKeys(
+            "app/build.gradle.kts",
+            "settings.gradle.kts",
+            "gradle/libs.versions.toml",
+            "lib/build.gradle");
+    assertThat(s.manifestText()).contains("org.springframework.boot");
+  }
+
+  /**
+   * Wiring lives in Kotlin and Groovy sources and in configuration files as often as in Java: all
+   * of them under {@code src/} are resource files for the framework checks, and none is a Java
+   * source the older checks read.
+   */
+  @Test
+  void collectsNonJavaSourcesAndConfigurationUnderSrc() throws IOException {
+    write("src/main/kotlin/com/acme/TraceConfig.kt", "@EnableNarrativeTrace class T");
+    write("src/main/groovy/com/acme/Setup.groovy", "class Setup {}");
+    write("src/main/resources/application.yml", "narrativetrace:\n  base-packages: com.acme\n");
+    write("src/main/resources/application.properties", "a=b");
+    write("src/main/webapp/WEB-INF/web.xml", "<web-app/>");
+    write("src/main/resources/logo.png", "not text we read");
+    write("app/build/generated/src/main/resources/application.yml", "generated");
+
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+
+    assertThat(s.resourceFiles())
+        .containsOnlyKeys(
+            "src/main/kotlin/com/acme/TraceConfig.kt",
+            "src/main/groovy/com/acme/Setup.groovy",
+            "src/main/resources/application.yml",
+            "src/main/resources/application.properties",
+            "src/main/webapp/WEB-INF/web.xml");
+    assertThat(s.sourceFiles()).isEmpty();
+  }
+
+  /** "src" as a substring of a directory name is not a source directory. */
+  @Test
+  void aDirectoryThatOnlyEndsInSrcIsNotASourceRoot() throws IOException {
+    write("websrc/main/resources/application.yml", "x: y");
+    assertThat(SnapshotBuilder.build(project).resourceFiles()).isEmpty();
+  }
+
+  /**
+   * The Java bucket matches a {@code src} DIRECTORY too, never a name that merely ends in it: a
+   * test class under {@code mysrc/} registering the extension is not this project's registration.
+   */
+  @Test
+  void aJavaFileUnderADirectoryThatOnlyEndsInSrcIsNotASource() throws IOException {
+    write(
+        "mysrc/test/java/OrderTest.java",
+        "@ExtendWith(NarrativeTraceExtension.class) class OrderTest {}");
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+    assertThat(s.sourceFiles()).isEmpty();
+    assertThat(s.extensionRegisteredViaExtendWith()).isFalse();
+  }
+
+  /**
+   * A directory named {@code build} INSIDE a source tree is source; only one above it is output.
+   */
+  @Test
+  void aBuildDirectoryInsideSrcIsSourceNotBuildOutput() throws IOException {
+    write("src/main/resources/build/application.yml", "narrativetrace:\n  base-packages: a\n");
+    write("build/generated/src/main/resources/application.yml", "generated");
+    assertThat(SnapshotBuilder.build(project).resourceFiles())
+        .containsOnlyKeys("src/main/resources/build/application.yml");
+  }
+
+  /** A module's own src directory is a source tree as much as the root's. */
+  @Test
+  void aModulesNestedSrcDirectoryHoldsResourcesAndSources() throws IOException {
+    write("app/src/main/resources/application.yml", "a: b");
+    write("app/src/main/java/com/acme/A.java", "class A {}");
+    DoctorSnapshot s = SnapshotBuilder.build(project);
+    assertThat(s.resourceFiles()).containsOnlyKeys("app/src/main/resources/application.yml");
+    assertThat(s.sourceFiles()).containsOnlyKeys("app/src/main/java/com/acme/A.java");
+  }
+
+  private void write(String relative, String content) throws IOException {
+    Path file = project.resolve(relative);
+    Files.createDirectories(file.getParent());
+    Files.writeString(file, content);
+  }
 }

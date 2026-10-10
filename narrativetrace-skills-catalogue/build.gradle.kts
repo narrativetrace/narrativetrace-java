@@ -27,6 +27,12 @@ plugins {
 // runtime or the entry points it describes.
 dependencies {
     testImplementation(gradleTestKit())
+    // Test-only: the replayer counts the doctor's findings against the registry itself, and a
+    // drift test holds the skills' "naming all N findings" verify to the number the doctor runs.
+    testImplementation(project(":narrativetrace-tooling"))
+    // Test-only: the replayer promotes a received structural trace with the same NarrativeApproval
+    // call the plugin's approveNarratives task makes, on a scratch copy — never in the fixture.
+    testImplementation(project(":narrativetrace-core"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")

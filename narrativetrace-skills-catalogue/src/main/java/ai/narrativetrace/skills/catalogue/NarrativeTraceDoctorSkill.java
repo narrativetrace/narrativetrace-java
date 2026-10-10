@@ -38,10 +38,13 @@ public final class NarrativeTraceDoctorSkill {
             + " to run, parameter names render as arg0/arg1, or you are not sure NarrativeTrace is"
             + " wired up correctly. Checks the JDK and JUnit Jupiter versions, the launcher on"
             + " testRuntimeOnly, narrativetrace.output, whether NarrativeTraceExtension is"
-            + " actually registered, whether any sink receives what is traced, whether -parameters"
+            + " actually registered, whether each framework the project uses has its NarrativeTrace"
+            + " integration referenced and wired, whether any sink receives what is traced, whether"
+            + " -parameters"
             + " degraded parameter names, whether redaction is proven in a test, whether the"
-            + " NarrativeTrace agent skills are installed and current, and stale .received.nt"
-            + " approval files. Read-only — makes no changes. Say 'check my"
+            + " NarrativeTrace agent skills are installed and current, whether committed"
+            + " .approved.nt baselines are compared at all (approval mode on), and stale"
+            + " .received.nt approval files. Read-only — makes no changes. Say 'check my"
             + " narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being"
             + " traced' to invoke it.",
         "Non-obvious triggers: a build that traces nothing without any visible error; parameter"
@@ -51,7 +54,7 @@ public final class NarrativeTraceDoctorSkill {
             new SkillStep(
                 "Run the doctor and read the report",
                 new StepBody.CommandStep(List.of(DoctorCommands.RUN_DOCTOR_GRADLE)),
-                DoctorCommands.VERIFY_TWELVE_FINDINGS,
+                DoctorCommands.VERIFY_EVERY_FINDING,
                 List.of(AddNarrativeTracingSkill.DOCTOR_TASK_NOT_FOUND),
                 null),
             new SkillStep(

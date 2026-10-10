@@ -38,6 +38,11 @@ final class PlantUmlSequenceGrammar implements SequenceGrammar {
   }
 
   @Override
+  public String spanNote(DiagramLabel target, DiagramLabel spanId) {
+    return "hnote over " + target.text() + " : " + spanId.text() + "\n";
+  }
+
+  @Override
   public String returnArrow(DiagramLabel target, DiagramLabel caller, DiagramLabel message) {
     return target.text() + " --> " + caller.text() + ": " + message.text() + "\n";
   }

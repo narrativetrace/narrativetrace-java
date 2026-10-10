@@ -15,8 +15,11 @@ evals/
 │   │                           # canonical fixture is sixty-seconds itself, used directly
 │   ├── empty-project/          # a cold install starting point: nothing installed yet —
 │   │                           # add-narrative-tracing's own fixture
-│   └── existing-service/       # the init prompt's other branch: a project that already exists,
-│                                # one real service boundary, no NarrativeTrace anywhere
+│   ├── existing-service/       # the init prompt's other branch: a project that already exists,
+│   │                           # one real service boundary, no NarrativeTrace anywhere
+│   └── spring-boot-service/    # the init prompt on Spring Boot (Phase 6, D4): one @Service
+│                               # behind an interface, one controller, NarrativeTrace from the
+│                               # local test repository
 ├── narrativetrace-doctor/
 │   ├── trigger.yaml            # positive + negative phrasings, ≥90% target
 │   ├── happy-path/
@@ -32,8 +35,11 @@ evals/
 │   │   ├── case.json           # points the scaffolder at fixtures/empty-project
 │   │   ├── prompt.md
 │   │   └── graders/verify.sh
-│   ├── run_the_program.sh     # shared by every prompt case: runs the project and
+│   ├── run_the_program.sh     # shared by the console prompt cases: runs the project and
 │   │                          # requires a rendered trace on its standard output
+│   ├── run_the_server.sh      # the server case's runner: boot jar, one request, and a trace
+│   │                          # printed AFTER that request
+│   ├── find_the_trace.sh      # the trace guard both runners share
 │   ├── grade_the_registry.sh  # shared by both registry cases: what the registry left behind
 │   ├── init-prompt-empty-project/
 │   │   ├── case.json           # fixtures/empty-project
@@ -43,6 +49,10 @@ evals/
 │   │   ├── case.json           # fixtures/existing-service
 │   │   ├── prompt.md           # the same published prompt, same bytes
 │   │   └── graders/verify.sh
+│   ├── init-prompt-spring-boot-project/
+│   │   ├── case.json           # fixtures/spring-boot-service
+│   │   ├── prompt.md           # the same published prompt, same bytes
+│   │   └── graders/verify.sh   # config.spring-enabled green + a request-scoped trace
 │   ├── registry-claude-marketplace/
 │   │   ├── case.json           # fixtures/empty-project + "registry": "claude-marketplace"
 │   │   ├── prompt.md           # the same published prompt, same bytes
@@ -86,6 +96,9 @@ respectively, adapted to Java's closed per-port command vocabulary (`./gradlew`,
 Each trial copies both rendered skill layouts into the isolated scratch project and provisions a
 usable Gradle wrapper when the fixture does not carry one. It excludes fixture `build/`, `.gradle/`,
 and `.git/` state so reports are rebuilt from clean; an existing fixture wrapper is preserved. The
+fixture's root README (`README.md`, or `README` in any case with any extension) is never copied: it documents the fixture for this repository — which
+case it serves, what the grader reads — and an agent that opens it is told it is being tested, and
+how (a Spring Boot trial ran `cat README.md` first thing on 2026-10-09). The
 one exception is a case that declares a registry (below): its pages come from the registry tool, so
 the harness copies none of its own in.
 
@@ -184,6 +197,43 @@ cell is not a claim that every case of the skill passed, and the cell reaches **
 after a passing `happy-path` case and a passing `trigger` sample, which these two init-prompt
 cases are not.
 
+## A server case: the init prompt on Spring Boot
+
+Phase 6's D4: `init-prompt-spring-boot-project` replays the same published prompt against an
+existing Spring Boot service (`fixtures/spring-boot-service`: `AccountService` behind an interface,
+`DefaultAccountService` as its `@Service`, one `GET /accounts/{accountId}` controller, a passing
+test). The prompt never names Spring; the case measures whether the framework-aware path — the
+`add-narrative-tracing` skill's "run the doctor, apply every `config.<framework>-*` fix" step —
+gets an agent to a trace of a real request. Its grader adds three things to `grade_the_prompt.sh`:
+
+- **`config.spring-enabled` is named first** — this case's subject, not one line among twenty.
+- **The boot jar still starts the project's own `@SpringBootApplication`.** A console demo given to
+  the `application` plugin as its `mainClass` becomes the boot jar's `Start-Class` as well, so the
+  project's deliverable silently runs the demo; that fails by name, before anything runs.
+- **The program is run the way a server is** (`run_the_server.sh`): the boot jar on a free port,
+  one `GET /accounts/ACC-4711`, and a trace naming `AccountService` in the output printed AFTER the
+  request. The cut is taken once the port is open and startup output has been quiet for two
+  seconds, so a startup demo (a `CommandLineRunner` printing a correct trace) fails with its own
+  message. Requests go through `python3`, never the trial's curl stand-in.
+- **The fixture's own service and controller are still there.**
+
+The fixture resolves NarrativeTrace from the local test repository (`narrativetraceTestMavenRepo`,
+like the feedback fixtures), never from the portal: the published release predates
+`config.spring-enabled`, and the case has to measure this checkout's doctor. Spring Boot itself
+resolves from the Gradle cache like any other dependency.
+
+Rehearsed on the solved tree, the untouched fixture and nine near misses (no configuration class,
+the annotation only in a comment, no web filter, a startup-only trace, a 500 from the endpoint, no
+redaction test, a `.received.nt` on disk, the fixture's service replaced, a demo as the
+`application` plugin's `mainClass`): only the solved tree passes — and the `application` plugin
+pointed at the real application, which is still the service — each other for its own reason. Building the solved tree found three
+defects before a trial was spent — two in the product (the doctor's plugin-form Spring fix left the
+module on the plugin's default test scope and did not compile; the plugin's pinned JUnit engine
+overrode Spring Boot's managed JUnit and no test was discovered) and one in this harness (`echo`
+under `/bin/sh` expanded the `\n` inside the doctor's JSON fix strings, so every grader parsing
+`doctor --json` crashed on a multi-line fix; they all use `printf '%s\n'` now). The curl stand-in
+serves loopback so the agent can request its own endpoint.
+
 ## A registry case: the pages arrive before the agent does
 
 Two cases replay the same published prompt against a project a REGISTRY installed the skills into,
@@ -254,9 +304,12 @@ gate.
 **Every trial keeps a transcript, and the agent is never told where it is.** The runner writes its
 own `{"nt_turn": N, "role": "user", "text": …}` marker before each turn and appends that turn's
 standard output after it, into a work directory OUTSIDE the scaffolded project; the grader gets
-`$NARRATIVETRACE_TRANSCRIPT`. A record the subject could read or rewrite is not evidence. A FAILED
-trial copies it to `build/evals/<skill>/<case>/trial-<n>/` and says so — a red row nobody can
-diagnose is the one outcome a harness whose rows cost real requests cannot afford. The cost is real
+`$NARRATIVETRACE_TRANSCRIPT`. A record the subject could read or rewrite is not evidence. Every
+trial copies it to `build/evals/<skill>/<case>/trial-<n>/` (a pass to `trial-<n>-pass/`, never over a
+failure's record) and says so — a red row nobody can diagnose is the one outcome a harness whose rows
+cost real requests cannot afford, and a passing transcript is what a demonstration is recorded from.
+(A pass used to delete its transcript; a watcher copying it mid-trial lost the final reply every
+time.) The cost is real
 and accepted: watching a trial now means tailing the transcript rather than reading the console.
 
 **Every trial runs against a throwaway agent configuration, with `gh` and `curl` stubbed.**
@@ -276,12 +329,155 @@ agent did not try" the same observation, and intent is the whole subject of an a
 earned its place on a real trial that spent a turn making about forty requests to `api.github.com`
 looking for a repository to file into.
 
+One host is served, not blocked: the `curl` stand-in records the request and then hands an
+invocation whose every URL is on `narrativetrace.ai` to the real curl behind it on PATH. The init
+prompt's first step is "read llms.txt first", and an agent that fetches the file with curl instead
+of trusting a summarising page tool is doing what the product asks — on 2026-10-08 Haiku 5.5 did
+exactly that six times and the stand-in's exit 6 ended every trial before the product was touched.
+A foreign URL in the same invocation, or no URL at all, still answers 6.
+
+Loopback is served the same way — `localhost`, `127.0.0.1` and `[::1]`, with or without a scheme —
+because a web-framework case's program is a server, and "run the program" means requesting its own
+endpoint; loopback reaches no network. The stand-in classifies EVERY argument: a known option or its
+value, or a URL (http/https or no scheme) whose host is exactly a served one, whose port is numeric
+and whose authority carries no userinfo. Anything else answers 6 — a host that merely starts with a
+served name (`localhost.evil.example`), the userinfo form (`localhost:8080@evil.example`, where curl
+contacts the host after the `@`), a schemeless or `ftp://` foreign host beside a served URL,
+`--url=` a foreign one, a proxy (`-x`), a config file (`-K`), any option it does not know, and a
+host in capitals (refused rather than lowercased — the safe side).
+
 **A case's `prompt.md` is the user's words and nothing else.** That rule is written above for the
 init-prompt cases and it is not special to them: the runner hands the agent the whole file, so a
 `**Fixture:**` or `**Grading:**` line in it is a prompt telling the agent it is being tested. The
 first feedback trial answered one with "I see you've provided a detailed test case specification …
 What would you like me to do with this case?". Each case's own documentation lives in its grader's
 header comment instead.
+
+## The verify loop: does the agent read what its code did?
+
+Phase 7, D6: three `narrativetrace-verify` cases on one fixture, `fixtures/existing-service-checkout`
+— `existing-service`'s billing domain grown into a checkout flow with NarrativeTrace installed
+(plugin, core, proxy, the JUnit 5 extension, `-parameters`; resolved from the test repository like
+the feedback fixtures). `DefaultCheckoutService` issues the invoice, authorizes the payment, calls
+every `CheckoutListener`, and only then settles — `CardSettlement.settle` is where
+`PaymentGateway.confirm` happens. `CheckoutListener`'s Javadoc says it runs "once a checkout's
+payment has gone through": a comment that is wrong about the code. `CheckoutFlowTest` drives the
+path as `Checkout.compose` wires it, every collaborator traced.
+
+- **`verify-unintended-interaction`** — "send a receipt once the payment is confirmed". The natural
+  first solution, a listener, passes every test while the structural trace shows
+  `#1.3 NotificationService.send` before `#1.4 PaymentGateway.confirm`. Turn 2 is the scripted
+  "yes, pin it". This case's passing transcript is the website demonstration's source.
+- **`happy-path`** — record each invoice in the ledger as soon as it is issued: the natural place is
+  also the right one, and the same loop applies.
+- **`verify-skip`** — cap `LateFees.feeFor`, a pure function with its own unit test. The skill must
+  NOT trace it, and must say so and why (D2's cost rule).
+
+One grader, `grade_the_verify.py`, reads the transcript for ORDER and the scratch project for STATE,
+and judges by evidence rather than by what the agent says it did: a structural trace was read when a
+tool result carries a structural call line (`#1.2 - Type.method(`), and values were opened when a
+tool result carries a rendered narrative call line. It gates on: the intent in the transcript
+before the traced run (the last test run before the first structural read — a suite run whose trace
+nobody read is not a reading against nothing) and before any `.nt`; a structural trace reaching the
+agent before its report, and no rendered narrative before it; nothing promoted before the scripted
+yes, and the turn before the yes ending on the question (the feedback skill's gate, reused); the
+suite green and, in the grader's OWN final run, the expected call after the one it must follow; an
+`.approved.nt` pinning that flow and no `.received.nt` left; a span id in the final report that is
+in the pinned baseline. The skip grader: suite green, the cap holds (one probe assertion added to
+the scratch copy), no structural trace read, no baseline, approval mode not switched on, and a
+skip stated with its reason.
+
+The prompts name the skill, as the feedback approval-gate cases do: whether a phrasing triggers it
+is what `trigger.yaml` measures; these cases measure the loop once it runs. The first trial without
+the name (claude-haiku-5-5) verified its own way and opened the skill page only after the yes.
+
+Rehearsed before every trial batch on fifteen transcript/state pairs. The states are real: built in
+scratch copies against the test repository, approval mode on, pinned with the plugin's own
+`approveNarratives`. The transcripts are synthetic stream-json: solved (passes), untouched, done on
+green tests, read the trace but did not act, values first, never pinned, pinned before the yes, a
+report without an id, the intent after the run; happy solved and untouched; skip solved, untouched,
+skipped silently, traced anyway — plus two blind spots the first real transcripts exposed, a solved
+run that reads the `.nt` with numbered lines (the Read tool and `cat -n` prefix every line) and a run
+whose only "Intent" is the skill page's own text (a loaded skill arrives as a synthetic USER message;
+only the agent's words count) — and the real transcripts themselves. Only the solved ones pass, each
+other for its own reason. Three lessons came from the first trials, not the rehearsal: a listener
+loop placed visibly before `authorize`/`confirm` was caught by an agent READING the code (the case
+then measured code reading); a "first traced run" that counted the agent's untouched baseline suite
+run was a grader defect; and so was a structural-line pattern anchored at the start of the line,
+blind to every numbered read.
+
+Trials, all on `claude-haiku-5-5`, 2026-10-09 (16 rows in `ledger/runs.jsonl`):
+
+| batch | case | result | what decided it |
+|---|---|---|---|
+| original fixture | `verify-unintended-interaction` | 0/1 | the agent read the visible loop and never tried the trap; never loaded the skill |
+| three stopped relaunches | `verify-unintended-interaction` | 0/3 | unprompted skill not loaded; then two grader defects (fixed, see above) |
+| 1 (skill named) | `verify-unintended-interaction` | 0/3 | real misses: no intent before the run; a trace from before the intent; text after the question |
+| 2 (skill wording fixed) | `verify-unintended-interaction` | 1/3 | two kept writing after the question |
+| — | `verify-skip` | 3/3 | the skill loaded, its first step decided "skipping: a pure function", nothing traced |
+| 3 | `verify-unintended-interaction` | 2/3 | one kept writing after the question |
+
+The batch-3 trial-3 transcript is kept under `reports/phase-7-verify/` as the website
+demonstration's source. Read it for what it is: in every one of the twelve graded trials on the
+redesigned fixture the agent placed the receipt correctly by reading `CheckoutListener`'s contract
+against the code, so the trace CONFIRMED the intent and never caught the ordering — the moment the
+case was designed around did not happen in a real transcript.
+
+## The debug loop: does the agent find the value where it went wrong?
+
+Phase 7, D4 and D6: two `narrativetrace-debug` cases on one fixture,
+`fixtures/existing-service-checkout-currency` — the checkout family charged in the card's own
+currency. `DefaultCheckoutService` issues the invoice in euro, reads the card's currency, converts
+with `CurrencyConverter` and authorizes the converted amount. `RateTableConverter` rounds to whole
+francs BEFORE moving to cents, so 45.99 EUR at 0.93 is charged 4300 instead of 4277. Every test
+passes as shipped, and the structural trace looks right: the defect is visible only as a value at
+one boundary, `#1.3 CurrencyConverter.convert(euroCents: 4599, currency: "CHF") → 4300`, with its
+child `#1.3.1 ExchangeRates.rateFor` returning the right `0.93`.
+
+- **`debug-value-divergence`** — a support ticket in the user's words (the customer, the order, the
+  rate, the two amounts). Turn 2 is the scripted "yes, pin it".
+- **`happy-path`** — the same defect asked directly, in cents, with the skill's trigger phrase.
+
+One grader, `grade_the_debug.py`, imports `grade_the_verify.py`'s transcript reader (assistant-record
+text only, numbered reads allowed, evidence from what the agent SAW) and gates on: the reproduction's
+values read before the first write to `src/main`; the converter's span id — one the agent was
+SHOWN — named in its own words before that write; nothing promoted before the yes and the turn
+before it ending on the question; the root cause by span id in the agent's own prose after the fix
+(quoted trace lines do not count — showing the `.received.nt` is not a claim); the suite green; the
+converter's code changed and the grader's own probe getting 4277 from it (the value AT the
+diverging span, which a fix elsewhere leaves wrong); a regression test — the project with the
+fixture's production files put back must FAIL its suite; nothing else moved — every scenario's call
+shape (ids, calls, parameter names) the same before and after; a `.approved.nt` through the converter
+and no `.received.nt` left. A red run writes the `.md` but no `.nt` (the `.nt` on disk is the last
+green one), so both shapes are read from the `.md` narratives.
+
+Rehearsed on seventeen transcript/state pairs, the states real (built and pinned in scratch copies
+against the test repository): solved, a numbered read, a report written before the pin question,
+and a read-only loop over `src/main` pass; untouched, a fix elsewhere (the converter untouched), a
+bypass (the converter fixed but francs routed around it — fails on the delta ALONE), a fix before
+the span was named, no values read, a report without an id, promoted before the yes, no question,
+an id only in the skill page, no regression test, never pinned, a `.received.nt` left, and the
+reproduction alone each fail for their own reason. `check_grade_the_debug.py` probes the grader's pure functions with 79
+hostile and near-miss inputs — a read that names `src/main` (`grep tee src/main/`, a sed script
+mentioning the path, `cp` FROM it), a write that hides (`sed -E -i`, `cd src/main && sed -i`,
+`cp … 2>&1`, `git checkout --`, a `..` segment), a call quoted inside another span's value, an id
+inside a value; run it before every trial batch. It is not wired into `check`: Python is not a
+dependency of the build.
+
+Trials, all on `claude-haiku-5-5`, 2026-10-09 (rows in `ledger/runs.jsonl`):
+
+| batch | case | result | what decided it |
+|---|---|---|---|
+| 1 (stopped after two) | `debug-value-divergence` | 0/2 | a grader defect — a read-only loop over `src/main` counted as the fix; a skill defect — the pin ran one test in approval mode, so the untouched `CheckoutFlowTest` had no baseline and the suite stayed red; trial 1 also wrote a sentence after the pin question |
+| 2 | `debug-value-divergence` | 0/3 | every other gate met; the report gate wanted the span id in the LAST turn while the shared gate step puts the report before the pin question — the page was ambiguous and the grader contradicted it (both fixed) |
+| 3 | `debug-value-divergence` | 3/3 | the loop as designed: reproduction with the ticket's input, `#1.3` named before the edit, the fix in `RateTableConverter`, shape unchanged, regression test, both baselines pinned after the yes, the id named again in the closing reply |
+
+Read the passes for what they are. One of the three agents suspected `RateTableConverter`'s
+`setScale(0)` from the code before it read a single value; the trace then confirmed it — as in
+the verify cases, a careful model reads the cause straight out of readable source. No trial
+needed the bisect or the sequence-diagram step (the fixture is single-threaded and the diverging
+span is the defect), so those two conditional steps are replayed (Tier A2) but not yet measured.
+`happy-path` has not been trialed.
 
 ## The sporadic policy (Codex, Gemini)
 
@@ -348,7 +544,7 @@ One trial per lane, start to finish:
 
 # Claude — the harness's regular cadence, no quota, no Tier-green precondition.
 java -cp narrativetrace-skills-catalogue/build/classes/java/main ai.narrativetrace.skills.evals.EvalRunner \
-  --skill narrativetrace-doctor --case happy-path --platform claude --model haiku
+  --skill narrativetrace-doctor --case happy-path --platform claude --model claude-haiku-5-5
 
 # Codex — sporadic: refuses unless Tier A/A2 are green and the weekly allowance isn't spent.
 java -cp narrativetrace-skills-catalogue/build/classes/java/main ai.narrativetrace.skills.evals.EvalRunner \
@@ -367,8 +563,8 @@ checkout (not a Maven repository):
 ./gradlew :narrativetrace-skills:classes :narrativetrace-cli:jar
 NARRATIVETRACE_TEST_REPO="$PWD" java -cp narrativetrace-skills-catalogue/build/classes/java/main \
   ai.narrativetrace.skills.evals.EvalRunner --skill add-narrativetrace-clarity \
-  --case happy-path --platform claude --model haiku \
-  --agent-command 'claude -p "{prompt}" --model haiku --allowed-tools "Bash,Read,Edit,Write,Glob,Grep,Skill" --append-system-prompt "Work only in the current project directory. Treat included builds as read-only dependencies." --no-session-persistence --strict-mcp-config'
+  --case happy-path --platform claude --model claude-haiku-5-5 \
+  --agent-command 'claude -p "{prompt}" --model claude-haiku-5-5 --allowed-tools "Bash,Read,Edit,Write,Glob,Grep,Skill" --append-system-prompt "Work only in the current project directory. Treat included builds as read-only dependencies." --no-session-persistence --strict-mcp-config'
 # Repeat with --case deviation-output-disabled to exercise test-output repair.
 # Repeat with --case deviation-junit4-class-rule for missing JUnit 4 aggregate reports.
 ```

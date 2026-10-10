@@ -84,7 +84,9 @@ class CarrierTest implements ContractVerifiable<Carrier> {
             "narrativetrace-doctor",
             "add-narrative-tracing",
             "add-narrativetrace-clarity",
-            "narrativetrace-feedback");
+            "narrativetrace-feedback",
+            "narrativetrace-verify",
+            "narrativetrace-debug");
   }
 
   @Test
@@ -145,7 +147,9 @@ class CarrierTest implements ContractVerifiable<Carrier> {
             "narrativetrace-doctor",
             "add-narrative-tracing",
             "add-narrativetrace-clarity",
-            "narrativetrace-feedback");
+            "narrativetrace-feedback",
+            "narrativetrace-verify",
+            "narrativetrace-debug");
   }
 
   @Test

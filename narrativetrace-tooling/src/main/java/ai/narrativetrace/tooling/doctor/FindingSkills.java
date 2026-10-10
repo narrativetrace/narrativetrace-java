@@ -17,6 +17,7 @@
  */
 package ai.narrativetrace.tooling.doctor;
 
+import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,19 +26,26 @@ import java.util.Set;
  *
  * <p>INTENT: a finding tells a person what is wrong and how to fix it; an agent with the skills
  * installed can also be told WHICH tested procedure to follow next, by name, instead of improvising
- * one. That mapping belongs in one greppable place, not sprinkled across twelve checks where a new
+ * one. That mapping belongs in one greppable place, not sprinkled across twenty checks where a new
  * check can quietly ship without anybody deciding.
  *
  * <p><b>@llmNote</b> The rule behind the table: a check that fires because the INSTALL is
  * incomplete points at {@code add-narrative-tracing} (it owns the dependency block, the {@code
  * -parameters} flag and the extension wiring); a check that fires on an already-wired project
  * behaving wrongly points at {@code narrativetrace-doctor} (its steps own proving redaction,
- * reading a rendered trace, and the approval-trace flow). Two ids carry NO skill, and that is a
- * decision rather than an omission: no skill installs a JDK, and no skill can install the skills.
+ * reading a rendered trace, and the approval-trace flow). Approval mode switched off under
+ * committed baselines points at {@code narrativetrace-verify}, whose pin step is where the switch
+ * is thrown. Two ids carry NO skill, and that is a decision rather than an omission: no skill
+ * installs a JDK, and no skill can install the skills.
+ *
+ * <p><b>@llmNote</b> Every framework-table wiring check ({@code config.<framework>-*}) points at
+ * {@code add-narrative-tracing}, derived from the table rather than listed: that skill's framework
+ * step is the one that runs the doctor and applies those fixes, and a new row must not be able to
+ * ship unclassified.
  *
  * <p><b>@llmNote</b> Keyed on the id LITERALS rather than on each check's {@code ID} constant on
  * purpose: {@code ai.narrativetrace.tooling.doctor.checks} already depends on this package, and
- * importing it back here to read twelve constants would close that into a package cycle the
+ * importing it back here to read those constants would close that into a package cycle the
  * architecture gate forbids.
  */
 public final class FindingSkills {
@@ -48,18 +56,25 @@ public final class FindingSkills {
   /** The skill a wired-but-misbehaving project follows: diagnosis, read-only. */
   static final String NARRATIVETRACE_DOCTOR = "narrativetrace-doctor";
 
+  /**
+   * The skill that reads what a change did and pins it: its pin step turns approval mode on and
+   * promotes the first baselines behind the user's yes.
+   */
+  static final String NARRATIVETRACE_VERIFY = "narrativetrace-verify";
+
   private static final Map<String, String> BY_ID =
-      Map.of(
-          "toolchain.junit5-range", ADD_NARRATIVE_TRACING,
-          "toolchain.launcher", ADD_NARRATIVE_TRACING,
-          "config.extension-registered", ADD_NARRATIVE_TRACING,
-          "config.output-property", NARRATIVETRACE_DOCTOR,
-          "trap.silent-sink", NARRATIVETRACE_DOCTOR,
-          "trap.parameter-arg0", ADD_NARRATIVE_TRACING,
-          "trap.unused-not-traced-import", NARRATIVETRACE_DOCTOR,
-          "trap.redaction-proof", NARRATIVETRACE_DOCTOR,
-          "trap.approval-traces", NARRATIVETRACE_DOCTOR,
-          "trap.llms-before-you-start", ADD_NARRATIVE_TRACING);
+      Map.ofEntries(
+          Map.entry("toolchain.junit5-range", ADD_NARRATIVE_TRACING),
+          Map.entry("toolchain.launcher", ADD_NARRATIVE_TRACING),
+          Map.entry("config.extension-registered", ADD_NARRATIVE_TRACING),
+          Map.entry("config.output-property", NARRATIVETRACE_DOCTOR),
+          Map.entry("config.approval-mode", NARRATIVETRACE_VERIFY),
+          Map.entry("trap.silent-sink", NARRATIVETRACE_DOCTOR),
+          Map.entry("trap.parameter-arg0", ADD_NARRATIVE_TRACING),
+          Map.entry("trap.unused-not-traced-import", NARRATIVETRACE_DOCTOR),
+          Map.entry("trap.redaction-proof", NARRATIVETRACE_DOCTOR),
+          Map.entry("trap.approval-traces", NARRATIVETRACE_DOCTOR),
+          Map.entry("trap.llms-before-you-start", ADD_NARRATIVE_TRACING));
 
   /**
    * Check ids that deliberately carry no skill. Listed rather than left to fall through, so {@link
@@ -72,6 +87,10 @@ public final class FindingSkills {
           // The finding IS that the skills are absent; naming one would point at a missing page.
           "config.skills-installed");
 
+  /** Every framework wiring check id: an incomplete install, fixed by the install skill. */
+  private static final Set<String> FRAMEWORK_WIRING_CHECKS =
+      Set.copyOf(FrameworkTable.wiringCheckIds());
+
   private FindingSkills() {}
 
   /**
@@ -82,11 +101,15 @@ public final class FindingSkills {
    * as that constructor's {@code IllegalArgumentException} rather than as a lookup's NPE.
    */
   public static String forCheck(String id) {
-    return id == null ? null : BY_ID.get(id);
+    if (id == null) {
+      return null;
+    }
+    return FRAMEWORK_WIRING_CHECKS.contains(id) ? ADD_NARRATIVE_TRACING : BY_ID.get(id);
   }
 
   /** Whether the table has a decision — a skill or a deliberate none — for this check id. */
   public static boolean knows(String id) {
-    return id != null && (BY_ID.containsKey(id) || NO_SKILL.contains(id));
+    return id != null
+        && (BY_ID.containsKey(id) || NO_SKILL.contains(id) || FRAMEWORK_WIRING_CHECKS.contains(id));
   }
 }

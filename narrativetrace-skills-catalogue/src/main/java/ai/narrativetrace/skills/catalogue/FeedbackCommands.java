@@ -50,12 +50,12 @@ public final class FeedbackCommands {
           + " both exist — a run that"
           + " named a vf.* rule instead wrote neither, and the field it named is what to fix";
 
-  public static final String VERIFY_DRAFT_SHOWN =
-      "the whole text of " + DRAFT_PATH + " is in the reply, not a summary of it";
+  public static final String VERIFY_DRAFT_SHOWN = ApprovalGate.verifyShownWhole(DRAFT_PATH);
 
   public static final String VERIFY_QUESTION_ASKED =
-      "the reply ends with the question and nothing after it — the answer is the user's next"
-          + " message, never something assumed in this one";
+      ApprovalGate.verifyAskedThenStopped(
+          "Do not print the issue URL or run gh before the user says yes — showing the URL is the"
+              + " filing.");
 
   public static final String VERIFY_URL_PRINTED =
       "the printed URL is in the reply, together with the name of " + BODY_PATH + " to paste";

@@ -10,12 +10,12 @@ set -e
 
 report=$(java -jar "$NARRATIVETRACE_CLI_JAR" doctor --json || true)
 
-echo "$report" | python3 -c '
+printf '%s\n' "$report" | python3 -c '
 import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings", [])
-if len(findings) != 12:
-    print("expected 12 findings, got", len(findings), file=sys.stderr)
+if len(findings) != 20:
+    print("expected 20 findings, got", len(findings), file=sys.stderr)
     sys.exit(1)
-print("verify.sh: doctor report is well-formed and names all twelve findings")
+print("verify.sh: doctor report is well-formed and names all twenty findings")
 '

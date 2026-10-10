@@ -216,7 +216,7 @@ class TraceTestSupportTest {
             """
             scenario: test something
 
-            - Service.doWork() → value
+            #1 - Service.doWork() → value
             """);
     assertThat(content).doesNotContain("\"ok\"");
   }
@@ -292,7 +292,7 @@ class TraceTestSupportTest {
     assertThat(delta).isPresent();
     assertThat(delta.get().kind()).isEqualTo(ScenarioDelta.Kind.CHANGED);
     assertThat(delta.get().summary()).isEqualTo("+1 call Ledger.record");
-    assertThat(delta.get().diff()).contains("+  - Ledger.record()");
+    assertThat(delta.get().diff()).contains("+  #1.1 - Ledger.record()");
     assertThat(Files.readString(tempDir.resolve("structural/FooTest/test_something.nt")))
         .doesNotContain("Ledger.record");
   }

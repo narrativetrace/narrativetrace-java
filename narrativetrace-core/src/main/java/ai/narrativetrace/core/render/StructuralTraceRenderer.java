@@ -16,7 +16,6 @@ import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.tree.TreeWalk;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,8 +38,12 @@ import java.util.stream.Collectors;
  */
 public final class StructuralTraceRenderer implements NarrativeRenderer {
 
-  /** One node's rendering context: its indent depth, plus text to print before and after it. */
-  private record Ctx(int depth, String leading, String trailing) {}
+  /**
+   * One node's rendering context: its indent depth, its citable {@link SpanId} ({@code null} for
+   * the root of a {@link #subtreeKey} walk, which prints none), plus text to print before and after
+   * it.
+   */
+  private record Ctx(int depth, String id, String leading, String trailing) {}
 
   /**
    * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
@@ -48,10 +51,12 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
    */
   private static final class Planned extends PlannedSibling {
     final int depth;
+    final String id;
 
-    Planned(TraceNode node, int depth, String leading) {
+    Planned(TraceNode node, int depth, String id, String leading) {
       super(node, leading);
       this.depth = depth;
+      this.id = id;
     }
   }
 
@@ -70,7 +75,7 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
     var ctxOf = new NodeContext<TraceNode, Ctx>();
     // Roots go through the same partitioning as children: async work that outlived its caller is a
     // root, and its order is the scheduler's, not the code's.
-    for (var root : planChildren(tree.roots(), 0, ctxOf, sb)) {
+    for (var root : planChildren(tree.roots(), 0, null, ctxOf, sb)) {
       walkFrom(root, ctxOf, sb);
     }
     return sb.toString();
@@ -89,7 +94,7 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
   String subtreeKey(TraceNode node) {
     var sb = new StringBuilder();
     var ctxOf = new NodeContext<TraceNode, Ctx>();
-    ctxOf.push(node, new Ctx(0, null, null));
+    ctxOf.push(node, new Ctx(0, null, null, null));
     walkFrom(node, ctxOf, sb);
     return sb.toString();
   }
@@ -108,7 +113,7 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
     if (ctx.leading() != null) {
       sb.append(ctx.leading());
     }
-    appendLine(node, ctx.depth(), null, sb);
+    appendLine(node, ctx.depth(), ctx.id(), null, sb);
   }
 
   private void exitNode(TraceNode node, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
@@ -125,7 +130,7 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
     if (ctx.leading() != null) {
       sb.append(ctx.leading());
     }
-    appendLine(node, ctx.depth(), reason.marker(), sb);
+    appendLine(node, ctx.depth(), ctx.id(), reason.marker(), sb);
     // TreeWalk never calls onExit for a limited node, so trailing text — normally appended there —
     // is appended here instead; a limited node is treated as a leaf either way.
     if (ctx.trailing() != null) {
@@ -133,14 +138,17 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
     }
   }
 
-  private void appendLine(TraceNode node, int depth, String marker, StringBuilder sb) {
+  private void appendLine(TraceNode node, int depth, String id, String marker, StringBuilder sb) {
     var sig = node.signature();
     var params =
         sig.parameters().stream()
             .map(p -> ControlEscape.sanitize(p.name()))
             .collect(Collectors.joining(", "));
-    sb.append("  ".repeat(depth))
-        .append("- ")
+    sb.append("  ".repeat(depth));
+    if (id != null) {
+      sb.append(id).append(' ');
+    }
+    sb.append("- ")
         .append(ControlEscape.sanitize(sig.className()))
         .append(".")
         .append(ControlEscape.sanitize(sig.methodName()))
@@ -156,7 +164,8 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
 
   private List<TraceNode> planChildren(
       TraceNode node, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
-    return planChildren(node.children(), ctxOf.peek(node).depth() + 1, ctxOf, sb);
+    var ctx = ctxOf.peek(node);
+    return planChildren(node.children(), ctx.depth() + 1, ctx.id(), ctxOf, sb);
   }
 
   /**
@@ -175,31 +184,45 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
    * node at all.
    */
   private List<TraceNode> planChildren(
-      List<TraceNode> children, int depth, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
+      List<TraceNode> children,
+      int depth,
+      String parentId,
+      NodeContext<TraceNode, Ctx> ctxOf,
+      StringBuilder sb) {
     var planned = new ArrayList<Planned>();
     var carry = new StringBuilder();
+    var ids = new SpanCursor(parentId);
     for (var segment : ChildSegment.partition(children)) {
-      if (segment.groupId == null) {
-        planned.add(new Planned(segment.nodes.get(0), depth, flush(carry)));
-      } else if (segment.isFireAndForget()) {
-        planFireAndForget(segment.nodes.get(0), depth, planned, carry);
-      } else {
-        planGroup(segment.isAsync() ? "~ async" : "~ fork", segment.nodes, depth, planned, carry);
-      }
+      planSegment(segment, depth, ids, planned, carry);
     }
     flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
-      ctxOf.push(p.node, new Ctx(p.depth, p.leading, p.trailing));
+      ctxOf.push(p.node, new Ctx(p.depth, p.id, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
+  }
+
+  /** Plans one segment, taking its spans' ids from {@code ids} in the order it lays them out. */
+  private void planSegment(
+      ChildSegment segment, int depth, SpanCursor ids, List<Planned> planned, StringBuilder carry) {
+    var first = segment.nodes.get(0);
+    if (segment.groupId == null) {
+      planned.add(new Planned(first, depth, ids.next(), flush(carry)));
+    } else if (segment.isFireAndForget()) {
+      planFireAndForget(first, depth, ids.next(), planned, carry);
+    } else {
+      var marker = segment.isAsync() ? "~ async" : "~ fork";
+      planGroup(marker, segment.nodes, depth, ids, planned, carry);
+    }
   }
 
   private void planGroup(
       String marker,
       List<TraceNode> members,
       int depth,
+      SpanCursor ids,
       List<Planned> planned,
       StringBuilder carry) {
     carry
@@ -208,23 +231,23 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
         .append(" [")
         .append(members.size())
         .append("]\n");
-    var sorted = members.stream().sorted(Comparator.comparing(this::signatureKey)).toList();
+    var sorted = members.stream().sorted(SpanId.CONCURRENT_ORDER).toList();
     for (var i = 0; i < sorted.size(); i++) {
-      planned.add(new Planned(sorted.get(i), depth + 1, i == 0 ? flush(carry) : null));
+      planned.add(new Planned(sorted.get(i), depth + 1, ids.next(), i == 0 ? flush(carry) : null));
     }
   }
 
   private void planFireAndForget(
-      TraceNode launcher, int depth, List<Planned> planned, StringBuilder carry) {
-    carry.append("  ".repeat(depth)).append("~ fire-and-forget\n");
-    var children = launcher.children();
-    for (var i = 0; i < children.size(); i++) {
-      planned.add(new Planned(children.get(i), depth + 1, i == 0 ? flush(carry) : null));
+      TraceNode launcher,
+      int depth,
+      String launcherId,
+      List<Planned> planned,
+      StringBuilder carry) {
+    carry.append("  ".repeat(depth)).append(launcherId).append(" ~ fire-and-forget\n");
+    var launched = new SpanCursor(launcherId);
+    for (var segment : ChildSegment.partition(launcher.children())) {
+      planSegment(segment, depth + 1, launched, planned, carry);
     }
-  }
-
-  private String signatureKey(TraceNode node) {
-    return node.signature().className() + "." + node.signature().methodName();
   }
 
   private void renderOutcomeKind(TraceOutcome outcome, StringBuilder sb) {

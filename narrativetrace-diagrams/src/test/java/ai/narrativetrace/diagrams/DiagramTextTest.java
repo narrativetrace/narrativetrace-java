@@ -275,4 +275,57 @@ class DiagramTextTest {
     // for an actual participant/arrow token; quoteIfNeeded must NOT gain the reserved-word check.
     assertThat(DiagramText.quoteIfNeeded("end")).isEqualTo("end");
   }
+
+  @Test
+  void identifierFoldsUnicodeLineSeparatorsToASpace() {
+    assertThat(DiagramText.identifier("a\u2028b\u2029c\u0085d")).isEqualTo("a b c d");
+  }
+
+  @Test
+  void messageFoldsUnicodeLineSeparatorsToASpace() {
+    assertThat(DiagramText.message("a\u2028b\u2029c")).isEqualTo("a b c");
+  }
+
+  @Test
+  void identifierKeepsOrdinaryNonAsciiAndNearMissSeparators() {
+    // U+2027 and U+202A neighbour the separators and are not line terminators.
+    assertThat(DiagramText.identifier("caf\u00e9\u2027\u202a\u00a0x"))
+        .isEqualTo("caf\u00e9\u2027\u202a\u00a0x");
+  }
+
+  @Test
+  void aNameOfOnlyLineSeparatorsIsUnnamed() {
+    assertThat(DiagramText.identifier("\u2028\u2029")).isEqualTo("<unnamed>");
+  }
+
+  @Test
+  void separatorsAtTheEdgesOfANameFoldWithoutShiftingTheRest() {
+    assertThat(DiagramText.identifier("\u2029a\u2028")).isEqualTo(" a ");
+  }
+
+  @Test
+  void aSeparatorStraddlingTheTruncationCapStillFolds() {
+    var name = "x".repeat(DiagramText.MAX_IDENTIFIER_LENGTH - 1) + "\u2029tail";
+
+    assertThat(DiagramText.identifier(name))
+        .isEqualTo("x".repeat(DiagramText.MAX_IDENTIFIER_LENGTH - 1) + " \u2026");
+  }
+
+  @Test
+  void aSeparatorBesideAQuoteAndPercentFoldsAlongsideTheirOwnRules() {
+    assertThat(DiagramText.identifier("a\u2028\"%%\u2029%%b")).isEqualTo("a '% %b");
+  }
+
+  @Test
+  void aSeparatorInsideAQuotedParticipantStaysOnOneLine() {
+    assertThat(DiagramText.quoteIfNeeded("a.b\u2029c")).isEqualTo("\"a.b c\"");
+  }
+
+  @Test
+  void aLongReturnValueWithSeparatorsFoldsBeforeTruncating() {
+    var text = "\u2028".repeat(DiagramText.MAX_SCALAR_LENGTH + 5);
+
+    assertThat(DiagramText.returnMessage(text, null))
+        .isEqualTo(" ".repeat(DiagramText.MAX_SCALAR_LENGTH) + "\u2026");
+  }
 }

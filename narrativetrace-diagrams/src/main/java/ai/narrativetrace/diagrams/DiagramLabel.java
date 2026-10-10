@@ -8,6 +8,7 @@
 package ai.narrativetrace.diagrams;
 
 import ai.narrativetrace.api.event.RenderedValue;
+import ai.narrativetrace.core.render.SpanId;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -76,6 +77,19 @@ final class DiagramLabel {
    */
   static DiagramLabel message(String renderedValue, RenderedValue structuredValue) {
     return new DiagramLabel(DiagramText.returnMessage(renderedValue, structuredValue));
+  }
+
+  /**
+   * A span id ({@code #1.3}) for a span note. Not trace text at all — a position path the renderer
+   * derived — so it is checked against the id grammar instead of sanitized.
+   *
+   * @throws IllegalArgumentException when {@code id} is not exactly one well-formed span id
+   */
+  static DiagramLabel spanId(String id) {
+    if (!SpanId.isWellFormed(id)) {
+      throw new IllegalArgumentException("not a span id: " + id);
+    }
+    return new DiagramLabel(id);
   }
 
   /** A bare, unquotable Mermaid participant alias. See {@link DiagramText#aliasToken}. */

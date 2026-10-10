@@ -21,6 +21,9 @@ import ai.narrativetrace.tooling.doctor.DocAnchors;
 import ai.narrativetrace.tooling.doctor.DoctorCheck;
 import ai.narrativetrace.tooling.doctor.DoctorSnapshot;
 import ai.narrativetrace.tooling.doctor.Finding;
+import ai.narrativetrace.tooling.frameworks.FrameworkTable;
+import ai.narrativetrace.tooling.frameworks.IntegrationModule;
+import java.util.List;
 
 /**
  * {@code trap.silent-sink} — tracing is wired (the extension is registered) but output is turned
@@ -28,10 +31,21 @@ import ai.narrativetrace.tooling.doctor.Finding;
  * EventStore}/{@code BufferedEventConsumer} usage). NarrativeTrace's Java default is output ON;
  * this trap catches the one way a project can go silent anyway — the direct analogue of the
  * TypeScript reference's "no consumer attached to a traced proxy" trap.
+ *
+ * <p>It is also the check the framework table's default-logger row binds to, so its fix carries
+ * that row's dependency lines.
  */
 public final class SilentSinkCheck implements DoctorCheck {
 
   public static final String ID = "trap.silent-sink";
+
+  /**
+   * The framework-table rows whose module is a consumer of its own — the logger, OpenTelemetry,
+   * Micrometer. Referenced in ANY form the table recognises counts: a coordinate with or without a
+   * version, in any manifest, or the plugin setting this check's own fix offers.
+   */
+  private static final List<String> SINK_ROWS =
+      List.of("default-logger", "opentelemetry", "micrometer");
 
   @Override
   public Finding run(DoctorSnapshot snapshot) {
@@ -49,9 +63,7 @@ public final class SilentSinkCheck implements DoctorCheck {
                 .equalsIgnoreCase(
                     snapshot.gradleProperties().getOrDefault(OutputPropertyCheck.KEY, ""));
     boolean hasAlternativeSink =
-        snapshot.declaresDependency("ai.narrativetrace:narrativetrace-slf4j")
-            || snapshot.declaresDependency("ai.narrativetrace:narrativetrace-opentelemetry")
-            || snapshot.declaresDependency("ai.narrativetrace:narrativetrace-micrometer")
+        SINK_ROWS.stream().anyMatch(row -> referencesSink(snapshot, row))
             || snapshot.sourceFiles().values().stream()
                 .anyMatch(s -> s.contains("BufferedEventConsumer") || s.contains("EventStore"));
     if (!outputDisabled || hasAlternativeSink) {
@@ -66,8 +78,24 @@ public final class SilentSinkCheck implements DoctorCheck {
             + " (SLF4J, OpenTelemetry, Micrometer, a custom EventStore) is in evidence — every"
             + " trace this test suite produces is being thrown away",
         "Either drop narrativetrace.output=false to keep the default file output, or attach a"
-            + " consumer (narrativetrace-slf4j is the smallest: two runtimeOnly dependencies, zero"
-            + " code).",
+            + " consumer — narrativetrace-slf4j is the smallest, zero code: "
+            + loggerLines(snapshot)
+            + ".",
         DocAnchors.TROUBLESHOOTING_NO_OUTPUT);
+  }
+
+  /**
+   * The framework table's default-logger row, as the lines to add: this check IS that row's check,
+   * so its fix carries the row's dependency lines rather than a typed description of them.
+   */
+  private static String loggerLines(DoctorSnapshot snapshot) {
+    IntegrationModule logger = FrameworkTable.row("default-logger").orElseThrow().module();
+    return logger.addInstruction(snapshot.narrativeTraceVersionOrPlaceholder());
+  }
+
+  private static boolean referencesSink(DoctorSnapshot snapshot, String rowId) {
+    IntegrationModule module = FrameworkTable.row(rowId).orElseThrow().module();
+    return snapshot.declaresDependency(module.coordinates().get(0))
+        || module.referencedIn(snapshot.manifestText());
   }
 }

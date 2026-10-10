@@ -13,7 +13,7 @@ scaffolded into a scratch copy with its workspace dependencies pre-resolved.
 the tool's own findings rather than re-deriving them by hand.
 
 **Grading** (§11.1 split):
-- **Gates** (every model): `graders/verify.sh` — the report is well-formed JSON with all twelve
+- **Gates** (every model): `graders/verify.sh` — the report is well-formed JSON with all twenty
   finding ids present.
 - **Report-only** (cheapest model), gates (mid model+): did the agent's summary correctly
   characterize the one real finding this fixture has today (`toolchain.launcher` fails — the

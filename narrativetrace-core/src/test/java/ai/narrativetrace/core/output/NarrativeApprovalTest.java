@@ -46,14 +46,14 @@ class NarrativeApprovalTest {
     var received = dir.resolve("OrderTest/trip_settles.received.nt");
     assertThat(received).exists();
     assertThat(contentOf(received))
-        .isEqualTo("scenario: trip settles\n\n- Service.doWork() → value\n");
+        .isEqualTo("scenario: trip settles\n\n#1 - Service.doWork() → value\n");
   }
 
   @Test
   void matchingBaselinePassesAndClearsAnyStaleReceivedFile(@TempDir Path dir) throws Exception {
     var approved = dir.resolve("OrderTest/trip_settles.approved.nt");
     Files.createDirectories(approved.getParent());
-    Files.writeString(approved, "scenario: trip settles\n\n- Service.doWork() → value\n");
+    Files.writeString(approved, "scenario: trip settles\n\n#1 - Service.doWork() → value\n");
     var received = dir.resolve("OrderTest/trip_settles.received.nt");
     Files.writeString(received, "stale from an earlier mismatch");
 
@@ -61,6 +61,20 @@ class NarrativeApprovalTest {
 
     assertThat(received).doesNotExist();
     assertThat(approved).exists();
+  }
+
+  @Test
+  void aBaselineApprovedBeforeSpanIdsExistedStillPassesAndIsLeftAsWritten(@TempDir Path dir)
+      throws Exception {
+    var approved = dir.resolve("OrderTest/trip_settles.approved.nt");
+    Files.createDirectories(approved.getParent());
+    var written = "scenario: trip settles\n\n- Service.doWork() → value\n";
+    Files.writeString(approved, written);
+
+    NarrativeApproval.verify(traceWithOneCall(), "trip settles", approved);
+
+    assertThat(dir.resolve("OrderTest/trip_settles.received.nt")).doesNotExist();
+    assertThat(contentOf(approved)).isEqualTo(written);
   }
 
   @Test
@@ -81,7 +95,7 @@ class NarrativeApprovalTest {
     var received = dir.resolve("OrderTest/trip_settles.received.nt");
     assertThat(received).exists();
     assertThat(contentOf(received))
-        .isEqualTo("scenario: trip settles\n\n- Service.doWork() → value\n");
+        .isEqualTo("scenario: trip settles\n\n#1 - Service.doWork() → value\n");
     assertThat(contentOf(approved)).contains("Ledger.record");
   }
 

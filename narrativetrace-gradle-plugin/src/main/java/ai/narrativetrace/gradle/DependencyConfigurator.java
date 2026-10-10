@@ -24,9 +24,9 @@ final class DependencyConfigurator {
    * TestEngine" — a message that names neither NarrativeTrace nor the artifact to add. Supplying
    * the engine is what makes the documented one-line setup true on first contact.
    *
-   * <p>Pinned to the version this repository builds and tests against. A project that wants a
-   * different one declares it itself; Gradle's conflict resolution then picks the higher version,
-   * so this is a floor rather than a constraint.
+   * <p>Pinned to the version this repository builds and tests against, as a FLOOR ({@link
+   * ResolvedDependency#floor()}): a project that manages a newer JUnit — Spring Boot's BOM does —
+   * gets its own version, engine and API together.
    */
   private static final String JUNIT_JUPITER_ENGINE =
       "org.junit.jupiter:junit-jupiter-engine:5.11.4";
@@ -51,7 +51,31 @@ final class DependencyConfigurator {
 
   private DependencyConfigurator() {}
 
-  record ResolvedDependency(String configuration, String artifact) {}
+  /**
+   * One dependency the plugin adds.
+   *
+   * @param configuration the Gradle configuration it goes on
+   * @param artifact {@code group:name:version}
+   * @param floor whether the version is a minimum the project's own resolution may raise — added as
+   *     a versionless dependency plus a required-version constraint — rather than a direct version.
+   *     A direct version is what Spring's dependency-management plugin lets override its managed
+   *     one, so a floor is how a pin stays a floor in a Spring Boot build.
+   */
+  record ResolvedDependency(String configuration, String artifact, boolean floor) {
+
+    ResolvedDependency(String configuration, String artifact) {
+      this(configuration, artifact, false);
+    }
+
+    /**
+     * {@code group:name} — the first two segments, whatever follows (a version, a classifier) —
+     * which is what a floor declares as its dependency.
+     */
+    String module() {
+      String[] segments = artifact.split(":");
+      return segments.length < 2 ? artifact : segments[0] + ":" + segments[1];
+    }
+  }
 
   static List<ResolvedDependency> resolve(
       String mode,
@@ -89,6 +113,10 @@ final class DependencyConfigurator {
       boolean micronautHttp,
       String version) {
 
+    if (!"production".equals(scope) && !"test".equals(scope)) {
+      throw new IllegalArgumentException(
+          "scope is \"production\" or \"test\", got \"" + scope + "\"");
+    }
     var libConfig = "production".equals(scope) ? "implementation" : "testImplementation";
     var deps = new ArrayList<ResolvedDependency>();
 
@@ -149,8 +177,8 @@ final class DependencyConfigurator {
       return;
     }
     deps.add(new ResolvedDependency("testImplementation", gav("narrativetrace-junit5", version)));
-    deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_JUPITER_ENGINE));
-    deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_PLATFORM_LAUNCHER));
+    deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_JUPITER_ENGINE, true));
+    deps.add(new ResolvedDependency("testRuntimeOnly", JUNIT_PLATFORM_LAUNCHER, true));
   }
 
   private static void addModuleDeps(

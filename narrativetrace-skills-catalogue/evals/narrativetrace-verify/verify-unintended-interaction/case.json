@@ -1,0 +1,4 @@
+{
+  "fixture": "narrativetrace-skills-catalogue/evals/fixtures/existing-service-checkout",
+  "turns": { "2": "yes, pin it" }
+}

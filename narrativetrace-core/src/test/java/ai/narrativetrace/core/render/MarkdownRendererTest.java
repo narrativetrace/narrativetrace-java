@@ -25,6 +25,46 @@ import org.junit.jupiter.api.Timeout;
 class MarkdownRendererTest {
 
   @Test
+  void everyCallLineEndsWithItsSpanIdAndAThrownLeafCarriesItBeforeTheBlockquote() {
+    var info = new ConcurrencyInfo("fork-1", "pool-1", 1, false, ConcurrencyKind.FORK_JOIN);
+    var stock =
+        new TraceNode(
+            new MethodSignature("StockService", "check", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"),
+            0L,
+            0L,
+            info);
+    var discount =
+        new TraceNode(
+            new MethodSignature("DiscountEngine", "calculate", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("0.15"),
+            0L,
+            0L,
+            info);
+    var charge =
+        new TraceNode(
+            new MethodSignature("PaymentGateway", "charge", List.of()),
+            List.of(),
+            new TraceOutcome.Threw(new IllegalStateException("Card expired")));
+    var parent =
+        new TraceNode(
+            new MethodSignature("CheckoutService", "complete", List.of()),
+            List.of(stock, discount, charge),
+            new TraceOutcome.Returned(null));
+    var tree = new DefaultTraceTree(List.of(parent));
+
+    var result = new MarkdownRenderer().render(tree);
+
+    assertThat(result)
+        .contains("- **CheckoutService.complete**() #1\n")
+        .contains("- ↦ **DiscountEngine.calculate**() → `0.15` #1.1\n")
+        .contains("- ↦ **StockService.check**() → `true` #1.2\n")
+        .contains("  - **PaymentGateway.charge**() #1.3\n\n    > ❌ `IllegalStateException`");
+  }
+
+  @Test
   void parentReturnRendersInlineOnTheEntryLineWithNoClosingRepeat() {
     var child =
         new TraceNode(
@@ -67,8 +107,8 @@ class MarkdownRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            "- **TripSettlementService.recordExpense**() — 2ms\n"
-                + "  - **TripLedger.recordExpense**() — 1ms");
+            "- **TripSettlementService.recordExpense**() — 2ms #1\n"
+                + "  - **TripLedger.recordExpense**() — 1ms #1.1");
   }
 
   @Test
@@ -106,7 +146,7 @@ class MarkdownRendererTest {
 
     var result = new MarkdownRenderer().render(tree);
 
-    assertThat(result).isEqualTo("- **Svc.run**() — 2ms\n  - **Svc.step**() → `1` — 1ms");
+    assertThat(result).isEqualTo("- **Svc.run**() — 2ms #1\n  - **Svc.step**() → `1` — 1ms #1.1");
   }
 
   @Test

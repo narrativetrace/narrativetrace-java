@@ -123,7 +123,7 @@ public final class EvalRunner {
    * One trial, in two throwaway directories outside every repository tree: the scratch project the
    * agent works in, and — for a registry case — a work directory holding the staged snapshot and
    * the isolated vendor-tool configuration the registry's own commands install into. Both are
-   * deleted when the trial ends, whatever its outcome.
+   * deleted when the trial ends, whatever its outcome — after its evidence is kept.
    *
    * @sideEffects creates and deletes two temp directories; for a registry case, copies the
    *     subscription login into the isolated configuration so the agent can start at all.
@@ -152,10 +152,8 @@ public final class EvalRunner {
               scratch,
               turnsFor(plan),
               trialNumber);
-      if (!pass) {
-        System.out.println(
-            "evidence kept: " + environment.keepEvidenceUnder(keptFor(plan, trialNumber)));
-      }
+      System.out.println(
+          "evidence kept: " + environment.keepEvidenceUnder(keptFor(plan, trialNumber, pass)));
       return pass;
     } finally {
       deleteRecursively(scratch);
@@ -164,16 +162,22 @@ public final class EvalRunner {
   }
 
   /**
-   * Where a FAILED trial's evidence is kept, under {@code build/} so it is ignored by git and swept
-   * by a clean. One directory per skill, case and trial, so a three-trial run leaves three records
-   * rather than three copies of the last one.
+   * Where a trial's evidence is kept, under {@code build/} so it is ignored by git and swept by a
+   * clean. One directory per skill, case and trial, so a three-trial run leaves three records
+   * rather than three copies of the last one; a pass is kept as {@code trial-<n>-pass}, never over
+   * a failure's record.
+   *
+   * <p>INTENT: a pass used to delete its transcript with its scratch directories, so a passing
+   * trial could not be inspected or recorded — and a watcher copying the transcript while the trial
+   * ran lost its last lines (the final reply and the result event) every time. A passing transcript
+   * is the evidence a demonstration is recorded from.
    */
-  private static Path keptFor(TrialPlan plan, int trialNumber) {
+  private static Path keptFor(TrialPlan plan, int trialNumber, boolean pass) {
     return plan.repoRoot()
         .resolve("narrativetrace-skills-catalogue/build/evals")
         .resolve(plan.args().skill())
         .resolve(plan.args().caseName())
-        .resolve("trial-" + trialNumber);
+        .resolve("trial-" + trialNumber + (pass ? "-pass" : ""));
   }
 
   /**

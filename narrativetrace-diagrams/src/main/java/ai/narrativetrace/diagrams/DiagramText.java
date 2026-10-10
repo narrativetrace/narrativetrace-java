@@ -177,8 +177,9 @@ final class DiagramText {
    * keeps one redaction rule for the renderer and the template resolver.
    *
    * <ul>
-   *   <li>Every ISO control folds to a space — the newline is what turns interpolated text into a
-   *       new statement, and it is also how PlantUML {@code !include} / {@code !includeurl}
+   *   <li>Every ISO control, and the Unicode line and paragraph separators U+2028/U+2029, fold to a
+   *       space (see {@link #endsALine}) — the newline is what turns interpolated text into a new
+   *       statement, and it is also how PlantUML {@code !include} / {@code !includeurl}
    *       preprocessor directives (local-file read, SSRF) would be reached.
    *   <li>{@code "} becomes {@code '} — neither grammar offers an escape for a quote inside a
    *       quoted name, so the only safe move is for the character not to be a quote. Replacing it
@@ -198,7 +199,7 @@ final class DiagramText {
     var sb = new StringBuilder(raw.length());
     for (int i = 0; i < raw.length(); i++) {
       char c = raw.charAt(i);
-      if (Character.isISOControl(c)) {
+      if (endsALine(c)) {
         sb.append(' ');
       } else if (c == '"') {
         sb.append('\'');
@@ -425,17 +426,31 @@ final class DiagramText {
   }
 
   /**
-   * Folds ISO control characters (notably CR/LF) in interpolated message text to single spaces so a
-   * rendered value cannot inject a new diagram line.
+   * True for a character that ends or splits a line for some consumer of the diagram: an ISO
+   * control (CR, LF, NUL, U+0085) or U+2028/U+2029.
+   *
+   * <p><b>@edgeCase</b> U+2028/U+2029 are not ISO controls, so a bare {@code isISOControl} fold let
+   * one through. {@code java.util.regex}, JavaScript (Mermaid's own runtime) and many editors and
+   * log viewers treat both as line terminators: a participant name carrying one mid-string (found
+   * by the 2026-10-10 nightly fuzz run) broke the Mermaid statement grammar. Folding is the same
+   * move as for a newline — the name stays readable and the line stays one statement.
+   */
+  private static boolean endsALine(char c) {
+    return Character.isISOControl(c) || c == '\u2028' || c == '\u2029';
+  }
+
+  /**
+   * Folds ISO control characters (notably CR/LF) and U+2028/U+2029 in interpolated message text to
+   * single spaces so a rendered value cannot inject a new diagram line.
    *
    * @param text the raw message text (e.g. a rendered return value)
-   * @return the text with every control character replaced by a space
+   * @return the text with every control character and Unicode line separator replaced by a space
    */
   static String message(String text) {
     var sb = new StringBuilder(text.length());
     for (int i = 0; i < text.length(); i++) {
       char c = text.charAt(i);
-      sb.append(Character.isISOControl(c) ? ' ' : c);
+      sb.append(endsALine(c) ? ' ' : c);
     }
     return sb.toString();
   }

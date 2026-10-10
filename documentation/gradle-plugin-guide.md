@@ -22,13 +22,13 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
 That's it. Run `./gradlew test` and trace output appears in `build/narrativetrace/`.
 
-You do not need to add a JUnit dependency. With the default `testFramework = "junit5"` the plugin switches the test task onto the JUnit Platform *and* puts the Jupiter engine (`org.junit.jupiter:junit-jupiter-engine`, pinned to the version NarrativeTrace is tested against) on `testRuntimeOnly`, because the platform refuses to start without one. Declaring your own JUnit version still works — Gradle's conflict resolution picks the higher of the two.
+You do not need to add a JUnit dependency. With the default `testFramework = "junit5"` the plugin switches the test task onto the JUnit Platform *and* puts the Jupiter engine (`org.junit.jupiter:junit-jupiter-engine`, pinned to the version NarrativeTrace is tested against) on `testRuntimeOnly`, because the platform refuses to start without one. Declaring your own JUnit version still works: the pin is a floor (a version constraint, not a direct version), so Gradle's conflict resolution — or a BOM such as Spring Boot's — picks the higher of the two, engine and API together.
 
 ## What the Plugin Does Automatically
 
@@ -304,7 +304,7 @@ Accepts intended structural changes in [approval mode](#approval): promotes ever
 
 ### `narrativetraceDoctor`
 
-Runs the doctor's twelve read-only checks against this project, in process — the same checks the
+Runs the doctor's twenty read-only checks against this project, in process — the same checks the
 standalone launcher's `doctor` verb runs. Writes `build/narrativetrace/doctor-report.json` and
 prints the human report.
 
@@ -416,7 +416,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
@@ -552,7 +552,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.5'
+    id 'ai.narrativetrace' version '0.3.0'
 }
 
 narrativeTrace {

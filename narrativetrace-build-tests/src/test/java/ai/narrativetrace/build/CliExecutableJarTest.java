@@ -50,7 +50,7 @@ class CliExecutableJarTest {
   }
 
   /**
-   * The verb that actually reaches the tooling library: a snapshot walk, twelve checks and a
+   * The verb that actually reaches the tooling library: a snapshot walk, twenty checks and a
    * rendered report, none of which lives in this jar's own package. Exit 1 is a normal doctor
    * outcome (findings present) on an empty directory; exit 2 would mean it could not run at all.
    */

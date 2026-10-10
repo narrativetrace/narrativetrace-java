@@ -17,8 +17,10 @@
  */
 package ai.narrativetrace.tooling.doctor;
 
+import ai.narrativetrace.tooling.doctor.checks.ApprovalModeCheck;
 import ai.narrativetrace.tooling.doctor.checks.ApprovalTracesCheck;
 import ai.narrativetrace.tooling.doctor.checks.ExtensionRegisteredCheck;
+import ai.narrativetrace.tooling.doctor.checks.FrameworkWiringCheck;
 import ai.narrativetrace.tooling.doctor.checks.JdkVersionCheck;
 import ai.narrativetrace.tooling.doctor.checks.Junit5RangeCheck;
 import ai.narrativetrace.tooling.doctor.checks.LauncherCheck;
@@ -29,32 +31,50 @@ import ai.narrativetrace.tooling.doctor.checks.RedactionProofCheck;
 import ai.narrativetrace.tooling.doctor.checks.SilentSinkCheck;
 import ai.narrativetrace.tooling.doctor.checks.SkillsInstalledCheck;
 import ai.narrativetrace.tooling.doctor.checks.UnusedNotTracedImportCheck;
+import ai.narrativetrace.tooling.frameworks.CheckBinding;
+import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
- * The doctor's registry: twelve checks, in a fixed, deliberate order (toolchain, then
- * configuration, then traps — worst-surprise-last), run against one {@link DoctorSnapshot}. Adding
- * a check means appending a new entry here and to the constructor call below — the id is what stays
- * stable across releases, never the position in this list.
+ * The doctor's registry: twenty checks, in a fixed, deliberate order (toolchain, then
+ * configuration, then one wiring check per framework-table row, then traps — worst-surprise-last),
+ * run against one {@link DoctorSnapshot}. Adding a check means appending a new entry here — the id
+ * is what stays stable across releases, never the position in this list.
+ *
+ * <p><b>@llmNote</b> The framework checks are NOT listed by hand: every {@link FrameworkTable} row
+ * bound to a {@link CheckBinding.WiringCheck} becomes one {@link FrameworkWiringCheck}, in table
+ * order, so a new framework reaches the doctor as a new row and nothing else.
  */
 public final class DoctorChecks {
 
   public static final List<DoctorCheck> ALL =
-      List.of(
-          new JdkVersionCheck(),
-          new Junit5RangeCheck(),
-          new LauncherCheck(),
-          new OutputPropertyCheck(),
-          new ExtensionRegisteredCheck(),
-          new SkillsInstalledCheck(),
-          new SilentSinkCheck(),
-          new ParameterArg0Check(),
-          new UnusedNotTracedImportCheck(),
-          new RedactionProofCheck(),
-          new ApprovalTracesCheck(),
-          new LlmsBeforeYouStartCheck());
+      Stream.of(
+              Stream.<DoctorCheck>of(
+                  new JdkVersionCheck(),
+                  new Junit5RangeCheck(),
+                  new LauncherCheck(),
+                  new OutputPropertyCheck(),
+                  new ExtensionRegisteredCheck(),
+                  new ApprovalModeCheck(),
+                  new SkillsInstalledCheck()),
+              frameworkChecks(),
+              Stream.<DoctorCheck>of(
+                  new SilentSinkCheck(),
+                  new ParameterArg0Check(),
+                  new UnusedNotTracedImportCheck(),
+                  new RedactionProofCheck(),
+                  new ApprovalTracesCheck(),
+                  new LlmsBeforeYouStartCheck()))
+          .flatMap(s -> s)
+          .toList();
 
   private DoctorChecks() {}
+
+  /** One wiring check per framework-table row that earns one, in table order. */
+  private static Stream<DoctorCheck> frameworkChecks() {
+    return FrameworkTable.rowsWithWiringChecks().stream().map(FrameworkWiringCheck::new);
+  }
 
   /** Runs every registered check against {@code snapshot} and computes the exit code. */
   public static DoctorReport run(DoctorSnapshot snapshot) {

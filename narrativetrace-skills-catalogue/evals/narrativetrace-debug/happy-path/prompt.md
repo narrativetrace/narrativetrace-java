@@ -1,0 +1,1 @@
+Debug this with the trace: checking out 4599 euro cents for customer C-2041, whose card is in francs, charges the card 4300 when it should be 4277. Use the narrativetrace-debug skill to find where the value goes wrong and fix it.

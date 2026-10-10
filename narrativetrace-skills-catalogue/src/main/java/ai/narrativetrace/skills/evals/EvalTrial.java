@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -334,12 +335,30 @@ public final class EvalTrial {
         runsPath, row.toJsonLine() + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
   }
 
+  /**
+   * A fixture's own documentation, never scaffolded: a ROOT file named {@code README}, in any case
+   * and with any extension ({@code README.md}, {@code readme.txt}, {@code README}). It names the
+   * case and what its grader reads. A README deeper in the tree is the project's own.
+   */
+  static boolean isFixtureDocumentation(Path relative) {
+    if (relative.getNameCount() != 1) {
+      return false;
+    }
+    String name = relative.getFileName().toString().toLowerCase(Locale.ROOT);
+    return "readme".equals(name) || name.startsWith("readme.");
+  }
+
   private static void copyRecursively(Path source, Path target) throws IOException {
     try (var stream = Files.walk(source)) {
       for (Path path : (Iterable<Path>) stream::iterator) {
         Path relative = source.relativize(path);
         // A trial must earn its reports: a previously built fixture is not evidence of success.
         if (List.of("build", ".gradle", ".git").contains(relative.getName(0).toString())) {
+          continue;
+        }
+        // The root README documents the fixture for maintainers — its case, what the grader reads;
+        // an agent that opened it would be told it is being tested, and how.
+        if (isFixtureDocumentation(relative)) {
           continue;
         }
         Path dest = target.resolve(relative);

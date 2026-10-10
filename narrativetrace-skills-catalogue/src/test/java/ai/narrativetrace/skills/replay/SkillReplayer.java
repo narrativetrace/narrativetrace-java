@@ -7,13 +7,18 @@
  */
 package ai.narrativetrace.skills.replay;
 
+import ai.narrativetrace.core.output.NarrativeApproval;
 import ai.narrativetrace.skills.Skill;
 import ai.narrativetrace.skills.SkillStep;
 import ai.narrativetrace.skills.StepBody;
 import ai.narrativetrace.skills.catalogue.ClarityCommands;
+import ai.narrativetrace.skills.catalogue.DebugCommands;
 import ai.narrativetrace.skills.catalogue.DoctorCommands;
 import ai.narrativetrace.skills.catalogue.FeedbackCommands;
 import ai.narrativetrace.skills.catalogue.InstallerCommands;
+import ai.narrativetrace.skills.catalogue.VerifyCommands;
+import ai.narrativetrace.tooling.doctor.DoctorChecks;
+import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -57,6 +62,12 @@ import org.gradle.testkit.runner.UnexpectedBuildFailure;
 public final class SkillReplayer {
 
   private static final String FIXTURE = "sixty-seconds";
+
+  /**
+   * The fixture test {@code narrativetrace-verify} embeds and runs as "the smallest real path", and
+   * {@code narrativetrace-debug} as the reproduction.
+   */
+  private static final String FLOW_TEST = "PlaceOrderFlowTest";
 
   /**
    * System property {@code narrativetrace-skills-catalogue/build.gradle.kts} sets on every {@link
@@ -104,15 +115,40 @@ public final class SkillReplayer {
               root -> clarityReportExists(root, "clarity-scan-report.md")),
           Map.entry(FeedbackCommands.DRAFT_REPORT, root -> feedbackChannel(root, "draft")),
           Map.entry(FeedbackCommands.PRINT_URL, root -> feedbackChannel(root, "url")),
-          Map.entry(FeedbackCommands.FIND_FEEDBACK_FILES, SkillReplayer::feedbackFilesExist));
+          Map.entry(FeedbackCommands.FIND_FEEDBACK_FILES, SkillReplayer::feedbackFilesExist),
+          Map.entry(
+              VerifyCommands.RUN_THE_PATH,
+              root ->
+                  gradleTask(
+                      root, ":" + FIXTURE + ":test", "--tests", "com.example.orders." + FLOW_TEST)),
+          Map.entry(
+              VerifyCommands.RUN_THE_SUITE, root -> gradleTask(root, ":" + FIXTURE + ":test")),
+          Map.entry(
+              VerifyCommands.FIND_STRUCTURAL,
+              root -> findLists(root.resolve(FIXTURE), "build/narrativetrace/structural", "*.nt")),
+          Map.entry(
+              VerifyCommands.FIND_NARRATIVES,
+              root -> findLists(root.resolve(FIXTURE), "build/narrativetrace/traces", "*.md")),
+          Map.entry(VerifyCommands.FIND_RECEIVED, root -> approvalRoundTrip(root, false)),
+          Map.entry(VerifyCommands.APPROVE, root -> approvalRoundTrip(root, true)),
+          Map.entry(
+              DebugCommands.REPRODUCE,
+              root ->
+                  gradleTask(
+                      root, ":" + FIXTURE + ":test", "--tests", "com.example.orders." + FLOW_TEST)),
+          Map.entry(
+              DebugCommands.FIND_DIAGRAMS,
+              root -> findLists(root.resolve(FIXTURE), "build/narrativetrace/diagrams", "*.mmd")));
 
   /** Prose verify strings this replayer additionally knows how to check mechanically. */
   private static final Map<String, Function<Path, Boolean>> KNOWN_VERIFIES =
       Map.of(
-          DoctorCommands.VERIFY_TWELVE_FINDINGS,
-          SkillReplayer::reportHasTwelveFindings,
+          DoctorCommands.VERIFY_EVERY_FINDING,
+          SkillReplayer::reportHasEveryFinding,
           DoctorCommands.VERIFY_REDACTION_FINDING_PRESENT,
-          root -> reportContains(root, "trap.redaction-proof"));
+          root -> reportContains(root, "trap.redaction-proof"),
+          DoctorCommands.VERIFY_FRAMEWORK_FIXES_APPLIED,
+          SkillReplayer::everyFrameworkFindingPasses);
 
   public static List<StepReplay> replay(Skill skill, Path repoRoot) {
     List<StepReplay> results = new ArrayList<>();
@@ -233,6 +269,60 @@ public final class SkillReplayer {
     }
   }
 
+  /** Runs the real {@code find} in {@code dir}: it exits clean and lists at least one file. */
+  private static boolean findLists(Path dir, String under, String namePattern) {
+    try {
+      Process process =
+          new ProcessBuilder("find", under, "-name", namePattern)
+              .directory(dir.toFile())
+              .redirectErrorStream(true)
+              .start();
+      String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+      return finished && process.exitValue() == 0 && !output.isBlank();
+    } catch (IOException e) {
+      throw new UncheckedIOException("could not run find", e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("interrupted running find", e);
+    }
+  }
+
+  /**
+   * Replays the pin on a scratch approvals directory, never the fixture's own source tree: the
+   * structural trace the fixture run wrote becomes the {@code .received.nt} an approval-mode run
+   * writes (the same rendered document), the real {@code find} lists it, and — when {@code promote}
+   * — the same {@code NarrativeApproval.promoteReceived} call {@code approveNarratives} makes turns
+   * it into a {@code .approved.nt} holding exactly the bytes that were shown, with no review copy
+   * left behind.
+   */
+  private static boolean approvalRoundTrip(Path repoRoot, boolean promote) {
+    Path shown =
+        repoRoot.resolve(
+            FIXTURE
+                + "/build/narrativetrace/structural/"
+                + FLOW_TEST
+                + "/customer_places_an_order.nt");
+    try {
+      Path approvals = Files.createTempDirectory("verify-replay-narratives");
+      Path received = approvals.resolve(FLOW_TEST + "/customer_places_an_order.received.nt");
+      Files.createDirectories(received.getParent());
+      Files.copy(shown, received);
+      if (!findLists(approvals.getParent(), approvals.getFileName().toString(), "*.received.nt")) {
+        return false;
+      }
+      if (!promote) {
+        return true;
+      }
+      var promoted = NarrativeApproval.promoteReceived(approvals);
+      return promoted.size() == 1
+          && Files.readString(promoted.get(0)).equals(Files.readString(shown))
+          && !Files.exists(received);
+    } catch (IOException e) {
+      throw new UncheckedIOException("could not replay the approval round trip", e);
+    }
+  }
+
   /**
    * Replays the installer PREVIEW: the diff is produced, and the fixture is untouched.
    *
@@ -331,9 +421,32 @@ public final class SkillReplayer {
     return reportText(repoRoot).map(text -> text.contains(needle)).orElse(false);
   }
 
-  private static boolean reportHasTwelveFindings(Path repoRoot) {
+  /**
+   * Every framework wiring check the doctor's table defines is in the report, passing — for the
+   * sixty-seconds fixture, which uses no framework, that is the "nothing to wire" pass.
+   */
+  private static boolean everyFrameworkFindingPasses(Path repoRoot) {
     return reportText(repoRoot)
-        .map(text -> Pattern.compile("\"id\":").matcher(text).results().count() == 12)
+        .map(
+            text ->
+                FrameworkTable.wiringCheckIds().stream()
+                    .allMatch(
+                        id ->
+                            Pattern.compile(
+                                    "\"id\": \""
+                                        + Pattern.quote(id)
+                                        + "\",\\s*\"status\": \"pass\"")
+                                .matcher(text)
+                                .find()))
+        .orElse(false);
+  }
+
+  private static boolean reportHasEveryFinding(Path repoRoot) {
+    return reportText(repoRoot)
+        .map(
+            text ->
+                Pattern.compile("\"id\":").matcher(text).results().count()
+                    == DoctorChecks.ALL.size())
         .orElse(false);
   }
 

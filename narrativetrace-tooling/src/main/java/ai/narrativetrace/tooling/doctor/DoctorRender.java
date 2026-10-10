@@ -65,12 +65,20 @@ public final class DoctorRender {
         .append(f.message())
         .append('\n');
     if (f.isFailing()) {
-      out.append("  fix:  ").append(f.fix()).append('\n');
+      out.append("  fix:  ").append(indentContinuation(f.fix())).append('\n');
       if (f.skill() != null) {
         out.append("  skill: ").append(f.skill()).append('\n');
       }
     }
     out.append("  docs: ").append(f.docUrl()).append('\n');
+  }
+
+  /**
+   * A multi-line fix — a framework check's wiring snippet — with every line after the first
+   * indented to sit under the first, past the {@code fix:} label, and no trailing blank line.
+   */
+  private static String indentContinuation(String fix) {
+    return fix.stripTrailing().replace("\n", "\n        ");
   }
 
   /** {"findings": [...], "exitCode": N} — a stable, machine-readable mirror of renderHuman. */

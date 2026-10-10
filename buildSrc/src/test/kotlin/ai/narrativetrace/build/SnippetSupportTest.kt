@@ -230,6 +230,34 @@ class SnippetSupportTest {
         assertEquals(emptyList<String>(), SnippetSupport.check(repo))
     }
 
+    /**
+     * The publish script stamps `.properties`, `.yml` and shell files with a `#` header — the shape
+     * the framework table's Micronaut fixture (a whole `application.properties`) takes in the public
+     * snapshot. Stripped like the `//` form; a file's own leading `#` comment that names no license
+     * marker stays.
+     */
+    @Test
+    fun checkStripsALeadingHashCommentLicenseHeaderBeforeComparing() {
+        writeSource(
+            "sixty-seconds/src/main/resources/application.properties",
+            "# SPDX-License-Identifier: BUSL-1.1\n" +
+                "# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four years from publication; Change License: Apache-2.0\n" +
+                "# Copyright (c) 2026 Empower Agile\n" +
+                "# the service's tracing\n" +
+                "narrativetrace.base-packages=com.example\n"
+        )
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/src/main/resources/application.properties -->",
+                "# the service's tracing\nnarrativetrace.base-packages=com.example",
+                lang = "properties"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
     @Test
     fun checkStripsALineCommentLicenseHeaderThatTouchesTheFilesOwnFollowingComment() {
         // The publish script's real shape for a "free" module: SPDX line, one Licensed-under line,

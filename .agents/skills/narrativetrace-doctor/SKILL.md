@@ -1,6 +1,6 @@
 ---
 name: narrativetrace-doctor
-description: "Diagnoses a NarrativeTrace Java install and configuration. Use when nothing is being traced, no build/narrativetrace output appears, the JUnit 5 extension never seems to run, parameter names render as arg0/arg1, or you are not sure NarrativeTrace is wired up correctly. Checks the JDK and JUnit Jupiter versions, the launcher on testRuntimeOnly, narrativetrace.output, whether NarrativeTraceExtension is actually registered, whether any sink receives what is traced, whether -parameters degraded parameter names, whether redaction is proven in a test, whether the NarrativeTrace agent skills are installed and current, and stale .received.nt approval files. Read-only — makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it."
+description: "Diagnoses a NarrativeTrace Java install and configuration. Use when nothing is being traced, no build/narrativetrace output appears, the JUnit 5 extension never seems to run, parameter names render as arg0/arg1, or you are not sure NarrativeTrace is wired up correctly. Checks the JDK and JUnit Jupiter versions, the launcher on testRuntimeOnly, narrativetrace.output, whether NarrativeTraceExtension is actually registered, whether each framework the project uses has its NarrativeTrace integration referenced and wired, whether any sink receives what is traced, whether -parameters degraded parameter names, whether redaction is proven in a test, whether the NarrativeTrace agent skills are installed and current, whether committed .approved.nt baselines are compared at all (approval mode on), and stale .received.nt approval files. Read-only — makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it."
 ---
 
 # narrativetrace-doctor
@@ -11,7 +11,7 @@ description: "Diagnoses a NarrativeTrace Java install and configuration. Use whe
 ./gradlew narrativetraceDoctor
 ```
 
-**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twelve findings
+**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twenty findings
 
 **failure:** the task fails with "Task 'narrativetraceDoctor' not found" → the ai.narrativetrace Gradle plugin isn't applied to this project → add id("ai.narrativetrace") to the plugins block, or run the standalone narrativetrace-cli launcher instead
 

@@ -305,7 +305,7 @@ The Gradle plugin provides a `clarityCheck` task that fails the build when namin
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 
 narrativeTrace {

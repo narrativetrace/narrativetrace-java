@@ -142,7 +142,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
@@ -196,9 +196,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.3.0")
 }
 ```
 
@@ -700,7 +700,7 @@ test classpath, not only NarrativeTrace's; `@ExtendWith` remains the explicit pe
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 
 narrativeTrace {
@@ -721,7 +721,7 @@ narrativeTrace {
 The plugin:
 - Adds `-parameters` to all JavaCompile tasks
 - Adds test dependencies (api, core, proxy, clarity, diagrams, junit5/junit4)
-- Adds `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4` for `testFramework = "junit5"` — `useJUnitPlatform()` cannot start without an engine. JUnit 4 gets none
+- Adds `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine` with a 5.11.4 floor (a constraint, so a newer BOM-managed JUnit wins) for `testFramework = "junit5"` — `useJUnitPlatform()` cannot start without an engine. JUnit 4 gets none
 - Sets test JVM properties
 - Registers `clarityCheck` task (wired into `check`)
 - Registers `clarityScan` task (standalone classpath analysis)
@@ -810,6 +810,162 @@ carry them out) and must be `close()`d.
 ---
 
 ## Integration Guides
+
+<!-- framework-table:begin -->
+### Framework table — what the doctor checks
+
+Rendered from the doctor's own framework table. For every row it can observe, `narrativetraceDoctor` runs the named check: the framework is detected but its module is not referenced, or the module is referenced but its wiring was never applied — and the failing fix prints the lines below.
+
+| Framework | Detected by | Add (Gradle plugin) | Add (plain Gradle) | Wiring | Doctor check |
+|---|---|---|---|---|---|
+| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
+| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
+| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
+| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.3.0")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
+| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.3.0")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
+| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
+| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.3.0")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
+| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.3.0")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
+| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.3.0` | a -javaagent JVM flag the owner adds | none — runtime-only |
+
+#### Spring — wiring
+
+<!-- snippet: narrativetrace-spring/src/test/java/com/example/NarrativeTraceConfig.java region=wiring -->
+```java
+import ai.narrativetrace.spring.EnableNarrativeTrace;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@EnableNarrativeTrace(basePackages = "com.example")
+public class NarrativeTraceConfig {}
+```
+<!-- /snippet -->
+
+#### Spring Web — wiring
+
+<!-- snippet: narrativetrace-spring-web/src/test/java/com/example/NarrativeTraceWebConfig.java region=wiring -->
+```java
+import ai.narrativetrace.spring.EnableNarrativeTrace;
+import ai.narrativetrace.spring.web.NarrativeTraceWebConfiguration;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+@Configuration
+@EnableNarrativeTrace(basePackages = "com.example")
+@Import(NarrativeTraceWebConfiguration.class)
+public class NarrativeTraceWebConfig {}
+```
+<!-- /snippet -->
+
+#### Micronaut — wiring
+
+<!-- snippet: narrativetrace-micronaut/src/test/resources/wiring/application.properties -->
+```properties
+narrativetrace.base-packages=com.example
+```
+<!-- /snippet -->
+
+#### Jakarta Servlet — wiring
+
+<!-- snippet: narrativetrace-servlet/src/test/java/com/example/NarrativeTraceFilterSetup.java region=wiring -->
+```java
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.servlet.NarrativeTraceFilter;
+import ai.narrativetrace.servlet.Slf4jTraceExporter;
+import jakarta.servlet.ServletContextEvent;
+import jakarta.servlet.ServletContextListener;
+import jakarta.servlet.annotation.WebListener;
+
+@WebListener
+public class NarrativeTraceFilterSetup implements ServletContextListener {
+  @Override
+  public void contextInitialized(ServletContextEvent event) {
+    var filter =
+        new NarrativeTraceFilter(new ThreadLocalNarrativeContext(), new Slf4jTraceExporter());
+    event
+        .getServletContext()
+        .addFilter("narrativetrace", filter)
+        .addMappingForUrlPatterns(null, false, "/*");
+  }
+}
+```
+<!-- /snippet -->
+
+#### JUnit 4 — wiring
+
+<!-- snippet: narrativetrace-junit4-example/src/test/java/ai/narrativetrace/examples/junit4/GreetingServiceTest.java -->
+```java
+package ai.narrativetrace.examples.junit4;
+
+import static org.junit.Assert.assertEquals;
+
+import ai.narrativetrace.junit4.NarrativeTraceClassRule;
+import ai.narrativetrace.junit4.NarrativeTraceRule;
+import ai.narrativetrace.proxy.NarrativeTraceProxy;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+
+public class GreetingServiceTest {
+
+  @ClassRule public static NarrativeTraceClassRule classRule = new NarrativeTraceClassRule();
+
+  @Rule public NarrativeTraceRule narrativeTrace = classRule.testRule();
+
+  @Test
+  public void greetsByName() {
+    var service =
+        NarrativeTraceProxy.trace(
+            new DefaultGreetingService(), GreetingService.class, narrativeTrace.context());
+    assertEquals("greeting message", "Hello, Alice!", service.greet("Alice"));
+  }
+}
+```
+<!-- /snippet -->
+
+#### Micrometer context propagation — wiring
+
+<!-- snippet: narrativetrace-micrometer/src/test/java/com/example/NarrativeTracePropagationSetup.java region=wiring -->
+```java
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.micrometer.NarrativeTraceThreadLocalAccessor;
+import io.micrometer.context.ContextRegistry;
+
+public final class NarrativeTracePropagationSetup {
+  private NarrativeTracePropagationSetup() {}
+
+  /** Call once at startup, with the context your traced services use. */
+  public static void register(ThreadLocalNarrativeContext context) {
+    ContextRegistry.getInstance()
+        .registerThreadLocalAccessor(new NarrativeTraceThreadLocalAccessor(context));
+  }
+}
+```
+<!-- /snippet -->
+
+#### OpenTelemetry — wiring
+
+<!-- snippet: narrativetrace-opentelemetry/src/test/java/com/example/NarrativeTraceOtelSetup.java region=wiring -->
+```java
+import ai.narrativetrace.core.config.NarrativeTraceConfig;
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import ai.narrativetrace.core.pipeline.DualPathPipeline;
+import ai.narrativetrace.opentelemetry.OtelTraceEventListener;
+import io.opentelemetry.api.OpenTelemetry;
+
+public final class NarrativeTraceOtelSetup {
+  private NarrativeTraceOtelSetup() {}
+
+  /** The context your traced services use, with every call also exported as a span. */
+  public static ThreadLocalNarrativeContext tracedContext(OpenTelemetry openTelemetry) {
+    var listener = new OtelTraceEventListener(openTelemetry.getTracer("narrativetrace"));
+    return new ThreadLocalNarrativeContext(
+        new NarrativeTraceConfig(), new DualPathPipeline(listener));
+  }
+}
+```
+<!-- /snippet -->
+<!-- framework-table:end -->
 
 ### JDK Proxy (any Java app)
 

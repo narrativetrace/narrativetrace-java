@@ -29,6 +29,48 @@ class StructuralDeltaTest {
         - TripLedger.recordExpense(tripName, expense)
       """;
 
+  private static final String WITH_IDS =
+      """
+      scenario: Weekend trip settles with three transfers
+
+      #1 - TripSettlementService.recordExpense(tripName, expense)
+        #1.1 - ExpenseValidator.ensureValid(expense)
+        #1.2 - TripLedger.recordExpense(tripName, expense)
+      """;
+
+  @Test
+  void aBaselineWrittenBeforeSpanIdsStillComparesUnchanged() {
+    var delta = StructuralDelta.between(DOCUMENT, WITH_IDS);
+
+    assertThat(delta.unchanged()).isTrue();
+    assertThat(delta.summary()).isEmpty();
+    assertThat(delta.diff()).isEmpty();
+  }
+
+  @Test
+  void theDiffCitesEachSideByItsOwnSpanIds() {
+    var current =
+        WITH_IDS
+            .replace(
+                "  #1.1 - ExpenseValidator.ensureValid(expense)\n",
+                "  #1.1 - PolicyEngine.approve(expense) → value\n"
+                    + "  #1.2 - ExpenseValidator.ensureValid(expense)\n")
+            .replace("  #1.2 - TripLedger", "  #1.3 - TripLedger");
+
+    var delta = StructuralDelta.between(WITH_IDS, current);
+
+    assertThat(delta.diff())
+        .isEqualTo(
+            """
+             scenario: Weekend trip settles with three transfers
+            \s
+             #1 - TripSettlementService.recordExpense(tripName, expense)
+            +  #1.1 - PolicyEngine.approve(expense) → value
+               #1.2 - ExpenseValidator.ensureValid(expense)  (was #1.1)
+               #1.3 - TripLedger.recordExpense(tripName, expense)  (was #1.2)
+            """);
+  }
+
   @Test
   void byteIdenticalDocumentsAreUnchanged() {
     var delta = StructuralDelta.between(DOCUMENT, DOCUMENT);

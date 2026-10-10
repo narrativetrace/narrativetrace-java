@@ -140,6 +140,30 @@ class EvalTrialTest {
         .hasContent("distribution");
   }
 
+  /**
+   * A fixture's root README is written for this repository's maintainers — which case it serves,
+   * what the grader reads — and an agent that opens it is told it is being tested, and how. A
+   * Spring Boot trial on 2026-10-09 ran {@code cat README.md} first thing. A README deeper in the
+   * tree is the project's own and is copied like any other file.
+   */
+  @Test
+  void theFixturesOwnReadmeIsItsDocumentationAndNeverReachesTheAgent(@TempDir Path tempDir)
+      throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    Files.writeString(fixture.resolve("README.md"), "the grader reads the request trace");
+    Files.createDirectories(fixture.resolve("docs"));
+    Files.writeString(fixture.resolve("docs/README.md"), "the project's own notes");
+    Path repo = Files.createDirectory(tempDir.resolve("repo"));
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    var trial = new EvalTrial(new FakeProcessRunner(0), FIXED_CLOCK, tempDir.resolve("runs.jsonl"));
+
+    trial.run(ARGS, repo, fixture, tempDir, scratch, AgentTurns.graded("prompt"), 1);
+
+    assertThat(scratch.resolve("README.md")).doesNotExist();
+    assertThat(scratch.resolve("docs/README.md")).hasContent("the project's own notes");
+    assertThat(scratch.resolve("marker.txt")).hasContent("fixture-content");
+  }
+
   @Test
   void startsWithoutBuildArtifactsOrCachesAndPreservesTheFixturesOwnWrapper(@TempDir Path tempDir)
       throws Exception {

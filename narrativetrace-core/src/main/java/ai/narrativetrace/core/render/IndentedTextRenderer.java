@@ -17,7 +17,6 @@ import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.tree.TreeWalk;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,7 +42,7 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
    * because an earlier sibling had not finished rendering, or has no later sibling to attach to
    * instead. See {@link #planChildren}.
    */
-  private record Prefix(String line, String cont, String leading, String trailing) {}
+  private record Prefix(String line, String cont, String id, String leading, String trailing) {}
 
   /**
    * Mutable working form of {@link Prefix} while a sibling list is being planned; see {@link
@@ -52,11 +51,13 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
   private static final class Planned extends PlannedSibling {
     final String line;
     final String cont;
+    final String id;
 
-    Planned(TraceNode node, String line, String cont, String leading) {
+    Planned(TraceNode node, String line, String cont, String id, String leading) {
       super(node, leading);
       this.line = line;
       this.cont = cont;
+      this.id = id;
     }
   }
 
@@ -66,8 +67,10 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
   public String render(TraceTree tree) {
     var sb = new StringBuilder();
     appendTraceHeader(tree, sb);
-    for (var root : tree.roots()) {
-      renderTree(root, sb);
+    var roots = tree.roots();
+    var ids = SpanId.idsOf(roots, null);
+    for (var i = 0; i < roots.size(); i++) {
+      renderTree(roots.get(i), ids.get(i), sb);
     }
     return sb.toString().stripTrailing() + LossFooter.block(tree, "");
   }
@@ -103,9 +106,9 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
    * point they are consumed ({@link #enterNode}/{@link #limitedNode}/{@link #exitNode}) — see
    * {@link NodeContext} for why a genuine cycle needs more than a plain identity map here.
    */
-  private void renderTree(TraceNode root, StringBuilder sb) {
+  private void renderTree(TraceNode root, String rootId, StringBuilder sb) {
     var prefixOf = new NodeContext<TraceNode, Prefix>();
-    prefixOf.push(root, new Prefix("", "", null, null));
+    prefixOf.push(root, new Prefix("", "", rootId, null, null));
     TreeWalk.walk(
         root,
         node -> planChildren(node, prefixOf, sb),
@@ -130,47 +133,62 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
    */
   private List<TraceNode> planChildren(
       TraceNode node, NodeContext<TraceNode, Prefix> prefixOf, StringBuilder sb) {
-    var contPrefix = prefixOf.peek(node).cont();
+    var parent = prefixOf.peek(node);
     var planned = new java.util.ArrayList<Planned>();
     var carry = new StringBuilder();
+    var ids = new SpanCursor(parent.id());
     for (var segment : ChildSegment.partition(node.children())) {
-      if (segment.groupId == null) {
-        var child = segment.nodes.get(0);
-        planned.add(new Planned(child, contPrefix + "├── ", contPrefix + "│   ", flush(carry)));
-      } else if (segment.isFireAndForget()) {
-        planFireAndForget(segment.nodes.get(0), contPrefix, planned, carry);
-      } else {
-        renderConcurrentGroup(segment.nodes, contPrefix, carry);
-      }
+      planSegment(segment, parent.cont(), ids, planned, carry);
     }
     flushToLast(planned, carry, sb);
     var result = new java.util.ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
-      prefixOf.push(p.node, new Prefix(p.line, p.cont, p.leading, p.trailing));
+      prefixOf.push(p.node, new Prefix(p.line, p.cont, p.id, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
   }
 
+  /**
+   * Plans one segment of a sibling list continued by {@code contPrefix}, taking its spans' ids from
+   * {@code ids} in the order it lays them out.
+   */
+  private void planSegment(
+      ChildSegment segment,
+      String contPrefix,
+      SpanCursor ids,
+      List<Planned> planned,
+      StringBuilder carry) {
+    var first = segment.nodes.get(0);
+    if (segment.groupId == null) {
+      planned.add(
+          new Planned(first, contPrefix + "├── ", contPrefix + "│   ", ids.next(), flush(carry)));
+    } else if (segment.isFireAndForget()) {
+      planFireAndForget(first, contPrefix, ids.next(), planned, carry);
+    } else {
+      renderConcurrentGroup(segment.nodes, contPrefix, ids, carry);
+    }
+  }
+
   private void planFireAndForget(
-      TraceNode launcher, String contPrefix, List<Planned> planned, StringBuilder carry) {
+      TraceNode launcher,
+      String contPrefix,
+      String launcherId,
+      List<Planned> planned,
+      StringBuilder carry) {
     carry.append(contPrefix).append("├── ⤳ fire-and-forget");
     if (launcher.concurrency() != null) {
       carry.append(" [thread: ").append(launcher.concurrency().threadName()).append("]");
     }
-    carry.append("\n");
+    carry.append(' ').append(launcherId).append("\n");
     if (launcher.children().isEmpty()) {
       carry.append(contPrefix).append("│       [launched, result not captured]\n");
       return;
     }
-    var children = launcher.children();
-    for (var idx = 0; idx < children.size(); idx++) {
-      planned.add(
-          new Planned(
-              children.get(idx),
-              contPrefix + "│   ├── ",
-              contPrefix + "│   │   ",
-              idx == 0 ? flush(carry) : null));
+    // The launched work lays out like any other sibling list, one level in under the marker.
+    var launched = new SpanCursor(launcherId);
+    for (var segment : ChildSegment.partition(launcher.children())) {
+      planSegment(segment, contPrefix + "│   ", launched, planned, carry);
     }
   }
 
@@ -188,10 +206,10 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
       sb.append(prefix.line()).append(header);
       renderOutcomeInline(node.outcome(), sig, sb);
       renderDuration(node, sb);
-      sb.append("\n");
+      sb.append(' ').append(prefix.id()).append("\n");
       renderNarration(sig, prefix.cont(), sb);
     } else {
-      sb.append(prefix.line()).append(header).append("\n");
+      sb.append(prefix.line()).append(header).append(' ').append(prefix.id()).append("\n");
       renderNarration(sig, prefix.cont(), sb);
     }
   }
@@ -221,7 +239,7 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
     sb.append(prefix.line()).append(signatureText(sig)).append("(").append(params).append(")");
     renderOutcomeInline(node.outcome(), sig, sb);
     renderDuration(node, sb);
-    sb.append(" ").append(reason.marker()).append("\n");
+    sb.append(" ").append(reason.marker()).append(' ').append(prefix.id()).append("\n");
     renderNarration(sig, prefix.cont(), sb);
     // TreeWalk never calls onExit for a limited node, so trailing text — normally appended there —
     // is appended here instead; a limited node is treated as a leaf either way.
@@ -244,12 +262,14 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
     return ControlEscape.sanitize(sig.className()) + "." + ControlEscape.sanitize(sig.methodName());
   }
 
-  private void renderConcurrentGroup(List<TraceNode> members, String contPrefix, StringBuilder sb) {
+  private void renderConcurrentGroup(
+      List<TraceNode> members, String contPrefix, SpanCursor ids, StringBuilder sb) {
     var analysis = SequentialAsyncDetector.analyze(members);
     sb.append(contPrefix).append("├── ⑂ fork [").append(members.size()).append(" tasks]\n");
-    var sorted = members.stream().sorted(Comparator.comparing(this::sigKey)).toList();
+    var sorted = members.stream().sorted(SpanId.CONCURRENT_ORDER).toList();
     for (var member : sorted) {
-      renderConcurrentMember(member, contPrefix + "│   ", analysis.isSequentialAsync(), sb);
+      renderConcurrentMember(
+          member, contPrefix + "│   ", ids.next(), analysis.isSequentialAsync(), sb);
     }
     long wallMs = members.stream().mapToLong(TraceNode::durationNanos).max().orElse(0) / 1_000_000;
     sb.append(contPrefix).append("├── ⑃ join — ").append(wallMs).append("ms\n");
@@ -259,14 +279,14 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
   }
 
   private void renderConcurrentMember(
-      TraceNode node, String contPrefix, boolean sequentialAsync, StringBuilder sb) {
+      TraceNode node, String contPrefix, String id, boolean sequentialAsync, StringBuilder sb) {
     var sig = node.signature();
     var params = sig.parameters().stream().map(this::renderParam).collect(Collectors.joining(", "));
     var header = signatureText(sig) + "(" + params + ")";
     sb.append(contPrefix).append("├── ↦ ").append(header);
     renderOutcomeInline(node.outcome(), sig, sb);
     renderDuration(node, sb);
-    sb.append("\n");
+    sb.append(' ').append(id).append("\n");
     if (node.concurrency() != null) {
       sb.append(contPrefix).append("│       [thread: ").append(node.concurrency().threadName());
       if (sequentialAsync) {
@@ -285,10 +305,6 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
         .append("ms, parallelizable to ~")
         .append(analysis.parallelizableMillis())
         .append("ms\n");
-  }
-
-  private String sigKey(TraceNode node) {
-    return signatureText(node.signature());
   }
 
   private void renderOutcomeInline(TraceOutcome outcome, MethodSignature sig, StringBuilder sb) {

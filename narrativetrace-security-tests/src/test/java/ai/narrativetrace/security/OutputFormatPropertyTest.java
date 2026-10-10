@@ -70,6 +70,12 @@ class OutputFormatPropertyTest {
                       // JSON scenario name (2026-09-08 audit, findings 1 and 2).
                       assertWellFormed(
                           Emitters.renderers(asCapturedValue(hostile), hostile.value()));
+                      // The fourth route: the same text as the class, method and parameter
+                      // names. The fuzz target had it since 2026-09-02; the corpus replay did not,
+                      // which is how a mid-string U+2029 in a participant name reached the nightly
+                      // before any commit-time check (2026-10-10).
+                      assertWellFormed(
+                          Emitters.renderers(Emitters.treeWithHostileMetadata(hostile.value())));
                     }))
         .toList();
   }

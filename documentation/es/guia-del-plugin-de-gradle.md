@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob b243747ec49c | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 03b2eb50d3ce | translated: 2026-10-09 | reviewed: - -->
 # Guía del plugin de Gradle de NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | **Español** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,13 +25,13 @@ El plugin de Gradle `ai.narrativetrace` es la forma recomendada de usar Narrativ
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
 Eso es todo. Ejecuta `./gradlew test` y la salida de trazas aparece en `build/narrativetrace/`.
 
-No hace falta añadir ninguna dependencia de JUnit. Con el valor por defecto `testFramework = "junit5"`, el plugin cambia la tarea de test a la JUnit Platform *y* pone el motor de Jupiter (`org.junit.jupiter:junit-jupiter-engine`, fijado a la versión contra la que se prueba NarrativeTrace) en `testRuntimeOnly`, porque la plataforma se niega a arrancar sin uno. Declarar tu propia versión de JUnit sigue funcionando: la resolución de conflictos de Gradle escoge la mayor de las dos.
+No hace falta añadir ninguna dependencia de JUnit. Con el valor por defecto `testFramework = "junit5"`, el plugin cambia la tarea de test a la JUnit Platform *y* pone el motor de Jupiter (`org.junit.jupiter:junit-jupiter-engine`, fijado a la versión contra la que se prueba NarrativeTrace) en `testRuntimeOnly`, porque la plataforma se niega a arrancar sin uno. Declarar tu propia versión de JUnit sigue funcionando: la fijación es un mínimo (una restricción de versión, no una versión directa), así que la resolución de conflictos de Gradle —o un BOM como el de Spring Boot— escoge la mayor de las dos, motor y API a la vez.
 
 ## Qué hace el plugin automáticamente
 
@@ -307,7 +307,7 @@ Acepta los cambios estructurales intencionados en el [modo de aprobación](#appr
 
 ### `narrativetraceDoctor`
 
-Ejecuta las doce comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
+Ejecuta las veinte comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
 — las mismas que ejecuta el verbo `doctor` del lanzador independiente. Escribe
 `build/narrativetrace/doctor-report.json` e imprime el informe legible.
 
@@ -421,7 +421,7 @@ Cuando se define, todas las dependencias de NarrativeTrace gestionadas se resuel
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 ```
 
@@ -557,7 +557,7 @@ Todos los ejemplos anteriores usan el DSL de Kotlin. El equivalente en Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.2.5'
+    id 'ai.narrativetrace' version '0.3.0'
 }
 
 narrativeTrace {

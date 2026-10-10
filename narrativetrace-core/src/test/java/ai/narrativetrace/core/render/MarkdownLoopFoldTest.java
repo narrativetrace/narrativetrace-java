@@ -143,6 +143,22 @@ class MarkdownLoopFoldTest {
   }
 
   @Test
+  void aFoldLineNamesFoldedIterationsByTheirSpanIdsAndEndsWithTheRangeItStandsFor() {
+    var result = render(List.of(leafMs("\"a\"", 0), leafMs("\"b\"", 0), leafMs("\"a\"", 0)));
+
+    assertThat(result)
+        .contains("  - **Ledger.record**(note: `\"a\"`) → `\"ok\"` #1.1\n")
+        .contains("  - ×2 more: #1.2 note=`\"b\"` #1.2–#1.3");
+  }
+
+  @Test
+  void aSingleFoldedIterationEndsWithItsOwnSpanId() {
+    var result = render(List.of(leafMs("\"a\"", 0), leafMs("\"a\"", 0)));
+
+    assertThat(result).contains("  - ×1 more (identical) #1.2");
+  }
+
+  @Test
   void siblingsDifferingOnlyByValueFoldTogetherWithLabels() {
     // Compress proven (structural) sameness, amplify difference: same shape, different value → one
     // run. A bare string has no identity object to mint a ‹label› from, so the fold line names the
@@ -150,7 +166,7 @@ class MarkdownLoopFoldTest {
     // which iteration was folded away (2026-09-08 agent evaluation).
     var result = render(List.of(leafMs("\"a\"", 0), leafMs("\"b\"", 0), leafMs("\"a\"", 0)));
 
-    assertThat(result).contains("×2 more: #2 note=`\"b\"`");
+    assertThat(result).contains("×2 more: #1.2 note=`\"b\"`");
   }
 
   /**
@@ -165,7 +181,7 @@ class MarkdownLoopFoldTest {
                 leaf("CatalogService", "findEquipment", "sku", "\"KAYAK\""),
                 leaf("CatalogService", "findEquipment", "sku", "\"TENT\"")));
 
-    assertThat(result).contains("×1 more: #2 sku=`\"TENT\"`");
+    assertThat(result).contains("×1 more: #1.2 sku=`\"TENT\"`");
   }
 
   @Test
@@ -176,7 +192,7 @@ class MarkdownLoopFoldTest {
                 leaf("Svc", "run", "note", "\"" + "x".repeat(80) + "\""),
                 leaf("Svc", "run", "note", "\"" + "y".repeat(80) + "\"")));
 
-    assertThat(result).contains("×1 more: #2 note=`\"" + "y".repeat(31) + "…`");
+    assertThat(result).contains("×1 more: #1.2 note=`\"" + "y".repeat(31) + "…`");
   }
 
   @Test
@@ -280,7 +296,7 @@ class MarkdownLoopFoldTest {
 
     var result = render(List.of(iter.apply("\"x\""), iter.apply("\"y\"")));
 
-    assertThat(result).contains("×1 more: #2 — same flow (step ✓)");
+    assertThat(result).contains("×1 more: #1.2 — same flow (step ✓)");
   }
 
   @Test
@@ -299,7 +315,7 @@ class MarkdownLoopFoldTest {
     var result = render(List.of(a, b));
 
     // Same shape, same (absent) params, only the return value differs → not "(identical)".
-    assertThat(result).contains("×1 more: #2");
+    assertThat(result).contains("×1 more: #1.2");
   }
 
   @Test
@@ -314,7 +330,7 @@ class MarkdownLoopFoldTest {
 
     var result = render(List.of(iter.apply("first"), iter.apply("second")));
 
-    assertThat(result).contains("×1 more: #2 — same flow (step !)");
+    assertThat(result).contains("×1 more: #1.2 — same flow (step !)");
   }
 
   @Test

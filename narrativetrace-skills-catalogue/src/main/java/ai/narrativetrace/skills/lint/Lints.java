@@ -239,6 +239,50 @@ public final class Lints {
     }
   }
 
+  /**
+   * The only tools a skill that promotes an approval baseline may pre-approve: read-only discovery.
+   */
+  public static final List<String> PROMOTING_SKILL_ALLOWANCE = List.of("find");
+
+  /** Commands that write a committed approval baseline on the user's behalf. */
+  private static final List<Pattern> PROMOTING_COMMANDS =
+      List.of(Pattern.compile("\\bapproveNarratives\\b"));
+
+  /**
+   * A skill whose steps write into the project on the user's yes — promoting an approval baseline —
+   * declares no allowed tool beyond {@link #PROMOTING_SKILL_ALLOWANCE}.
+   *
+   * <p>INTENT: the same reason as {@link #publishingNotPreApproved}, for a different durable act.
+   * The promotion runs through the build wrapper, so a skill that pre-approved {@code ./gradlew}
+   * would pre-approve its own promotion — and {@code git} could commit the result — in the very
+   * turn the gate says must stop and ask. Read-only discovery is all such a skill may skip asking
+   * for.
+   */
+  public static List<String> promotionNotPreApproved(List<Skill> skills) {
+    List<String> violations = new ArrayList<>();
+    for (Skill skill : skills) {
+      if (skill.commandStrings().stream().anyMatch(Lints::promotes)) {
+        for (String tool : skill.allowedTools()) {
+          if (!PROMOTING_SKILL_ALLOWANCE.contains(tool)) {
+            violations.add(
+                skill.canonicalName()
+                    + ": promotes an approval baseline yet declares allowed tool \""
+                    + tool
+                    + "\", beyond the allowance "
+                    + PROMOTING_SKILL_ALLOWANCE
+                    + " — a skill that writes into the project on the user's yes must let the"
+                    + " harness ask");
+          }
+        }
+      }
+    }
+    return List.copyOf(violations);
+  }
+
+  private static boolean promotes(String command) {
+    return PROMOTING_COMMANDS.stream().anyMatch(pattern -> pattern.matcher(command).find());
+  }
+
   /** Citation-shaped text in a skill's own prose fields — rationales stay, citations go. */
   public static List<String> citationViolations(List<Skill> skills) {
     List<String> violations = new ArrayList<>();
@@ -263,6 +307,7 @@ public final class Lints {
       prose.add(step.title());
       step.verifyOptional().ifPresent(prose::add);
       step.flagOptional().ifPresent(prose::add);
+      step.conditionOptional().ifPresent(prose::add);
       step.failure()
           .forEach(
               f -> {

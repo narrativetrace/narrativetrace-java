@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.narrativetrace.tooling.doctor.DoctorSnapshot;
 import ai.narrativetrace.tooling.doctor.Finding;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SilentSinkCheckTest {
 
@@ -77,5 +79,44 @@ class SilentSinkCheckTest {
             .putSystemProperty("narrativetrace.output", "false")
             .build();
     assertThat(check.run(s).isFailing()).isTrue();
+  }
+
+  /**
+   * This check is the framework table's default-logger row: its fix carries that row's dependency
+   * lines, rendered from the table and pinned to the version the project declares (the healthy
+   * project's 0.2.2), never typed into the message.
+   */
+  @Test
+  void theFixCarriesTheDefaultLoggerRowsDependencyLines() {
+    DoctorSnapshot s =
+        DoctorSnapshot.healthy().toBuilder()
+            .putGradleProperty("narrativetrace.output", "false")
+            .build();
+    assertThat(check.run(s).fix())
+        .contains("runtimeOnly(\"ai.narrativetrace:narrativetrace-slf4j:0.2.2\")")
+        .contains("runtimeOnly(\"ch.qos.logback:logback-classic:1.5.38\")")
+        .contains("narrativeTrace { modules { slf4j.set(true) } }");
+  }
+
+  /**
+   * The fix this check prints offers the plugin setting; a project that applied it has its sink.
+   * Every sink row of the framework table counts, in plugin form, without a version, or in a
+   * module's own build file.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "narrativeTrace { modules { slf4j.set(true) } }",
+        "narrativeTrace { modules { opentelemetry = true } }",
+        "narrativeTrace { modules { micrometer.set(true) } }",
+        "runtimeOnly(\"ai.narrativetrace:narrativetrace-slf4j\")",
+      })
+  void aSinkThePluginOrAVersionlessLineAddsCounts(String manifest) {
+    DoctorSnapshot s =
+        DoctorSnapshot.healthy().toBuilder()
+            .putGradleProperty("narrativetrace.output", "false")
+            .putManifestFile("app/build.gradle.kts", manifest)
+            .build();
+    assertThat(check.run(s).isFailing()).as(manifest).isFalse();
   }
 }

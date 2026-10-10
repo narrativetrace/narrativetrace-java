@@ -182,7 +182,12 @@ public class NarrativeTracePlugin implements Plugin<Project> {
 
     var deps = project.getDependencies();
     for (var dep : resolved) {
-      deps.add(dep.configuration(), dep.artifact());
+      if (dep.floor()) {
+        deps.add(dep.configuration(), dep.module());
+        deps.getConstraints().add(dep.configuration(), dep.artifact());
+      } else {
+        deps.add(dep.configuration(), dep.artifact());
+      }
     }
   }
 
@@ -329,12 +334,12 @@ public class NarrativeTracePlugin implements Plugin<Project> {
   /**
    * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
    * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free
-   * tooling library's twelve doctor checks against this project, in-process, and writes the JSON
+   * tooling library's twenty doctor checks against this project, in-process, and writes the JSON
    * report to the extension's own output directory. Not gated on {@code enabled}: diagnosing a
    * misconfigured install is exactly the case where the plugin's own tracing behaviour should not
    * stand in the way.
    *
-   * <p>It takes the same carrier the installer tasks take, because one of the twelve checks reports
+   * <p>It takes the same carrier the installer tasks take, because one of the twenty checks reports
    * on the agent skills this project has installed — and reads it leniently, so a build with no
    * repository for it still gets a diagnosis.
    */

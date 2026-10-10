@@ -19,7 +19,9 @@ public final class CatalogueIndex {
           NarrativeTraceDoctorSkill.build(),
           AddNarrativeTracingSkill.build(),
           AddNarrativeTraceClaritySkill.build(),
-          NarrativeTraceFeedbackSkill.build());
+          NarrativeTraceFeedbackSkill.build(),
+          NarrativeTraceVerifySkill.build(),
+          NarrativeTraceDebugSkill.build());
 
   /**
    * How this repository presents {@link #ALL} to a plugin marketplace. One listing, whose name is
@@ -27,7 +29,7 @@ public final class CatalogueIndex {
    * a marketplace name is unique per user, and every runtime in the family ships skills under the
    * same canonical names.
    *
-   * <p>The plugin's source is the rendered pages' own directory, so the plugin carries the four
+   * <p>The plugin's source is the rendered pages' own directory, so the plugin carries the six
    * skill pages and nothing else of this repository.
    */
   public static final MarketplaceListing MARKETPLACE =
@@ -36,7 +38,9 @@ public final class CatalogueIndex {
           new MarketplaceListing.Owner("NarrativeTrace", "https://narrativetrace.ai"),
           "The NarrativeTrace agent skills for Java.",
           "Install NarrativeTrace in a Java project and reach a first trace, diagnose an install"
-              + " that traces nothing, add or verify a Clarity naming report, and report a defect"
+              + " that traces nothing, add or verify a Clarity naming report, verify a change by"
+              + " reading what its code actually did and pin it as an approval baseline, find the"
+              + " cause of a wrong result by reading the values at each span, and report a defect"
               + " in NarrativeTrace itself with your approval.",
           "./.claude",
           "Apache-2.0",

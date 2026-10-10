@@ -1431,7 +1431,49 @@ class NarrativeTracePluginFunctionalTest {
     var result = runGradle(projectDir, "listRuntimeDeps");
 
     assertThat(result.getOutput())
-        .contains("RUNTIME_DEP: org.junit.jupiter:junit-jupiter-engine:5.11.4");
+        .contains("RUNTIME_DEP: org.junit.jupiter:junit-jupiter-engine:null")
+        .contains("RUNTIME_FLOOR: org.junit.jupiter:junit-jupiter-engine:5.11.4");
+  }
+
+  /**
+   * Spring Boot's io.spring.dependency-management plugin lets a directly declared version override
+   * its managed one. A pinned {@code junit-jupiter-engine:5.11.4} beside a BOM-managed {@code
+   * junit-jupiter-api:5.12.2} split the pair and the test task discovered nothing — found building
+   * the Spring Boot Tier B case. Declared as a floor, the managed version wins for both.
+   */
+  @Test
+  void aBomManagedJunitIsNotDowngradedByThePluginsFloor(@TempDir Path projectDir)
+      throws IOException {
+    Files.writeString(
+        projectDir.resolve("settings.gradle.kts"), "rootProject.name = \"test-project\"");
+    Files.writeString(
+        projectDir.resolve("build.gradle.kts"),
+        "plugins {\n"
+            + "    java\n"
+            + "    id(\"io.spring.dependency-management\") version \"1.1.7\"\n"
+            + "    id(\"ai.narrativetrace\")\n"
+            + "}\n"
+            + "repositories { mavenCentral() }\n"
+            + "configurations.all { exclude(group = \"ai.narrativetrace\") }\n"
+            + "dependencyManagement { imports { mavenBom(\"org.junit:junit-bom:5.12.2\") } }\n"
+            + "dependencies { testImplementation(\"org.junit.jupiter:junit-jupiter-api\") }\n"
+            + "tasks.register(\"resolvedJunit\") {\n"
+            + "    doLast {\n"
+            + "        configurations.getByName(\"testRuntimeClasspath\").resolvedConfiguration\n"
+            + "            .resolvedArtifacts.map { it.moduleVersion.id }\n"
+            + "            .filter { it.group.startsWith(\"org.junit\") }\n"
+            + "            .forEach { println(\"RESOLVED: \" + it.name + \":\" + it.version) }\n"
+            + "    }\n"
+            + "}\n");
+
+    var result = runGradle(projectDir, "resolvedJunit");
+
+    assertThat(result.getOutput())
+        .contains("RESOLVED: junit-jupiter-api:5.12.2")
+        .contains("RESOLVED: junit-jupiter-engine:5.12.2")
+        .contains("RESOLVED: junit-platform-launcher:1.12.2")
+        .doesNotContain("5.11.4")
+        .doesNotContain("1.11.4");
   }
 
   /**
@@ -1450,7 +1492,8 @@ class NarrativeTracePluginFunctionalTest {
     var result = runGradle(projectDir, "listRuntimeDeps");
 
     assertThat(result.getOutput())
-        .contains("RUNTIME_DEP: org.junit.platform:junit-platform-launcher:1.11.4");
+        .contains("RUNTIME_DEP: org.junit.platform:junit-platform-launcher:null")
+        .contains("RUNTIME_FLOOR: org.junit.platform:junit-platform-launcher:1.11.4");
   }
 
   @Test
@@ -1472,6 +1515,10 @@ class NarrativeTracePluginFunctionalTest {
         + "    doLast {\n"
         + "        configurations.getByName(\"testRuntimeOnly\").dependencies.forEach {\n"
         + "            println(\"RUNTIME_DEP: \" + it.group + \":\" + it.name + \":\" +"
+        + " it.version)\n"
+        + "        }\n"
+        + "        configurations.getByName(\"testRuntimeOnly\").dependencyConstraints.forEach {\n"
+        + "            println(\"RUNTIME_FLOOR: \" + it.group + \":\" + it.name + \":\" +"
         + " it.version)\n"
         + "        }\n"
         + "    }\n"

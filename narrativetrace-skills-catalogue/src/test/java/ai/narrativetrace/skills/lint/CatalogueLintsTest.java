@@ -62,6 +62,11 @@ class CatalogueLintsTest {
   }
 
   @Test
+  void noSkillPreApprovesItsOwnPromotion() {
+    assertThat(Lints.promotionNotPreApproved(SKILLS)).isEmpty();
+  }
+
+  @Test
   void everyNonJudgmentalStepCarriesVerifyOrFlag() {
     assertThat(Lints.stepsWithoutVerifyOrFlag(SKILLS)).isEmpty();
   }

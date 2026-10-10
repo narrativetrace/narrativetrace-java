@@ -16,6 +16,10 @@ import java.util.Optional;
  * section are both rendered from, never hand-edited. Mirrors the TypeScript reference's {@code
  * packages/skills/src/skill.ts} shape, adapted to Java's closed command vocabulary and the free
  * repo's own conventions.
+ *
+ * <p>{@code sections} are reference blocks rendered after the steps and before the always/never
+ * rules — the place for text two skills share verbatim (one {@link SkillSection} constant, rendered
+ * into both pages), never for instructions a step should carry.
  */
 public record Skill(
     String canonicalName,
@@ -26,7 +30,8 @@ public record Skill(
     List<SkillStep> steps,
     List<ReasonedRule> always,
     List<ReasonedRule> never,
-    List<String> allowedTools) {
+    List<String> allowedTools,
+    List<SkillSection> sections) {
 
   /** Catalogue-wide description budget is a Tier A lint; this is the per-skill share of it. */
   public static final int DESCRIPTION_BUDGET_CHARS = 1024;
@@ -51,6 +56,31 @@ public record Skill(
     always = List.copyOf(always);
     never = List.copyOf(never);
     allowedTools = List.copyOf(allowedTools);
+    sections = List.copyOf(sections);
+  }
+
+  /** A skill with no reference sections — every skill that only has steps and rules. */
+  public Skill(
+      String canonicalName,
+      SkillClass skillClass,
+      String description,
+      String whenToUse,
+      String fixture,
+      List<SkillStep> steps,
+      List<ReasonedRule> always,
+      List<ReasonedRule> never,
+      List<String> allowedTools) {
+    this(
+        canonicalName,
+        skillClass,
+        description,
+        whenToUse,
+        fixture,
+        steps,
+        always,
+        never,
+        allowedTools,
+        List.of());
   }
 
   public Optional<String> whenToUseOptional() {

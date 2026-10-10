@@ -51,9 +51,7 @@ public final class MermaidSequenceDiagramRenderer implements NarrativeRenderer {
       sb.append(grammar.participant(DiagramLabel.plainToken(participant)));
     }
 
-    for (var root : tree.roots()) {
-      SequenceWalk.render(root, grammar, DiagramLabel::plainToken, sb);
-    }
+    SequenceWalk.renderAll(tree.roots(), grammar, DiagramLabel::plainToken, sb);
 
     sb.append(grammar.footer());
     return sb.toString().stripTrailing() + LossFooter.block(tree, "%% ");
@@ -80,9 +78,7 @@ public final class MermaidSequenceDiagramRenderer implements NarrativeRenderer {
       sb.append(grammar.participant(aliasLabel.aliasedAs(displayLabel)));
     }
 
-    for (var root : tree.roots()) {
-      SequenceWalk.render(root, grammar, aliases::get, sb);
-    }
+    SequenceWalk.renderAll(tree.roots(), grammar, aliases::get, sb);
 
     sb.append(grammar.footer());
     return sb.toString().stripTrailing() + LossFooter.block(tree, "%% ");

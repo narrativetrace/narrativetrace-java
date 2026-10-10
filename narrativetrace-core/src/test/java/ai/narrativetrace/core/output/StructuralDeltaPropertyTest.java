@@ -9,6 +9,7 @@ package ai.narrativetrace.core.output;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.narrativetrace.core.render.SpanId;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.jqwik.api.Arbitraries;
@@ -21,8 +22,9 @@ import net.jqwik.api.Provide;
 
 /**
  * Invariants of the structural delta over arbitrary LF documents (the {@code .nt} spec is LF-only):
- * a document never differs from itself, unchanged is exactly byte equality, the diff faithfully
- * reconstructs both sides, and a change never yields an empty summary.
+ * a document never differs from itself, unchanged is line equality once span ids are set aside (an
+ * id is derived from position, so a baseline written before ids existed still compares), the diff
+ * faithfully reconstructs both sides, and a change never yields an empty summary.
  */
 class StructuralDeltaPropertyTest {
 
@@ -36,29 +38,66 @@ class StructuralDeltaPropertyTest {
   }
 
   @Property
-  void unchangedIsExactlyByteEquality(
+  void unchangedIsLineEqualityOnceSpanIdsAreSetAside(
       @ForAll @From("documents") String baseline, @ForAll @From("documents") String current) {
     assertThat(StructuralDelta.between(baseline, current).unchanged())
-        .isEqualTo(baseline.equals(current));
+        .isEqualTo(
+            StructuralDelta.withoutIds(baseline).equals(StructuralDelta.withoutIds(current)));
+  }
+
+  @Property
+  void spanIdsAloneNeverMakeAChange(
+      @ForAll @From("documents") String document, @ForAll("ids") List<String> ids) {
+    var lines = document.split("\n", -1);
+    var real = document.endsWith("\n") ? lines.length - 1 : lines.length;
+    for (var i = 0; i < real && i < ids.size(); i++) {
+      var indent = 0;
+      while (indent < lines[i].length() && lines[i].charAt(indent) == ' ') {
+        indent++;
+      }
+      lines[i] = lines[i].substring(0, indent) + ids.get(i) + " " + lines[i].substring(indent);
+    }
+
+    assertThat(StructuralDelta.between(document, String.join("\n", lines)).unchanged()).isTrue();
+  }
+
+  @Provide
+  Arbitrary<List<String>> ids() {
+    return Arbitraries.integers()
+        .between(1, 99)
+        .list()
+        .ofMinSize(1)
+        .ofMaxSize(4)
+        .map(path -> "#" + path.stream().map(String::valueOf).collect(Collectors.joining(".")))
+        .list()
+        .ofMaxSize(10);
   }
 
   @Property
   void diffReconstructsBothDocuments(
       @ForAll @From("documents") String baseline, @ForAll @From("documents") String current) {
-    Assume.that(!baseline.equals(current));
+    Assume.that(!StructuralDelta.between(baseline, current).unchanged());
 
     var diff = StructuralDelta.between(baseline, current).diff();
 
-    assertThat(diffLines(diff, ' ', '-')).isEqualTo(baseline.lines().toList());
-    assertThat(diffLines(diff, ' ', '+')).isEqualTo(current.lines().toList());
+    assertThat(diffLines(diff, ' ', '-').stream().map(SpanId::strip).toList())
+        .isEqualTo(baseline.lines().map(SpanId::strip).toList());
+    assertThat(diffLines(diff, ' ', '+').stream().map(StructuralDeltaPropertyTest::unannotated))
+        .isEqualTo(current.lines().toList());
   }
 
   @Property
   void aChangeNeverSummarizesAsNothing(
       @ForAll @From("documents") String baseline, @ForAll @From("documents") String current) {
-    Assume.that(!baseline.equals(current));
+    Assume.that(!StructuralDelta.between(baseline, current).unchanged());
 
     assertThat(StructuralDelta.between(baseline, current).summary()).isNotEmpty();
+  }
+
+  /** A context line without the {@code (was #id)} note the diff adds when a span id shifted. */
+  private static String unannotated(String line) {
+    var note = line.lastIndexOf("  (was #");
+    return note < 0 ? line : line.substring(0, note);
   }
 
   private static List<String> diffLines(String diff, char keep, char alsoKeep) {

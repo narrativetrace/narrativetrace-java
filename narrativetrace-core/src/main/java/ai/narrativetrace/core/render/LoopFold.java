@@ -31,7 +31,7 @@ import java.util.List;
  * <p><b>@llmNote</b> Item 18 (intra-trace value deltas) met folding here: when a folded iteration
  * is a changed re-capture of a value the document already defines in full, it is named by its diff
  * ({@code ‹Dinner›′{currency: "USD"→"EUR"}}) rather than by a bare label the reader cannot resolve.
- * Everything else still resolves to a label, or to a positional {@code #n}.
+ * Everything else still resolves to a label, or to the folded iteration's span id ({@code #1.3}).
  */
 final class LoopFold {
 
@@ -57,12 +57,15 @@ final class LoopFold {
    *
    * @param first the first iteration of the run, rendered in full elsewhere
    * @param folded the remaining, folded-away iterations (never empty)
+   * @param foldedIds the span id of each folded iteration, index for index — how a label names an
+   *     iteration it cannot name by an identity
    * @param refs the pass-wide reference index, so labels minted here match later {@code ‹ref›} uses
    */
-  static String summaryLine(TraceNode first, List<TraceNode> folded, ValueReferenceIndex refs) {
+  static String summaryLine(
+      TraceNode first, List<TraceNode> folded, List<String> foldedIds, ValueReferenceIndex refs) {
     var sb = new StringBuilder();
     sb.append("×").append(folded.size()).append(" more");
-    var labels = labels(first, folded, refs);
+    var labels = labels(first, folded, foldedIds, refs);
     if (labels.isEmpty()) {
       sb.append(" (identical)");
     } else {
@@ -74,10 +77,10 @@ final class LoopFold {
   }
 
   private static List<String> labels(
-      TraceNode first, List<TraceNode> folded, ValueReferenceIndex refs) {
+      TraceNode first, List<TraceNode> folded, List<String> foldedIds, ValueReferenceIndex refs) {
     var labels = new ArrayList<String>();
     for (var i = 0; i < folded.size(); i++) {
-      var label = label(first, folded.get(i), i + 2, refs);
+      var label = label(first, folded.get(i), foldedIds.get(i), refs);
       if (label != null) {
         labels.add(label);
       }
@@ -93,41 +96,41 @@ final class LoopFold {
    * Names one folded iteration by the first root argument whose rendered bytes differ from the
    * first iteration's — as a diff when the document already defines that entity, otherwise through
    * the identity ladder; {@code null} when the iteration is value-identical to the first (nothing
-   * to distinguish), a positional {@code #n} when only a deeper value differs.
+   * to distinguish), its span id when only a deeper value differs.
    */
   private static String label(
-      TraceNode first, TraceNode node, int position, ValueReferenceIndex refs) {
+      TraceNode first, TraceNode node, String spanId, ValueReferenceIndex refs) {
     var firstParams = first.signature().parameters();
     var params = node.signature().parameters();
     for (var i = 0; i < params.size(); i++) {
       var p = params.get(i);
       if (!p.redacted() && !p.renderedValue().equals(firstParams.get(i).renderedValue())) {
         var label = refs.foldDisplay(p.renderedValue(), p.structuredValue());
-        return label != null ? label : namedValue(position, p);
+        return label != null ? label : namedValue(spanId, p);
       }
     }
-    return valueKey(first).equals(valueKey(node)) ? null : "#" + position;
+    return valueKey(first).equals(valueKey(node)) ? null : spanId;
   }
 
   /**
-   * A folded iteration named by the argument that distinguishes it, beside the position that
-   * locates it: {@code #2 sku=`"TENT"`}.
+   * A folded iteration named by the argument that distinguishes it, beside the span id that locates
+   * it: {@code #1.2 sku=`"TENT"`}.
    *
    * <p>INTENT: The identity ladder mints a {@code ‹label›} only from a structured value with an
    * identity field, and a loop's distinguishing argument is very often a plain scalar — a SKU, an
    * id, an amount. Those fell through to a bare {@code #2}, which named the iteration without
    * saying anything about it: two catalog lookups with different SKUs and prices rendered as the
    * first lookup plus {@code ×1 more: #2}, and the second SKU was unrecoverable from the artifact
-   * (2026-09-08 agent evaluation). The position stays because it is what lets a reader find the
-   * same iteration in the JSON artifact or in an unfolded render.
+   * (2026-09-08 agent evaluation). The span id stays because it is what lets a reader find the same
+   * iteration in an unfolded render or any other flavour of the trace — every flavour prints the
+   * same id for the same span.
    *
    * <p><b>@edgeCase</b> The value is caller-influenced text going into a Markdown line, so it is
    * escaped through the same code-span sink every other rendered value uses, and elided at {@link
    * #MAX_VALUE_LENGTH} so one long argument cannot swallow the line.
    */
-  private static String namedValue(int position, ParameterCapture parameter) {
-    return "#"
-        + position
+  private static String namedValue(String spanId, ParameterCapture parameter) {
+    return spanId
         + " "
         + MarkdownEscape.text(parameter.name())
         + "="
@@ -194,7 +197,7 @@ final class LoopFold {
    * children recursively. Durations, timestamps, and thread identity are excluded, so two
    * iterations that carry the same data are "identical" even if they took different wall-clock
    * times. Distinct from {@code StructuralTraceRenderer.subtreeKey} (the value-free fold oracle) —
-   * this finer key only decides {@code (identical)} versus a positional label.
+   * this finer key only decides {@code (identical)} versus a span-id label.
    *
    * <p>Redacted parameters are keyed by a constant marker rather than their captured value, so a
    * removed value can never re-enter the key. This is defensive only: {@code @NotTraced} is a

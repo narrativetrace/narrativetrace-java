@@ -24,6 +24,8 @@ import ai.narrativetrace.tooling.init.InstalledSkill;
 import ai.narrativetrace.tooling.init.SkillFlavour;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class DoctorSnapshotTest {
 
@@ -238,5 +240,58 @@ class DoctorSnapshotTest {
     assertThat(copy.gradleProperties()).isEqualTo(original.gradleProperties());
     assertThat(copy.outputFiles()).isEqualTo(original.outputFiles());
     assertThat(copy.approvalDirFiles()).isEqualTo(original.approvalDirFiles());
+  }
+
+  /** A commented-out dependency is not a dependency, in Kotlin/Groovy DSL or a TOML catalog. */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "// implementation(\"ai.narrativetrace:narrativetrace-spring:0.2.2\")",
+        "  # spring = \"ai.narrativetrace:narrativetrace-spring:0.2.2\"",
+        "/* implementation(\"ai.narrativetrace:narrativetrace-spring:0.2.2\")",
+        " * implementation(\"ai.narrativetrace:narrativetrace-spring:0.2.2\")",
+      })
+  void aCommentOnlyLineIsNotPartOfTheManifestText(String line) {
+    DoctorSnapshot s = DoctorSnapshot.builder().buildFileContent(line).build();
+    assertThat(s.manifestText()).doesNotContain("narrativetrace-spring");
+  }
+
+  /**
+   * A version catalog may spell a library as {@code group}/{@code name} instead of one {@code
+   * module} string; the manifest text carries it as the quoted coordinate the markers match.
+   */
+  @Test
+  void aCatalogGroupAndNameEntryReadsAsItsCoordinate() {
+    DoctorSnapshot s =
+        DoctorSnapshot.builder()
+            .putManifestFile(
+                "gradle/libs.versions.toml",
+                "spring-context = { group = \"org.springframework\", name = \"spring-context\","
+                    + " version = \"6.2.19\" }\n")
+            .build();
+    assertThat(s.manifestText()).contains("\"org.springframework:spring-context\"");
+  }
+
+  @Test
+  void theNarrativeTraceVersionIsReadFromACatalogPluginEntry() {
+    DoctorSnapshot s =
+        DoctorSnapshot.builder()
+            .putManifestFile(
+                "gradle/libs.versions.toml",
+                "[plugins]\nnarrativetrace = { id = \"ai.narrativetrace\", version = \"0.2.2\" }\n")
+            .build();
+    assertThat(s.narrativeTraceVersion()).contains("0.2.2");
+  }
+
+  @Test
+  void toBuilderKeepsTheManifestAndResourceFiles() {
+    DoctorSnapshot original =
+        DoctorSnapshot.builder()
+            .putManifestFile("app/build.gradle.kts", "m")
+            .putResourceFile("src/main/resources/application.yml", "r")
+            .build();
+    DoctorSnapshot copy = original.toBuilder().build();
+    assertThat(copy.manifestFiles()).isEqualTo(original.manifestFiles());
+    assertThat(copy.resourceFiles()).isEqualTo(original.resourceFiles());
   }
 }

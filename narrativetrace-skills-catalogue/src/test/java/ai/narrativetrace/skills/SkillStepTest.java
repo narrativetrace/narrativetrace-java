@@ -48,6 +48,15 @@ class SkillStepTest {
   }
 
   @Test
+  void conditionDefaultsToAbsentAndRejectsBlank() {
+    assertThat(new SkillStep("t", EMPTY_COMMANDS, "v").conditionOptional()).isEmpty();
+    assertThat(new SkillStep("t", EMPTY_COMMANDS, "v", List.of(), null, "if x").conditionOptional())
+        .contains("if x");
+    assertThatThrownBy(() -> new SkillStep("t", EMPTY_COMMANDS, "v", List.of(), null, " "))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void hasReplayableVerifyIsTrueOnlyForAVocabularyCommand() {
     var replayable = new SkillStep("t", EMPTY_COMMANDS, "git status");
     assertThat(replayable.hasReplayableVerify()).isTrue();

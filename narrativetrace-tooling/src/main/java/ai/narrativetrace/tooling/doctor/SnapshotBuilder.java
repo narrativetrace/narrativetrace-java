@@ -57,6 +57,26 @@ public final class SnapshotBuilder {
   private static final int DEFAULT_MAX_FILES = 20_000;
 
   /**
+   * Build manifests the framework table's markers are read from, wherever they sit — a module's own
+   * build file declares the framework the module uses. The ROOT build file is read on its own, as
+   * {@link DoctorSnapshot#buildFileContent()}, and is not repeated here.
+   */
+  private static final Set<String> MANIFEST_NAMES =
+      Set.of(
+          "build.gradle.kts",
+          "build.gradle",
+          "settings.gradle.kts",
+          "settings.gradle",
+          "libs.versions.toml");
+
+  /** The root build files, already read whole as {@link DoctorSnapshot#buildFileContent()}. */
+  private static final Set<String> ROOT_BUILD_FILES = Set.of("build.gradle.kts", "build.gradle");
+
+  /** Non-Java files under {@code src/} that framework wiring is written in. */
+  private static final Set<String> RESOURCE_EXTENSIONS =
+      Set.of(".kt", ".groovy", ".yml", ".yaml", ".properties", ".xml");
+
+  /**
    * The doctor's OWN report, which sits in the same directory as the rendered output it reports on
    * and is not rendered output. Excluded by name, in whichever directory {@code outputDir} points
    * at: every report carries {@code arg0} inside the very messages that discuss {@code arg0}-style
@@ -234,6 +254,7 @@ public final class SnapshotBuilder {
               String content = readTextOrEmpty(file);
               if (!content.isEmpty()) {
                 classifyFile(rel, name, content, builder, extendWithFound, autodetectionEnabled);
+                classifyFrameworkFile(rel, name, content, builder);
               }
               return FileVisitResult.CONTINUE;
             }
@@ -244,6 +265,47 @@ public final class SnapshotBuilder {
     }
     builder.extensionRegisteredViaExtendWith(extendWithFound[0]);
     return autodetectionEnabled[0];
+  }
+
+  /**
+   * Records the files the framework checks read on top of what {@link #classifyFile} buckets: every
+   * non-root manifest, and every non-Java source or configuration file under a {@code src}
+   * directory. Anything under a {@code build} directory is build output, never either.
+   */
+  private static void classifyFrameworkFile(
+      String rel, String name, String content, DoctorSnapshot.Builder builder) {
+    if (isBuildOutput(rel)) {
+      return;
+    }
+    if (MANIFEST_NAMES.contains(name) && !ROOT_BUILD_FILES.contains(rel)) {
+      builder.putManifestFile(rel, content);
+    } else if (underSegment(rel, "src") && RESOURCE_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+      builder.putResourceFile(rel, content);
+    }
+  }
+
+  /**
+   * Whether a path lies under a {@code build} directory that is not itself inside a source tree:
+   * {@code app/build/generated/src/…} is Gradle output, {@code src/main/resources/build/…} is a
+   * resource directory that happens to be called {@code build}.
+   */
+  private static boolean isBuildOutput(String rel) {
+    for (String segment : rel.split("/")) {
+      if (segment.equals("src")) {
+        return false;
+      }
+      if (segment.equals("build")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Whether a path has a directory named exactly {@code segment}, never a longer name ending so.
+   */
+  private static boolean underSegment(String rel, String segment) {
+    return rel.startsWith(segment + "/") || rel.contains("/" + segment + "/");
   }
 
   /**
@@ -260,7 +322,7 @@ public final class SnapshotBuilder {
       DoctorSnapshot.Builder builder,
       boolean[] extendWithFound,
       boolean[] autodetectionEnabled) {
-    if (name.endsWith(".java") && rel.contains("src/")) {
+    if (name.endsWith(".java") && underSegment(rel, "src")) {
       builder.putSourceFile(rel, content);
       if (content.contains("@ExtendWith") && content.contains("NarrativeTraceExtension")) {
         extendWithFound[0] = true;

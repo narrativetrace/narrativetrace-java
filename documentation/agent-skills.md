@@ -5,12 +5,14 @@ completion on a `verify` step, rather than docs an agent might or might not read
 by design — the checking, diagnosis, or generation logic lives in tested library code; the skill's
 own job is knowing when to act, invoking that tested code, and interpreting the result in context.
 
-## Four skills: setup, diagnosis, clarity, and reporting
+## Six skills: setup, diagnosis, clarity, reporting, verification, and debugging
 
 - **`add-narrative-tracing`** — installs NarrativeTrace into a project and gets it to a first
   trace: install with the real toolchain, wrap a class with `NarrativeTraceProxy.trace`, render
-  and run the first trace, then wire a real logger (`narrativetrace-slf4j` plus Logback). Runs
-  `narrativetrace-doctor` and hands off — the seam between the two skills — and closes by previewing
+  and run the first trace, then wire a real logger (`narrativetrace-slf4j` plus Logback). Right
+  after the install it also runs the doctor and applies, in order, every `config.<framework>-*` fix
+  it prints — the page names no framework; the installed doctor's own framework table decides
+  which ones the project needs. Runs `narrativetrace-doctor` and hands off — the seam between the two skills — and closes by previewing
   `narrativetraceInit`, so the next session finds these skills already installed. It previews and
   never applies: a skill that wrote into `AGENTS.md` on its own initiative would be the postinstall
   hook the installer exists to avoid.
@@ -33,13 +35,42 @@ own job is knowing when to act, invoking that tested code, and interpreting the 
   specific to fix rather than a warning to ignore. The skill then shows the whole draft and asks
   once whether to file it publicly. It sends nothing anywhere and files nothing without an answer
   given in a turn of its own.
+- **`narrativetrace-verify`** — reads what a change actually did before the agent says it is done.
+  It runs after the tests are green and first decides whether the change is worth tracing at all —
+  a pure function or a one-class edit is not, and the skill says so and stops. Otherwise it writes
+  the intent down before anything runs (which collaborators, in which order, under which branch,
+  how many times), runs the smallest real path with tracing on, reads the value-free structural
+  trace against that intent, opens values only on the span that looks wrong, fixes and re-reads,
+  then pins the flow as an `.approved.nt` baseline — turning approval mode on if it is off, showing
+  the whole `.received.nt`, and promoting it only after your yes, in a turn of its own. Its report
+  cites span ids (`#2.1`), the position every flavour prints for the same call, so a claim about the
+  trace can be checked against the trace.
+- **`narrativetrace-debug`** — finds the cause of a wrong result by reading what the code did with
+  the values, not by stepping through it. It starts from a symptom rather than a change: reproduce
+  it with the smallest input and tracing on, read the sequence diagram first when the path crosses
+  threads, then name — by span id, before touching any code — the first span whose inputs are
+  right and whose result is wrong. It narrows by span, never by file: it reads the sub-tree under
+  that id and, when the work inside the span is not traced, wraps one more collaborator rather than
+  redacting anything (`@NotTraced` hides a value; it does not scope a trace). It fixes the defect in
+  that span, re-runs the same input, and checks that nothing else moved — a red run writes no `.nt`,
+  so the shape before the fix is the reproduction's Markdown call lines without their values. It
+  keeps the reproduction as a regression test, pins its structural trace through the same approval
+  gate as `narrativetrace-verify`, and reports the root cause by span id. When the trace and the code
+  disagree, or the defect is NarrativeTrace's own, it hands off to `narrativetrace-feedback` instead
+  of patching around it.
 
 They compose: a brand-new project starts with `add-narrative-tracing`; a project that already has
 NarrativeTrace installed, where something isn't working, starts with `narrativetrace-doctor`.
 Either path ends at the doctor — it owns diagnosis from there. `add-narrativetrace-clarity` owns
 first static naming reports and optional clarity enforcement; it does not install tracing or
 harvest a glossary. `narrativetrace-feedback` is where a path ends when the problem turns out to be
-ours rather than the project's — the doctor's own closing rule points at it.
+ours rather than the project's — the doctor's own closing rule points at it. `narrativetrace-verify`
+is what a session with NarrativeTrace installed does after every change worth tracing — the install
+skill's last step points the next session at it, and the doctor's `config.approval-mode` finding
+(baselines that nothing compares) is fixed by its pin step. `narrativetrace-debug` is where a
+reported symptom starts; it shares the verify skill's reading reference (which flavour answers which
+question, and the shapes that mean something went wrong) and its pin, and ends at
+`narrativetrace-feedback` when the defect is ours.
 
 ## Installing them
 
@@ -55,12 +86,14 @@ an envelope a script can gate on:
 <!-- snippet: narrativetrace-cli/build/narrativetrace/init-plan.json -->
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.2.5",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.3.0",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrative-tracing/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrativetrace-clarity/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-feedback/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".agents/skills/narrativetrace-verify/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".agents/skills/narrativetrace-debug/SKILL.md", "status": "planned"},
     {"kind": "create", "path": "AGENTS.md", "status": "planned"}
   ],
   "exitCode": 0
@@ -112,7 +145,7 @@ Copying works too, and is the only path for an agent with no build of its own:
   `.agents/skills/<name>/` and Codex discovers it the same way.
 - **Any agent, any platform**: every agent that reads `AGENTS.md` sees the always-on pointer this
   repository's own `AGENTS.md` carries between its `<!-- narrativetrace:skills:start -->` markers
-  — all four skills' names and descriptions, so an agent that never thought to look still knows they
+  — all six skills' names and descriptions, so an agent that never thought to look still knows they
   exist.
 - **Gemini** runs against the same catalogue on a sporadic, quota-guarded schedule (see
   [Tier B — LLM trials](../narrativetrace-skills-catalogue/evals/README.md)) rather than every commit; it has
@@ -214,12 +247,12 @@ carry none of this:
 ## How they're built
 
 No skill is ever hand-edited. `narrativetrace-skills-catalogue/src/main/java/ai/narrativetrace/skills/catalogue/`
-contains the four sources of truth; their typed steps render four Claude pages, four Codex pages,
+contains the six sources of truth; their typed steps render six Claude pages, six Codex pages,
 the carrier's own copy of both flavours plus its `catalogue.json` index — what the published jar
 hands `narrativetraceInit` — this repository's own `AGENTS.md` section, and the
 `.claude-plugin/marketplace.json` listing that makes this repository a Claude Code plugin
 marketplace: a drift test (`RenderDriftTest`, wired into `./gradlew check`) fails the build the
-moment any of these nineteen outputs drifts from the typed source, and a second one fails it if
+moment any of these twenty-seven outputs drifts from the typed source, and a second one fails it if
 anything else appears in the carrier at all. A skill's rendered `name:` is always its canonical
 name, never a
 shortened "claude segment" — a repo-checked-in `.claude/skills/` or `.agents/skills/` directory is a
@@ -234,7 +267,9 @@ source does not. A second lint guards the one piece of frontmatter whose absence
 skill whose steps can make something public — today, `narrativetrace-feedback` — must declare no
 `allowed-tools`, because that field pre-approves its listed tools for the turn that loads the
 skill, and a reporting skill that pre-approved its own reporting command would stop the harness
-asking exactly where asking is the point.
+asking exactly where asking is the point. A third lint holds a skill that promotes an approval
+baseline — today, `narrativetrace-verify` and `narrativetrace-debug` — to no allowed tool beyond read-only `find`, for the same
+reason: the promotion runs through `./gradlew`, and the yes it waits for is yours.
 
 ## See also
 

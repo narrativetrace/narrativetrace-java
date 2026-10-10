@@ -25,7 +25,7 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 /**
- * {@code narrativetraceDoctor}: runs the free {@code narrativetrace-tooling} doctor's twelve checks
+ * {@code narrativetraceDoctor}: runs the free {@code narrativetrace-tooling} doctor's twenty checks
  * against this project and writes its JSON report. Calls {@code SnapshotBuilder}, {@code
  * DoctorChecks} and {@code DoctorRender} in-process — {@code narrativetrace-tooling} is a project
  * dependency baked into this plugin's own jar (see {@code build.gradle.kts}), not an external
@@ -39,7 +39,7 @@ import org.gradle.api.tasks.TaskAction;
  * normal, expected outcome, never a build failure — this task never throws on the report's own exit
  * code, only on a real I/O failure writing the file.
  *
- * <p><b>@llmNote</b> One of the twelve checks needs the agent-skills carrier this project resolves,
+ * <p><b>@llmNote</b> One of the twenty checks needs the agent-skills carrier this project resolves,
  * so this task reads the same {@code narrativeTraceSkills} configuration {@code narrativetraceInit}
  * does — through the same LENIENT artifact view, and with the opposite policy on failure: {@code
  * init} fails the build with the coordinate named, because a person asked it to install something;

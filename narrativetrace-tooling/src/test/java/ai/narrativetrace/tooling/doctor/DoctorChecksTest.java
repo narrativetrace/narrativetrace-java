@@ -19,15 +19,19 @@ package ai.narrativetrace.tooling.doctor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.narrativetrace.tooling.frameworks.CheckBinding;
+import ai.narrativetrace.tooling.frameworks.FrameworkRow;
+import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class DoctorChecksTest {
 
   @Test
-  void registersTwelveChecksWithStableUniqueIds() {
-    assertThat(DoctorChecks.ALL).hasSize(12);
+  void registersTwentyChecksWithStableUniqueIds() {
+    assertThat(DoctorChecks.ALL).hasSize(20);
     Set<String> ids = new HashSet<>();
     for (var check : DoctorChecks.ALL) {
       Finding f = check.run(DoctorSnapshot.healthy());
@@ -40,7 +44,7 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.healthy());
     assertThat(report.exitCode()).isZero();
     assertThat(report.allPassed()).isTrue();
-    assertThat(report.findings()).hasSize(12).allMatch(f -> !f.isFailing());
+    assertThat(report.findings()).hasSize(20).allMatch(f -> !f.isFailing());
   }
 
   /**
@@ -54,7 +58,36 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.builder().build());
     assertThat(report.exitCode()).isZero();
     assertThat(report.failureCount()).isZero();
-    assertThat(report.findings()).hasSize(12);
+    assertThat(report.findings()).hasSize(20);
+  }
+
+  /**
+   * Every framework-table row that earns a wiring check is registered exactly once, in table order,
+   * after the configuration checks and before the traps — a new row reaches the doctor without
+   * anybody editing this registry.
+   */
+  @Test
+  void registersOneWiringCheckPerFrameworkRowInTableOrder() {
+    List<String> ids =
+        DoctorChecks.ALL.stream().map(c -> c.run(DoctorSnapshot.healthy()).id()).toList();
+    List<String> rowChecks = FrameworkTable.wiringCheckIds();
+    assertThat(rowChecks).hasSize(7);
+    int first = ids.indexOf(rowChecks.get(0));
+    assertThat(ids.subList(first, first + rowChecks.size())).isEqualTo(rowChecks);
+    assertThat(ids.get(first - 1)).isEqualTo("config.skills-installed");
+    assertThat(ids.get(first + rowChecks.size())).isEqualTo("trap.silent-sink");
+  }
+
+  /** A row bound to an existing check names one the doctor really runs. */
+  @Test
+  void everyRowBoundToAnExistingCheckNamesARegisteredOne() {
+    List<String> ids =
+        DoctorChecks.ALL.stream().map(c -> c.run(DoctorSnapshot.healthy()).id()).toList();
+    FrameworkTable.ROWS.stream()
+        .map(FrameworkRow::check)
+        .filter(CheckBinding.ExistingCheck.class::isInstance)
+        .map(c -> ((CheckBinding.ExistingCheck) c).id())
+        .forEach(id -> assertThat(ids).contains(id));
   }
 
   @Test

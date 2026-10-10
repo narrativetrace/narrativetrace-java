@@ -14,7 +14,7 @@ This guide covers integrating NarrativeTrace into a Micronaut application, from 
 Add the dependency:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut:0.2.5")
+implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")
 ```
 
 Configure base packages in `application.yml`:
@@ -73,7 +73,7 @@ class MyConfig {
 Add the HTTP filter module:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.2.5")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath — no additional configuration needed.

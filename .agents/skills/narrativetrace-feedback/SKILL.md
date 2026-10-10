@@ -35,7 +35,7 @@ find build/narrativetrace/feedback -name "*.md"
 
 ## 4. Ask once whether to file it, then stop the turn
 
-**verify:** the reply ends with the question and nothing after it — the answer is the user's next message, never something assumed in this one
+**verify:** the reply ends with the question and nothing after it — the answer is the user's next message, never something assumed in this one. Do not print the issue URL or run gh before the user says yes — showing the URL is the filing.
 
 ## 5. Print the way to file it, and nothing else
 

@@ -97,9 +97,11 @@ public final class MarkdownRenderer implements NarrativeRenderer {
   private record Ctx(
       int depth,
       String prefix,
+      String id,
       String leadingLine,
       String trailingLine,
-      List<TraceNode> foldedSiblings) {}
+      List<TraceNode> foldedSiblings,
+      List<String> foldedIds) {}
 
   /**
    * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
@@ -108,12 +110,15 @@ public final class MarkdownRenderer implements NarrativeRenderer {
   private static final class Planned extends PlannedSibling {
     final int depth;
     final String prefix;
+    final String id;
     List<TraceNode> foldedSiblings;
+    List<String> foldedIds;
 
-    Planned(TraceNode node, int depth, String prefix, String leading) {
+    Planned(TraceNode node, int depth, String prefix, String id, String leading) {
       super(node, leading);
       this.depth = depth;
       this.prefix = prefix;
+      this.id = id;
     }
   }
 
@@ -200,7 +205,7 @@ public final class MarkdownRenderer implements NarrativeRenderer {
    */
   private void renderTree(List<TraceNode> roots, StringBuilder sb, ValueReferenceIndex refs) {
     var ctxOf = new NodeContext<TraceNode, Ctx>();
-    for (var root : planSiblings(roots, 0, ctxOf, sb)) {
+    for (var root : planSiblings(roots, 0, new SpanCursor(null), ctxOf, sb)) {
       TreeWalk.walk(
           root,
           node -> planChildren(node, ctxOf, sb),
@@ -212,7 +217,8 @@ public final class MarkdownRenderer implements NarrativeRenderer {
 
   private List<TraceNode> planChildren(
       TraceNode node, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
-    return planSiblings(node.children(), ctxOf.peek(node).depth() + 1, ctxOf, sb);
+    var ctx = ctxOf.peek(node);
+    return planSiblings(node.children(), ctx.depth() + 1, new SpanCursor(ctx.id()), ctxOf, sb);
   }
 
   /**
@@ -232,40 +238,51 @@ public final class MarkdownRenderer implements NarrativeRenderer {
    * to {@code sb} when the whole list produced no walked node at all.
    */
   private List<TraceNode> planSiblings(
-      List<TraceNode> siblings, int depth, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
+      List<TraceNode> siblings,
+      int depth,
+      SpanCursor ids,
+      NodeContext<TraceNode, Ctx> ctxOf,
+      StringBuilder sb) {
     var segments = ChildSegment.partition(siblings);
     var planned = new ArrayList<Planned>();
     var carry = new StringBuilder();
     var i = 0;
     while (i < segments.size()) {
-      i = planSegmentFrom(segments, i, depth, planned, carry);
+      i = planSegmentFrom(segments, i, depth, ids, planned, carry);
     }
     flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
-      ctxOf.push(p.node, new Ctx(p.depth, p.prefix, p.leading, p.trailing, p.foldedSiblings));
+      ctxOf.push(
+          p.node,
+          new Ctx(p.depth, p.prefix, p.id, p.leading, p.trailing, p.foldedSiblings, p.foldedIds));
       result.add(p.node);
     }
     return result;
   }
 
   private int planSegmentFrom(
-      List<ChildSegment> segments, int i, int depth, List<Planned> planned, StringBuilder carry) {
+      List<ChildSegment> segments,
+      int i,
+      int depth,
+      SpanCursor ids,
+      List<Planned> planned,
+      StringBuilder carry) {
     var segment = segments.get(i);
     if (segment.groupId != null) {
       if (segment.isFireAndForget()) {
-        planFireAndForget(segment.nodes.get(0), depth, planned, carry);
+        planFireAndForget(segment.nodes.get(0), depth, ids.next(), planned, carry);
       } else {
-        planConcurrentGroup(segment.nodes, depth, planned, carry);
+        planConcurrentGroup(segment.nodes, depth, ids, planned, carry);
       }
       return i + 1;
     }
     var end = foldLoops ? foldRunEnd(segments, i) : i + 1;
     if (end - i >= 2) {
-      planFoldedRun(segments, i, end, depth, planned, carry);
+      planFoldedRun(segments, i, end, depth, ids, planned, carry);
       return end;
     }
-    planned.add(new Planned(segment.nodes.get(0), depth, "- ", flush(carry)));
+    planned.add(new Planned(segment.nodes.get(0), depth, "- ", ids.next(), flush(carry)));
     return i + 1;
   }
 
@@ -298,20 +315,28 @@ public final class MarkdownRenderer implements NarrativeRenderer {
       int start,
       int end,
       int depth,
+      SpanCursor ids,
       List<Planned> planned,
       StringBuilder carry) {
     var first = segments.get(start).nodes.get(0);
+    var p = new Planned(first, depth, "- ", ids.next(), flush(carry));
     var folded = new ArrayList<TraceNode>();
+    var foldedIds = new ArrayList<String>();
     for (var i = start + 1; i < end; i++) {
       folded.add(segments.get(i).nodes.get(0));
+      foldedIds.add(ids.next());
     }
-    var p = new Planned(first, depth, "- ", flush(carry));
     p.foldedSiblings = folded;
+    p.foldedIds = foldedIds;
     planned.add(p);
   }
 
   private void planFireAndForget(
-      TraceNode launcher, int depth, List<Planned> planned, StringBuilder carry) {
+      TraceNode launcher,
+      int depth,
+      String launcherId,
+      List<Planned> planned,
+      StringBuilder carry) {
     var indent = "  ".repeat(depth);
     carry.append(indent).append("- ⤳ fire-and-forget");
     if (launcher.concurrency() != null) {
@@ -320,14 +345,16 @@ public final class MarkdownRenderer implements NarrativeRenderer {
       appendVirtual(launcher, carry);
       carry.append("]");
     }
-    carry.append("\n");
+    carry.append(' ').append(launcherId).append("\n");
     if (launcher.children().isEmpty()) {
       carry.append(indent).append("  [launched, result not captured]\n");
       return;
     }
-    var children = launcher.children();
-    for (var idx = 0; idx < children.size(); idx++) {
-      planned.add(new Planned(children.get(idx), depth + 1, "- ", idx == 0 ? flush(carry) : null));
+    var segments = ChildSegment.partition(launcher.children());
+    var launched = new SpanCursor(launcherId);
+    var i = 0;
+    while (i < segments.size()) {
+      i = planSegmentFrom(segments, i, depth + 1, launched, planned, carry);
     }
   }
 
@@ -340,17 +367,21 @@ public final class MarkdownRenderer implements NarrativeRenderer {
    * subtree is the last thing rendered before the join line belongs.
    */
   private void planConcurrentGroup(
-      List<TraceNode> members, int depth, List<Planned> planned, StringBuilder carry) {
+      List<TraceNode> members,
+      int depth,
+      SpanCursor ids,
+      List<Planned> planned,
+      StringBuilder carry) {
     var indent = "  ".repeat(depth);
     var analysis = SequentialAsyncDetector.analyze(members);
     carry.append(indent).append("- ⑂ fork [").append(members.size()).append(" tasks]");
     appendGroupId(members.get(0), carry);
     carry.append("\n");
-    var sorted = members.stream().sorted(this::compareBySigName).toList();
+    var sorted = members.stream().sorted(SpanId.CONCURRENT_ORDER).toList();
     var joinLine = buildJoinLine(members, indent, analysis);
     for (var i = 0; i < sorted.size(); i++) {
       var member = sorted.get(i);
-      var p = new Planned(member, depth + 1, "- ↦ ", i == 0 ? flush(carry) : null);
+      var p = new Planned(member, depth + 1, "- ↦ ", ids.next(), i == 0 ? flush(carry) : null);
       p.trailing =
           memberTrailing(
               member,
@@ -440,12 +471,6 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     }
   }
 
-  private int compareBySigName(TraceNode a, TraceNode b) {
-    var keyA = a.signature().className() + "." + a.signature().methodName();
-    var keyB = b.signature().className() + "." + b.signature().methodName();
-    return keyA.compareTo(keyB);
-  }
-
   private void enterNode(
       TraceNode node,
       NodeContext<TraceNode, Ctx> ctxOf,
@@ -461,18 +486,15 @@ public final class MarkdownRenderer implements NarrativeRenderer {
 
     sb.append(indent).append(ctx.prefix()).append(methodCall);
     if (node.children().isEmpty()) {
-      renderOutcomeInline(node.outcome(), sig, ctx.depth(), sb, refs);
-      renderDuration(node, sb);
-      sb.append("\n");
-      renderNarration(sig, indent, sb);
+      renderLeafTail(node, ctx, refs, "", sb);
     } else {
       if (node.outcome() instanceof TraceOutcome.Returned) {
         renderOutcomeInline(node.outcome(), sig, ctx.depth(), sb, refs);
       }
       renderDuration(node, sb);
-      sb.append("\n");
-      renderNarration(sig, indent, sb);
+      sb.append(' ').append(ctx.id()).append("\n");
     }
+    renderNarration(sig, indent, sb);
   }
 
   private void exitNode(
@@ -491,6 +513,26 @@ public final class MarkdownRenderer implements NarrativeRenderer {
   }
 
   /**
+   * The rest of a one-line entry: outcome, duration, {@code marker}, and the span id at the end of
+   * the call line — which, for a thrown outcome, is BEFORE its blockquote, so the id stays on the
+   * line that names the call.
+   */
+  private void renderLeafTail(
+      TraceNode node, Ctx ctx, ValueReferenceIndex refs, String marker, StringBuilder sb) {
+    var opensABlock = node.outcome() instanceof TraceOutcome.Threw;
+    if (opensABlock) {
+      sb.append(' ').append(ctx.id());
+    }
+    renderOutcomeInline(node.outcome(), node.signature(), ctx.depth(), sb, refs);
+    renderDuration(node, sb);
+    sb.append(marker);
+    if (!opensABlock) {
+      sb.append(' ').append(ctx.id());
+    }
+    sb.append("\n");
+  }
+
+  /**
    * {@link LoopFold#summaryLine} mints reference labels through {@code refs} as a side effect — see
    * {@link Ctx}'s note on why this must happen here, once the node's own subtree is fully rendered,
    * rather than at planning time.
@@ -500,7 +542,9 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     if (ctx.foldedSiblings() != null) {
       sb.append("  ".repeat(ctx.depth()))
           .append("- ")
-          .append(LoopFold.summaryLine(node, ctx.foldedSiblings(), refs))
+          .append(LoopFold.summaryLine(node, ctx.foldedSiblings(), ctx.foldedIds(), refs))
+          .append(' ')
+          .append(SpanId.range(ctx.foldedIds()))
           .append("\n");
     }
   }
@@ -520,9 +564,7 @@ public final class MarkdownRenderer implements NarrativeRenderer {
     var sig = node.signature();
     var methodCall = formatMethodCall(sig, refs);
     sb.append(indent).append(ctx.prefix()).append(methodCall);
-    renderOutcomeInline(node.outcome(), sig, ctx.depth(), sb, refs);
-    renderDuration(node, sb);
-    sb.append(" ").append(reason.marker()).append("\n");
+    renderLeafTail(node, ctx, refs, " " + reason.marker(), sb);
     renderNarration(sig, indent, sb);
     // TreeWalk never calls onExit for a limited node, so the fold summary/trailing text — normally
     // appended there — is appended here instead; a limited node is treated as a leaf either way.

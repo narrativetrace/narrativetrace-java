@@ -90,6 +90,52 @@ class IndentedTextRendererTest {
   }
 
   @Test
+  void everyEntryLineEndsWithTheSpanIdTheStructuralTraceGivesIt() {
+    var info = new ConcurrencyInfo("fork-1", "calc-pool-1", 100, false, ConcurrencyKind.FORK_JOIN);
+    var loyalty =
+        new TraceNode(
+            new MethodSignature("LoyaltyService", "checkTier", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("\"GOLD\""),
+            0L,
+            0L,
+            info);
+    var discount =
+        new TraceNode(
+            new MethodSignature("DiscountEngine", "calculate", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("0.15"),
+            0L,
+            0L,
+            info);
+    var stock =
+        new TraceNode(
+            new MethodSignature("InventoryService", "checkStock", List.of()),
+            List.of(),
+            new TraceOutcome.Returned("true"));
+    var parent =
+        new TraceNode(
+            new MethodSignature("OrderService", "placeOrder", List.of()),
+            List.of(stock, loyalty, discount),
+            new TraceOutcome.Returned("\"order-42\""));
+    var audit =
+        new TraceNode(
+            new MethodSignature("AuditLog", "record", List.of()),
+            List.of(),
+            new TraceOutcome.Returned(null));
+    var tree = new DefaultTraceTree(List.of(parent, audit));
+
+    var result = new IndentedTextRenderer().render(tree);
+
+    assertThat(result)
+        .contains("OrderService.placeOrder() #1\n")
+        .contains("├── InventoryService.checkStock() → true #1.1\n")
+        .contains("↦ DiscountEngine.calculate() → 0.15 #1.2\n")
+        .contains("↦ LoyaltyService.checkTier() → \"GOLD\" #1.3\n")
+        .endsWith("AuditLog.record() #2");
+  }
+
+  @Test
   void rendersSingleLeafCall() {
     var node =
         new TraceNode(
@@ -106,7 +152,7 @@ class IndentedTextRendererTest {
 
     assertThat(result)
         .isEqualTo(
-            traceHeader(tree) + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\"");
+            traceHeader(tree) + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\" #1");
   }
 
   @Test
@@ -135,8 +181,8 @@ class IndentedTextRendererTest {
         .isEqualTo(
             traceHeader(tree)
                 + """
-                OrderService.placeOrder(customerId: "C-123")
-                ├── InventoryService.checkStock(itemId: "ITEM-1") → true
+                OrderService.placeOrder(customerId: "C-123") #1
+                ├── InventoryService.checkStock(itemId: "ITEM-1") → true #1.1
                 └── → "order-42\"\
                 """);
   }
@@ -160,7 +206,7 @@ class IndentedTextRendererTest {
     assertThat(result)
         .isEqualTo(
             traceHeader(tree)
-                + "AuthService.login(username: \"admin\", password: [REDACTED]) → true");
+                + "AuthService.login(username: \"admin\", password: [REDACTED]) → true #1");
   }
 
   @Test
@@ -182,7 +228,7 @@ class IndentedTextRendererTest {
     assertThat(result)
         .isEqualTo(
             traceHeader(tree)
-                + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\" — 24ms");
+                + "OrderService.placeOrder(customerId: \"C-123\") → \"order-42\" — 24ms #1");
   }
 
   @Test
@@ -236,7 +282,7 @@ class IndentedTextRendererTest {
         .isEqualTo(
             traceHeader(tree)
                 + "PaymentService.charge(amount: 99.95) !! IllegalStateException: insufficient"
-                + " funds");
+                + " funds #1");
   }
 
   @Test

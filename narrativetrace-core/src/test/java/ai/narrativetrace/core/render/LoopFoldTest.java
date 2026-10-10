@@ -47,7 +47,7 @@ class LoopFoldTest {
     var folded = node("root", List.of(foldedChild));
     var refs = ValueReferenceIndex.build(new DefaultTraceTree(List.of(first)));
 
-    var summary = LoopFold.summaryLine(first, List.of(folded), refs);
+    var summary = LoopFold.summaryLine(first, List.of(folded), List.of("#1.2"), refs);
 
     assertThat(summary).contains("×1 more");
   }
@@ -67,7 +67,7 @@ class LoopFoldTest {
 
     var refs = ValueReferenceIndex.build(new DefaultTraceTree(List.of(first)));
 
-    var summary = LoopFold.summaryLine(first, List.of(folded), refs);
+    var summary = LoopFold.summaryLine(first, List.of(folded), List.of("#1.2"), refs);
 
     assertThat(summary).contains("×1 more");
   }

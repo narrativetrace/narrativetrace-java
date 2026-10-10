@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 2451a5ad0ecc | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob fccbbaac1869 | translated: 2026-10-09 | reviewed: - -->
 # Formato de traza estructural (`.nt`)
 
 [English](../structural-trace-format.md) | **Español** | [简体中文](../zh-CN/结构化追踪格式.md)
@@ -79,14 +79,14 @@ archivo.
 ```
 scenario: Weekend trip settles with three transfers
 
-- TripSettlementService.recordExpense(tripName, expense)
-  - ExpenseValidator.ensureValid(expense)
-  - TripLedger.recordExpense(tripName, expense)
-- TripSettlementService.settleTrip(tripName) → value
-  - TripLedger.expensesOf(tripName) → value
+#1 - TripSettlementService.recordExpense(tripName, expense)
+  #1.1 - ExpenseValidator.ensureValid(expense)
+  #1.2 - TripLedger.recordExpense(tripName, expense)
+#2 - TripSettlementService.settleTrip(tripName) → value
+  #2.1 - TripLedger.expensesOf(tripName) → value
   ~ fork [2]
-    - BalanceCalculator.computeBalances(expenses) → value
-    - StockService.check() → value
+    #2.2 - BalanceCalculator.computeBalances(expenses) → value
+    #2.3 - StockService.check() → value
 ```
 
 - **Cabecera:** `scenario: <humanized test name>` + línea en blanco. Nada
@@ -94,9 +94,28 @@ scenario: Weekend trip settles with three transfers
   invocación de un método que se ejecuta más de una vez es `scenario:
   <nombre humanizado del método> #<índice>`: los argumentos de una
   plantilla de nombre visible nunca llegan hasta ahí.
-- **Línea de llamada:** `ClassName.methodName(paramName, paramName)` —
+- **Línea de llamada:** `#id - ClassName.methodName(paramName, paramName)` —
   solo nombres, en el orden de captura, con dos espacios de indentación
-  por nivel de profundidad.
+  por nivel de profundidad; el id de span es el primer token después de
+  la indentación.
+- **Id de span:** la posición de la llamada en el árbol — `#1` es la
+  primera llamada raíz, `#1.3` su tercer hijo, `#1.3.2` el segundo hijo
+  de ese hijo. Cada lista de hermanos (las raíces, los hijos de una
+  llamada, el trabajo que lanzó un fire-and-forget) se numera en el
+  orden en que este formato la imprime: las llamadas simples en orden
+  de captura, los miembros de un grupo fork o async por `Class.method`
+  (dos miembros con el mismo `Class.method` conservan el orden de
+  captura), y un lanzamiento fire-and-forget ocupa una posición — su id
+  abre la línea `~ fire-and-forget` y las llamadas lanzadas se anidan
+  debajo. El renderizador deriva los ids del árbol; nunca se capturan
+  ni se almacenan, así que el mismo flujo recibe siempre los mismos ids;
+  una llamada insertada desplaza a sus hermanos posteriores, y el diff
+  de aprobación lo indica (`(was #1.2)`). Todas las demás variantes de
+  NarrativeTrace imprimen el mismo id para la misma llamada (un `#1.3`
+  al final en las narrativas de texto indentado y Markdown, `(#1.3)` en
+  la prosa, una nota en los diagramas de secuencia), de modo que un
+  informe, una revisión y un diff de aprobación pueden señalar el mismo
+  span. Un id no lleva ningún valor.
 - **Tipos de resultado:** retorno no-void ` → value`; void: nada (el
   contrato de retorno nulo); lanzada ` !! ExceptionSimpleName` (el tipo es
   estructura; el mensaje es un valor y nunca aparece); enter sin
@@ -112,10 +131,14 @@ scenario: Weekend trip settles with three transfers
   cada hijo async de una llamada forma un único grupo, y también
   aparecen a nivel raíz cuando el trabajo sobrevive a quien lo llamó.
   Fire-and-forget (lanzar y olvidar) se renderiza como
-  `~ fire-and-forget` + hijos. Los nombres/ids de hilo nunca aparecen.
+  `#id ~ fire-and-forget` + las llamadas lanzadas, dispuestas como
+  cualquier otra lista de hermanos. Los nombres/ids de hilo nunca
+  aparecen.
 - **Excluido por diseño:** todos los valores de argumentos/retorno, los
   mensajes de excepción, las duraciones, las marcas de tiempo, la
-  identidad del hilo, los ids de traza/span, los nombres de traza, los
+  identidad del hilo, los ids de traza/span capturados (los de W3C — los
+  ids de posición de arriba se derivan, no se capturan), los nombres de
+  traza, los
   ids de ejecución, los nombres de ejecución *(la ejecución también
   tiene un nombre, consulta [Guía de configuración
   § La ejecución tiene un
@@ -177,7 +200,10 @@ normaliza los campos únicos antes de comparar.
 1. **Determinista:** comportamiento idéntico ⇒ fichero idéntico byte a
    byte. Esto es lo que convierte al artefacto en la línea base de las
    trazas de aprobación y en el formato de referencia (golden format)
-   de los fixtures de conformidad.
+   de los fixtures de conformidad. La comparación deja de lado los ids
+   de span: una línea base escrita antes de que existieran los ids
+   sigue coincidiendo con una ejecución actual del mismo flujo, y nunca
+   se reescribe para añadirlos.
 2. **Libre de valores:** superficie de prompt-injection nula, cero PII,
    tokens mínimos — seguro para entregar por defecto a un agente de IA
    (la salida de Nivel 1 del nivel gratuito).

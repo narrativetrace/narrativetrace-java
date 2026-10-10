@@ -14,6 +14,7 @@ import ai.narrativetrace.skills.catalogue.CatalogueIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -93,7 +94,9 @@ class RenderMainTest {
         if (step.body() instanceof StepBody.SnippetStep snippet) {
           Path target = repoRoot.resolve(snippet.path());
           Files.createDirectories(target.getParent());
-          Files.copy(realRepoRoot.resolve(snippet.path()), target);
+          // Two skills may embed the same listing (verify and debug both run PlaceOrderFlowTest).
+          Files.copy(
+              realRepoRoot.resolve(snippet.path()), target, StandardCopyOption.REPLACE_EXISTING);
         }
       }
     }

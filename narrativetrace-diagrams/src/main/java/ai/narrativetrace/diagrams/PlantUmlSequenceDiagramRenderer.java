@@ -46,9 +46,7 @@ public final class PlantUmlSequenceDiagramRenderer implements NarrativeRenderer 
       sb.append(grammar.participant(DiagramLabel.plainToken(participant)));
     }
 
-    for (var root : tree.roots()) {
-      SequenceWalk.render(root, grammar, DiagramLabel::plainToken, sb);
-    }
+    SequenceWalk.renderAll(tree.roots(), grammar, DiagramLabel::plainToken, sb);
 
     sb.append(grammar.footer());
     // The comment sits after @enduml on purpose: PlantUML stops parsing there, so a lossy diagram

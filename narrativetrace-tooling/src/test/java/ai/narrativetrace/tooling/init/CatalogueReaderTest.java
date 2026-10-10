@@ -74,7 +74,9 @@ class CatalogueReaderTest {
             "narrativetrace-doctor",
             "add-narrative-tracing",
             "add-narrativetrace-clarity",
-            "narrativetrace-feedback");
+            "narrativetrace-feedback",
+            "narrativetrace-verify",
+            "narrativetrace-debug");
     assertThat(catalogue.skills())
         .allSatisfy(
             skill -> {

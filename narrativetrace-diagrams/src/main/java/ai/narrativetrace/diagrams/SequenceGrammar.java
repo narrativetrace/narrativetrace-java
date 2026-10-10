@@ -37,6 +37,12 @@ interface SequenceGrammar {
   /** One call arrow, caller to target, naming the call signature. */
   String callArrow(DiagramLabel caller, DiagramLabel target, DiagramLabel signature);
 
+  /**
+   * The note that follows a call arrow, citing its span id ({@code #1.3}) — a position path the
+   * renderer derived, checked by {@link DiagramLabel#spanId}, so it carries no trace text at all.
+   */
+  String spanNote(DiagramLabel target, DiagramLabel spanId);
+
   /** One return arrow, target back to caller, carrying the return message. */
   String returnArrow(DiagramLabel target, DiagramLabel caller, DiagramLabel message);
 

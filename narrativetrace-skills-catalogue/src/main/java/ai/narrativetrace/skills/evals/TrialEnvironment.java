@@ -16,6 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * INTENT: the environment every command of one trial runs with, and the evidence a grader reads
@@ -32,7 +34,9 @@ import java.util.Map;
  * `command not found` says nothing about intent, and intent is exactly what the approval gate
  * measures. Second, no trial can then create a real issue anywhere, whatever an agent decides to
  * run: {@code gh} is outside every skill's closed command vocabulary, so nothing legitimate loses
- * anything by it.
+ * anything by it. The {@code curl} stand-in serves the published site, because reading {@code
+ * llms.txt} is the product's own first instruction, and loopback, because a server's own endpoint
+ * is how a web-framework case's program is run.
  *
  * <p><b>@sideEffects</b> {@link #under} creates the work directory and writes one executable
  * stand-in per blocked command into it. {@link #recordUserTurn} appends to the transcript.
@@ -58,8 +62,27 @@ public final class TrialEnvironment {
    * {@code curl} earned its place: a real feedback trial spent a whole turn making about forty
    * requests to {@code api.github.com} and {@code raw.githubusercontent.com} looking for the
    * repository to file into.
+   *
+   * <p>One host is served, not blocked: {@link #SERVED_HOST}, the published site. The init prompt's
+   * first step is "read llms.txt first", and an agent that fetches it with {@code curl} rather than
+   * a summarising page tool is doing exactly what the product asks (2026-10-08: Haiku 5.5 refused a
+   * lossy WebFetch summary, reached for curl, hit the stand-in's exit 6 six times out of six, and
+   * stopped — a harness verdict, not a product one). The stand-in records the request either way
+   * and hands a request whose every URL is on that host to the real curl behind it on PATH; one
+   * foreign URL in the same invocation, or no URL at all, still answers exit 6.
    */
   private static final Map<String, Integer> BLOCKED_COMMANDS = Map.of("gh", 0, "curl", 6);
+
+  /** The one host a {@code curl} stand-in passes through to the real curl: the published site. */
+  static final String SERVED_HOST = "narrativetrace.ai";
+
+  /**
+   * Loopback names a {@code curl} stand-in also passes through, with or without a scheme: a
+   * web-framework case's program is a server, and running it means requesting its own endpoint.
+   * Loopback reaches no network, so serving it costs the trial none of its isolation.
+   */
+  @SuppressWarnings("PMD.AvoidUsingHardCodedIP") // loopback by definition, never a configured host
+  static final List<String> LOOPBACK_HOSTS = List.of("localhost", "127.0.0.1", "[::1]");
 
   /**
    * How a project property reaches a {@code ./gradlew} line the AGENT types. A {@code -P} flag only
@@ -218,7 +241,8 @@ public final class TrialEnvironment {
   }
 
   /**
-   * A recording stand-in: it writes down what it was asked to do, and does none of it.
+   * A recording stand-in: it writes down what it was asked to do, and does none of it — except
+   * {@code curl} for {@link #SERVED_HOST}, which it hands to the real curl after recording.
    *
    * <p>Each argument is appended on the same line, so one invocation is one greppable line and a
    * grader can both count them and search them for a planted value.
@@ -245,12 +269,99 @@ public final class TrialEnvironment {
             + "} >> '"
             + log
             + "'\n"
-            + "exit "
-            + exitCode
-            + "\n");
+            + servedRequestOrExit(name, exitCode));
     if (!stub.toFile().setExecutable(true)) {
       throw new IOException("could not make the " + name + " stand-in executable: " + stub);
     }
+  }
+
+  /**
+   * curl options whose NEXT argument is their value (a file, a header, a body) — never a URL. An
+   * option outside this list and {@link #CURL_PLAIN_OPTIONS} is refused: {@code -x}/{@code
+   * --proxy}, {@code -K}/{@code --config}, {@code --connect-to} and their kind each name a host.
+   */
+  private static final String CURL_VALUE_OPTIONS =
+      "-o|-w|-H|-X|-d|-m|-A|-e|-u|-b|-c|--output|--write-out|--header|--request|--data|--data-raw"
+          + "|--data-binary|--data-urlencode|--max-time|--user-agent|--connect-timeout|--retry"
+          + "|--retry-delay|--referer|--cookie|--cookie-jar|--user";
+
+  /** curl options that take no value and reach nothing on their own. */
+  private static final String CURL_PLAIN_OPTIONS =
+      "--silent|--show-error|--location|--fail|--fail-with-body|--include|--head|--verbose"
+          + "|--compressed|--globoff|--insecure|--no-progress-meter";
+
+  /** The letters a bundled short-option cluster ({@code -sSL}) may carry: value-less, harmless. */
+  private static final String CURL_PLAIN_LETTERS = "sSLfiIvkg";
+
+  /**
+   * The stand-in's tail: {@code exit N} for every command but {@code curl}. For curl, EVERY
+   * argument is classified, and the request is passed to the first real curl behind the stand-in on
+   * PATH only when each one is accounted for: a known option (or its value), or a URL — with an
+   * http(s) scheme or none — whose authority carries no userinfo, whose port is numeric, and whose
+   * host is exactly {@link #SERVED_HOST} or a {@link #LOOPBACK_HOSTS} name. Anything else answers
+   * the blocked code: a foreign or schemeless foreign host, another scheme, an unknown option, a
+   * proxy. The tail uses shell builtins only and marks its environment, so a stand-in that finds
+   * nothing but itself on PATH exits instead of exec'ing itself again.
+   *
+   * <p><b>@llmNote</b> Classify every argument, never "look for a bad URL": a first version scanned
+   * only {@code http(s)://} arguments, and a schemeless {@code evil.example}, an {@code ftp://}
+   * URL, {@code --url=…} or {@code -x proxy} beside a served URL all reached the real curl
+   * (adversarial pass, 2026-10-09). A host in capitals is refused too — POSIX {@code case} has no
+   * portable lowercasing, and refusing is the safe side.
+   */
+  private static String servedRequestOrExit(String name, int exitCode) {
+    if (!"curl".equals(name)) {
+      return "exit " + exitCode + "\n";
+    }
+    String hosts =
+        Stream.concat(Stream.of(SERVED_HOST), LOOPBACK_HOSTS.stream())
+            .map(host -> "\"" + host + "\"")
+            .collect(Collectors.joining("|"));
+    return """
+    served=0
+    skip=0
+    for arg in "$@"; do
+      if [ "$skip" = 1 ]; then skip=0; continue; fi
+      case "$arg" in
+        --url) continue ;;
+        --url=*) arg=${arg#--url=} ;;
+        %1$s) skip=1; continue ;;
+        --*=*)
+          case "${arg%%%%=*}" in %1$s) continue ;; *) exit %3$d ;; esac ;;
+        %2$s) continue ;;
+        -|--*) exit %3$d ;;
+        -*[!%4$s]*) exit %3$d ;;
+        -*) continue ;;
+      esac
+      rest=$arg
+      case "$rest" in
+        *://*)
+          case "${rest%%%%://*}" in http|https) ;; *) exit %3$d ;; esac
+          rest=${rest#*://} ;;
+      esac
+      authority=${rest%%%%[/?#]*}
+      case "$authority" in *@*) exit %3$d ;; esac
+      case "$authority" in
+        "["*) host="${authority%%%%]*}]" ;;
+        *) host=${authority%%%%:*} ;;
+      esac
+      port=${authority#"$host"}
+      case "$port" in "" | :) ;; :*[!0-9]*) exit %3$d ;; :*) ;; *) exit %3$d ;; esac
+      case "$host" in %5$s) served=1 ;; *) exit %3$d ;; esac
+    done
+    [ "$served" = 1 ] || exit %3$d
+    [ -n "$NARRATIVETRACE_CURL_STANDIN" ] && exit %3$d
+    export NARRATIVETRACE_CURL_STANDIN=1
+    self=${0%%/*}
+    IFS=:
+    for dir in $PATH; do
+      [ "$dir" = "$self" ] && continue
+      [ "$dir/curl" -ef "$0" ] && continue
+      [ -x "$dir/curl" ] && exec "$dir/curl" "$@"
+    done
+    exit %3$d
+    """
+        .formatted(CURL_VALUE_OPTIONS, CURL_PLAIN_OPTIONS, exitCode, CURL_PLAIN_LETTERS, hosts);
   }
 
   /** The stub embeds its log path in a POSIX single-quoted string, which one quote would end. */

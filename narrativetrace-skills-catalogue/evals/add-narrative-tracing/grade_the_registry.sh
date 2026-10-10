@@ -71,7 +71,7 @@ done
 # ------------------------------------------------------------------------------------------------
 plan=$(java -jar "$NARRATIVETRACE_CLI_JAR" init --dry-run --json)
 
-echo "$plan" | python3 -c '
+printf '%s\n' "$plan" | python3 -c '
 import json, sys
 plan = json.load(sys.stdin)
 actions = plan.get("actions", [])

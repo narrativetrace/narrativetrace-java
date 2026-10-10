@@ -63,7 +63,7 @@ class DependencyConfiguratorTest {
     assertThat(deps)
         .contains(
             new DependencyConfigurator.ResolvedDependency(
-                "testRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:5.11.4"));
+                "testRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:5.11.4", true));
   }
 
   @Test
@@ -92,7 +92,29 @@ class DependencyConfiguratorTest {
     assertThat(deps)
         .contains(
             new DependencyConfigurator.ResolvedDependency(
-                "testRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.11.4"));
+                "testRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.11.4", true));
+  }
+
+  /**
+   * Spring Boot's io.spring.dependency-management plugin lets a directly declared version override
+   * its managed one across the whole configuration, so a pinned {@code engine:5.11.4} beside Boot's
+   * managed {@code junit-jupiter-api:5.12.2} split the pair and no test was discovered. The pair is
+   * therefore a FLOOR — a versionless dependency plus a required-version constraint — never a
+   * direct version.
+   */
+  @Test
+  void theJunitPlatformPairIsAFloorRatherThanADirectVersion() {
+    var deps =
+        DependencyConfigurator.resolve(
+            "proxy", "junit5", "test", false, false, false, false, VERSION);
+
+    assertThat(deps)
+        .filteredOn(d -> d.artifact().startsWith("org.junit."))
+        .hasSize(2)
+        .allMatch(DependencyConfigurator.ResolvedDependency::floor);
+    assertThat(deps)
+        .filteredOn(d -> d.artifact().startsWith("ai.narrativetrace:"))
+        .noneMatch(DependencyConfigurator.ResolvedDependency::floor);
   }
 
   @Test

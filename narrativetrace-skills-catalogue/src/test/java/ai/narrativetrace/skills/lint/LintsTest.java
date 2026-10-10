@@ -276,4 +276,71 @@ class LintsTest {
         .as("pre-approving an ordinary command is the whole point of the field")
         .isEmpty();
   }
+
+  // --- promotionNotPreApproved -------------------------------------------------------------------
+
+  private static Skill promotingSkill(List<String> allowedTools) {
+    return new Skill(
+        "narrativetrace-x",
+        SkillClass.GUIDED,
+        "d",
+        null,
+        "sixty-seconds",
+        List.of(
+            new SkillStep(
+                "promote what was shown",
+                new StepBody.CommandStep(List.of("./gradlew approveNarratives")),
+                null)),
+        List.of(),
+        List.of(),
+        allowedTools);
+  }
+
+  @Test
+  void promotionNotPreApprovedRejectsASkillThatPreApprovesTheWrapperItPromotesWith() {
+    assertThat(Lints.promotionNotPreApproved(List.of(promotingSkill(List.of("./gradlew")))))
+        .singleElement()
+        .asString()
+        .contains("narrativetrace-x")
+        .contains("\"./gradlew\"")
+        .contains("beyond the allowance [find]");
+  }
+
+  @Test
+  void promotionNotPreApprovedRejectsEveryToolBeyondTheAllowanceNotOnlyTheWrapper() {
+    assertThat(Lints.promotionNotPreApproved(List.of(promotingSkill(List.of("git", "find")))))
+        .singleElement()
+        .asString()
+        .contains("\"git\"");
+  }
+
+  @Test
+  void promotionNotPreApprovedAcceptsNoToolsOrTheReadOnlyAllowance() {
+    assertThat(Lints.promotionNotPreApproved(List.of(promotingSkill(List.of())))).isEmpty();
+    assertThat(Lints.promotionNotPreApproved(List.of(promotingSkill(List.of("find"))))).isEmpty();
+  }
+
+  @Test
+  void promotionNotPreApprovedIgnoresASkillThatPromotesNothing() {
+    assertThat(Lints.promotionNotPreApproved(List.of(skillAllowing(List.of("git", "./gradlew")))))
+        .isEmpty();
+  }
+
+  @Test
+  void promotionNotPreApprovedReadsAVerifyLineThatRunsThePromotion() {
+    var skill =
+        new Skill(
+            "narrativetrace-x",
+            SkillClass.GUIDED,
+            "d",
+            null,
+            "sixty-seconds",
+            List.of(
+                new SkillStep(
+                    "promote", new StepBody.CommandStep(List.of()), "./gradlew approveNarratives")),
+            List.of(),
+            List.of(),
+            List.of("./gradlew"));
+    assertThat(Lints.promotionNotPreApproved(List.of(skill))).hasSize(1);
+  }
 }

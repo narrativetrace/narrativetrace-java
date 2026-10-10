@@ -21,7 +21,8 @@ import java.util.List;
  *
  * <p>The shape is the whole point: draft, SHOW the draft in full, ask one question, stop the turn.
  * Filing is public and permanent, so the decision has to be the user's in a turn of their own — not
- * inferred from the turn that asked, and not from a summary of a report they never saw.
+ * inferred from the turn that asked, and not from a summary of a report they never saw. The gate's
+ * wording is {@link ApprovalGate}'s, shared with the verify skill's pin step.
  *
  * <p><b>@llmNote</b> This skill declares NO allowed tools, and that is a safety property rather
  * than an omission. A Claude-flavour {@code allowed-tools} grants its listed tools for the turn
@@ -94,8 +95,8 @@ public final class NarrativeTraceFeedbackSkill {
                 List.of(),
                 null)),
         List.of(
-            new ReasonedRule(
-                "Show the whole draft before asking anything",
+            ApprovalGate.showTheWholeBeforeAsking(
+                "draft",
                 "filing is public and permanent, and a person can only approve what they have"
                     + " actually read"),
             new ReasonedRule(
@@ -112,13 +113,8 @@ public final class NarrativeTraceFeedbackSkill {
                 "those carry the values from the user's own run; the structural trace carries the"
                     + " same shape of the same call without any of them, and the verb attaches it"
                     + " on its own"),
-            new ReasonedRule(
-                "Never file in the turn that asked",
-                "approval is the user's next message — a yes assumed in the same turn is not one"),
-            new ReasonedRule(
-                "Never edit the draft after showing it",
-                "what was approved has to be what is filed, so a changed report is drafted again"
-                    + " and shown again"),
+            ApprovalGate.neverInTheTurnThatAsked("file"),
+            ApprovalGate.neverEditAfterShowing("draft", "filed", "report is drafted"),
             new ReasonedRule(
                 "Never open the URL or run the printed command",
                 "submitting is the user's act, in their own browser or their own shell, under"

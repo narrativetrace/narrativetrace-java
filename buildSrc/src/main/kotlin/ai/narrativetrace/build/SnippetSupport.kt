@@ -245,8 +245,9 @@ object SnippetSupport {
     /**
      * Strips a leading license-header comment block from the SOURCE side only — never the page —
      * before it is compared or copied. The publish script stamps every source file of the public
-     * snapshot with a header (a run of `//` lines, one `/* ... */` block, or — for XML, `logback.xml`
-     * included — one `<!-- ... -->` block) the page never showed and the in-tree source never
+     * snapshot with a header (a run of `//` lines, a run of `#` lines for `.properties`/`.yml`, one
+     * `/* ... */` block, or — for XML, `logback.xml` included — one `<!-- ... -->` block) the page
+     * never showed and the in-tree source never
      * carries, so an un-stripped comparison would fail only in the publish verify, on files that
      * were fine right up to that point.
      *
@@ -264,7 +265,8 @@ object SnippetSupport {
             when {
                 first.startsWith("/*") -> blockCommentEnd(lines, "*/")
                 first.startsWith("<!--") -> blockCommentEnd(lines, "-->")
-                first.startsWith("//") -> lineCommentEnd(lines)
+                first.startsWith("//") -> lineCommentEnd(lines, "//")
+                first.startsWith("#") -> lineCommentEnd(lines, "#")
                 else -> null
             } ?: return text
         if (!lines.subList(0, headerEnd).any { line -> LICENSE_MARKERS.any { line.contains(it) } }) {
@@ -282,7 +284,8 @@ object SnippetSupport {
     private val COPYRIGHT_LINE = Regex("""Copyright \(c\) \d{4}""")
 
     /**
-     * Exclusive end index of a leading license header within a run of `//` lines. A stamped header
+     * Exclusive end index of a leading license header within a run of [prefix] line comments — `//`
+     * for Java and Kotlin, `#` for the `.properties`/`.yml`/shell files the publish script stamps. A stamped header
      * carries no closing token the way a block comment's `*` `/` does, so its end is found from the
      * run's last marker-bearing line, extended through any immediately following copyright line —
      * the shape this repo's own publish script actually writes (SPDX/Licensed-under line(s), then
@@ -294,8 +297,8 @@ object SnippetSupport {
      * <p>Returns the whole contiguous run when it carries no marker at all, so the caller's own
      * marker check (right after this call) still correctly says "not a header".
      */
-    private fun lineCommentEnd(lines: List<String>): Int {
-        val run = lines.indices.firstOrNull { !lines[it].trimStart().startsWith("//") } ?: lines.size
+    private fun lineCommentEnd(lines: List<String>, prefix: String): Int {
+        val run = lines.indices.firstOrNull { !lines[it].trimStart().startsWith(prefix) } ?: lines.size
         val lastMarker =
             (0 until run).lastOrNull { i -> LICENSE_MARKERS.any { lines[i].contains(it) } } ?: return run
         var end = lastMarker + 1

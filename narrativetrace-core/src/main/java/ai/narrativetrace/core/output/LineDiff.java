@@ -8,6 +8,8 @@
 package ai.narrativetrace.core.output;
 
 import java.util.List;
+import java.util.function.BinaryOperator;
+import java.util.function.UnaryOperator;
 
 /**
  * Longest-common-subsequence line diff in the conventional format: {@code -} removed, {@code +}
@@ -42,11 +44,28 @@ final class LineDiff {
     return matched == currentLines.size();
   }
 
-  static String unified(String baseline, String current) {
+  /**
+   * The diff with lines matched on {@code key}, so two lines whose keys agree are context even when
+   * their bytes differ; {@code context} renders such a pair from (baseline line, current line).
+   * Removed lines print as the baseline wrote them, added lines as the current document does.
+   */
+  static String unified(
+      String baseline, String current, UnaryOperator<String> key, BinaryOperator<String> context) {
     var baselineLines = baseline.lines().toList();
     var currentLines = current.lines().toList();
-    return render(lcsTable(baselineLines, currentLines), baselineLines, currentLines);
+    var baselineKeys = baselineLines.stream().map(key).toList();
+    var currentKeys = currentLines.stream().map(key).toList();
+    var table = lcsTable(baselineKeys, currentKeys);
+    return render(
+        table, new Sides(baselineLines, baselineKeys, currentLines, currentKeys), context);
   }
+
+  /** Both documents, each as its printed lines and the keys those lines are matched on. */
+  private record Sides(
+      List<String> baseline,
+      List<String> baselineKeys,
+      List<String> current,
+      List<String> currentKeys) {}
 
   private static int[][] lcsTable(List<String> baseline, List<String> current) {
     var table = new int[baseline.size() + 1][current.size() + 1];
@@ -61,14 +80,15 @@ final class LineDiff {
     return table;
   }
 
-  private static String render(int[][] table, List<String> baseline, List<String> current) {
+  private static String render(int[][] table, Sides sides, BinaryOperator<String> context) {
+    var baseline = sides.baseline();
+    var current = sides.current();
     var sb = new StringBuilder();
     int i = 0;
     int j = 0;
     while (i < baseline.size() && j < current.size()) {
-      if (baseline.get(i).equals(current.get(j))) {
-        sb.append(' ').append(baseline.get(i++)).append('\n');
-        j++;
+      if (sides.baselineKeys().get(i).equals(sides.currentKeys().get(j))) {
+        sb.append(' ').append(context.apply(baseline.get(i++), current.get(j++))).append('\n');
       } else if (table[i + 1][j] >= table[i][j + 1]) {
         sb.append('-').append(baseline.get(i++)).append('\n');
       } else {

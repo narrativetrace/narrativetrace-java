@@ -24,8 +24,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
 }
 
 tasks.withType<JavaCompile> {
@@ -129,7 +129,7 @@ gradle wrapper
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 4ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 2ms #1
 ```
 <!-- /snippet -->
 
@@ -163,9 +163,9 @@ moment it is on the classpath; the two commented lines below are the change:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.2.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.2.5")
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.2.5")   // new: attaches to the pipeline
+    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.3.0")   // new: attaches to the pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // new: the SLF4J backend it needs
 }
 ```
@@ -196,7 +196,7 @@ dependencies {
 ```text
 22:24:53.632 TRACE [loose hook parks] [] [narrativetrace] - → OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2)
 22:24:53.637 TRACE [loose hook parks] [] [narrativetrace] - ← returned: "ORD-C-1234-SKU-KB-2"
-OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms
+OrderService.placeOrder(customerId: "C-1234", productId: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 8ms #1
 ```
 
 `traceName` is populated because `Main` adopted the fixed trace above; `runName` is

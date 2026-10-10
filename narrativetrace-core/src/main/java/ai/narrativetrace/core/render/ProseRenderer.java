@@ -18,7 +18,6 @@ import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.tree.TreeWalk;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,9 +46,10 @@ public final class ProseRenderer implements NarrativeRenderer {
    * depth, because a fire-and-forget launcher or a concurrency group occupies a prose paragraph of
    * its own without being a walked node, so its members render one indent level deeper than a plain
    * child would at the same walk depth — plus text to print immediately before it and immediately
-   * after its whole subtree. See {@link #planChildren}.
+   * after its whole subtree — and the span's id, which the sentence cites in parentheses. See
+   * {@link #planChildren}.
    */
-  private record Ctx(int depth, String leading, String trailing) {}
+  private record Ctx(int depth, String id, String leading, String trailing) {}
 
   /**
    * Mutable working form of {@link Ctx} while a sibling list is being planned; see {@link
@@ -57,10 +57,12 @@ public final class ProseRenderer implements NarrativeRenderer {
    */
   private static final class Planned extends PlannedSibling {
     final int depth;
+    final String id;
 
-    Planned(TraceNode node, int depth, String leading) {
+    Planned(TraceNode node, int depth, String id, String leading) {
       super(node, leading);
       this.depth = depth;
+      this.id = id;
     }
   }
 
@@ -70,8 +72,10 @@ public final class ProseRenderer implements NarrativeRenderer {
   public String render(TraceTree tree) {
     var sb = new StringBuilder();
     appendTraceHeader(tree, sb);
-    for (var root : tree.roots()) {
-      renderTree(root, sb);
+    var roots = tree.roots();
+    var ids = SpanId.idsOf(roots, null);
+    for (var i = 0; i < roots.size(); i++) {
+      renderTree(roots.get(i), ids.get(i), sb);
     }
     return sb.toString().stripTrailing() + LossFooter.block(tree, "");
   }
@@ -98,9 +102,9 @@ public final class ProseRenderer implements NarrativeRenderer {
    * Walks one root, bounded and cycle-safe. See {@link NodeContext} for why a genuine cycle needs
    * more than a plain identity map here.
    */
-  private void renderTree(TraceNode root, StringBuilder sb) {
+  private void renderTree(TraceNode root, String rootId, StringBuilder sb) {
     var ctxOf = new NodeContext<TraceNode, Ctx>();
-    ctxOf.push(root, new Ctx(0, null, null));
+    ctxOf.push(root, new Ctx(0, rootId, null, null));
     TreeWalk.walk(
         root,
         node -> planChildren(node, ctxOf, sb),
@@ -125,47 +129,62 @@ public final class ProseRenderer implements NarrativeRenderer {
    */
   private List<TraceNode> planChildren(
       TraceNode node, NodeContext<TraceNode, Ctx> ctxOf, StringBuilder sb) {
-    var depth = ctxOf.peek(node).depth() + 1;
+    var parent = ctxOf.peek(node);
+    var depth = parent.depth() + 1;
+    var ids = new SpanCursor(parent.id());
     var planned = new ArrayList<Planned>();
     var carry = new StringBuilder();
     for (var segment : ChildSegment.partition(node.children())) {
-      if (segment.groupId == null) {
-        planned.add(new Planned(segment.nodes.get(0), depth, flush(carry)));
-      } else if (segment.isFireAndForget()) {
-        planFireAndForget(segment.nodes.get(0), depth, planned, carry);
-      } else {
-        planConcurrentGroup(segment.nodes, depth, planned, carry);
-      }
+      planSegment(segment, depth, ids, planned, carry);
     }
     flushToLast(planned, carry, sb);
     var result = new ArrayList<TraceNode>(planned.size());
     for (var p : planned) {
-      ctxOf.push(p.node, new Ctx(p.depth, p.leading, p.trailing));
+      ctxOf.push(p.node, new Ctx(p.depth, p.id, p.leading, p.trailing));
       result.add(p.node);
     }
     return result;
   }
 
+  private void planSegment(
+      ChildSegment segment, int depth, SpanCursor ids, List<Planned> planned, StringBuilder carry) {
+    if (segment.groupId == null) {
+      planned.add(new Planned(segment.nodes.get(0), depth, ids.next(), flush(carry)));
+    } else if (segment.isFireAndForget()) {
+      planFireAndForget(segment.nodes.get(0), depth, ids.next(), planned, carry);
+    } else {
+      planConcurrentGroup(segment.nodes, depth, ids, planned, carry);
+    }
+  }
+
   private void planFireAndForget(
-      TraceNode launcher, int depth, List<Planned> planned, StringBuilder carry) {
+      TraceNode launcher,
+      int depth,
+      String launcherId,
+      List<Planned> planned,
+      StringBuilder carry) {
     var indent = "  ".repeat(depth);
-    carry.append(indent).append("In the background:\n");
+    carry.append(indent).append("In the background (").append(launcherId).append("):\n");
     if (launcher.children().isEmpty()) {
       carry.append(indent).append("  (launched, result not captured).\n");
       return;
     }
-    var children = launcher.children();
-    for (var idx = 0; idx < children.size(); idx++) {
-      planned.add(new Planned(children.get(idx), depth + 1, idx == 0 ? flush(carry) : null));
+    var launched = new SpanCursor(launcherId);
+    for (var segment : ChildSegment.partition(launcher.children())) {
+      planSegment(segment, depth + 1, launched, planned, carry);
     }
   }
 
   private void planConcurrentGroup(
-      List<TraceNode> members, int depth, List<Planned> planned, StringBuilder carry) {
+      List<TraceNode> members,
+      int depth,
+      SpanCursor ids,
+      List<Planned> planned,
+      StringBuilder carry) {
     var indent = "  ".repeat(depth);
     var analysis = SequentialAsyncDetector.analyze(members);
     carry.append(indent).append("Concurrently:\n");
-    var sorted = members.stream().sorted(Comparator.comparing(this::sigKey)).toList();
+    var sorted = members.stream().sorted(SpanId.CONCURRENT_ORDER).toList();
     var hint =
         analysis.isSequentialAsync()
             ? indent
@@ -176,7 +195,7 @@ public final class ProseRenderer implements NarrativeRenderer {
                 + "ms.)\n"
             : "";
     for (var i = 0; i < sorted.size(); i++) {
-      var p = new Planned(sorted.get(i), depth + 1, i == 0 ? flush(carry) : null);
+      var p = new Planned(sorted.get(i), depth + 1, ids.next(), i == 0 ? flush(carry) : null);
       if (i == sorted.size() - 1 && !hint.isEmpty()) {
         p.trailing = hint;
       }
@@ -191,6 +210,7 @@ public final class ProseRenderer implements NarrativeRenderer {
     }
     var indent = "  ".repeat(ctx.depth());
     appendActionPhrase(sb, indent, node);
+    sb.append(" (").append(ctx.id()).append(')');
     if (node.children().isEmpty()) {
       renderOutcomeInline(node.outcome(), node.signature(), sb);
       sb.append(".\n");
@@ -218,6 +238,7 @@ public final class ProseRenderer implements NarrativeRenderer {
     }
     var indent = "  ".repeat(ctx.depth());
     appendActionPhrase(sb, indent, node);
+    sb.append(" (").append(ctx.id()).append(')');
     renderOutcomeInline(node.outcome(), node.signature(), sb);
     sb.append(" ").append(reason.marker()).append(".\n");
     // TreeWalk never calls onExit for a limited node, so trailing text — normally appended there —
@@ -225,10 +246,6 @@ public final class ProseRenderer implements NarrativeRenderer {
     if (ctx.trailing() != null) {
       sb.append(ctx.trailing());
     }
-  }
-
-  private String sigKey(TraceNode node) {
-    return node.signature().className() + "." + node.signature().methodName();
   }
 
   private void appendActionPhrase(StringBuilder sb, String indent, TraceNode node) {

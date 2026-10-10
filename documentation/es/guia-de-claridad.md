@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 0db742be4809 | translated: 2026-09-23 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob 3adc9e2ac548 | translated: 2026-09-23 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -311,7 +311,7 @@ El plugin de Gradle proporciona una tarea `clarityCheck` que hace fallar el buil
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.2.5"
+    id("ai.narrativetrace") version "0.3.0"
 }
 
 narrativeTrace {

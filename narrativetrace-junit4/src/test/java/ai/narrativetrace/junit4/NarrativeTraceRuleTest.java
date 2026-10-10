@@ -107,7 +107,7 @@ class NarrativeTraceRuleTest {
       var output = recordGrownFailingRun(rule, desc);
 
       assertThat(output).contains("Changed since last green (+1 call Ledger.record):");
-      assertThat(output).contains("+  - Ledger.record()");
+      assertThat(output).contains("+  #1.1 - Ledger.record()");
       assertThat(output).doesNotContain("Execution trace:");
     } finally {
       System.clearProperty("narrativetrace.output");

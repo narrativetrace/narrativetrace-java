@@ -65,6 +65,22 @@ tasks.withType<Test>().configureEach {
         .dir(rootProject.file("narrativetrace-skills/src/main/resources"))
         .withPropertyName("checkedInCarrier")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    // FrameworkTableDocsTest holds both pages to the framework table.
+    inputs
+        .files(rootProject.file("documentation/llms-full.md"), rootProject.file("documentation/llms.txt"))
+        .withPropertyName("frameworkTableDocs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// Re-renders the framework-table blocks of documentation/llms-full.md and documentation/llms.txt
+// from FrameworkTable (RenderFrameworkTableMain); FrameworkTableDocsTest fails until this has run.
+// Never hand-edit between the framework-table / covered-frameworks markers.
+tasks.register<JavaExec>("renderFrameworkTable") {
+    group = "documentation"
+    description = "Re-renders the framework table into documentation/llms-full.md and llms.txt"
+    mainClass.set("ai.narrativetrace.tooling.frameworks.RenderFrameworkTableMain")
+    classpath = sourceSets["test"].runtimeClasspath
+    args(rootProject.projectDir.absolutePath, project.version.toString())
 }
 
 // PIT runs the same suite in its own minion JVMs, and those inherit nothing from the `test` task:

@@ -43,6 +43,10 @@ public final class DocAnchors {
       BASE + "structural-trace-format#approval-traces-end-to-end";
   public static final String SIXTY_SECONDS_BEFORE_YOU_START =
       BASE + "sixty-seconds#before-you-start";
+
+  /** The integration lookup table — every framework row's module, one page. */
+  public static final String CHOOSING_AN_INTEGRATION = BASE + "choosing-an-integration";
+
   public static final String AGENT_SKILLS_INSTALLING = BASE + "agent-skills#installing-them";
 
   private DocAnchors() {}

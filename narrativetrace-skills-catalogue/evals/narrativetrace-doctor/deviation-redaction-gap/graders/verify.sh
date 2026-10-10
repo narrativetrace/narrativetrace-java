@@ -9,7 +9,7 @@ set -e
 
 report=$(java -jar "$NARRATIVETRACE_CLI_JAR" doctor --json || true)
 
-echo "$report" | python3 -c '
+printf '%s\n' "$report" | python3 -c '
 import json, sys
 report = json.load(sys.stdin)
 by_id = {f["id"]: f for f in report.get("findings", [])}

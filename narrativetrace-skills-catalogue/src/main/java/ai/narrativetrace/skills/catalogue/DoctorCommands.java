@@ -39,15 +39,27 @@ public final class DoctorCommands {
 
   /**
    * Runs the {@code ai.narrativetrace} Gradle plugin's {@code narrativetraceDoctor} task: the
-   * doctor's twelve checks, in-process, against this project.
+   * doctor's twenty checks, in-process, against this project.
    */
   public static final String RUN_DOCTOR_GRADLE = "./gradlew narrativetraceDoctor";
 
   /** Where {@link #RUN_DOCTOR_GRADLE} leaves its report, relative to the project it diagnosed. */
   public static final String DOCTOR_REPORT_PATH = "build/narrativetrace/doctor-report.json";
 
-  public static final String VERIFY_TWELVE_FINDINGS =
-      "the JSON report at " + DOCTOR_REPORT_PATH + " is well-formed, naming all twelve findings";
+  public static final String VERIFY_EVERY_FINDING =
+      "the JSON report at " + DOCTOR_REPORT_PATH + " is well-formed, naming all twenty findings";
+
+  /**
+   * The framework step's definition of done. Names no framework on purpose: which frameworks exist
+   * and how each is wired is the INSTALLED doctor's answer, read from its own framework table, so
+   * the step cannot go stale when a release adds a row.
+   */
+  public static final String VERIFY_FRAMEWORK_FIXES_APPLIED =
+      "every config.<framework>-* finding in "
+          + DOCTOR_REPORT_PATH
+          + " passes: apply each failing one's fix in order, as printed, then run the doctor"
+          + " again; a framework the doctor reports as having no integration shipped is left"
+          + " alone";
 
   public static final String VERIFY_REDACTION_FINDING_PRESENT =
       "the report at " + DOCTOR_REPORT_PATH + " names the trap.redaction-proof check";

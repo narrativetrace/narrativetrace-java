@@ -22,10 +22,17 @@ import java.util.Optional;
  * <p>A step with an empty {@link StepBody.CommandStep} and no {@code verify} is judgmental — its
  * title is expected to appear in {@code Lints#JUDGMENTAL_STEP_TITLES}. {@code flag}, when present,
  * is shown verbatim on the rendered page (e.g. {@code "unstudied — eval cell pending"}) — pointers
- * are product surface and must be honest.
+ * are product surface and must be honest. {@code condition}, when present, is rendered as a {@code
+ * **when:**} line under the heading: the step applies only then, and the page says what to do
+ * instead — prose a reader or agent branches on, never a framework list.
  */
 public record SkillStep(
-    String title, StepBody body, String verify, List<FailureNote> failure, String flag) {
+    String title,
+    StepBody body,
+    String verify,
+    List<FailureNote> failure,
+    String flag,
+    String condition) {
 
   public SkillStep {
     if (title == null || title.isBlank()) {
@@ -34,7 +41,16 @@ public record SkillStep(
     if (body == null) {
       throw new IllegalArgumentException("a SkillStep's body must not be null");
     }
+    if (condition != null && condition.isBlank()) {
+      throw new IllegalArgumentException("a SkillStep's condition must not be blank when present");
+    }
     failure = List.copyOf(failure);
+  }
+
+  /** An unconditional step: no {@code condition}. */
+  public SkillStep(
+      String title, StepBody body, String verify, List<FailureNote> failure, String flag) {
+    this(title, body, verify, failure, flag, null);
   }
 
   /** Convenience constructor for the common case: no failure notes, no flag. */
@@ -44,6 +60,10 @@ public record SkillStep(
 
   public Optional<String> verifyOptional() {
     return Optional.ofNullable(verify);
+  }
+
+  public Optional<String> conditionOptional() {
+    return Optional.ofNullable(condition);
   }
 
   public Optional<String> flagOptional() {

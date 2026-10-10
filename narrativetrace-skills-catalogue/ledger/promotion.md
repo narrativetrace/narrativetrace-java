@@ -15,6 +15,8 @@ fails `./gradlew check` (`PromotionDriftTest`).
 | Skill | Claude | Codex | Gemini |
 |---|---|---|---|
 | `narrativetrace-doctor` | not yet run | not yet run | not yet run |
-| `add-narrative-tracing` | green (haiku, 2026-10-04) | not yet run | not yet run |
+| `add-narrative-tracing` | red (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |
 | `add-narrativetrace-clarity` | green (haiku, 2026-09-23) | not yet run | not yet run |
 | `narrativetrace-feedback` | green (haiku, 2026-10-05) | not yet run | not yet run |
+| `narrativetrace-verify` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |
+| `narrativetrace-debug` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |

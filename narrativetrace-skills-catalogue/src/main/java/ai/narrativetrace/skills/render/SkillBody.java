@@ -10,6 +10,7 @@ package ai.narrativetrace.skills.render;
 import ai.narrativetrace.skills.FailureNote;
 import ai.narrativetrace.skills.ReasonedRule;
 import ai.narrativetrace.skills.Skill;
+import ai.narrativetrace.skills.SkillSection;
 import ai.narrativetrace.skills.SkillStep;
 import ai.narrativetrace.skills.StepBody;
 import java.io.IOException;
@@ -56,6 +57,11 @@ final class SkillBody {
       renderStep(out, i + 1, steps.get(i), repoRoot);
     }
 
+    for (SkillSection section : skill.sections()) {
+      out.append("## ").append(section.heading()).append("\n\n").append(section.markdown());
+      out.append(section.markdown().endsWith("\n") ? "\n" : "\n\n");
+    }
+
     renderRuleSection(out, "Always", skill.always());
     renderRuleSection(out, "Never", skill.never());
   }
@@ -63,6 +69,8 @@ final class SkillBody {
   private static void renderStep(StringBuilder out, int number, SkillStep step, Path repoRoot) {
     out.append("## ").append(number).append(". ").append(step.title()).append("\n\n");
     step.flagOptional().ifPresent(flag -> out.append("**Flagged:** ").append(flag).append("\n\n"));
+    step.conditionOptional()
+        .ifPresent(when -> out.append("**when:** ").append(when).append("\n\n"));
 
     if (step.body() instanceof StepBody.CommandStep commands) {
       renderCommandStep(out, commands);

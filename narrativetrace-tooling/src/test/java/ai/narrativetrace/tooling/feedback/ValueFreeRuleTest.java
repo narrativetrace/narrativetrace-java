@@ -38,6 +38,23 @@ class ValueFreeRuleTest {
   }
 
   @Test
+  void renderedCallRejectsEveryMarkdownEmphasisBetweenNameAndParenthesis() {
+    for (String mark : new String[] {"**", "__", "*", "_"}) {
+      assertThat(
+              ValueFreeRule.RENDERED_CALL.rejects(
+                  "- " + mark + "Order.place" + mark + "(customerId: `\"C-1\"`)"))
+          .as("emphasis %s", mark)
+          .isTrue();
+    }
+  }
+
+  @Test
+  void renderedCallAcceptsTheStructuralFormWhenTheNameIsEmphasised() {
+    assertThat(ValueFreeRule.RENDERED_CALL.rejects("- **Order.place**(customerId, total)"))
+        .isFalse();
+  }
+
+  @Test
   void renderedOutcomeRejectsAReturnedValue() {
     assertThat(
             ValueFreeRule.RENDERED_OUTCOME.rejects("OrderService.placeOrder(c) \u2192 \"ORD-9\""))

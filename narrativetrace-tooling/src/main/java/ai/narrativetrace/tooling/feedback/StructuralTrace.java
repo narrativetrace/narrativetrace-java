@@ -32,9 +32,10 @@ import java.util.regex.Pattern;
  *
  * <p><b>@llmNote</b> The grammar is the published one: a {@code scenario:} header, then call lines
  * {@code Type.method(name, name)} with an optional outcome of the returned marker, {@code !!
- * TypeName} or the incomplete marker, and concurrency markers such as {@code ~ fork [2]}. Anything
- * else makes the whole file not-a-structural-trace. Loosening this means loosening what a report
- * may attach, so loosen the FORMAT first and this after.
+ * TypeName} or the incomplete marker, and concurrency markers such as {@code ~ fork [2]} — either
+ * may open with a span id such as {@code #1.3}. Anything else makes the whole file
+ * not-a-structural-trace. Loosening this means loosening what a report may attach, so loosen the
+ * FORMAT first and this after.
  *
  * <p><b>@llmNote</b> A call line is taken apart with {@code indexOf} and one-quantifier patterns
  * rather than matched by a single regex. The obvious regex needs a nested quantifier for the dotted
@@ -71,7 +72,9 @@ public final class StructuralTrace {
       throw new IllegalArgumentException("the grammar check reads content, never null");
     }
     boolean headerSeen = false;
-    for (String line : content.split("\n", -1)) {
+    // CRLF is a checkout's line ending (core.autocrlf), not a different file: the grammar is per
+    // line.
+    for (String line : content.split("\r?\n", -1)) {
       if (line.isBlank()) {
         continue;
       }
@@ -80,11 +83,47 @@ public final class StructuralTrace {
         if (!headerSeen) {
           return false;
         }
-      } else if (!isCallLine(line) && !MARKER_LINE.matcher(line).matches()) {
-        return false;
+      } else {
+        String shape = withoutSpanId(line);
+        if (!isCallLine(shape) && !MARKER_LINE.matcher(shape).matches()) {
+          return false;
+        }
       }
     }
     return headerSeen;
+  }
+
+  /**
+   * The line without the span id it may open with ({@code #1.3.2}, after the indent): a position
+   * path, so it carries no value. Anything after the indent that starts with {@code #} but is not a
+   * well-formed path is left in place, and then fails the line.
+   *
+   * <p><b>@llmNote</b> Mirrors {@code SpanId.strip} in {@code narrativetrace-core}; this module is
+   * zero-dependency by contract, so the grammar is restated rather than linked.
+   */
+  private static String withoutSpanId(String line) {
+    int start = 0;
+    while (start < line.length() && line.charAt(start) == ' ') {
+      start++;
+    }
+    if (start >= line.length() || line.charAt(start) != '#') {
+      return line;
+    }
+    int i = start + 1;
+    int digitsInRun = 0;
+    while (i < line.length()) {
+      char c = line.charAt(i);
+      if (c >= '0' && c <= '9') {
+        digitsInRun++;
+      } else if (c == '.' && digitsInRun > 0) {
+        digitsInRun = 0;
+      } else {
+        break;
+      }
+      i++;
+    }
+    boolean wellFormed = digitsInRun > 0 && i < line.length() && line.charAt(i) == ' ';
+    return wellFormed ? line.substring(0, start) + line.substring(i + 1) : line;
   }
 
   /** {@code - Type.method(a, b)} plus at most one outcome marker. */

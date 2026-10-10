@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.core.render.SpanId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +18,9 @@ import java.util.stream.Collectors;
  *
  * <p>INTENT: The comparison engine for the test-loop feedback surfaces — the post-run console delta
  * line, the failure delta against the last green artifact, and approval-mode verification. Sameness
- * is byte equality of the artifact: the renderer is deterministic, so byte-identical means
- * behaviorally identical, and any difference is real change worth surfacing.
+ * is equality of the artifact's lines with span ids set aside: the renderer is deterministic, so
+ * the same lines mean the same behaviour, and any difference is real change worth surfacing. A
+ * baseline written before span ids existed, or checked out with CRLF line endings, still compares.
  */
 public final class StructuralDelta {
 
@@ -29,7 +31,7 @@ public final class StructuralDelta {
   private StructuralDelta(String baseline, String current) {
     this.baseline = baseline;
     this.current = current;
-    this.unchanged = baseline.equals(current);
+    this.unchanged = withoutIds(baseline).equals(withoutIds(current));
   }
 
   /**
@@ -48,9 +50,21 @@ public final class StructuralDelta {
     return new StructuralDelta(baseline, current);
   }
 
-  /** True iff the two artifacts are byte-identical — the scenario's structure did not change. */
+  /**
+   * True iff the two artifacts have the same lines once span ids are set aside — the scenario's
+   * structure did not change.
+   */
   public boolean unchanged() {
     return unchanged;
+  }
+
+  /**
+   * True when the current document differs from the baseline only by omission — every one of its
+   * lines appears in the baseline, in order, span ids set aside. The question to ask of a run known
+   * to be incomplete: an omission shifts the ids of later siblings, which is not a change.
+   */
+  public boolean onlyOmits() {
+    return LineDiff.isSubsequence(withoutIds(baseline), withoutIds(current));
   }
 
   /**
@@ -79,7 +93,27 @@ public final class StructuralDelta {
     if (unchanged) {
       return "";
     }
-    return LineDiff.unified(baseline, current);
+    return LineDiff.unified(baseline, current, SpanId::strip, StructuralDelta::contextLine);
+  }
+
+  /**
+   * An unchanged line as the current document prints it, citing the baseline's id when an insertion
+   * or removal earlier in the list shifted it: {@code #1.3 - A.b() (was #1.2)}. A baseline written
+   * before span ids existed has none to cite.
+   */
+  private static String contextLine(String was, String now) {
+    var wasId = SpanId.of(was);
+    return wasId == null || wasId.equals(SpanId.of(now)) ? now : now + "  (was " + wasId + ")";
+  }
+
+  /**
+   * The document's lines with every span id removed, joined by LF — the form sameness is decided
+   * on. Ids are derived from position and carry no behaviour of their own; line terminators (LF,
+   * CRLF) and a final newline are encoding, not structure, and the line diff never sees them
+   * either.
+   */
+  static String withoutIds(String document) {
+    return document.lines().map(SpanId::strip).collect(Collectors.joining("\n"));
   }
 
   private Map<String, Integer> countChanges() {
@@ -97,6 +131,7 @@ public final class StructuralDelta {
   private static List<String> callSignatures(String document) {
     return document
         .lines()
+        .map(SpanId::strip)
         .map(String::stripLeading)
         .filter(line -> line.startsWith("- "))
         .map(StructuralDelta::signatureOf)

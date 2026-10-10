@@ -14,6 +14,7 @@ import ai.narrativetrace.skills.FailureNote;
 import ai.narrativetrace.skills.ReasonedRule;
 import ai.narrativetrace.skills.Skill;
 import ai.narrativetrace.skills.SkillClass;
+import ai.narrativetrace.skills.SkillSection;
 import ai.narrativetrace.skills.SkillStep;
 import ai.narrativetrace.skills.StepBody;
 import java.io.IOException;
@@ -189,6 +190,31 @@ class ClaudeSkillRendererTest {
   }
 
   @Test
+  void rendersAStepConditionBetweenTheHeadingAndTheBody() {
+    Skill skill =
+        skillWithSteps(
+            List.of(
+                new SkillStep(
+                    "Conditional step",
+                    new StepBody.CodeStep("kotlin", "plugins { java }"),
+                    "./gradlew build",
+                    List.of(),
+                    null,
+                    "only when the project has no entry point")));
+    String rendered = ClaudeSkillRenderer.render(skill);
+    assertThat(rendered)
+        .contains(
+            "## 1. Conditional step\n\n"
+                + "**when:** only when the project has no entry point\n\n"
+                + "```kotlin");
+  }
+
+  @Test
+  void rendersNoWhenLineForAnUnconditionalStep() {
+    assertThat(ClaudeSkillRenderer.render(skillWithOneStep(null))).doesNotContain("**when:**");
+  }
+
+  @Test
   void omitsAlwaysAndNeverSectionsWhenEmpty() {
     Skill skill = skillWithOneStep(null);
     String rendered = ClaudeSkillRenderer.render(skill);
@@ -211,6 +237,31 @@ class ClaudeSkillRendererTest {
     String rendered = ClaudeSkillRenderer.render(skill);
     assertThat(rendered).contains("## Always\n\n- always do X (because)\n");
     assertThat(rendered).contains("## Never\n\n- never do Y (because also)\n");
+  }
+
+  @Test
+  void rendersEachSectionAfterTheStepsAndBeforeTheRules() {
+    Skill skill =
+        new Skill(
+            "narrativetrace-x",
+            SkillClass.GUIDED,
+            "A description.",
+            null,
+            "sixty-seconds",
+            List.of(new SkillStep("Step", new StepBody.CommandStep(List.of()), "verify")),
+            List.of(new ReasonedRule("always do X", "because")),
+            List.of(),
+            List.of(),
+            List.of(new SkillSection("How to read a trace", "| flavour | answers |\n")));
+    String rendered = ClaudeSkillRenderer.render(skill);
+    assertThat(rendered)
+        .contains(
+            "**verify:** verify\n\n## How to read a trace\n\n| flavour | answers |\n\n## Always");
+  }
+
+  @Test
+  void aSkillBuiltWithoutSectionsRendersNone() {
+    assertThat(skillWithOneStep(null).sections()).isEmpty();
   }
 
   /**

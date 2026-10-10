@@ -49,13 +49,15 @@ class InitPromptDriftTest {
   private static final String FIRST_LINE = "Set up NarrativeTrace in this project";
 
   /**
-   * Every case that replays the published prompt today: its two branches, and the two registry
-   * paths that reach it through a registry install first. Each must be among the DISCOVERED copies.
+   * Every case that replays the published prompt today: its two branches, the Spring Boot project
+   * (Phase 6, D4), and the two registry paths that reach it through a registry install first. Each
+   * must be among the DISCOVERED copies.
    */
   private static final List<String> CASES_WHOSE_PROMPT_IS_THE_WHOLE_FILE =
       List.of(
           "add-narrative-tracing/init-prompt-empty-project/prompt.md",
           "add-narrative-tracing/init-prompt-existing-project/prompt.md",
+          "add-narrative-tracing/init-prompt-spring-boot-project/prompt.md",
           "add-narrative-tracing/registry-claude-marketplace/prompt.md",
           "add-narrative-tracing/registry-npx-skills/prompt.md");
 

@@ -30,6 +30,13 @@ class ControlEscapeTest {
   }
 
   @Test
+  void escapesTheUnicodeLineAndParagraphSeparators() {
+    // Not ISO controls, but line terminators to java.util.regex, JavaScript and many log viewers:
+    // a raw one splits a line just as \n does (nightly fuzzOutputFormat, 2026-10-09).
+    assertThat(ControlEscape.sanitize("a\u2028b\u2029c")).isEqualTo("a\\u2028b\\u2029c");
+  }
+
+  @Test
   void leavesQuotesAndBackslashesUnchanged() {
     // Distinguishes control-escaping from JSON escaping: value content like C:\temp and " survive.
     assertThat(ControlEscape.sanitize("C:\\temp \"q\"")).isEqualTo("C:\\temp \"q\"");

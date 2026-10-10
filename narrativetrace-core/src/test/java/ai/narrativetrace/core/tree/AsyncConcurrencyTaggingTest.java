@@ -158,12 +158,12 @@ class AsyncConcurrencyTaggingTest {
             """
             scenario: order placed
 
-            - OrderService.placeOrder() → value
+            #1 - OrderService.placeOrder() → value
               ~ async [4]
-                - Alpha.first() → value
-                - Bravo.second() → value
-                - Charlie.third() → value
-                - Delta.fourth() → value
+                #1.1 - Alpha.first() → value
+                #1.2 - Bravo.second() → value
+                #1.3 - Charlie.third() → value
+                #1.4 - Delta.fourth() → value
             """);
   }
 

@@ -16,6 +16,9 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The environment every command of a trial runs with, and the evidence a grader reads afterwards:
@@ -309,5 +312,183 @@ class TrialEnvironmentTest {
         .contains("gh issue create")
         .contains("curl https://example.com");
     assertThat(environment.ghInvocations()).isEqualTo(environment.blockedInvocations());
+  }
+
+  /**
+   * The published site is the product surface the init prompt names ("read llms.txt first"), so a
+   * trial must let the agent read it with {@code curl} — through the real curl behind the stand-in,
+   * with the request still on the record. Every other host still gets curl's own "could not resolve
+   * host", exit 6.
+   */
+  @Test
+  void theCurlStandInServesThePublishedSiteThroughTheRealCurlBehindIt(@TempDir Path dir)
+      throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process =
+        curlThroughTheStandIn(
+            environment, realCurl, "-sS", "https://narrativetrace.ai/java/llms.txt");
+
+    assertThat(process.waitFor()).isZero();
+    assertThat(new String(process.getInputStream().readAllBytes()))
+        .contains("REAL -sS https://narrativetrace.ai/java/llms.txt");
+    assertThat(environment.ghInvocations())
+        .content()
+        .contains("curl -sS https://narrativetrace.ai/java/llms.txt");
+  }
+
+  @Test
+  void theCurlStandInStillAnswersCouldNotResolveForAnyOtherHost(@TempDir Path dir)
+      throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process =
+        curlThroughTheStandIn(environment, realCurl, "https://api.github.com/repos/x/y/issues");
+
+    assertThat(process.waitFor()).isEqualTo(6);
+    assertThat(new String(process.getInputStream().readAllBytes())).doesNotContain("REAL");
+    assertThat(environment.ghInvocations())
+        .content()
+        .contains("curl https://api.github.com/repos/x/y/issues");
+  }
+
+  @Test
+  void oneForeignUrlInTheSameInvocationBlocksTheWholeRequest(@TempDir Path dir) throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process =
+        curlThroughTheStandIn(
+            environment, realCurl, "https://narrativetrace.ai/llms.txt", "https://evil.example/x");
+
+    assertThat(process.waitFor()).isEqualTo(6);
+    assertThat(new String(process.getInputStream().readAllBytes())).doesNotContain("REAL");
+  }
+
+  @Test
+  void aCurlInvocationNamingNoPublishedUrlIsNotServed(@TempDir Path dir) throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process = curlThroughTheStandIn(environment, realCurl, "--version");
+
+    assertThat(process.waitFor()).isEqualTo(6);
+    assertThat(new String(process.getInputStream().readAllBytes())).doesNotContain("REAL");
+  }
+
+  /**
+   * A web-framework case's program is a server, and "run the program" means requesting its own
+   * endpoint — the Spring Boot case's agent would otherwise hit exit 6 on {@code
+   * http://localhost:8080/…} and could not see the trace it was asked to paste. Loopback reaches no
+   * network, so it is served like the published site; written with or without a scheme, as people
+   * type it.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "http://localhost:8080/accounts/ACC-17",
+        "http://localhost",
+        "https://localhost/x",
+        "http://127.0.0.1:8080/accounts/ACC-17",
+        "localhost:8080/accounts/ACC-17",
+        "localhost",
+        "127.0.0.1:8080",
+        "127.0.0.1/x"
+      })
+  void theCurlStandInServesLoopbackThroughTheRealCurlBehindIt(String url, @TempDir Path dir)
+      throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process = curlThroughTheStandIn(environment, realCurl, "-s", url);
+
+    assertThat(process.waitFor()).isZero();
+    assertThat(new String(process.getInputStream().readAllBytes())).contains("REAL -s " + url);
+    assertThat(environment.blockedInvocations()).content().contains("curl -s " + url);
+  }
+
+  /**
+   * Near misses: a host that merely STARTS with a loopback name, and the userinfo form, where
+   * everything before the {@code @} is credentials and the host curl actually contacts follows it.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "http://localhost.evil.example/x",
+        "http://127.0.0.1.evil.example/x",
+        "localhost.evil.example",
+        "http://localhost:8080@evil.example/x",
+        "localhost:8080@evil.example",
+        "https://narrativetrace.ai@evil.example/llms.txt"
+      })
+  void aHostThatOnlyLooksServedIsNotServed(String url, @TempDir Path dir) throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process = curlThroughTheStandIn(environment, realCurl, url);
+
+    assertThat(process.waitFor()).as(url).isEqualTo(6);
+    assertThat(new String(process.getInputStream().readAllBytes())).doesNotContain("REAL");
+  }
+
+  /**
+   * The stand-in classifies EVERY argument, so the lines agents really type have to stay served:
+   * the first is verbatim from a 2026-10-09 trial fetching llms.txt; the rest are how an agent
+   * requests its own endpoint.
+   */
+  static List<List<String>> curlLinesAgentsType() {
+    return List.of(
+        List.of(
+            "-sS",
+            "-L",
+            "--max-time",
+            "30",
+            "-o",
+            "llms.txt",
+            "-w",
+            "HTTP %{http_code} %{content_type} %{size_download} bytes\\n",
+            "https://narrativetrace.ai/java/llms.txt"),
+        List.of("-fsSL", "https://narrativetrace.ai/java/llms.txt"),
+        List.of("-s", "http://localhost:8080/accounts/ACC-17"),
+        List.of("-i", "localhost:8080/accounts/ACC-17"),
+        List.of("-X", "GET", "http://localhost:8080/x", "-H", "Accept: application/json"),
+        List.of("-s", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:8080/x"),
+        List.of("--silent", "--show-error", "--url", "http://localhost:8080/x"),
+        List.of("--max-time=5", "--url=http://[::1]:8080/x"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("curlLinesAgentsType")
+  void theCurlLinesAgentsTypeAreServed(List<String> argv, @TempDir Path dir) throws Exception {
+    TrialEnvironment environment = under(dir.resolve("work"), dir);
+    Path realCurl = fakeRealCurl(dir);
+
+    Process process = curlThroughTheStandIn(environment, realCurl, argv.toArray(String[]::new));
+
+    assertThat(process.waitFor()).as(String.join(" ", argv)).isZero();
+    assertThat(new String(process.getInputStream().readAllBytes())).startsWith("REAL");
+  }
+
+  /** A stand-in for the real curl, placed BEHIND the trial's stub on PATH by the caller. */
+  private static Path fakeRealCurl(Path dir) throws IOException {
+    Path bin = Files.createDirectories(dir.resolve("real-bin"));
+    Path curl = bin.resolve("curl");
+    Files.writeString(
+        curl,
+        "#!/bin/sh\nprintf 'REAL'\nfor a in \"$@\"; do printf ' %s' \"$a\"; done\nprintf '\\n'\n");
+    assertThat(curl.toFile().setExecutable(true)).isTrue();
+    return curl;
+  }
+
+  private static Process curlThroughTheStandIn(
+      TrialEnvironment environment, Path realCurl, String... args) throws IOException {
+    String stubDir = environment.agentEnvironment().get("PATH").split(":")[0];
+    List<String> command = new java.util.ArrayList<>(List.of(stubDir + "/curl"));
+    command.addAll(List.of(args));
+    ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+    builder.environment().put("PATH", stubDir + ":" + realCurl.getParent());
+    return builder.start();
   }
 }

@@ -46,6 +46,30 @@ class DoctorRenderTest {
     assertThat(text).contains("1 finding(s). Exit code 1.");
   }
 
+  /**
+   * A framework fix carries its wiring snippet, several lines long. Every continuation line sits
+   * under the fix, indented past the label, so the snippet never reads as the next finding's text;
+   * the JSON keeps the lines exactly as written.
+   */
+  @Test
+  void humanRenderIndentsAMultiLineFixUnderItsLabel() {
+    Finding multiLine =
+        Finding.fail(
+            "config.spring-enabled",
+            "never applied",
+            "Apply the wiring:\n@Configuration\npublic class C {}\n",
+            "https://narrativetrace.ai/docs/z");
+    String text = DoctorRender.renderHuman(new DoctorReport(List.of(multiLine), 1));
+    assertThat(text)
+        .contains(
+            "  fix:  Apply the wiring:\n"
+                + "        @Configuration\n"
+                + "        public class C {}\n"
+                + "  skill:");
+    assertThat(DoctorRender.renderJson(new DoctorReport(List.of(multiLine), 1)))
+        .contains("Apply the wiring:\\n@Configuration\\npublic class C {}\\n");
+  }
+
   @Test
   void humanRenderReportsACleanRun() {
     DoctorReport report = new DoctorReport(List.of(PASSING), 0);

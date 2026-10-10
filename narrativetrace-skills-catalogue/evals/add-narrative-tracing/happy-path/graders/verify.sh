@@ -20,7 +20,7 @@ find build/narrativetrace -name "*.md" 2>/dev/null | grep -q . || {
 
 report=$(java -jar "$NARRATIVETRACE_CLI_JAR" doctor --json || true)
 
-echo "$report" | python3 -c '
+printf '%s\n' "$report" | python3 -c '
 import json, sys
 report = json.load(sys.stdin)
 bad = [f for f in report.get("findings", []) if f["id"].startswith("toolchain.") and f.get("status") != "pass"]

@@ -33,9 +33,16 @@ final class ValueFreeMatchers {
    * {@code Name.method(param: value} — an identifier, a colon and something after it, inside a call
    * line's parentheses. The colon is what separates a rendered call from a structural one: the
    * {@code .nt} form writes {@code Name.method(param, param)} and never a value.
+   *
+   * <p><b>@edgeCase</b> Every runtime's Markdown renderer bolds the qualified name ({@code -
+   * **Name.method**(param: value)}), so one optional emphasis marker ({@code **}, {@code __},
+   * {@code *}, {@code _}) may sit between the method and the parenthesis — written as a bounded
+   * class ({@code [*_]{0,2}}), never as the alternation {@code (?:\*\*|__|\*|_)?}: the overlapping
+   * alternatives are what SpotBugs' ReDoS detector rejects, and a stray mixed pair it also admits
+   * only makes this deny rule stricter.
    */
   private static final Pattern RENDERED_CALL =
-      Pattern.compile("\\w+\\.\\w+\\([^)]*\\b\\w+:\\s*\\S");
+      Pattern.compile("\\w+\\.\\w+[*_]{0,2}\\([^)]*\\b\\w+:\\s*\\S");
 
   /**
    * An outcome arrow followed by something other than the structural literal {@code value}. The

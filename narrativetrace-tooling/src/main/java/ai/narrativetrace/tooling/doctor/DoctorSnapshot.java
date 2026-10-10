@@ -26,12 +26,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Everything the twelve doctor checks read, gathered once, read-only, zero network. A check is a
- * pure function over a {@code DoctorSnapshot}, which is why every check has both a passing and a
- * failing unit test with no disk I/O at all — the same discipline the TypeScript reference applies
- * ({@code packages/cli/src/doctor/types.ts}).
+ * Everything the doctor checks read, gathered once, read-only, zero network. A check is a pure
+ * function over a {@code DoctorSnapshot}, which is why every check has both a passing and a failing
+ * unit test with no disk I/O at all — the same discipline the TypeScript reference applies ({@code
+ * packages/cli/src/doctor/types.ts}).
  *
  * <p>Built two ways: {@link SnapshotBuilder} walks a real project directory (the {@code java -jar}
  * launcher and the Gradle {@code narrativetraceDoctor} task both use it); tests build one directly
@@ -50,6 +54,28 @@ public final class DoctorSnapshot {
   private static final List<String> HEALTHY_SKILLS =
       List.of("narrativetrace-doctor", "add-narrative-tracing");
 
+  /** A version catalog entry's {@code group = "…"}. */
+  private static final Pattern CATALOG_GROUP = Pattern.compile("\\bgroup\\s*=\\s*\"([^\"]+)\"");
+
+  /** A version catalog entry's {@code name = "…"}. */
+  private static final Pattern CATALOG_NAME = Pattern.compile("\\bname\\s*=\\s*\"([^\"]+)\"");
+
+  /** A version catalog plugin entry: {@code { id = "ai.narrativetrace", version = "<v>" }}. */
+  private static final Pattern NARRATIVETRACE_CATALOG_PLUGIN_VERSION =
+      Pattern.compile("\"ai\\.narrativetrace\",\\s*version\\s*=\\s*\"([\\w.+\\-]+)\"");
+
+  /** What a fix line pins a module to when the project declares no NarrativeTrace version. */
+  public static final String VERSION_PLACEHOLDER = "<your NarrativeTrace version>";
+
+  /** A NarrativeTrace coordinate with its version: {@code "ai.narrativetrace:<artifact>:<v>"}. */
+  private static final Pattern NARRATIVETRACE_COORDINATE_VERSION =
+      Pattern.compile("[\"']ai\\.narrativetrace:[\\w.\\-]+:([\\w.+\\-]+)[\"']");
+
+  /** The plugin with its version: {@code id("ai.narrativetrace") version "<v>"}, either DSL. */
+  private static final Pattern NARRATIVETRACE_PLUGIN_VERSION =
+      Pattern.compile(
+          "[\"']ai\\.narrativetrace[\"']\\s*\\)?\\s*version\\s*\\(?\\s*[\"']([\\w.+\\-]+)[\"']");
+
   private final String runningJavaVersion;
   private final Map<String, String> env;
   private final Map<String, String> systemProperties;
@@ -59,6 +85,8 @@ public final class DoctorSnapshot {
   private final boolean launcherOnTestRuntimeOnly;
   private final boolean compilerArgsDeclareParameters;
   private final Map<String, String> sourceFiles;
+  private final Map<String, String> manifestFiles;
+  private final Map<String, String> resourceFiles;
   private final Map<String, String> outputFiles;
   private final Map<String, String> approvalDirFiles;
   private final boolean extensionRegisteredViaServiceLoader;
@@ -77,6 +105,8 @@ public final class DoctorSnapshot {
     this.launcherOnTestRuntimeOnly = b.launcherOnTestRuntimeOnly;
     this.compilerArgsDeclareParameters = b.compilerArgsDeclareParameters;
     this.sourceFiles = Map.copyOf(b.sourceFiles);
+    this.manifestFiles = Map.copyOf(b.manifestFiles);
+    this.resourceFiles = Map.copyOf(b.resourceFiles);
     this.outputFiles = Map.copyOf(b.outputFiles);
     this.approvalDirFiles = Map.copyOf(b.approvalDirFiles);
     this.extensionRegisteredViaServiceLoader = b.extensionRegisteredViaServiceLoader;
@@ -120,6 +150,116 @@ public final class DoctorSnapshot {
 
   public Map<String, String> sourceFiles() {
     return sourceFiles;
+  }
+
+  /**
+   * Every build manifest beyond the root build file, by project-relative path: module build files,
+   * settings files, version catalogs. The framework table's markers and module references are read
+   * across all of them ({@link #manifestText()}), because a multi-module project declares its
+   * framework where the module that uses it lives.
+   */
+  public Map<String, String> manifestFiles() {
+    return manifestFiles;
+  }
+
+  /**
+   * Source and configuration files under {@code src/} that are not Java sources: Kotlin and Groovy
+   * sources, {@code application.properties}/{@code .yml}, {@code web.xml}. Framework wiring lives
+   * in these as often as in Java; the checks that read {@link #sourceFiles()} never see them.
+   */
+  public Map<String, String> resourceFiles() {
+    return resourceFiles;
+  }
+
+  /**
+   * The root build file and every other manifest, as one text to match markers against — without
+   * comment-only lines (a commented-out dependency is not a dependency), and with every version
+   * catalog {@code group = "…", name = "…"} entry added as the quoted {@code "group:name"} the
+   * markers match, the same coordinate a {@code module = "…"} entry spells directly.
+   */
+  public String manifestText() {
+    StringBuilder text = new StringBuilder();
+    Stream.concat(Stream.of(buildFileContent), manifestFiles.values().stream())
+        .flatMap(String::lines)
+        .filter(line -> !isCommentOnly(line))
+        .forEach(line -> appendWithCatalogCoordinate(text, line));
+    return text.toString();
+  }
+
+  /**
+   * The root build file and every Gradle build script among the manifests, with their line and
+   * block comments removed — the text a check reads when a switch must be LIVE code: a switch
+   * inside a block comment, or after one on the same line, is not thrown.
+   */
+  public String buildScriptCode() {
+    return Stream.concat(
+            Stream.of(buildFileContent),
+            manifestFiles.entrySet().stream()
+                .filter(e -> e.getKey().endsWith(".gradle.kts") || e.getKey().endsWith(".gradle"))
+                .map(Map.Entry::getValue))
+        .map(JavaComments::strip)
+        .collect(Collectors.joining("\n"));
+  }
+
+  private static boolean isCommentOnly(String line) {
+    String content = line.strip();
+    return content.startsWith("//")
+        || content.startsWith("#")
+        || content.startsWith("/*")
+        || content.startsWith("*");
+  }
+
+  private static void appendWithCatalogCoordinate(StringBuilder text, String line) {
+    text.append(line).append('\n');
+    Matcher group = CATALOG_GROUP.matcher(line);
+    Matcher name = CATALOG_NAME.matcher(line);
+    if (group.find() && name.find()) {
+      text.append('"').append(group.group(1)).append(':').append(name.group(1)).append("\"\n");
+    }
+  }
+
+  /**
+   * Every Java source, comments removed, and every {@link #resourceFiles() resource file}, for
+   * wiring evidence. A comment that names the wiring is not the wiring, so a Java source is read
+   * without its comments; a resource file keeps its text (its own comment syntax is the evidence's
+   * business, and a {@code /*} in a properties value is a value).
+   */
+  public Stream<String> wiringTexts() {
+    return Stream.concat(
+        sourceFiles.values().stream().map(JavaComments::strip), resourceFiles.values().stream());
+  }
+
+  /**
+   * The NarrativeTrace version this project already declares — on a coordinate or on the plugin —
+   * or empty when it declares none. A fix line pins an integration module to THIS version, never to
+   * whichever release the doctor itself came from: the modules must match the core the project
+   * installed.
+   */
+  public Optional<String> narrativeTraceVersion() {
+    return declaredNarrativeTraceVersion();
+  }
+
+  /**
+   * {@link #narrativeTraceVersion()}, or a placeholder a reader replaces, for a fix line that must
+   * pin a module even when the project declares no NarrativeTrace version yet.
+   */
+  public String narrativeTraceVersionOrPlaceholder() {
+    return declaredNarrativeTraceVersion().orElse(VERSION_PLACEHOLDER);
+  }
+
+  private Optional<String> declaredNarrativeTraceVersion() {
+    String text = manifestText();
+    for (Pattern pattern :
+        List.of(
+            NARRATIVETRACE_COORDINATE_VERSION,
+            NARRATIVETRACE_PLUGIN_VERSION,
+            NARRATIVETRACE_CATALOG_PLUGIN_VERSION)) {
+      Matcher m = pattern.matcher(text);
+      if (m.find()) {
+        return Optional.of(m.group(1));
+      }
+    }
+    return Optional.empty();
   }
 
   public Map<String, String> outputFiles() {
@@ -250,15 +390,22 @@ public final class DoctorSnapshot {
     b.declaredDependencyCoordinates.addAll(declaredDependencyCoordinates);
     b.launcherOnTestRuntimeOnly = launcherOnTestRuntimeOnly;
     b.compilerArgsDeclareParameters = compilerArgsDeclareParameters;
-    b.sourceFiles.putAll(sourceFiles);
-    b.outputFiles.putAll(outputFiles);
-    b.approvalDirFiles.putAll(approvalDirFiles);
+    copyProjectFilesInto(b);
     b.extensionRegisteredViaServiceLoader = extensionRegisteredViaServiceLoader;
     b.extensionRegisteredViaExtendWith = extensionRegisteredViaExtendWith;
     b.installedSkills.addAll(installedSkills);
     b.carrierCoordinate = carrierCoordinate;
     b.catalogueSkills.addAll(catalogueSkills);
     return b;
+  }
+
+  /** The five per-file maps of the project scan, copied into a builder. */
+  private void copyProjectFilesInto(Builder b) {
+    b.sourceFiles.putAll(sourceFiles);
+    b.manifestFiles.putAll(manifestFiles);
+    b.resourceFiles.putAll(resourceFiles);
+    b.outputFiles.putAll(outputFiles);
+    b.approvalDirFiles.putAll(approvalDirFiles);
   }
 
   /** Builds a {@link DoctorSnapshot}, from a real project scan or, in tests, by hand. */
@@ -272,6 +419,8 @@ public final class DoctorSnapshot {
     private boolean launcherOnTestRuntimeOnly;
     private boolean compilerArgsDeclareParameters;
     private final Map<String, String> sourceFiles = new LinkedHashMap<>();
+    private final Map<String, String> manifestFiles = new LinkedHashMap<>();
+    private final Map<String, String> resourceFiles = new LinkedHashMap<>();
     private final Map<String, String> outputFiles = new LinkedHashMap<>();
     private final Map<String, String> approvalDirFiles = new LinkedHashMap<>();
     private boolean extensionRegisteredViaServiceLoader;
@@ -334,6 +483,16 @@ public final class DoctorSnapshot {
 
     public Builder clearSourceFiles() {
       this.sourceFiles.clear();
+      return this;
+    }
+
+    public Builder putManifestFile(String path, String content) {
+      this.manifestFiles.put(path, content);
+      return this;
+    }
+
+    public Builder putResourceFile(String path, String content) {
+      this.resourceFiles.put(path, content);
       return this;
     }
 
