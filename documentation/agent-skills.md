@@ -5,7 +5,7 @@ completion on a `verify` step, rather than docs an agent might or might not read
 by design — the checking, diagnosis, or generation logic lives in tested library code; the skill's
 own job is knowing when to act, invoking that tested code, and interpreting the result in context.
 
-## Six skills: setup, diagnosis, clarity, reporting, verification, and debugging
+## Seven skills: setup, diagnosis, clarity, reporting, verification, debugging, and explanation
 
 - **`add-narrative-tracing`** — installs NarrativeTrace into a project and gets it to a first
   trace: install with the real toolchain, wrap a class with `NarrativeTraceProxy.trace`, render
@@ -58,6 +58,20 @@ own job is knowing when to act, invoking that tested code, and interpreting the 
   gate as `narrativetrace-verify`, and reports the root cause by span id. When the trace and the code
   disagree, or the defect is NarrativeTrace's own, it hands off to `narrativetrace-feedback` instead
   of patching around it.
+- **`narrativetrace-explain`** — explains what an application actually does at runtime, for someone
+  who has not thought of tracing at all: "show me what my application actually does", "walk me
+  through what happens when a user checks out", "what does this endpoint call". It is the only one
+  of these that triggers when nothing is broken and no change needs reading. Its first step is a
+  cost decision rather than a run: a pure function, or a question ten lines of source answer, is
+  answered from the source with no install and no run, and the skill says so and stops. Otherwise it
+  picks ONE scenario that already exercises the flow — an existing test or entry point, never a new
+  harness where one exists — routes through `add-narrative-tracing` when the project has no tracing
+  yet, runs that scenario as it found it, reads the value-free structural trace in the order it ran,
+  opens values only where the question is about a value or about where the time went, and explains
+  the run by span id. Two things make the explanation checkable: every sentence that goes beyond
+  what the trace shows is marked as an inference, and the explanation names what was NOT observed —
+  the code no span covers. It fixes nothing: a defect the run exposes goes to
+  `narrativetrace-debug`, a change of this session's own to `narrativetrace-verify`.
 
 They compose: a brand-new project starts with `add-narrative-tracing`; a project that already has
 NarrativeTrace installed, where something isn't working, starts with `narrativetrace-doctor`.
@@ -70,7 +84,10 @@ skill's last step points the next session at it, and the doctor's `config.approv
 (baselines that nothing compares) is fixed by its pin step. `narrativetrace-debug` is where a
 reported symptom starts; it shares the verify skill's reading reference (which flavour answers which
 question, and the shapes that mean something went wrong) and its pin, and ends at
-`narrativetrace-feedback` when the defect is ours.
+`narrativetrace-feedback` when the defect is ours. `narrativetrace-explain` is the entry point for
+the request that names nothing of ours — a question about what the code does — and it reads the
+trace with the same shared reference; where the other two end at a pin, it ends at an explanation,
+and hands anything that needs fixing or verifying to them.
 
 ## Installing them
 
@@ -86,14 +103,22 @@ an envelope a script can gate on:
 <!-- snippet: narrativetrace-cli/build/narrativetrace/init-plan.json -->
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.3.0",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.0",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrative-tracing/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/add-narrative-tracing/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/add-narrativetrace-clarity/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/add-narrativetrace-clarity/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-feedback/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/narrativetrace-feedback/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-verify/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/narrativetrace-verify/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-debug/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/narrativetrace-debug/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".agents/skills/narrativetrace-explain/SKILL.md", "status": "planned"},
+    {"kind": "create", "path": ".claude/skills/narrativetrace-explain/SKILL.md", "status": "planned"},
     {"kind": "create", "path": "AGENTS.md", "status": "planned"}
   ],
   "exitCode": 0
@@ -105,12 +130,17 @@ Read it, then run the same command without the flag to apply it. Nothing is writ
 there is no postinstall hook and no build step that installs skills behind you. What it writes:
 
 - `.agents/skills/<name>/SKILL.md` for each catalogue skill — always, whatever agent you use.
-- `.claude/skills/<name>/SKILL.md` as well, when the project has a `.claude/` directory or a
-  `CLAUDE.md` (or with `--vendor claude`; `--vendor none` turns it off).
+- `.claude/skills/<name>/SKILL.md` as well, always: Claude Code loads project skills from that
+  directory only, never from `.agents/skills`, and Cursor and GitHub Copilot read it too
+  (`--vendor none` turns it off).
 - a marked section in `AGENTS.md`, created if the file is absent, replaced between its own markers
   if a previous run wrote one. An `AGENTS.md` that exists without our markers needs
   `--write-existing`, so a first run can never append to a file you did not expect it to touch.
 - one `@AGENTS.md` import line in an existing `CLAUDE.md`, and never a `CLAUDE.md` of its own.
+- a pointer file for each platform the project shows it uses — a marked section in `replit.md` when
+  the project has `replit.md` or `.replit`, and `.cursor/rules/narrativetrace.mdc` when it has a
+  `.cursor/` directory; nothing for a platform the project does not use. See
+  [Use NarrativeTrace with your agent](use-with-your-agent.md).
 
 Re-running is safe: an action that would write what is already there is dropped, so an up-to-date
 project plans nothing. `./gradlew narrativetraceUninstall` removes exactly what was installed —
@@ -135,33 +165,26 @@ Copying works too, and is the only path for an agent with no build of its own:
   [`.claude/skills/add-narrativetrace-clarity/`](../.claude/skills/add-narrativetrace-clarity/SKILL.md)
   in this repository. Copy the relevant directory into your own project's `.claude/skills/<name>/` and
   Claude picks it up on its own, invokable by name directly.
-- **Codex**: the same catalogue also renders
-  [`.agents/skills/narrativetrace-doctor/`](../.agents/skills/narrativetrace-doctor/SKILL.md) and
-  [`.agents/skills/add-narrative-tracing/`](../.agents/skills/add-narrative-tracing/SKILL.md) and
-  [`.agents/skills/add-narrativetrace-clarity/`](../.agents/skills/add-narrativetrace-clarity/SKILL.md) — the
-  repo-checked-in layout Codex CLI documents for a project's own skills. Its frontmatter carries
-  only `name` and `description` (Codex documents no `when_to_use` or `allowed-tools` keys); the
-  page body is otherwise identical. Copy the relevant directory into your own project's
-  `.agents/skills/<name>/` and Codex discovers it the same way.
 - **Any agent, any platform**: every agent that reads `AGENTS.md` sees the always-on pointer this
   repository's own `AGENTS.md` carries between its `<!-- narrativetrace:skills:start -->` markers
-  — all six skills' names and descriptions, so an agent that never thought to look still knows they
+  — all seven skills' names and descriptions, so an agent that never thought to look still knows they
   exist.
-- **Gemini** runs against the same catalogue on a sporadic, quota-guarded schedule (see
-  [Tier B — LLM trials](../narrativetrace-skills-catalogue/evals/README.md)) rather than every commit; it has
-  no rendered layout of its own yet — copying the Claude or Codex files above is the closest path
-  today.
+- **Codex, Antigravity, Cursor, Replit, GitHub Copilot**: all of them read the open-standard
+  `.agents/skills/` layout the installer writes, and `init` adds a small pointer file where the
+  platform has one. Each platform's install path, what its agent finds, and the copy-by-hand notes
+  are in [Use NarrativeTrace with your agent](use-with-your-agent.md).
 
 ### The doctor reports on this
 
-One of its checks, `config.skills-installed`, reads each installed
-`SKILL.md` and the stamp the installer left in it, and fails when the skills are absent, when one
-of them is missing, or when their stamp names a different release than the project resolves —
-so a stale copy shows up as a finding instead of as an agent quietly following last release's
-instructions. A directory sitting at a skill's path without that stamp is reported as somebody
-else's and never counted as installed. When the carrier cannot be resolved at all — an offline
-build, or one with no repository that provides it — the check says it cannot tell and passes:
-being offline is not a defect.
+One of its checks, `config.skills-installed`, reads each installed `SKILL.md` and the stamp the
+installer left in it, and fails when the skills are absent, when one of them is missing, or when
+their stamp names a different release than the project resolves — so a stale copy shows up as a
+finding instead of as an agent quietly following last release's instructions. For each detected
+platform that has a pointer file, it also reports the pointer as present and current, or names what
+is missing, stale or not ours. A directory sitting at a skill's path without that stamp is reported
+as somebody else's and never counted as installed. When the carrier cannot be resolved at all — an
+offline build, or one with no repository that provides it — the check says it cannot tell and
+passes: being offline is not a defect.
 
 ## From a registry
 
@@ -173,9 +196,8 @@ states:
 2. **A personal install from a registry** (a Claude Code plugin cache) — yours only. Invisible to
    the doctor by design: it diagnoses the project, and a personal install reaches no teammate and
    no other agent.
-3. **A registry install into the project** (`npx skills add`, `gemini skills install --scope
-   workspace`) — this repository's own rendered pages, landed by a registry rather than by `init`,
-   so they carry no provenance line yet.
+3. **A registry install into the project** (`npx skills add`) — this repository's own rendered
+   pages, landed by a registry rather than by `init`, so they carry no provenance line yet.
 
 Trying the skills yourself, without touching the project:
 
@@ -247,12 +269,12 @@ carry none of this:
 ## How they're built
 
 No skill is ever hand-edited. `narrativetrace-skills-catalogue/src/main/java/ai/narrativetrace/skills/catalogue/`
-contains the six sources of truth; their typed steps render six Claude pages, six Codex pages,
+contains the seven sources of truth; their typed steps render seven Claude pages, seven Codex pages,
 the carrier's own copy of both flavours plus its `catalogue.json` index — what the published jar
 hands `narrativetraceInit` — this repository's own `AGENTS.md` section, and the
 `.claude-plugin/marketplace.json` listing that makes this repository a Claude Code plugin
 marketplace: a drift test (`RenderDriftTest`, wired into `./gradlew check`) fails the build the
-moment any of these twenty-seven outputs drifts from the typed source, and a second one fails it if
+moment any of these thirty-one outputs drifts from the typed source, and a second one fails it if
 anything else appears in the carrier at all. A skill's rendered `name:` is always its canonical
 name, never a
 shortened "claude segment" — a repo-checked-in `.claude/skills/` or `.agents/skills/` directory is a
@@ -271,10 +293,19 @@ asking exactly where asking is the point. A third lint holds a skill that promot
 baseline — today, `narrativetrace-verify` and `narrativetrace-debug` — to no allowed tool beyond read-only `find`, for the same
 reason: the promotion runs through `./gradlew`, and the yes it waits for is yours.
 
+## Context7
+
+Context7 (context7.com) indexes this repository's `documentation/` tree and the root
+`README.md` — minus the translated mirrors and a short exclude list — and serves their code
+blocks to coding agents that resolve this library before answering. The root `context7.json`
+controls what it sees, validated every build against the schema copy committed at
+`config/context7/schema.json`, which is refreshed by hand from the live schema, not fetched at
+build time.
+
 ## See also
 
 - [`narrativetrace-cli`](../narrativetrace-cli/) — the `doctor` verb `narrativetrace-doctor` runs
 - [Sixty Seconds](sixty-seconds.md) — the install-and-first-trace walkthrough `add-narrative-tracing`'s steps are drawn from
 - [What to Commit](what-to-commit.md) — the approval-trace state the doctor's fourth step checks
-- [Tier B — LLM trials](../narrativetrace-skills-catalogue/evals/README.md) — the engine-neutral case layout, the sporadic Codex/Gemini policy, and the promotion matrix
+- [Tier B — LLM trials](../narrativetrace-skills-catalogue/evals/README.md) — the engine-neutral case layout, the sporadic Codex/Antigravity/Cursor policy, and the promotion matrix
 - [Privacy and redaction](privacy-and-redaction.md) — the deny-list and value shapes the problem report's own value-free rules are measured against

@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -314,7 +314,9 @@ prints the human report.
 
 - **Group**: `narrativetrace`
 - **Read-only**: reads build files, sources, rendered output and installed agent skills; changes nothing
-- **Never fails the build on its own findings** — a finding is a normal outcome, not a crash
+- **Fails the build on a failing finding** — the report is written first, so "doctor green" is exit 0
+  and a script can gate on it; `-Pnarrativetrace.doctor.failOnFindings=false` keeps the build green
+  for a pipeline that reads the report itself
 - `--json` prints the machine-readable report instead of the human one
 
 ### `narrativetraceInit`
@@ -416,7 +418,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -552,7 +554,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.3.0'
+    id 'ai.narrativetrace' version '0.4.0'
 }
 
 narrativeTrace {
@@ -575,7 +577,7 @@ narrativeTrace {
 
 The plugin validates all string properties at configuration time (inside `afterEvaluate`). Invalid values produce a clear error message:
 
-```
+```text
 > Invalid narrativeTrace mode 'invalid'. Valid values: proxy, agent, spring
 > Invalid narrativeTrace scope 'compile'. Valid values: test, production
 > Invalid narrativeTrace format 'xml'. Valid values: markdown, text, mermaid, plantuml

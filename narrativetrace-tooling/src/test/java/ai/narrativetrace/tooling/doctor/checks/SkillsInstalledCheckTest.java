@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.narrativetrace.tooling.doctor.DoctorSnapshot;
 import ai.narrativetrace.tooling.doctor.Finding;
 import ai.narrativetrace.tooling.init.InstalledSkill;
+import ai.narrativetrace.tooling.init.PointerReading;
+import ai.narrativetrace.tooling.init.PointerReading.Status;
 import ai.narrativetrace.tooling.init.SkillFlavour;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -365,5 +367,126 @@ class SkillsInstalledCheckTest {
     Finding f = check.run(project().build());
 
     assertThat(f.message()).contains("not installed").doesNotContain("not ours");
+  }
+
+  // --- platform pointers ------------------------------------------------------------------------
+
+  private static DoctorSnapshot.Builder installedProject() {
+    return project()
+        .addInstalledSkill(installed("narrativetrace-doctor", CARRIER))
+        .addInstalledSkill(installed("add-narrative-tracing", CARRIER));
+  }
+
+  private static PointerReading cursor(Status status, String coordinate) {
+    return new PointerReading(
+        "cursor", "Cursor", ".cursor/rules/narrativetrace.mdc", status, coordinate);
+  }
+
+  private static PointerReading replit(Status status, String coordinate) {
+    return new PointerReading("replit", "Replit", "replit.md", status, coordinate);
+  }
+
+  @Test
+  void saysNothingAboutPointersForAProjectOnNoPlatformThatNeedsOne() {
+    Finding f = check.run(installedProject().build());
+
+    assertThat(f.message()).doesNotContain("pointer");
+  }
+
+  @Test
+  void reportsAPresentAndCurrentPointerPerDetectedPlatform() {
+    Finding f =
+        check.run(
+            installedProject()
+                .addPointerReading(cursor(Status.SECTION, CARRIER))
+                .addPointerReading(replit(Status.SECTION, CARRIER))
+                .build());
+
+    assertThat(f.isFailing()).isFalse();
+    assertThat(f.message())
+        .contains("Cursor pointer present and current")
+        .contains("Replit pointer present and current");
+  }
+
+  @Test
+  void aPointerStampedWithAnotherReleaseOfTheSameCarrierIsStillCurrent() {
+    Finding f =
+        check.run(
+            installedProject()
+                .addPointerReading(
+                    cursor(Status.SECTION, "ai.narrativetrace:narrativetrace-cli:1.2.3"))
+                .build());
+
+    assertThat(f.isFailing()).isFalse();
+  }
+
+  @Test
+  void failsWhenADetectedPlatformHasNoPointerAndNamesThePath() {
+    Finding f = check.run(installedProject().addPointerReading(cursor(Status.ABSENT, "")).build());
+
+    assertThat(f.isFailing()).isTrue();
+    assertThat(f.message())
+        .contains("Cursor")
+        .contains(".cursor/rules/narrativetrace.mdc")
+        .contains("missing");
+    assertThat(f.fix()).contains("narrativetrace init --dry-run");
+  }
+
+  @Test
+  void failsWhenAPointerIsFromAnOlderRelease() {
+    Finding f =
+        check.run(installedProject().addPointerReading(replit(Status.SECTION, OLDER)).build());
+
+    assertThat(f.isFailing()).isTrue();
+    assertThat(f.message()).contains("Replit").contains(OLDER).contains(CARRIER);
+  }
+
+  @Test
+  void failsWhenAPointerCarriesNoStampBecauseNothingSaysWhichReleaseItDescribes() {
+    Finding f = check.run(installedProject().addPointerReading(cursor(Status.SECTION, "")).build());
+
+    assertThat(f.isFailing()).isTrue();
+    assertThat(f.message()).contains("no stamp");
+    assertThat(f.fix()).contains("adopt");
+  }
+
+  @Test
+  void failsWhenAPointerFileHasNoSectionOfOursOrSitsBehindALink() {
+    Finding foreign =
+        check.run(installedProject().addPointerReading(replit(Status.FOREIGN, "")).build());
+    Finding linked =
+        check.run(installedProject().addPointerReading(cursor(Status.LINKED, "")).build());
+
+    assertThat(foreign.isFailing()).isTrue();
+    assertThat(foreign.fix()).contains("--write-existing");
+    assertThat(linked.isFailing()).isTrue();
+    assertThat(linked.message()).contains("symbolic link");
+  }
+
+  @Test
+  void namesEveryPlatformWhoseSectionIsWrongNotJustTheFirst() {
+    Finding f =
+        check.run(
+            installedProject()
+                .addPointerReading(cursor(Status.ABSENT, ""))
+                .addPointerReading(replit(Status.SECTION, OLDER))
+                .build());
+
+    assertThat(f.message()).contains("Cursor").contains("Replit");
+  }
+
+  @Test
+  void aSkillsFailureStillWinsOverAPointerFailure() {
+    Finding f = check.run(project().addPointerReading(cursor(Status.ABSENT, "")).build());
+
+    assertThat(f.message()).contains("not installed");
+  }
+
+  @Test
+  void anUnresolvedCarrierPassesWithoutJudgingPointers() {
+    Finding f =
+        check.run(DoctorSnapshot.builder().addPointerReading(cursor(Status.ABSENT, "")).build());
+
+    assertThat(f.isFailing()).isFalse();
   }
 }

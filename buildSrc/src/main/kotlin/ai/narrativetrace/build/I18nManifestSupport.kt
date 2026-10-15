@@ -85,6 +85,32 @@ object I18nManifestSupport {
         )
     }
 
+    /**
+     * Every `documentation/` subdirectory that holds a LANGUAGE's mirrors, canonicalized — the
+     * manifest's own declaration, which is the only thing that knows the difference between
+     * `documentation/es` and a subdirectory of English pages such as `documentation/recipes`.
+     *
+     * @llmNote Both [SnippetSupport] and [TranslationCheckSupport] ask this, and they must get the
+     * same answer: one treats a language directory as "never an English page", the other as "a
+     * staleness header is mandatory here". Before this existed each inferred it as "every
+     * directory under documentation/ except i18n", so the first subdirectory of English pages
+     * added was simultaneously invisible to the snippet gate and required to carry a translation
+     * header it had no source for.
+     *
+     * With no manifest on disk the inference is kept exactly as it was, so a repository that has
+     * not declared one is no worse off than before.
+     */
+    fun languageDirectories(repoRoot: File): Set<File> {
+        val manifest = loadOrNull(repoRoot)
+        if (manifest != null) {
+            return manifest.languages.map { repoRoot.resolve(it.directory).canonicalFile }.toSet()
+        }
+        return repoRoot.resolve("documentation").listFiles().orEmpty()
+            .filter { it.isDirectory && it.name != "i18n" }
+            .map { it.canonicalFile }
+            .toSet()
+    }
+
     private fun parseLanguage(raw: Map<*, *>): I18nLanguage =
         I18nLanguage(
             code = raw["code"] as String,

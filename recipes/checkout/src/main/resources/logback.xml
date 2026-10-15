@@ -1,0 +1,24 @@
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<!-- src/main/resources/logback.xml -->
+<configuration>
+    <!-- The pattern deliberately carries no %d{HH:mm:ss.SSS}: every recipe page embeds a real
+         run's log output byte-for-byte, and a clock in it would differ on every run. Put the
+         timestamp back in your own project — nothing else here changes. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%-5level [%X{traceName}] [%logger] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="narrativetrace" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>

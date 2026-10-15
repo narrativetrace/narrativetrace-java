@@ -27,11 +27,11 @@ package ai.narrativetrace.tooling.frameworks;
  * concrete class it can see in a package of records and sealed interfaces — without it the
  * cross-module gate reads the package as purely abstract (distance 1.0).
  */
-final class Kebab {
+public final class Kebab {
 
   private Kebab() {}
 
-  static boolean isKebab(String id) {
+  public static boolean isKebab(String id) {
     if (id == null) {
       return false;
     }

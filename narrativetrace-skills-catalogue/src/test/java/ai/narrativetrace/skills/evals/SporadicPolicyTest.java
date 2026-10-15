@@ -34,7 +34,7 @@ class SporadicPolicyTest {
   void claudeIsExemptFromBothTheTierCheckAndTheQuotaCheck() {
     AtomicInteger tierCalls = new AtomicInteger();
 
-    // Even a spent ledger (which would refuse Codex/Gemini) must not matter for Claude.
+    // Even a spent ledger (which would refuse Codex/Antigravity) must not matter for Claude.
     assertThatCode(
             () ->
                 SporadicPolicy.beforeTrial(
@@ -83,13 +83,13 @@ class SporadicPolicyTest {
   }
 
   @Test
-  void geminiFollowsTheSameGateAsCodex() {
+  void antigravityFollowsTheSameGateAsCodex() {
     QuotaLedger noAllowanceRow = new QuotaLedger(List.of(), List.of());
 
     assertThatThrownBy(
             () ->
                 SporadicPolicy.beforeTrial(
-                    Platform.GEMINI, Path.of("."), (cmd, cwd) -> {}, noAllowanceRow, TODAY))
+                    Platform.ANTIGRAVITY, Path.of("."), (cmd, cwd) -> {}, noAllowanceRow, TODAY))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("no allowance row");
   }
@@ -109,5 +109,41 @@ class SporadicPolicyTest {
                     PLENTY,
                     TODAY))
         .hasMessageContaining("Tier A lints / Tier A2 replay are not green");
+  }
+
+  // --- the skip line
+  // ------------------------------------------------------------------------------
+
+  private static final QuotaLedger NOT_INSTALLED =
+      new QuotaLedger(List.of(new QuotaAllowance(Platform.CURSOR, "not installed", 0)), List.of());
+
+  @Test
+  void aLaneWithAWeeklyAllowanceOfZeroSkipsWithOneLineNamingItsTool() {
+    var reason = SporadicPolicy.skipReason(Platform.CURSOR, NOT_INSTALLED);
+
+    assertThat(reason).isPresent();
+    assertThat(reason.get())
+        .startsWith("SKIP")
+        .contains("cursor")
+        .contains("`agent`")
+        .contains("ledger/quota.md")
+        .doesNotContain("\n");
+  }
+
+  @Test
+  void aLaneWithAnAllowanceDoesNotSkipAndNeitherDoesTheExemptLane() {
+    assertThat(SporadicPolicy.skipReason(Platform.CODEX, PLENTY)).isEmpty();
+    assertThat(SporadicPolicy.skipReason(Platform.CLAUDE, NOT_INSTALLED)).isEmpty();
+  }
+
+  /** A missing row is a ledger the owner has not finished, which is a refusal, never a skip. */
+  @Test
+  void aLaneWithNoAllowanceRowAtAllDoesNotSkipSoTheRefusalStillSpeaks() {
+    assertThat(SporadicPolicy.skipReason(Platform.CURSOR, PLENTY)).isEmpty();
+  }
+
+  @Test
+  void aSpentAllowanceIsARefusalNotASkip() {
+    assertThat(SporadicPolicy.skipReason(Platform.CODEX, SPENT)).isEmpty();
   }
 }

@@ -22,8 +22,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
 }
 
 tasks.withType<JavaCompile> {
@@ -94,7 +94,7 @@ public class Main {
 
 ```kotlin
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.3.0")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
 }
 ```

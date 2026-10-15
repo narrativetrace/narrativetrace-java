@@ -28,7 +28,7 @@ reproduction is a contribution too, and it carries no such condition.
 Every commit must carry a `Signed-off-by` line certifying the
 [Developer Certificate of Origin](https://developercertificate.org/):
 
-```
+```bash
 git commit -s -m "fix: ..."
 ```
 

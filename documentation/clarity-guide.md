@@ -247,7 +247,7 @@ By default (unless `narrativetrace.output=false` is set in `junit-platform.prope
 2. Writes `clarity-report.md` to the output directory after all tests complete
 3. Prints a console summary with score distribution:
 
-```
+```text
 NarrativeTrace — Suite complete
   2 scenarios recorded
   Clarity: 100% high | 0% moderate | 0% low
@@ -305,7 +305,7 @@ The Gradle plugin provides a `clarityCheck` task that fails the build when namin
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 
 narrativeTrace {
@@ -336,7 +336,7 @@ Choose a test threshold from observed test reports, not static scan scores alone
 
 When a scenario falls below the threshold:
 
-```
+```text
 FAILURE: Build failed with an exception.
 
 * What went wrong:

@@ -13,22 +13,23 @@ import java.util.Optional;
 
 /**
  * Tier B platform presets (skill-harness-design.md §5.1; the sporadic-lanes ruling, owner-ruled
- * 2026-09-13): fills the runner's agent-command seam for each of the three supported CLIs so a
- * trial can be started with just {@code --platform} — never invented for a platform the seam
- * doesn't name, and always overridable by passing an explicit agent command (the preset is a
- * default, not a lock-in). Mirrors the TypeScript reference's {@code evals/platform-presets.ts}.
+ * 2026-09-13): fills the runner's agent-command seam for each of the four supported CLIs so a trial
+ * can be started with just {@code --platform} — never invented for a platform the seam doesn't
+ * name, and always overridable by passing an explicit agent command (the preset is a default, not a
+ * lock-in). Mirrors the TypeScript reference's {@code evals/platform-presets.ts}.
  */
 public enum Platform {
   CLAUDE,
   CODEX,
-  GEMINI;
+  ANTIGRAVITY,
+  CURSOR;
 
   /**
-   * Codex and Gemini sit on cheaper plans and run under the sporadic policy (never scheduled,
-   * promotion points only, quota-guarded). Claude runs on the harness's own regular cadence and is
-   * exempt from all of it.
+   * Codex, Antigravity and Cursor sit on cheaper plans and run under the sporadic policy (never
+   * scheduled, promotion points only, quota-guarded). Claude runs on the harness's own regular
+   * cadence and is exempt from all of it.
    */
-  private static final List<Platform> SPORADIC_PLATFORMS = List.of(CODEX, GEMINI);
+  private static final List<Platform> SPORADIC_PLATFORMS = List.of(CODEX, ANTIGRAVITY, CURSOR);
 
   public static Optional<Platform> parse(String value) {
     if (value == null) {
@@ -43,6 +44,18 @@ public enum Platform {
 
   public boolean isSporadic() {
     return SPORADIC_PLATFORMS.contains(this);
+  }
+
+  /**
+   * The executable a trial on this platform starts — what the skip line names when the lane cannot
+   * run. Cursor's headless CLI is {@code agent}, not {@code cursor}; Antigravity's is {@code agy}.
+   */
+  public String cliTool() {
+    return switch (this) {
+      case CURSOR -> "agent";
+      case ANTIGRAVITY -> "agy";
+      case CLAUDE, CODEX -> name().toLowerCase(Locale.ROOT);
+    };
   }
 
   /**
@@ -79,6 +92,27 @@ public enum Platform {
    */
   private static final String CLAUDE_TRANSCRIPT_FORMAT = "--output-format stream-json --verbose";
 
+  /**
+   * Cursor's headless CLI ({@code agent -p}, verified against cursor.com/docs/cli/headless
+   * 2026-10-10). {@code --force} applies edits and runs commands without a confirmation nobody is
+   * there to give, for every skill — the doctor included, which diagnoses by running a command. No
+   * {@code --model}: the runner's model argument is a ledger label, and one that is not a Cursor
+   * model name would fail the trial before the agent starts.
+   */
+  private static final String CURSOR_COMMAND = "agent -p \"{prompt}\" --output-format text --force";
+
+  /**
+   * Antigravity's headless CLI ({@code agy -p}, verified against {@code agy --help} of CLI 1.3.3
+   * and a real print-mode run on 2026-10-10). {@code --dangerously-skip-permissions} is the only
+   * headless auto-approval the CLI has — no {@code --yolo}, no approval mode; {@code --mode plan}
+   * exists but a doctor trial RUNS a command, so the plan mode would measure the sandbox — and it
+   * therefore rides every skill, exactly like Cursor's {@code --force}. {@code --model} is passed:
+   * the ledger's model is one of {@code agy models}' slugs ({@code gemini-3.8-flash-low} is the
+   * cheapest), so the Cursor lane's reason for omitting it does not apply.
+   */
+  private static final String ANTIGRAVITY_FLAGS =
+      " --output-format text --dangerously-skip-permissions";
+
   /** What a multi-turn template carries where the trial's own session id goes. */
   public static final String SESSION_PLACEHOLDER = "{session}";
 
@@ -97,7 +131,8 @@ public enum Platform {
               + "\" "
               + CLAUDE_TRANSCRIPT_FORMAT;
       case CODEX -> codexCommand(model, canonicalSkillName);
-      case GEMINI -> geminiCommand(model, canonicalSkillName);
+      case ANTIGRAVITY -> "agy -p \"{prompt}\" --model " + model + ANTIGRAVITY_FLAGS;
+      case CURSOR -> CURSOR_COMMAND;
     };
   }
 
@@ -128,6 +163,9 @@ public enum Platform {
    * that could open a conversation but not resume it would spend a trial reaching the approval
    * question and then run its "second turn" as a FRESH session with no memory of the draft, where
    * "nothing was filed" is true for a reason that has nothing to do with the gate under test.
+   * Antigravity is the near miss: {@code agy --conversation <id>} resumes one, but no flag lets the
+   * runner choose the id on turn 1 — the id would have to be read back out of the first turn's
+   * output, which has not been verified in the container.
    */
   private Optional<String> multiTurn(String model, String canonicalSkillName, String sessionFlag) {
     return this == CLAUDE
@@ -142,14 +180,5 @@ public enum Platform {
   private static String codexCommand(String model, String canonicalSkillName) {
     String sandbox = isReadOnlySkill(canonicalSkillName) ? "read-only" : "workspace-write";
     return "codex exec --sandbox " + sandbox + " --model " + model + " \"{prompt}\"";
-  }
-
-  /**
-   * Gemini {@code --approval-mode}: {@code plan} (its read-only mode) for a read-only skill, {@code
-   * auto_edit} otherwise.
-   */
-  private static String geminiCommand(String model, String canonicalSkillName) {
-    String approvalMode = isReadOnlySkill(canonicalSkillName) ? "plan" : "auto_edit";
-    return "gemini -p \"{prompt}\" --model " + model + " --approval-mode " + approvalMode;
   }
 }

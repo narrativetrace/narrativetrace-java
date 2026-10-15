@@ -129,7 +129,7 @@ Options:
         --write-existing  Permission to touch an AGENTS.md or CLAUDE.md that is already there.
         --force           Permission to overwrite a skill directory somebody else owns.
         --only <half>     skills | agents-md. Both halves by default.
-        --vendor <vendor> claude | none. Detected from the project by default.
+        --vendor <vendor> claude | none. claude by default: Claude Code loads .claude/skills only.
         --from <carrier>  A jar, a directory, or a group:artifact:version coordinate already in the
                           local Maven repository. The carrier bundled with this jar by default.
         --json            Machine-readable output instead of human text.
@@ -141,8 +141,9 @@ Options:
       """
       narrativetrace init [options]
 
-      Copies the NarrativeTrace agent skills into .agents/skills/ (and .claude/skills/ where the
-      project is one of that vendor's) and writes one marked section into AGENTS.md. Zero network.
+      Copies the NarrativeTrace agent skills into .agents/skills/ and .claude/skills/ (the only
+      directory Claude Code loads; --vendor none leaves it out) and writes one marked section into
+      AGENTS.md. Zero network.
 
       """
           + INSTALLER_OPTIONS;

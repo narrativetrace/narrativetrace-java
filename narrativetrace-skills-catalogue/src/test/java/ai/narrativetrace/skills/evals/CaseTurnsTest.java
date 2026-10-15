@@ -31,6 +31,64 @@ class CaseTurnsTest {
   @Test
   void aCaseWithNoManifestAtAllIsOneTurn(@TempDir Path dir) {
     assertThat(CaseTurns.scriptedRepliesFor(dir)).isEmpty();
+    assertThat(CaseTurns.freshTurnsFor(dir)).isEmpty();
+  }
+
+  /**
+   * A fresh turn is a scripted turn that opens a NEW session instead of resuming the one before it
+   * — the only way to measure what a later session finds, which is what "does the agent see the
+   * skills the install left?" asks (item 166: the install went green and the next session listed no
+   * skill).
+   */
+  @Test
+  void readsWhichScriptedTurnsOpenAFreshSession(@TempDir Path dir) throws IOException {
+    Path caseDir =
+        caseWith(
+            dir,
+            "{ \"turns\": { \"2\": \"check my setup\", \"3\": \"thanks\" },"
+                + " \"freshTurns\": [3] }");
+
+    assertThat(CaseTurns.freshTurnsFor(caseDir)).containsExactly(3);
+  }
+
+  @Test
+  void aCaseThatDeclaresNoFreshTurnsResumesEveryTurn(@TempDir Path dir) throws IOException {
+    Path caseDir = caseWith(dir, "{ \"turns\": { \"2\": \"yes, file it\" } }");
+
+    assertThat(CaseTurns.freshTurnsFor(caseDir)).isEmpty();
+  }
+
+  /** A fresh turn with no reply declared for it is a turn with nothing to say. */
+  @Test
+  void refusesAFreshTurnThatHasNoReply(@TempDir Path dir) throws IOException {
+    Path caseDir =
+        caseWith(dir, "{ \"turns\": { \"2\": \"check my setup\" }, \"freshTurns\": [3] }");
+
+    assertThatThrownBy(() -> CaseTurns.freshTurnsFor(caseDir))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("freshTurns")
+        .hasMessageContaining("3");
+  }
+
+  /** Turn 1 is always a fresh session already; declaring it says nothing and hides a typo. */
+  @Test
+  void refusesAFreshTurnAtTheFirstTurn(@TempDir Path dir) throws IOException {
+    Path caseDir =
+        caseWith(dir, "{ \"turns\": { \"2\": \"check my setup\" }, \"freshTurns\": [1] }");
+
+    assertThatThrownBy(() -> CaseTurns.freshTurnsFor(caseDir))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("turn 1");
+  }
+
+  @Test
+  void refusesAFreshTurnThatIsNotATurnNumber(@TempDir Path dir) throws IOException {
+    Path caseDir =
+        caseWith(dir, "{ \"turns\": { \"2\": \"check my setup\" }, \"freshTurns\": [\"two\"] }");
+
+    assertThatThrownBy(() -> CaseTurns.freshTurnsFor(caseDir))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a turn number");
   }
 
   @Test

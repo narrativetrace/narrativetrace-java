@@ -18,6 +18,8 @@
 package ai.narrativetrace.tooling.doctor;
 
 import ai.narrativetrace.tooling.init.Carrier;
+import ai.narrativetrace.tooling.init.PointerReading;
+import ai.narrativetrace.tooling.init.ProjectState;
 import ai.narrativetrace.tooling.init.ProjectStateReader;
 import ai.narrativetrace.tooling.init.SkillEntry;
 import java.io.IOException;
@@ -173,7 +175,9 @@ public final class SnapshotBuilder {
   private static void readAgentSkills(
       Path projectRoot, Carrier carrier, DoctorSnapshot.Builder builder) {
     try {
-      ProjectStateReader.read(projectRoot).installedSkills().forEach(builder::addInstalledSkill);
+      ProjectState state = ProjectStateReader.read(projectRoot);
+      state.installedSkills().forEach(builder::addInstalledSkill);
+      PointerReading.readAll(state).forEach(builder::addPointerReading);
     } catch (RuntimeException e) {
       // Absent, unreadable, or not a directory at all: the doctor reports on a project, it does
       // not require one. The skills check then sees nothing installed, which is what is visible.

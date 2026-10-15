@@ -89,7 +89,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -136,23 +136,23 @@ Start with the minimum stack and then add only the integrations you need.
 ```kotlin
 dependencies {
     // Minimum
-    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
 
     // Optional integrations
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.3.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.3.0")  // for JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")  // for JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
 }
 ```
 
@@ -371,7 +371,7 @@ Trace files are written automatically, unless `junit-platform.properties` sets `
 
 Expected output structure:
 
-```
+```text
 build/narrativetrace/
 ├── traces/
 │   └── OrderServiceTest/

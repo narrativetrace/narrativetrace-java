@@ -50,8 +50,9 @@ class InitPromptDriftTest {
 
   /**
    * Every case that replays the published prompt today: its two branches, the Spring Boot project
-   * (Phase 6, D4), and the two registry paths that reach it through a registry install first. Each
-   * must be among the DISCOVERED copies.
+   * (Phase 6, D4), the two registry paths that reach it through a registry install first, and the
+   * fresh-session case whose turn 1 is the install (item 166). Each must be among the DISCOVERED
+   * copies.
    */
   private static final List<String> CASES_WHOSE_PROMPT_IS_THE_WHOLE_FILE =
       List.of(
@@ -59,7 +60,8 @@ class InitPromptDriftTest {
           "add-narrative-tracing/init-prompt-existing-project/prompt.md",
           "add-narrative-tracing/init-prompt-spring-boot-project/prompt.md",
           "add-narrative-tracing/registry-claude-marketplace/prompt.md",
-          "add-narrative-tracing/registry-npx-skills/prompt.md");
+          "add-narrative-tracing/registry-npx-skills/prompt.md",
+          "add-narrative-tracing/fresh-session-after-the-prompt/prompt.md");
 
   /** The trigger case that fires the skill on the published text — a YAML block scalar. */
   private static final String TRIGGER_CASE =

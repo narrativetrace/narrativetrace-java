@@ -46,6 +46,8 @@ class TaskInputInvalidationTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
 
+  @TempDir static Path buildRoot;
+
   /** buildSrc's classes and their runtime dependencies, for a fixture build to load them from. */
   private static final List<String> BUILD_SRC_CLASSPATH =
       Arrays.asList(System.getProperty("buildSrcClasspath").split(File.pathSeparator));
@@ -53,6 +55,7 @@ class TaskInputInvalidationTest {
   private static BuildResult gradle(File projectDir, String... args) {
     var allArgs = new ArrayList<>(List.of(args));
     allArgs.add("-q");
+    allArgs.add("-Pnarrativetrace.buildRoot=" + buildRoot);
     return GradleRunner.create().withProjectDir(projectDir).withArguments(allArgs).build();
   }
 
@@ -103,7 +106,8 @@ class TaskInputInvalidationTest {
   @Test
   void perModuleJdependReportNamesTheModuleAndIsUpToDateOnRerun() throws IOException {
     gradle(PROJECT_DIR, ":narrativetrace-slf4j:jdepend");
-    var json = new File(PROJECT_DIR, "narrativetrace-slf4j/build/reports/jdepend/jdepend.json");
+    var json =
+        new File(buildRoot.toFile(), "narrativetrace-slf4j/build/reports/jdepend/jdepend.json");
     assertThat(Files.readString(json.toPath())).contains("\"module\":\"narrativetrace-slf4j\"");
 
     var rerun = gradle(PROJECT_DIR, ":narrativetrace-slf4j:jdepend");
@@ -238,7 +242,7 @@ class TaskInputInvalidationTest {
   @Test
   void generateLlmsDocsRerunsWhenItsOutputIsMissingAndOnlyThen() throws IOException {
     var source = new File(PROJECT_DIR, "documentation/llms.txt").toPath();
-    var copy = new File(PROJECT_DIR, "build/site/llms.txt").toPath();
+    var copy = new File(buildRoot.toFile(), "build/site/llms.txt").toPath();
 
     gradle(PROJECT_DIR, "generateLlmsDocs");
     assertThat(Files.readAllBytes(copy)).isEqualTo(Files.readAllBytes(source));

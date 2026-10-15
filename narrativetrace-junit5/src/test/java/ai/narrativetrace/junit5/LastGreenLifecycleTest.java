@@ -72,6 +72,28 @@ class LastGreenLifecycleTest {
   }
 
   /**
+   * The other direction from {@link #anApprovalRejectionLeavesTheLastGreenArtifactWhereItWas}: the
+   * baseline has the call, the next run drops it, and the rejection names exactly what went missing
+   * — not just that something changed.
+   */
+  @Test
+  void aDroppedCallFailsWithADiffNamingIt(@TempDir Path outputDir, @TempDir Path approvedDir)
+      throws IOException {
+    ApprovalDriftFixture.extraQuery = true;
+    runFixture(outputDir, approvedDir);
+    NarrativeApproval.promoteReceived(approvedDir);
+    var baseline = runFixture(outputDir, approvedDir);
+    assertThat(baseline.getTestsFailedCount()).isZero();
+
+    ApprovalDriftFixture.extraQuery = false;
+    var rejected = runFixture(outputDir, approvedDir);
+
+    assertThat(rejected.getTestsFailedCount()).isEqualTo(1);
+    assertThat(rejected.getFailures().get(0).getException())
+        .hasMessageContaining("InventoryService.availableUnits");
+  }
+
+  /**
    * A rejected run's artifacts still say what happened — only the <em>baseline</em> is held back.
    * The narrative is the reviewer's evidence for the rejection, and it records the run as failed.
    */

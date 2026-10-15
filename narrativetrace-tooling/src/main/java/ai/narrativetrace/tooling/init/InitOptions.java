@@ -56,9 +56,13 @@ public record InitOptions(
     }
   }
 
-  /** Whether the vendor flavour is installed beside the open-standard one. */
+  /**
+   * Whether the vendor flavour is installed beside the open-standard one. The default installs it:
+   * Claude Code loads {@code .claude/skills} only, so a project without it has skills its own agent
+   * cannot see.
+   */
   public enum Vendor {
-    /** Install it where the project looks like that vendor's. */
+    /** The default: install it, like {@link #ON}, on every project. */
     AUTO,
     /** Install it, detected or not. */
     ON,

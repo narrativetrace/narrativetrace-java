@@ -7,11 +7,13 @@
  */
 package ai.narrativetrace.build
 
+import net.sourceforge.pmd.cpd.CPDReport
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.lang.ref.SoftReference
 
 class DuplicationReportSupportTest {
 
@@ -175,5 +177,93 @@ class DuplicationReportSupportTest {
         val line = DuplicationReportSupport.summaryLine(scan)
         assertTrue(line.contains("no clusters"))
         assertTrue(line.contains("0.0% of tokens in 0 clusters"))
+    }
+
+    // ---- runCpd (the live PMD/CPD run, on a two-file fixture) -----------------------------------
+
+    private val sharedMethod = """
+        public int settle(int[] amounts, int step) {
+            int total = 0;
+            int skipped = 0;
+            for (int i = 0; i < amounts.length; i++) {
+                if (amounts[i] < 0) {
+                    skipped = skipped + 1;
+                    continue;
+                }
+                total = total + amounts[i] * step;
+                if (total > 1000) {
+                    total = total - step;
+                }
+            }
+            if (skipped > 3) {
+                return total / 2;
+            }
+            return total + skipped;
+        }
+    """.trimIndent().prependIndent("    ")
+
+    /** Two files that share one method of well over 60 tokens and otherwise differ in shape. */
+    private fun fixtureSourceDir(): File {
+        val src = tempDir.resolve("src")
+        val first = src.resolve("a/First.java")
+        first.parentFile.mkdirs()
+        first.writeText("package a;\n\npublic class First {\n$sharedMethod\n}\n")
+        val second = src.resolve("b/Second.java")
+        second.parentFile.mkdirs()
+        second.writeText(
+            "package b;\n\npublic class Second {\n    private final String name = \"second\";\n\n" +
+                "    public String name() {\n        return name;\n    }\n\n$sharedMethod\n}\n"
+        )
+        return src
+    }
+
+    private fun assertTheSharedMethodWasReported(result: DuplicationTreeResult, xml: File) {
+        assertEquals(1, result.clusters.size, "one cluster: the shared method")
+        val occurrences = result.clusters.single().occurrences
+        assertEquals(setOf("src/a/First.java", "src/b/Second.java"), occurrences.map { it.file }.toSet())
+        assertTrue(result.tokensDuplicated > 60 && result.tokensDuplicated <= result.tokensTotal)
+        val text = xml.readText()
+        assertTrue(text.contains("<codefragment>"), "the XML carries each match's code fragment:\n$text")
+        assertTrue(text.contains("total = total + amounts[i] * step;"), "the fragment is the shared text:\n$text")
+    }
+
+    @Test
+    fun runCpdFindsTheSharedMethodAndWritesItsCodeFragmentToTheXml() {
+        val xml = tempDir.resolve("reports/main.xml")
+        val result = DuplicationReportSupport.runCpd(listOf(fixtureSourceDir()), 60, tempDir, xml)
+        assertTheSharedMethodWasReported(result, xml)
+    }
+
+    @Test
+    fun runCpdStillRendersTheCodeFragmentWhenTheSourceCacheIsEvictedBeforeTheReportIsRead() {
+        // The 2026-10-10 `check` flake: PMD serves each mark's source slice from a SoftReference cache
+        // tied to the analysis's open files. Under the memory pressure of a parallel `check` start the
+        // cache is evicted and PMD re-reads the file — which fails with "Closed NioTextFile" if the
+        // analysis has already been closed. Clearing the soft references here IS that eviction, made
+        // deterministic (GC and memory pressure are never test inputs); the report's reads must survive
+        // it, which they can only do while the analysis is still open.
+        val xml = tempDir.resolve("reports/main.xml")
+        val result = DuplicationReportSupport.runCpd(listOf(fixtureSourceDir()), 60, tempDir, xml) { report ->
+            evictSourceCache(report)
+        }
+        assertTheSharedMethodWasReported(result, xml)
+    }
+
+    private fun evictSourceCache(report: CPDReport) {
+        val sourceManager = CPDReport::class.java.getDeclaredField("sourceManager")
+            .apply { isAccessible = true }.get(report)
+        @Suppress("UNCHECKED_CAST")
+        val cache = sourceManager.javaClass.getDeclaredField("files")
+            .apply { isAccessible = true }.get(sourceManager) as Map<*, SoftReference<*>>
+        assertTrue(cache.isNotEmpty(), "the analysis loaded the fixture files")
+        cache.values.forEach { it.clear() }
+    }
+
+    @Test
+    fun runCpdOfNoExistingDirectoryWritesAnEmptyDocumentAndReportsNothing() {
+        val xml = tempDir.resolve("reports/test.xml")
+        val result = DuplicationReportSupport.runCpd(listOf(tempDir.resolve("absent")), 60, tempDir, xml)
+        assertEquals(DuplicationTreeResult(0, 0, 0.0, emptyList()), result)
+        assertTrue(xml.readText().contains("<pmd-cpd/>"))
     }
 }

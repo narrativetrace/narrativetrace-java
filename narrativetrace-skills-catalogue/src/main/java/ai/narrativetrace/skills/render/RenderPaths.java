@@ -44,6 +44,29 @@ public final class RenderPaths {
   }
 
   /**
+   * {@code .cursor-plugin/plugin.json} — the Cursor plugin manifest. At the repository ROOT: the
+   * repository is itself the one plugin, carrying the open-standard skills directory and the one
+   * rule.
+   */
+  public static Path cursorPluginJson(Path repoRoot) {
+    return repoRoot.resolve(".cursor-plugin/plugin.json");
+  }
+
+  /** {@code .cursor-plugin/marketplace.json} — lists the one plugin, rooted at the repository. */
+  public static Path cursorMarketplaceJson(Path repoRoot) {
+    return repoRoot.resolve(".cursor-plugin/marketplace.json");
+  }
+
+  /**
+   * {@code .cursor/rules/narrativetrace.mdc} — the one rule the Cursor plugin carries; the same
+   * file {@code init} writes into a Cursor project. Its text comes from the platform table in
+   * {@code narrativetrace-tooling}, which this module may not depend on, so a drift test holds it.
+   */
+  public static Path cursorRule(Path repoRoot) {
+    return repoRoot.resolve(".cursor/rules/narrativetrace.mdc");
+  }
+
+  /**
    * The CARRIER's resource root inside the published {@code narrativetrace-skills} jar (and inside
    * the {@code narrativetrace-cli} jar, which shares the same directory as a second resource root).
    * {@code META-INF/} rather than a top-level directory: a consumer's own {@code skills/} must

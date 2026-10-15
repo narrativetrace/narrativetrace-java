@@ -1,4 +1,4 @@
-<!-- source: documentation/dual-path-pipeline.md blob b676bcf539d7 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: documentation/dual-path-pipeline.md blob cf2aca50998e | translated: 2026-09-10 | reviewed: - -->
 # O pipeline de eventos de caminho duplo
 
 [English](../dual-path-pipeline.md) | [Español](../es/canalizacion-de-doble-ruta.md) | **Português** | [简体中文](../zh-CN/双路径事件管道.md)
@@ -12,7 +12,7 @@ acontece sob carga e depois de uma queda do processo.
 
 ## A forma
 
-```
+```text
  método rastreado (thread chamadora)
       │
       ▼

@@ -8,7 +8,8 @@
 package ai.narrativetrace.skills.evals;
 
 /**
- * One appended row of {@code ledger/quota.md}'s Spend log: one sporadic-lane (Codex/Gemini) trial.
+ * One appended row of {@code ledger/quota.md}'s Spend log: one sporadic-lane (Codex, Antigravity or
+ * Cursor) trial.
  */
 public record QuotaSpendRow(
     String date, Platform platform, String skill, String caseName, String week) {

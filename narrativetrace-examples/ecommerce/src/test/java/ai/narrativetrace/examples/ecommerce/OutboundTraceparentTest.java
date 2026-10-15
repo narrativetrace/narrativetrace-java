@@ -12,9 +12,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.Traceparent;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -59,6 +64,38 @@ class OutboundTraceparentTest {
     assertThat(request.headers().firstValue(Traceparent.HEADER_NAME))
         .as("no open span means no honest parent id to name")
         .isEmpty();
+  }
+
+  /**
+   * The capability this example only inspects elsewhere: the header leaves the JVM and the callee
+   * actually receives it, over a real loopback socket rather than a formatted {@link HttpRequest}.
+   */
+  @Test
+  void theHeaderReachesTheServerThatReceivesTheRequest() throws Exception {
+    var spanId =
+        context.enterMethod(new MethodSignature("NotificationService", "notify", List.of()));
+    var service = new JsonPlaceholderNotificationService(context);
+    var receivedHeader = new AtomicReference<String>();
+    var server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+    server.createContext(
+        "/",
+        exchange -> {
+          receivedHeader.set(exchange.getRequestHeaders().getFirst(Traceparent.HEADER_NAME));
+          exchange.sendResponseHeaders(200, -1);
+          exchange.close();
+        });
+    server.start();
+    try {
+      var uri = URI.create("http://localhost:" + server.getAddress().getPort() + "/");
+      var request = service.withTraceparent(HttpRequest.newBuilder().uri(uri).GET()).build();
+      HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding());
+    } finally {
+      server.stop(0);
+    }
+    context.exitMethodWithReturn("\"sent\"", spanId);
+
+    assertThat(receivedHeader.get())
+        .isEqualTo(new Traceparent(context.traceId(), spanId, 1).format());
   }
 
   private static HttpRequest.Builder newBuilder() {

@@ -12,11 +12,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * PIT's own processes (coverage-analysis "main" JVM, per-mutant "minion" JVMs) run {@code
@@ -54,6 +56,9 @@ class PitestFixtureOutputLocationTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
   private static final File MODULE_DIR = new File(PROJECT_DIR, "narrativetrace-junit5");
+
+  @TempDir static Path buildRoot;
+
   private static final List<String> STRAY_PATHS =
       List.of(
           "manifest.json",
@@ -101,7 +106,10 @@ class PitestFixtureOutputLocationTest {
     var printed =
         GradleRunner.create()
             .withProjectDir(PROJECT_DIR)
-            .withArguments(":narrativetrace-junit5:printPitestWorkingDir", "-q")
+            .withArguments(
+                ":narrativetrace-junit5:printPitestWorkingDir",
+                "-q",
+                "-Pnarrativetrace.buildRoot=" + buildRoot)
             .build()
             .getOutput()
             .strip();
@@ -109,7 +117,7 @@ class PitestFixtureOutputLocationTest {
     assertThat(new File(printed))
         .as("PIT's processes must run below the module's build directory, never in its source root")
         .isAbsolute()
-        .hasParent(new File(MODULE_DIR, "build"));
+        .hasParent(new File(buildRoot.toFile(), "narrativetrace-junit5/build"));
   }
 
   /**
@@ -133,7 +141,11 @@ class PitestFixtureOutputLocationTest {
     var result =
         GradleRunner.create()
             .withProjectDir(PROJECT_DIR)
-            .withArguments(":narrativetrace-junit5:pitest", "--rerun", "-q")
+            .withArguments(
+                ":narrativetrace-junit5:pitest",
+                "--rerun",
+                "-q",
+                "-Pnarrativetrace.buildRoot=" + buildRoot)
             .build();
     assertThat(result.task(":narrativetrace-junit5:pitest")).isNotNull();
 

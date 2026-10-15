@@ -20,8 +20,9 @@ package ai.narrativetrace.skills.catalogue;
  * git}/{@code find} invocation — never a shell pipeline.
  *
  * <p>{@code narrativetraceDoctor} (the {@code ai.narrativetrace} Gradle plugin task) runs the same
- * doctor checks {@code narrativetrace-cli}'s {@code doctor} verb does, in-process, and never fails
- * the build on the doctor's own findings — findings are a normal, expected outcome, not a crash.
+ * doctor checks {@code narrativetrace-cli}'s {@code doctor} verb does, in-process, and like the
+ * verb exits non-zero on a failing finding — "doctor green" is exit 0, so a step that chains the
+ * doctor can gate on it; the report at {@link #DOCTOR_REPORT_PATH} is written either way.
  *
  * <p>The two {@code VERIFY_*} constants are prose, not commands — the redaction step's verify names
  * the {@code trap.redaction-proof} check by id, not a finding count (frozen ruling,

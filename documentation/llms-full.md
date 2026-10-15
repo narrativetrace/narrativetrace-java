@@ -110,7 +110,7 @@ private void fulfillOrder(Order order) {
 
 The trace shows which branch ran:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-EBOOK")
   DeliveryService.sendDownloadLink(customerId: "C-1234", productId: "SKU-EBOOK") -> "https://..."
   NotificationService.confirmOrder(customerId: "C-1234", orderId: "ORD-001") -> true
@@ -142,7 +142,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -169,7 +169,7 @@ class OrderServiceTest {
 ```
 
 Output appears in `build/narrativetrace/`:
-```
+```text
 build/narrativetrace/
 ├── traces/
 │   └── OrderServiceTest/
@@ -196,9 +196,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
 }
 ```
 
@@ -253,7 +253,7 @@ NarrativeTrace consists of 18 modules. Most projects need only 2-3.
 
 ### Dependency graph
 
-```
+```text
 narrativetrace-api (zero deps — the contract)
 └── narrativetrace-core → api (the runtime; exposes api to its consumers)
 ├── narrativetrace-proxy → core
@@ -700,7 +700,7 @@ test classpath, not only NarrativeTrace's; `@ExtendWith` remains the explicit pe
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 
 narrativeTrace {
@@ -818,15 +818,15 @@ Rendered from the doctor's own framework table. For every row it can observe, `n
 
 | Framework | Detected by | Add (Gradle plugin) | Add (plain Gradle) | Wiring | Doctor check |
 |---|---|---|---|---|---|
-| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
-| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
-| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
-| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.3.0")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
-| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.3.0")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
-| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
-| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.3.0")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
-| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.3.0")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
-| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.3.0` | a -javaagent JVM flag the owner adds | none — runtime-only |
+| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
+| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
+| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
+| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
+| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
+| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
+| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
+| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
+| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.4.0` | a -javaagent JVM flag the owner adds | none — runtime-only |
 
 #### Spring — wiring
 
@@ -1062,7 +1062,7 @@ var filter = new NarrativeTraceFilter(context, new Slf4jTraceExporter());
 Filter lifecycle: reset → adopt inbound `traceparent` → chain → capture → export → reset.
 
 `Slf4jTraceExporter` logs to `narrativetrace.export` at INFO:
-```
+```text
 GET /api/orders [200] 42ms — {"nodes":[...]}
 ```
 
@@ -1117,7 +1117,7 @@ Narration is ordinary SLF4J output, so it renders in whatever format the logging
 configured for — patterns, MDC correlation, JSON encoders, file appenders, log aggregators.
 Nothing about the format is special; a trace line in a production log looks like any other:
 
-```
+```text
 2026-08-13 22:02:18.871 TRACE [main] [trace-004] [narrativetrace] - → OrderService.placeOrder(customerId: "C-UNKNOWN", productId: "SKU-MECHANICAL-KB", quantity: 1)
 ```
 
@@ -1194,7 +1194,7 @@ the naming is unambiguous.
 
 Clarity is a teacher, not a judge: every element gets a one-line note explaining its score — at every score, not only below thresholds. Reports render an Elements table per scenario:
 
-```
+```text
 | Element | Score | Note |
 |---|---|---|
 | OrderService.placeOrder | 0.90 | Standard verb 'place' + domain noun 'order' |
@@ -1647,7 +1647,7 @@ context.reset();
 ```
 
 Output:
-```
+```text
 OrderService.placeOrder(customerId: "C-1234", quantity: 2)
   InventoryService.reserve(productId: "SKU-KB", quantity: 2) -> Reservation[...]
   PaymentService.charge(customerId: "C-1234", amount: 179.98) -> PaymentConfirmation[...]

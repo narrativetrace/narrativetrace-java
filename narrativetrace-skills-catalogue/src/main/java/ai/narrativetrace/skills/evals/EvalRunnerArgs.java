@@ -44,7 +44,8 @@ public record EvalRunnerArgs(
   }
 
   private static final String USAGE =
-      "Usage: EvalRunner --skill <name> --case <name> --platform <claude|codex|gemini> --model"
+      "Usage: EvalRunner --skill <name> --case <name> --platform"
+          + " <claude|codex|antigravity|cursor> --model"
           + " <id> [--agent-command \"<template with {prompt}>\"] [--trials N]";
 
   public static EvalRunnerArgs parse(String[] argv) {

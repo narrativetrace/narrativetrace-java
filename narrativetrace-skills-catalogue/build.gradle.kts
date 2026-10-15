@@ -39,6 +39,7 @@ dependencies {
 }
 
 val testMavenRepo = layout.buildDirectory.dir("test-repo")
+val replayBuildRoot = layout.buildDirectory.dir("replay-root")
 
 tasks.withType<Test> {
     systemProperty("projectDir", rootProject.projectDir.absolutePath)
@@ -50,19 +51,40 @@ tasks.withType<Test> {
     // property below, not a hard-coded relative path.
     dependsOn(":narrativetrace-cli:jar", ":sixty-seconds:testClasses", ":publishSkillsTestRepo")
     systemProperty("narrativetrace.testMavenRepo", testMavenRepo.get().asFile.absolutePath)
+    // Those nested builds run against THIS checkout, so their own compileJava/jar tasks used to
+    // rewrite the jars this test JVM has on its classpath — a class not yet loaded when the rewrite
+    // landed then never loaded at all (NoClassDefFoundError, the Tier A2 replay flake). They get
+    // their own build root instead, which the root build script moves every project's build
+    // directory under; SkillReplayer reads the path back from here and forwards it. Inside build/,
+    // so `clean` disposes of it with the rest.
+    systemProperty("narrativetrace.replayBuildRoot", replayBuildRoot.get().asFile.absolutePath)
 }
 
 // Regenerates .claude/skills/*/SKILL.md, .agents/skills/*/SKILL.md, the carrier's resources,
 // .claude-plugin/marketplace.json and the AGENTS.md managed section from the typed catalogue
 // (RenderMain) — the drift check RenderDriftTest gates on every `./gradlew check`. Never hand-edit
 // the rendered files; run this and commit its output instead (documentation/what-to-commit.md).
+// Regenerates ledger/promotion.md from ledger/runs.jsonl and the typed catalogue (RenderPromotionMain,
+// a test-source main like renderPlatforms) — PromotionDriftTest gates on it in every `check`. Run it
+// after a trial landed a ledger row; never hand-edit the matrix.
+tasks.register<JavaExec>("renderPromotion") {
+    group = "documentation"
+    description = "Regenerates ledger/promotion.md from ledger/runs.jsonl and the typed catalogue"
+    mainClass.set("ai.narrativetrace.skills.evals.RenderPromotionMain")
+    classpath = sourceSets["test"].runtimeClasspath
+    args(rootProject.projectDir.absolutePath)
+}
+
 tasks.register<JavaExec>("renderSkills") {
     group = "documentation"
     description =
         "Regenerates .claude/skills/*/SKILL.md, .agents/skills/*/SKILL.md, the carrier resources," +
-            " .claude-plugin/marketplace.json and the AGENTS.md managed section from the typed" +
-            " catalogue"
+            " .claude-plugin/marketplace.json, the Cursor plugin manifests, the Cursor rule and the AGENTS.md" +
+            " managed section from the typed catalogue"
     mainClass.set("ai.narrativetrace.skills.render.RenderMain")
+    // The Cursor plugin's one rule is a view of the platform table in narrativetrace-tooling, which
+    // this zero-dependency module may not link against; rendering it here keeps ONE command.
+    dependsOn(":narrativetrace-tooling:renderPlatforms")
     classpath = sourceSets["main"].runtimeClasspath
     args(rootProject.projectDir.absolutePath)
 }

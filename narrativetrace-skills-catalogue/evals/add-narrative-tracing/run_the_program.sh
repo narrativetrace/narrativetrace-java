@@ -13,6 +13,7 @@
 # (the Gradle plugin plus the JUnit extension writing test-time output), which this prompt never
 # asks for — grading it failed both cases on agents that had done exactly what was asked.
 set -e
+. "$(dirname "$0")/bounded.sh"
 
 service="$1"
 if [ -z "$service" ]; then
@@ -45,16 +46,16 @@ gradle.projectsEvaluated {
     }
 }
 GRADLE
-  timeout 900 ./gradlew classes --console=plain -q >>"$log" 2>&1 || return 1
-  classpath=$(timeout 900 ./gradlew -I "$work/classpath.gradle" ntPrintRuntimeClasspath \
+  bounded 900 ./gradlew classes --console=plain -q >>"$log" 2>&1 || return 1
+  classpath=$(bounded 900 ./gradlew -I "$work/classpath.gradle" ntPrintRuntimeClasspath \
     --console=plain -q 2>>"$log" | tail -1)
   [ -n "$classpath" ] || return 1
-  timeout 300 java -cp "$classpath" "$main_class" >>"$log" 2>&1
+  bounded 300 java -cp "$classpath" "$main_class" >>"$log" 2>&1
 }
 
 # Bounded, always: a cold run resolves the plugin and the libraries over the network, and a program
 # that hangs has to fail this case rather than the whole harness.
-if timeout 900 ./gradlew run --console=plain -q >"$log" 2>&1; then
+if bounded 900 ./gradlew run --console=plain -q >"$log" 2>&1; then
   :
 elif grep -q "Task 'run' not found" "$log"; then
   run_from_compiled_classes || {

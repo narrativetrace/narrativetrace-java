@@ -10,6 +10,7 @@ package ai.narrativetrace.gradle;
 import ai.narrativetrace.tooling.doctor.DoctorChecks;
 import ai.narrativetrace.tooling.doctor.DoctorRender;
 import ai.narrativetrace.tooling.doctor.DoctorReport;
+import ai.narrativetrace.tooling.doctor.Finding;
 import ai.narrativetrace.tooling.doctor.SnapshotBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,9 +36,16 @@ import org.gradle.api.tasks.TaskAction;
  * SnapshotBuilder}'s two callers, alongside the {@code narrativetrace-cli} {@code
  * bin/narrativetrace} launcher.
  *
- * <p>Read-only and always safe to run: like the CLI's own {@code doctor} verb, a finding is a
- * normal, expected outcome, never a build failure — this task never throws on the report's own exit
- * code, only on a real I/O failure writing the file.
+ * <p>Read-only and always safe to run — and, like the CLI's own {@code doctor} verb, it FAILS on a
+ * failing finding: the report is written first, the human rendering printed, and then the task
+ * throws so that a script, a CI step or an agent that chains "doctor, then continue" sees the
+ * verdict in the exit status rather than only inside the JSON. {@code
+ * -Pnarrativetrace.doctor.failOnFindings=false} keeps the build green for a pipeline that reads the
+ * report itself.
+ *
+ * <p><b>@edgeCase</b> The task used to exit 0 whatever the report said ("a finding is never a build
+ * failure"), and on 2026-10-10 two consumers read that as green while the report said FAIL: a
+ * benchmark harness's "setup done" step, and an agent scripting its own next step.
  *
  * <p><b>@llmNote</b> One of the twenty checks needs the agent-skills carrier this project resolves,
  * so this task reads the same {@code narrativeTraceSkills} configuration {@code narrativetraceInit}
@@ -70,6 +78,13 @@ public abstract class NarrativeTraceDoctorTask extends DefaultTask {
   @Input
   public abstract Property<String> getCarrierCoordinate();
 
+  /**
+   * Whether a failing finding fails the build — {@code true} unless the project property {@code
+   * narrativetrace.doctor.failOnFindings} says {@code false}.
+   */
+  @Input
+  public abstract Property<Boolean> getFailOnFindings();
+
   @TaskAction
   public void runDoctor() {
     SkillsCarrier.Resolution resolution =
@@ -86,12 +101,27 @@ public abstract class NarrativeTraceDoctorTask extends DefaultTask {
           "narrativetraceDoctor could not write its report to " + reportFile, e);
     }
     getLogger().lifecycle(DoctorRender.renderHuman(report));
-    if (!report.allPassed()) {
-      getLogger()
-          .lifecycle(
-              "NarrativeTrace doctor report written to "
-                  + reportFile
-                  + " — findings above, build not failed by this task.");
+    if (report.allPassed()) {
+      return;
     }
+    if (getFailOnFindings().get()) {
+      throw new GradleException(
+          "NarrativeTrace doctor: "
+              + failingCount(report)
+              + " failing finding(s) — see above, and the report at "
+              + reportFile
+              + ". Pass -Pnarrativetrace.doctor.failOnFindings=false to keep the build green"
+              + " and read the report yourself.");
+    }
+    getLogger()
+        .lifecycle(
+            "NarrativeTrace doctor report written to "
+                + reportFile
+                + " — findings above, build not failed by this task"
+                + " (narrativetrace.doctor.failOnFindings=false).");
+  }
+
+  private static long failingCount(DoctorReport report) {
+    return report.findings().stream().filter(Finding::isFailing).count();
   }
 }

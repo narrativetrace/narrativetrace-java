@@ -74,7 +74,8 @@
     ai.narrativetrace.skills.evals.EvalTrial/TierPrecondition run a real subprocess by design:
     EvalTrial is the Tier B trial runner's scaffold/drive/grade flow (skill-harness-design.md
     §4.3), invoked by the operator-run EvalRunner, never invoked automatically or by the check
-    gate, whose whole job is to launch the subscription CLI (claude, codex, or gemini) the operator
+    gate, whose whole job is to launch the subscription CLI (claude, codex, agy, or agent) the
+    operator
     names on their own command line, with the exact agent command the operator chose (a platform
     preset or an explicit agent-command-flag override) and the grader script committed with the
     case. The "attacker" a command-injection finding worries about IS the operator invoking their

@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +29,73 @@ class AgentTurnsTest {
   private static AgentTurns claude(List<String> replies) {
     return AgentTurns.of(
         Platform.CLAUDE, "haiku", "narrativetrace-feedback", null, "turn one", replies, SESSION);
+  }
+
+  private static AgentTurns claudeWithFresh(List<String> replies, Set<Integer> freshTurns) {
+    return AgentTurns.of(
+        Platform.CLAUDE,
+        "haiku",
+        "narrativetrace-feedback",
+        null,
+        "turn one",
+        replies,
+        SESSION,
+        freshTurns);
+  }
+
+  /**
+   * A fresh turn runs the FIRST-turn template under a session id of its own — a conversation that
+   * remembers nothing of the install it is asked about, which is the whole measurement.
+   */
+  @Test
+  void aFreshTurnOpensANewSessionWithTheFirstTurnTemplate() {
+    AgentTurns turns = claudeWithFresh(List.of("check my setup"), Set.of(2));
+
+    assertThat(turns.commandForTurn(1)).contains("--session-id " + SESSION);
+    assertThat(turns.commandForTurn(2))
+        .contains("--session-id ")
+        .doesNotContain(SESSION)
+        .doesNotContain("--resume")
+        .doesNotContain(Platform.SESSION_PLACEHOLDER);
+    assertThat(turns.isFreshTurn(2)).isTrue();
+    assertThat(turns.isFreshTurn(1)).isFalse();
+  }
+
+  /**
+   * A turn after a fresh one would have to resume the NEW session, whose id the resumed template
+   * does not carry; rather than resume the old one silently, the shape is refused until a case
+   * needs it.
+   */
+  @Test
+  void refusesAFreshTurnThatIsNotTheLastTurn() {
+    assertThatThrownBy(() -> claudeWithFresh(List.of("check my setup", "thanks"), Set.of(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("last turn");
+  }
+
+  @Test
+  void refusesAFreshTurnOutsideTheConversation() {
+    assertThatThrownBy(() -> claudeWithFresh(List.of("check my setup"), Set.of(3)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("outside");
+  }
+
+  /** A fresh session is still a multi-turn shape: a platform with no session preset refuses it. */
+  @Test
+  void refusesAFreshTurnOnAPlatformThatCannotOpenANamedSession() {
+    assertThatThrownBy(
+            () ->
+                AgentTurns.of(
+                    Platform.CODEX,
+                    "mini",
+                    "narrativetrace-feedback",
+                    null,
+                    "turn one",
+                    List.of("check my setup"),
+                    SESSION,
+                    Set.of(2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cannot drive a multi-turn case");
   }
 
   @Test

@@ -20,7 +20,8 @@ class PlatformTest {
   void parseIsCaseInsensitiveForEveryKnownPlatform() {
     assertThat(Platform.parse("claude")).contains(Platform.CLAUDE);
     assertThat(Platform.parse("CODEX")).contains(Platform.CODEX);
-    assertThat(Platform.parse("Gemini")).contains(Platform.GEMINI);
+    assertThat(Platform.parse("Antigravity")).contains(Platform.ANTIGRAVITY);
+    assertThat(Platform.parse("cursor")).contains(Platform.CURSOR);
   }
 
   @Test
@@ -30,10 +31,60 @@ class PlatformTest {
   }
 
   @Test
-  void onlyCodexAndGeminiAreSporadic() {
+  void onlyCodexAntigravityAndCursorAreSporadic() {
     assertThat(Platform.CLAUDE.isSporadic()).isFalse();
     assertThat(Platform.CODEX.isSporadic()).isTrue();
-    assertThat(Platform.GEMINI.isSporadic()).isTrue();
+    assertThat(Platform.ANTIGRAVITY.isSporadic()).isTrue();
+    assertThat(Platform.CURSOR.isSporadic()).isTrue();
+  }
+
+  /**
+   * Cursor's headless CLI is {@code agent}; {@code --force} lets it run commands and apply edits
+   * without a confirmation nobody is there to give, for EVERY skill — even the read-only doctor,
+   * which runs its diagnosis through a command, so a preset narrower than the prompt would measure
+   * the sandbox and not the skill. No {@code --model}: the runner's model argument is a ledger
+   * label, and a label that is not a Cursor model name would fail the whole trial.
+   */
+  @Test
+  void cursorPresetIsTheHeadlessAgentWithForceForEverySkill() {
+    String expected = "agent -p \"{prompt}\" --output-format text --force";
+
+    assertThat(Platform.CURSOR.presetAgentCommand("auto", "narrativetrace-doctor"))
+        .isEqualTo(expected);
+    assertThat(Platform.CURSOR.presetAgentCommand("auto", "add-narrative-tracing"))
+        .isEqualTo(expected);
+  }
+
+  /**
+   * Antigravity's CLI is {@code agy}; {@code --dangerously-skip-permissions} is its one headless
+   * auto-approval (verified against {@code agy --help}, CLI 1.3.3, 2026-10-10 — there is no {@code
+   * --yolo} and no approval mode), so it rides every skill for the same reason Cursor's {@code
+   * --force} does. {@code --model} IS passed: the owner's ledger model is one of {@code agy
+   * models}' slugs ({@code gemini-3.8-flash-low} is the cheapest), and the Cursor lane's reason for
+   * omitting it — a label that is not a vendor model name — does not hold here.
+   */
+  @Test
+  void antigravityPresetSkipsPermissionsForEverySkillAndNamesTheModel() {
+    String expected =
+        "agy -p \"{prompt}\" --model gemini-3.8-flash-low --output-format text"
+            + " --dangerously-skip-permissions";
+
+    assertThat(
+            Platform.ANTIGRAVITY.presetAgentCommand(
+                "gemini-3.8-flash-low", "narrativetrace-doctor"))
+        .isEqualTo(expected);
+    assertThat(
+            Platform.ANTIGRAVITY.presetAgentCommand(
+                "gemini-3.8-flash-low", "add-narrative-tracing"))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  void cursorAndAntigravityNameTheirToolsForTheSkipLine() {
+    assertThat(Platform.CURSOR.cliTool()).isEqualTo("agent");
+    assertThat(Platform.ANTIGRAVITY.cliTool()).isEqualTo("agy");
+    assertThat(Platform.CLAUDE.cliTool()).isEqualTo("claude");
+    assertThat(Platform.CODEX.cliTool()).isEqualTo("codex");
   }
 
   @Test
@@ -138,8 +189,10 @@ class PlatformTest {
   }
 
   /**
-   * Codex's and Gemini's own multi-turn flags were never verified in the container the trials run
-   * in, so neither platform can start a multi-turn trial at all — not even its first turn.
+   * Codex's, Antigravity's and Cursor's own multi-turn flags were never verified in the container
+   * the trials run in (Antigravity's {@code --conversation <id>} resumes, but nothing lets the
+   * runner CHOOSE the id on turn 1), so none of them can start a multi-turn trial at all — not even
+   * its first turn.
    *
    * <p>Refusing BOTH halves is the point. A platform that could open the conversation but not
    * resume it would spend a trial, reach the approval question, and then either crash or — far
@@ -148,7 +201,8 @@ class PlatformTest {
    */
   @Test
   void aPlatformWhoseResumeFlagIsUnverifiedCannotStartAMultiTurnTrialEither() {
-    for (Platform platform : new Platform[] {Platform.CODEX, Platform.GEMINI}) {
+    for (Platform platform :
+        new Platform[] {Platform.CODEX, Platform.ANTIGRAVITY, Platform.CURSOR}) {
       assertThat(platform.presetFirstTurnCommand("mini", "narrativetrace-feedback"))
           .as(platform + " first turn")
           .isEmpty();
@@ -164,13 +218,5 @@ class PlatformTest {
         .isEqualTo("codex exec --sandbox read-only --model mini \"{prompt}\"");
     assertThat(Platform.CODEX.presetAgentCommand("mini", "add-narrative-tracing"))
         .isEqualTo("codex exec --sandbox workspace-write --model mini \"{prompt}\"");
-  }
-
-  @Test
-  void geminiPresetApprovalModeIsPlanForTheDoctorSkillOnly() {
-    assertThat(Platform.GEMINI.presetAgentCommand("flash", "narrativetrace-doctor"))
-        .isEqualTo("gemini -p \"{prompt}\" --model flash --approval-mode plan");
-    assertThat(Platform.GEMINI.presetAgentCommand("flash", "add-narrative-tracing"))
-        .isEqualTo("gemini -p \"{prompt}\" --model flash --approval-mode auto_edit");
   }
 }

@@ -137,9 +137,10 @@ public final class OutputDirectoryResolver {
   }
 
   /**
-   * Everything a path cannot carry, replaced: separators (which would write outside the directory)
-   * and control characters (which raise {@code InvalidPathException}). Nothing else — a class name
-   * is already a Java identifier and must keep its own spelling, unicode letters included.
+   * Everything a path cannot carry, replaced: separators (which would write outside the directory),
+   * control characters (which raise {@code InvalidPathException}) and Unicode noncharacters (which
+   * APFS refuses at write time). Nothing else — a class name is already a Java identifier and must
+   * keep its own spelling, unicode letters included.
    *
    * @return the safe directory segment; {@code unnamed} when nothing legible survives
    */
@@ -155,7 +156,8 @@ public final class OutputDirectoryResolver {
   }
 
   /**
-   * Appends one character, or one well-formed surrogate pair, replacing what a path cannot carry.
+   * Appends one character, or one well-formed surrogate pair, replacing what a path cannot carry. A
+   * pair is one code point, so a supplementary noncharacter folds to ONE placeholder, not two.
    *
    * @return the index to read from next
    */
@@ -164,7 +166,12 @@ public final class OutputDirectoryResolver {
     if (Character.isHighSurrogate(c)
         && index + 1 < name.length()
         && Character.isLowSurrogate(name.charAt(index + 1))) {
-      sb.append(c).append(name.charAt(index + 1));
+      char low = name.charAt(index + 1);
+      if (isNoncharacter(Character.toCodePoint(c, low))) {
+        sb.append('_');
+      } else {
+        sb.append(c).append(low);
+      }
       return index + 2;
     }
     sb.append(isPathSafe(c) ? c : '_');
@@ -173,14 +180,29 @@ public final class OutputDirectoryResolver {
 
   /**
    * A lone surrogate is refused for the same reason a control character is: it encodes to no bytes,
-   * so {@code Path.resolve} raises {@code InvalidPathException} before the file is ever written.
+   * so {@code Path.resolve} raises {@code InvalidPathException} before the file is ever written. A
+   * noncharacter is refused one step later in the same story: it encodes fine and {@code
+   * Path.resolve} accepts it, then APFS answers the write with {@code Illegal byte sequence}.
    */
   private static boolean isPathSafe(char c) {
     return !Character.isISOControl(c)
         && !Character.isSurrogate(c)
+        && !isNoncharacter(c)
         && c != '/'
         && c != '\\'
         && c != File.separatorChar;
+  }
+
+  /**
+   * Unicode's 66 permanently unassigned code points: the last two of every plane ({@code U+nFFFE},
+   * {@code U+nFFFF}) and the BMP block {@code U+FDD0..U+FDEF}.
+   *
+   * <p><b>@edgeCase</b> Legal UTF-8, so a byte-level check passes them; ext4 writes them and APFS
+   * does not, which is why the security suite's {@code noncharacter} name row was green on every
+   * Linux run and red the first time it ran on a Mac.
+   */
+  private static boolean isNoncharacter(int codePoint) {
+    return (codePoint & 0xFFFE) == 0xFFFE || (codePoint >= 0xFDD0 && codePoint <= 0xFDEF);
   }
 
   /**

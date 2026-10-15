@@ -1,4 +1,4 @@
-<!-- source: documentation/dual-path-pipeline.md blob b676bcf539d7 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: documentation/dual-path-pipeline.md blob cf2aca50998e | translated: 2026-09-10 | reviewed: - -->
 # La canalización de eventos de doble ruta
 
 [English](../dual-path-pipeline.md) | **Español** | [Português](../pt-BR/pipeline-de-caminho-duplo.md) | [简体中文](../zh-CN/双路径事件管道.md)
@@ -12,7 +12,7 @@ una, y qué ocurre bajo carga y después de una caída del proceso.
 
 ## La forma
 
-```
+```text
  método trazado (hilo llamador)
       │
       ▼

@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * <p>{@code name:} is always the skill's {@link Skill#canonicalName()} — never a shortened "claude
  * segment". RULED 2026-09-04 (reaffirmed 2026-09-13): the {@code narrativetrace} prefix is Claude's
  * PLUGIN namespace, not a skill's own name, and this repository ships no plugin — a repo-level
- * {@code .claude/skills/} directory is a flat namespace exactly like Codex's or Gemini's, so a
+ * {@code .claude/skills/} directory is a flat namespace exactly like Codex's or Antigravity's, so a
  * shortened name (e.g. {@code doctor}) would collide with every other vendor's skill of the same
  * generic name. There is deliberately no shortening code path left to keep this true; see {@link
  * CodexSkillRenderer} for the sibling platform this same catalogue also renders.

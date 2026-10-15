@@ -46,10 +46,11 @@ data class DuplicationScanResult(
  * text — and results are ignored below a token floor: see documentation/duplication.md for the
  * rationale.
  *
- * The whole PMD/CPD invocation ([runCpd]) is thin, untested glue over the library, matching the
- * `PmdViolationSupport`/`JDependReportSupport` convention of testing the pure decision logic
- * ([aggregate], [writeJson], [readJson], [summaryLine]) rather than a live third-party tool run — the
- * real tool is proven by the actual gate, not a unit test that would just re-run it.
+ * The pure decision logic ([aggregate], [countCoveredPositions], [writeJson], [readJson],
+ * [summaryLine]) is unit-tested directly, as in `PmdViolationSupport`/`JDependReportSupport`. The
+ * PMD/CPD invocation ([runCpd]) is tested on a two-file fixture as well, including with PMD's source
+ * cache evicted between analysis and rendering: the report may only be read while the analysis is
+ * open (see the comment in [runCpd]), and that order is what the fixture test pins.
  */
 object DuplicationReportSupport {
 
@@ -60,9 +61,17 @@ object DuplicationReportSupport {
      * Runs CPD over [sourceDirs] (non-existent directories are skipped, not an error — a Kotlin-only
      * module or one with no test sources contributes nothing) at [minTokens], with identifiers and
      * literals ignored. Writes PMD's own CPD XML to [xmlOutput] unmodified, and returns the
-     * normalised result [writeJson] serialises to `duplication.json`.
+     * normalised result [writeJson] serialises to `duplication.json`. [beforeReadingTheReport] runs
+     * once the report exists and before anything reads it — a test seam, where the fixture test
+     * evicts PMD's source cache to prove the reads survive it.
      */
-    fun runCpd(sourceDirs: List<File>, minTokens: Int, rootDir: File, xmlOutput: File): DuplicationTreeResult {
+    fun runCpd(
+        sourceDirs: List<File>,
+        minTokens: Int,
+        rootDir: File,
+        xmlOutput: File,
+        beforeReadingTheReport: (CPDReport) -> Unit = {}
+    ): DuplicationTreeResult {
         xmlOutput.parentFile?.mkdirs()
         val existingDirs = sourceDirs.filter { it.isDirectory }
         if (existingDirs.isEmpty()) {
@@ -83,10 +92,32 @@ object DuplicationReportSupport {
         configuration.collectFilesRecursively(true)
         configuration.inputPathList = existingDirs.map { it.toPath() }
 
-        var cpdReport: CPDReport? = null
-        CpdAnalysis.create(configuration).use { analysis -> analysis.performAnalysis { r -> cpdReport = r } }
-        val report = cpdReport ?: throw IllegalStateException("CPD produced no report for $existingDirs")
+        // Everything that reads the report runs INSIDE the consumer, while the analysis's files are
+        // still open. PMD serves each mark's source slice (the XML's <codefragment>) from a cache of
+        // SoftReferences tied to those files; under memory pressure — the start of a parallel `check`
+        // — the cache is evicted and PMD re-reads the file, which fails with "Closed NioTextFile" once
+        // `use { }` has closed the analysis. Reading after close is the gate flake this block
+        // exists to prevent; nothing PMD-typed survives it.
+        var result: DuplicationTreeResult? = null
+        var failure: Throwable? = null
+        CpdAnalysis.create(configuration).use { analysis ->
+            analysis.performAnalysis { report ->
+                // performAnalysis catches whatever the consumer throws and hands it to PMD's own
+                // reporter, which would turn a rendering failure into a misleading "no report".
+                try {
+                    beforeReadingTheReport(report)
+                    result = readReport(report, rootDir, xmlOutput)
+                } catch (e: Throwable) {
+                    failure = e
+                }
+            }
+        }
+        failure?.let { throw it }
+        return result ?: throw IllegalStateException("CPD produced no report for $existingDirs")
+    }
 
+    /** Renders PMD's XML and maps the matches to plain values — valid only while [report]'s analysis is open. */
+    private fun readReport(report: CPDReport, rootDir: File, xmlOutput: File): DuplicationTreeResult {
         xmlOutput.writer(StandardCharsets.UTF_8).use { writer -> XMLRenderer().render(report, writer) }
 
         val tokensTotal = report.numberOfTokensPerFile.values.sum()

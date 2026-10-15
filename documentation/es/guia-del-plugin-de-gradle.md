@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 03b2eb50d3ce | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 9346b5ece1b7 | translated: 2026-10-09 | reviewed: - -->
 # Guía del plugin de Gradle de NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | **Español** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ El plugin de Gradle `ai.narrativetrace` es la forma recomendada de usar Narrativ
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -317,7 +317,9 @@ Ejecuta las veinte comprobaciones de solo lectura del doctor contra este proyect
 
 - **Grupo**: `narrativetrace`
 - **Solo lectura**: lee ficheros de build, fuentes, salida renderizada y habilidades de agente instaladas; no cambia nada
-- **Nunca hace fallar la build por sus propios hallazgos** — un hallazgo es un resultado normal, no un fallo
+- **Hace fallar la build cuando un hallazgo falla** — el informe se escribe primero, así que «doctor en verde»
+  es salida 0 y un script puede condicionarse a ella; `-Pnarrativetrace.doctor.failOnFindings=false` mantiene
+  la build en verde para una pipeline que lee el informe por sí misma
 - `--json` imprime el informe legible por máquina en lugar del humano
 
 ### `narrativetraceInit`
@@ -421,7 +423,7 @@ Cuando se define, todas las dependencias de NarrativeTrace gestionadas se resuel
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -557,7 +559,7 @@ Todos los ejemplos anteriores usan el DSL de Kotlin. El equivalente en Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.3.0'
+    id 'ai.narrativetrace' version '0.4.0'
 }
 
 narrativeTrace {
@@ -580,7 +582,7 @@ narrativeTrace {
 
 El plugin valida todas las propiedades de tipo string en tiempo de configuración (dentro de `afterEvaluate`). Los valores inválidos producen un mensaje de error claro:
 
-```
+```text
 > Invalid narrativeTrace mode 'invalid'. Valid values: proxy, agent, spring
 > Invalid narrativeTrace scope 'compile'. Valid values: test, production
 > Invalid narrativeTrace format 'xml'. Valid values: markdown, text, mermaid, plantuml

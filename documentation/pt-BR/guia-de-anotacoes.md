@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob fec2e7b0e04d | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob 584e8b847822 | translated: 2026-09-17 | reviewed: - -->
 # Guia de anotações do NarrativeTrace para Java
 
 [English](../annotations-guide.md) | [Español](../es/guia-de-anotaciones.md) | **Português** | [简体中文](../zh-CN/注解指南.md)
@@ -246,7 +246,7 @@ Os templates de `@Narrated` e `@OnError` usam marcadores `{paramName}` e `{param
 
 O NarrativeTrace detecta isso automaticamente durante os testes. Após cada teste, a extensão do JUnit 5 e a regra do JUnit 4 percorrem cada nó do trace em busca de padrões `{...}` não resolvidos e imprimem um aviso:
 
-```
+```text
 WARNING: Unresolved template placeholder(s) detected:
   - OrderService.placeOrder: {custmerId} in narration
   - ExpenseService.pay: {expense.payer.name} in narration

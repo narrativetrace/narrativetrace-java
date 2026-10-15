@@ -315,17 +315,27 @@ class InitPlannerTest {
         .hasValue(Carriers.FAKE_COORDINATE);
   }
 
+  /**
+   * Claude Code loads project skills from {@code .claude/skills} ONLY — never {@code
+   * .agents/skills}, and {@code AGENTS.md} only through a {@code CLAUDE.md} import. The vendor
+   * flavour used to be written only where a {@code .claude/} directory or a {@code CLAUDE.md}
+   * already existed, so on a fresh project the published install prompt left skills the primary
+   * platform's agent could not load while the doctor reported them installed (benchmark shakedown
+   * run 4, 2026-10-10: three of three fresh sessions listed no NarrativeTrace skill). Cursor and
+   * GitHub Copilot read {@code .claude/skills} too, so writing it everywhere costs no platform
+   * anything; {@code --vendor none} remains the opt-out.
+   */
   @Test
-  void installsTheVendorFlavourWhereTheVendorIsDetected() {
+  void installsTheVendorFlavourOnEveryProjectBecauseClaudeCodeReadsNothingElse() {
     Path vendorPage = Path.of(".claude/skills/doctor/SKILL.md");
 
+    assertThat(actionOn(plan(project().build()), vendorPage)).isPresent();
     assertThat(actionOn(plan(project().claudeDirectory(true).build()), vendorPage)).isPresent();
     assertThat(actionOn(plan(project().claudeMd("# C\n").build()), vendorPage)).isPresent();
-    assertThat(actionOn(plan(project().build()), vendorPage)).isEmpty();
   }
 
   @Test
-  void obeysAnExplicitVendorChoiceOverDetection() {
+  void obeysAnExplicitVendorChoice() {
     Path vendorPage = Path.of(".claude/skills/doctor/SKILL.md");
     InitOptions on = InitOptions.defaults().withVendorClaude(Vendor.ON);
     InitOptions off = InitOptions.defaults().withVendorClaude(Vendor.OFF);

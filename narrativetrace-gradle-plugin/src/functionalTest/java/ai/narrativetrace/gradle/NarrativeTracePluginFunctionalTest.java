@@ -8,6 +8,7 @@
 package ai.narrativetrace.gradle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.gradle.testkit.runner.TaskOutcome.FAILED;
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 import java.io.IOException;
@@ -385,6 +386,36 @@ class NarrativeTracePluginFunctionalTest {
 
     assertThat(result.getOutput()).contains("DEP: ai.narrativetrace:narrativetrace-core");
     assertThat(result.getOutput()).doesNotContain("IMPL_DEP: ai.narrativetrace:");
+  }
+
+  /**
+   * Benchmark shakedown run 3 (2026-10-10): an agent applied the plugin to a bare project, put a
+   * traced {@code Main} under {@code src/main}, saw "package ai.narrativetrace.proxy does not
+   * exist", and reported that the plugin "added no dependencies". It had: every library sits on the
+   * TEST classpath, which is the default {@code scope}. This pins the whole set a bare project
+   * gets, configuration by configuration, so the docs can state it exactly.
+   */
+  @Test
+  void bareProjectPutsEveryLibraryOnTheTestClasspathAndNothingOnImplementation(
+      @TempDir Path projectDir) throws IOException {
+    writeBuildFile(projectDir, listDepsByConfigurationTask());
+
+    var result = runGradle(projectDir, "listDepsByConfiguration");
+    var lines =
+        result.getOutput().lines().filter(line -> line.startsWith("CFG ")).sorted().toList();
+
+    assertThat(lines)
+        .containsExactly(
+            // the plugin's own configuration: the skills carrier the doctor and `init` read
+            "CFG narrativeTraceSkills ai.narrativetrace:narrativetrace-skills",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-api",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-clarity",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-core",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-diagrams",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-junit5",
+            "CFG testImplementation ai.narrativetrace:narrativetrace-proxy",
+            "CFG testRuntimeOnly org.junit.jupiter:junit-jupiter-engine",
+            "CFG testRuntimeOnly org.junit.platform:junit-platform-launcher");
   }
 
   @Test
@@ -1228,7 +1259,7 @@ class NarrativeTracePluginFunctionalTest {
       throws IOException {
     writeBuildFile(projectDir, "");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
     var reportFile = projectDir.resolve("build/narrativetrace/doctor-report.json");
@@ -1237,16 +1268,44 @@ class NarrativeTracePluginFunctionalTest {
     assertThat(json).contains("\"findings\"").contains("\"exitCode\"");
   }
 
+  /**
+   * A failing finding fails the build. The task used to exit 0 whatever the report said, and two
+   * consumers read that as green on 2026-10-10 (the benchmark harness's "setup done" step, and an
+   * agent that scripted "doctor, then continue") while the only verdict sat inside the JSON. The
+   * report is still written first, so a script that wants the findings has them either way.
+   */
   @Test
-  void narrativetraceDoctorNeverFailsTheBuildOnFindings(@TempDir Path projectDir)
-      throws IOException {
-    // An otherwise-untouched project has plenty to find (no source, no test framework wired) —
-    // exactly the case the task must survive without failing the build.
-    writeBuildFile(projectDir, "");
+  void narrativetraceDoctorFailsTheBuildOnAFailingFinding(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    // A resolvable carrier with nothing installed from it is the one finding this needs.
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result =
+        GradleRunner.create()
+            .withProjectDir(projectDir.toFile())
+            .withPluginClasspath()
+            .withArguments("narrativetraceDoctor")
+            .buildAndFail();
+
+    assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(FAILED);
+    assertThat(result.getOutput())
+        .contains("doctor-report.json")
+        .contains("narrativetrace.doctor.failOnFindings=false");
+    assertThat(projectDir.resolve("build/narrativetrace/doctor-report.json")).exists();
+  }
+
+  /** The old behaviour is one property away, for a pipeline that reads the JSON itself. */
+  @Test
+  void narrativetraceDoctorKeepsTheBuildGreenWhenAskedTo(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    var result =
+        runGradle(
+            projectDir, "narrativetraceDoctor", "-Pnarrativetrace.doctor.failOnFindings=false");
 
     assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(result.getOutput()).contains("build not failed by this task");
   }
 
   @Test
@@ -1254,7 +1313,7 @@ class NarrativeTracePluginFunctionalTest {
     writeBuildFile(
         projectDir, "narrativeTrace {\n    outputDir.set(layout.buildDirectory.dir(\"nt\"))\n}\n");
 
-    runGradle(projectDir, "narrativetraceDoctor");
+    runDoctorForItsReport(projectDir);
 
     assertThat(projectDir.resolve("build/nt/doctor-report.json")).exists();
   }
@@ -1266,7 +1325,7 @@ class NarrativeTracePluginFunctionalTest {
       @TempDir Path projectDir, @TempDir Path repo) throws IOException {
     writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.task(":narrativetraceDoctor").getOutcome()).isEqualTo(SUCCESS);
     assertThat(result.getOutput())
@@ -1280,7 +1339,7 @@ class NarrativeTracePluginFunctionalTest {
     writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
     runGradle(projectDir, "narrativetraceInit");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.getOutput())
         .contains("[PASS] config.skills-installed")
@@ -1297,7 +1356,7 @@ class NarrativeTracePluginFunctionalTest {
       @TempDir Path projectDir, @TempDir Path repo) throws IOException {
     writeCarrierBuildFile(projectDir, emptyRepository(repo), "");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.getOutput())
         .contains("[PASS] config.skills-installed")
@@ -1311,7 +1370,7 @@ class NarrativeTracePluginFunctionalTest {
     runGradle(projectDir, "narrativetraceInit");
     writeStaleSkill(projectDir);
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.getOutput())
         .contains("[FAIL] config.skills-installed")
@@ -1326,7 +1385,7 @@ class NarrativeTracePluginFunctionalTest {
     runGradle(projectDir, "narrativetraceInit");
     deleteRecursively(projectDir.resolve(".agents/skills/narrativetrace-doctor"));
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.getOutput())
         .contains("[FAIL] config.skills-installed")
@@ -1340,7 +1399,7 @@ class NarrativeTracePluginFunctionalTest {
     runGradle(projectDir, "narrativetraceInit");
     Files.writeString(projectDir.resolve(DOCTOR_PAGE), "---\nname: mine\n---\n\nmine, thanks\n");
 
-    var result = runGradle(projectDir, "narrativetraceDoctor");
+    var result = runDoctorForItsReport(projectDir);
 
     assertThat(result.getOutput()).contains("[FAIL] config.skills-installed").contains("not ours");
   }
@@ -1351,7 +1410,7 @@ class NarrativeTracePluginFunctionalTest {
       @TempDir Path projectDir, @TempDir Path repo) throws IOException {
     writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
 
-    runGradle(projectDir, "narrativetraceDoctor");
+    runDoctorForItsReport(projectDir);
 
     var json = Files.readString(projectDir.resolve("build/narrativetrace/doctor-report.json"));
     assertThat(json).contains("\"skill\": \"narrativetrace-doctor\"").contains("\"skill\": null");
@@ -1659,7 +1718,7 @@ class NarrativeTracePluginFunctionalTest {
   void narrativetraceFeedbackAttachesTheDoctorsReportWhenThisProjectHasOne(@TempDir Path projectDir)
       throws IOException {
     writeBuildFile(projectDir, "");
-    runGradle(projectDir, "narrativetraceDoctor");
+    runDoctorForItsReport(projectDir);
 
     var result = runGradle(projectDir, feedbackArgs("draft", "--category", "doctor"));
 
@@ -1709,6 +1768,17 @@ class NarrativeTracePluginFunctionalTest {
             + extraConfig);
   }
 
+  /**
+   * The doctor run for what it REPORTS, on a project that has findings: the build-failing verdict
+   * is its own test above, and every other doctor test reads the report, so they opt out of the
+   * failure the way a report-reading pipeline would.
+   */
+  private org.gradle.testkit.runner.BuildResult runDoctorForItsReport(Path projectDir)
+      throws IOException {
+    return runGradle(
+        projectDir, "narrativetraceDoctor", "-Pnarrativetrace.doctor.failOnFindings=false");
+  }
+
   private org.gradle.testkit.runner.BuildResult runGradle(Path projectDir, String... args)
       throws IOException {
     return GradleRunner.create()
@@ -1716,6 +1786,21 @@ class NarrativeTracePluginFunctionalTest {
         .withPluginClasspath()
         .withArguments(args)
         .build();
+  }
+
+  /**
+   * Every declared dependency of every configuration, as {@code CFG <configuration> group:name}.
+   */
+  private String listDepsByConfigurationTask() {
+    return "tasks.register(\"listDepsByConfiguration\") {\n"
+        + "    doLast {\n"
+        + "        configurations.forEach { cfg ->\n"
+        + "            cfg.dependencies.forEach {\n"
+        + "                println(\"CFG \" + cfg.name + \" \" + it.group + \":\" + it.name)\n"
+        + "            }\n"
+        + "        }\n"
+        + "    }\n"
+        + "}\n";
   }
 
   private String listDepsWithVersionTask() {
@@ -2170,7 +2255,10 @@ class NarrativeTracePluginFunctionalTest {
    * edited — it would be testing a refusal instead, and passing.
    */
   private void registryTree(Path projectDir) throws IOException {
-    runGradle(projectDir, "narrativetraceInit", "--only", "skills");
+    // Open-standard pages only: a registry writes those and LINKS the vendor path to them, which
+    // is the shape under test — so the vendor flavour the installer now writes everywhere is
+    // turned off here, or the link below would collide with a real directory.
+    runGradle(projectDir, "narrativetraceInit", "--only", "skills", "--vendor", "none");
     for (Path skill : skillDirectories(projectDir)) {
       unstamp(skill.resolve("SKILL.md"));
       String name = skill.getFileName().toString();

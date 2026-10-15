@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 5d0267a077fc | translated: 2026-09-18 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 1a3d85494f8a | translated: 2026-09-18 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -416,7 +416,7 @@ Depois que todos os testes de uma classe terminam, a extensão escreve:
 - Relatório de clareza: `<outputDir>/clarity-report.md`
 - Resumo no console (impresso no stdout), terminando com o delta estrutural
   de uma linha contra a última execução verde:
-  ```
+  ```text
   NarrativeTrace — Suite complete
     run: bold elk soars
     2 scenarios recorded
@@ -548,7 +548,7 @@ aplicação.
 
 **A regra de dimensionamento:**
 
-```
+```text
 capacidade  ≈  pico de eventos/s  ×  pior travamento tolerável de drenagem
 memória na saturação  ≈  capacidade  ×  ~300 B/evento
 ```
@@ -578,7 +578,7 @@ perdeu eventos carrega isso na árvore (`TraceTree.loss()`), e todo formato
 renderizado com um slot de rodapé imprime uma linha — a contagem e a
 propriedade a aumentar:
 
-```
+```text
 ⚠ Incomplete narrative: 1204 events shed under load (buffer full) — raise narrativetrace.buffer.capacity.
 ```
 
@@ -776,7 +776,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.
@@ -909,7 +909,7 @@ public class DefaultOrderService implements OrderService {
 }
 ```
 
-```
+```text
 TRACE [narrativetrace]        → OrderService.placeOrder(customerId: C-1234, productId: SKU-MECHANICAL-KB, quantity: 2)
 INFO  [DefaultOrderService]   Placing order: customer=C-1234, product=SKU-MECHANICAL-KB, qty=2
 TRACE [narrativetrace]        → CustomerService.findCustomer(customerId: C-1234)
@@ -940,7 +940,7 @@ caminho duplo](pipeline-de-caminho-duplo.md) para o contrato do próprio pipelin
 
 ### Fluxo de dados
 
-```
+```text
 chamada de método → filtro TracingLevel → pipeline de eventos
                                             ↓
                                   Slf4jTraceEventListener

@@ -356,10 +356,18 @@ public class NarrativeTracePlugin implements Plugin<Project> {
             task -> {
               task.setDescription(
                   "Runs the read-only NarrativeTrace doctor against this project and writes its"
-                      + " JSON report. Never fails the build on findings.");
+                      + " JSON report. Fails the build on a failing finding unless"
+                      + " -Pnarrativetrace.doctor.failOnFindings=false.");
               task.setGroup("verification");
               task.getTargetDir().set(project.getLayout().getProjectDirectory());
               task.getReportFile().set(extension.getOutputDir().file("doctor-report.json"));
+              task.getFailOnFindings()
+                  .convention(
+                      project
+                          .getProviders()
+                          .gradleProperty("narrativetrace.doctor.failOnFindings")
+                          .map(value -> !"false".equalsIgnoreCase(value.trim()))
+                          .orElse(true));
               task.getCarrier().from(carrier);
               task.getCarrierCoordinate().set(coordinate);
             });

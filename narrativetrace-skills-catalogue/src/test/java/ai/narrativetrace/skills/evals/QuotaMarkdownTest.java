@@ -32,7 +32,7 @@ class QuotaMarkdownTest {
       | platform | plan tier | weekly allowance |
       |---|---|---|
       | codex | basic | 4 |
-      | gemini | not installed | 0 |
+      | antigravity | not installed | 0 |
 
       ## Spend log
 
@@ -47,7 +47,7 @@ class QuotaMarkdownTest {
     assertThat(ledger.allowances())
         .containsExactly(
             new QuotaAllowance(Platform.CODEX, "basic", 4),
-            new QuotaAllowance(Platform.GEMINI, "not installed", 0));
+            new QuotaAllowance(Platform.ANTIGRAVITY, "not installed", 0));
     assertThat(ledger.spend())
         .containsExactly(
             new QuotaSpendRow(
@@ -88,10 +88,10 @@ class QuotaMarkdownTest {
 
             | platform | plan tier | weekly allowance |
             |---|---|---|
-            | gemini | not installed | n/a |
+            | antigravity | not installed | n/a |
             """);
     assertThat(ledger.allowances())
-        .containsExactly(new QuotaAllowance(Platform.GEMINI, "not installed", 0));
+        .containsExactly(new QuotaAllowance(Platform.ANTIGRAVITY, "not installed", 0));
   }
 
   @Test
@@ -99,7 +99,7 @@ class QuotaMarkdownTest {
     QuotaLedger ledger = QuotaMarkdown.parse(LEDGER);
     assertThat(QuotaMarkdown.spendCountThisWeek(ledger, Platform.CODEX, "2026-W37")).isEqualTo(1);
     assertThat(QuotaMarkdown.spendCountThisWeek(ledger, Platform.CODEX, "2026-W38")).isZero();
-    assertThat(QuotaMarkdown.spendCountThisWeek(ledger, Platform.GEMINI, "2026-W37")).isZero();
+    assertThat(QuotaMarkdown.spendCountThisWeek(ledger, Platform.ANTIGRAVITY, "2026-W37")).isZero();
   }
 
   @Test
@@ -117,8 +117,8 @@ class QuotaMarkdownTest {
     LocalDate now = LocalDate.of(2026, 9, 13);
 
     assertThat(QuotaMarkdown.checkQuota(ledger, Platform.CODEX, now).allowed()).isTrue();
-    assertThat(QuotaMarkdown.checkQuota(ledger, Platform.GEMINI, now).allowed()).isFalse();
-    assertThat(QuotaMarkdown.checkQuota(ledger, Platform.GEMINI, now).reason())
+    assertThat(QuotaMarkdown.checkQuota(ledger, Platform.ANTIGRAVITY, now).allowed()).isFalse();
+    assertThat(QuotaMarkdown.checkQuota(ledger, Platform.ANTIGRAVITY, now).reason())
         .contains("no override");
   }
 

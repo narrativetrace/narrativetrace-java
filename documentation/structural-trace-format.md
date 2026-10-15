@@ -66,7 +66,7 @@ you know the scenario and want the file.
 
 ## Content
 
-```
+```text
 scenario: Weekend trip settles with three transfers
 
 #1 - TripSettlementService.recordExpense(tripName, expense)

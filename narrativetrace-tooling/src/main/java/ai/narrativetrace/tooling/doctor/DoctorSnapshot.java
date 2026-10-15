@@ -18,6 +18,7 @@
 package ai.narrativetrace.tooling.doctor;
 
 import ai.narrativetrace.tooling.init.InstalledSkill;
+import ai.narrativetrace.tooling.init.PointerReading;
 import ai.narrativetrace.tooling.init.SkillFlavour;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -92,6 +93,7 @@ public final class DoctorSnapshot {
   private final boolean extensionRegisteredViaServiceLoader;
   private final boolean extensionRegisteredViaExtendWith;
   private final List<InstalledSkill> installedSkills;
+  private final List<PointerReading> pointerReadings;
   private final String carrierCoordinate;
   private final List<String> catalogueSkills;
 
@@ -112,6 +114,7 @@ public final class DoctorSnapshot {
     this.extensionRegisteredViaServiceLoader = b.extensionRegisteredViaServiceLoader;
     this.extensionRegisteredViaExtendWith = b.extensionRegisteredViaExtendWith;
     this.installedSkills = List.copyOf(b.installedSkills);
+    this.pointerReadings = List.copyOf(b.pointerReadings);
     this.carrierCoordinate = b.carrierCoordinate;
     this.catalogueSkills = List.copyOf(b.catalogueSkills);
   }
@@ -287,6 +290,14 @@ public final class DoctorSnapshot {
   }
 
   /**
+   * One reading per detected platform whose row has a pointer file, in platform-table order — the
+   * installer's own reading, so the doctor and {@code init} agree on what "present" means.
+   */
+  public List<PointerReading> pointerReadings() {
+    return pointerReadings;
+  }
+
+  /**
    * The coordinate of the skills carrier this project resolves, or empty when the entry point could
    * not resolve one (offline, or no repository provides it). Empty means "cannot tell", never
    * "nothing installed".
@@ -394,6 +405,7 @@ public final class DoctorSnapshot {
     b.extensionRegisteredViaServiceLoader = extensionRegisteredViaServiceLoader;
     b.extensionRegisteredViaExtendWith = extensionRegisteredViaExtendWith;
     b.installedSkills.addAll(installedSkills);
+    b.pointerReadings.addAll(pointerReadings);
     b.carrierCoordinate = carrierCoordinate;
     b.catalogueSkills.addAll(catalogueSkills);
     return b;
@@ -426,6 +438,7 @@ public final class DoctorSnapshot {
     private boolean extensionRegisteredViaServiceLoader;
     private boolean extensionRegisteredViaExtendWith;
     private final List<InstalledSkill> installedSkills = new ArrayList<>();
+    private final List<PointerReading> pointerReadings = new ArrayList<>();
     private String carrierCoordinate = "";
     private final List<String> catalogueSkills = new ArrayList<>();
 
@@ -522,6 +535,15 @@ public final class DoctorSnapshot {
         throw new IllegalArgumentException("an installed skill must not be null");
       }
       this.installedSkills.add(skill);
+      return this;
+    }
+
+    /** One platform pointer the installer's reader found (or did not find) in the project. */
+    public Builder addPointerReading(PointerReading reading) {
+      if (reading == null) {
+        throw new IllegalArgumentException("a pointer reading must not be null");
+      }
+      this.pointerReadings.add(reading);
       return this;
     }
 

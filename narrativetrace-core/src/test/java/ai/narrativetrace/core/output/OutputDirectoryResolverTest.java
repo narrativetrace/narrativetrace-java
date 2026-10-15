@@ -221,6 +221,45 @@ class OutputDirectoryResolverTest {
   }
 
   /**
+   * Regression: U+FFFE and U+FFFF are legal UTF-8 but permanently unassigned, and APFS refuses a
+   * file name carrying them ({@code FileSystemException: Illegal byte sequence}) where ext4 does
+   * not — so every writer threw on macOS and nowhere else. Found by the security suite's hostile
+   * corpus (names row {@code noncharacter}) the first time it ran on a Mac.
+   */
+  @Test
+  void aNoncharacterInAClassNameIsReplacedLikeAControlCharacter() {
+    var base = Path.of("/tmp/base");
+
+    var file = new OutputDirectoryResolver(base).traceFile("name￾￿here", "runs");
+
+    assertThat(file.getParent().getFileName().toString()).isEqualTo("name__here");
+  }
+
+  /** The other BMP noncharacter block, U+FDD0..U+FDEF, under the same rule. */
+  @Test
+  void anArabicBlockNoncharacterInAClassNameIsReplacedToo() {
+    var base = Path.of("/tmp/base");
+
+    var file = new OutputDirectoryResolver(base).traceFile("name﷐﷯here", "runs");
+
+    assertThat(file.getParent().getFileName().toString()).isEqualTo("name__here");
+  }
+
+  /**
+   * A supplementary noncharacter arrives as a well-formed surrogate pair, which the pair rule would
+   * otherwise wave through verbatim; it folds to one placeholder, not two.
+   */
+  @Test
+  void aSupplementaryNoncharacterPairInAClassNameIsReplacedAsOneCharacter() {
+    var base = Path.of("/tmp/base");
+    var noncharacter = new String(Character.toChars(0x1FFFE));
+
+    var file = new OutputDirectoryResolver(base).traceFile("name" + noncharacter + "here", "runs");
+
+    assertThat(file.getParent().getFileName().toString()).isEqualTo("name_here");
+  }
+
+  /**
    * Truncation alone is a silent overwrite: two long names sharing a prefix would land on one
    * artifact, so one scenario's approved baseline would judge another scenario's trace.
    */

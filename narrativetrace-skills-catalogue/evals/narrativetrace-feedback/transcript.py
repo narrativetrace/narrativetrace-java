@@ -31,6 +31,7 @@ class Turn:
         self.commands = []
         self.tool_results = []
         self.denials = []
+        self.available_skills = []
 
     @property
     def said(self):
@@ -92,6 +93,13 @@ def _absorb(turn, event):
     """One streamed event into the turn it belongs to."""
     if event.get("subtype") == "permission_denied":
         turn.denials.append(str(event.get("tool_name", "")))
+        return
+    if event.get("type") == "system" and event.get("subtype") == "init":
+        # What the agent of THIS turn can see: the init event lists the skills loaded for the
+        # session, so a fresh-session turn's list is the answer to "does the next session find the
+        # skills the install left?" — the question the install cases' end state cannot answer.
+        skills = event.get("skills")
+        turn.available_skills = [str(s) for s in skills] if isinstance(skills, list) else []
         return
     if event.get("type") == "result" and isinstance(event.get("result"), str):
         turn.texts.append(event["result"])

@@ -15,4 +15,7 @@ copied into a trial (the harness skips a fixture's root README).
   `PaymentGateway.confirm`.
 - `LateFees.feeFor` is a pure function with its own unit test — the skip case's subject.
 
-Cases: `narrativetrace-verify/verify-unintended-interaction`, `happy-path`, `verify-skip`.
+Cases: `narrativetrace-verify/verify-unintended-interaction`, `happy-path`, `verify-skip`, and the
+three `narrativetrace-explain` cases, which read this same flow instead of changing it:
+`explain-an-unfamiliar-flow`, `happy-path` and `pure-function-control` (`LateFees.feeFor` again,
+this time as the question the source already answers).

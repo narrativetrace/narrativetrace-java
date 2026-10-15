@@ -138,4 +138,20 @@ class PromotionRendererTest {
     assertThat(doctorIndex).isPositive();
     assertThat(addIndex).isGreaterThan(doctorIndex);
   }
+
+  @Test
+  void theMatrixHasACursorColumnAfterAntigravity() {
+    RunLedgerRow row =
+        new RunLedgerRow(
+            "2026-10-10", "narrativetrace-doctor", "happy-path", Platform.CURSOR, "auto", 1, true);
+
+    String rendered =
+        PromotionRenderer.render(List.of(skill("narrativetrace-doctor")), List.of(row));
+
+    assertThat(rendered)
+        .contains("| Skill | Claude | Codex | Antigravity | Cursor |\n|---|---|---|---|---|\n")
+        .contains(
+            "| `narrativetrace-doctor` | not yet run | not yet run | not yet run |"
+                + " green (auto, 2026-10-10) |");
+  }
 }

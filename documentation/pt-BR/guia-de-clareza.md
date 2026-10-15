@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 3adc9e2ac548 | translated: 2026-09-23 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob 7e07f60d7d3c | translated: 2026-09-23 | reviewed: - -->
 # Guia de Clareza do NarrativeTrace Java
 
 [English](../clarity-guide.md) | [Español](../es/guia-de-claridad.md) | **Português** | [简体中文](../zh-CN/清晰度指南.md)
@@ -254,7 +254,7 @@ Por padrão (a menos que `narrativetrace.output=false` esteja em `junit-platform
 2. Escreve `clarity-report.md` no diretório de saída depois que todos os testes terminam
 3. Imprime um resumo no console com a distribuição de pontuações:
 
-```
+```text
 NarrativeTrace — Suite complete
   2 scenarios recorded
   Clarity: 100% high | 0% moderate | 0% low
@@ -313,7 +313,7 @@ O plugin de Gradle fornece uma task `clarityCheck` que faz o build falhar quando
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 
 narrativeTrace {
@@ -345,7 +345,7 @@ observados, não apenas das pontuações da análise estática.
 
 Quando um cenário cai abaixo do limiar:
 
-```
+```text
 FAILURE: Build failed with an exception.
 
 * What went wrong:

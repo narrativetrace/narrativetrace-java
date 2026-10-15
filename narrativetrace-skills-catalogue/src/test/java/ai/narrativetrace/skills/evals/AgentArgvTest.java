@@ -46,9 +46,9 @@ class AgentArgvTest {
 
   @Test
   void supportsASingleQuotedPromptPlaceholder() {
-    List<String> argv = AgentArgv.build("gemini -p '{prompt}' --model flash", "it's `dangerous`");
+    List<String> argv = AgentArgv.build("agy -p '{prompt}' --model flash", "it's `dangerous`");
 
-    assertThat(argv).containsExactly("gemini", "-p", "it's `dangerous`", "--model", "flash");
+    assertThat(argv).containsExactly("agy", "-p", "it's `dangerous`", "--model", "flash");
   }
 
   @Test
@@ -81,8 +81,8 @@ class AgentArgvTest {
 
   @Test
   void anEmptyPromptSubstitutesAsAnEmptyArgvElement() {
-    List<String> argv = AgentArgv.build("gemini -p \"{prompt}\"", "");
+    List<String> argv = AgentArgv.build("agy -p \"{prompt}\"", "");
 
-    assertThat(argv).containsExactly("gemini", "-p", "");
+    assertThat(argv).containsExactly("agy", "-p", "");
   }
 }

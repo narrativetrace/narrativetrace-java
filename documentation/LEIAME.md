@@ -26,6 +26,20 @@ páginas sem arquivo correspondente aqui — está em
 | [Solução de Problemas](pt-BR/solucao-de-problemas.md) | Sintoma → causa → correção para os modos de falha que as pessoas realmente encontram, de parâmetros `arg0` a um agente silencioso |
 | [Habilidades de agente](pt-BR/habilidades-de-agente.md) | Três habilidades para configuração, diagnóstico e Clarity — como são construídas e como instalá-las no seu projeto |
 
+## Receitas
+
+Uma página por problema, nas palavras que um usuário digitaria. Cada uma carrega
+o código do seu cenário e a saída real de uma execução que este build faz, então
+nada em uma receita é escrito à mão: [`pt-BR/receitas/`](pt-BR/receitas/).
+
+| Documento | O que cobre |
+|---|---|
+| [Adicione logs a este serviço](pt-BR/receitas/adicione-logs-a-este-servico.md) | Um checkout sem nenhuma instrução de log, envolvido uma vez: cada chamada com seus parâmetros e seu resultado pelo seu próprio logger |
+| [Ajude-me a depurar e corrigir este bug](pt-BR/receitas/ajude-me-a-depurar-e-corrigir-este-bug.md) | Um cartão recusado que deixa o estoque reservado — o bug de negócio que a exceção nunca nomeia, achado no trace, corrigido e fixado |
+| [Por que este teste falhou](pt-BR/receitas/por-que-este-teste-falhou.md) | Um teste de checkout vermelho lido span por span contra a asserção: o código fez o que diz, a expectativa está desatualizada |
+| [Revise um fluxo complexo antes de alterá-lo](pt-BR/receitas/revise-um-fluxo-complexo-antes-de-altera-lo.md) | Uma execução em `DETAIL` e em `SUMMARY`, a linha de log que carrega valores ao lado do `.nt` que não carrega nenhum |
+| [Revise uma refatoração: o comportamento mudou?](pt-BR/receitas/revise-uma-refatoracao-o-comportamento-mudou.md) | Os testes continuam verdes, o diff de aprovação nomeia a chamada removida e você aprova ou rejeita |
+
 ## Integração com frameworks
 
 | Documento | O que cobre |

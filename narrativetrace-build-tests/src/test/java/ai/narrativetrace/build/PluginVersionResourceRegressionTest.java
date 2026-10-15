@@ -13,12 +13,14 @@ import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Regression coverage for {@code narrativetrace-gradle-plugin/build.gradle.kts:36}: {@code
@@ -35,20 +37,26 @@ import org.junit.jupiter.api.Test;
 class PluginVersionResourceRegressionTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
-  private static final File GENERATED_PROPERTIES =
-      new File(
-          PROJECT_DIR,
-          "narrativetrace-gradle-plugin/build/resources/main/narrativetrace-version.properties");
+
+  @TempDir static Path buildRoot;
 
   private static BuildResult gradle(String... args) {
     var allArgs = new ArrayList<>(List.of(args));
     allArgs.add("-q");
+    allArgs.add("-Pnarrativetrace.buildRoot=" + buildRoot);
     return GradleRunner.create().withProjectDir(PROJECT_DIR).withArguments(allArgs).build();
+  }
+
+  /** {@code buildRoot} is injected after static initialization, so this cannot be a constant. */
+  private static File generatedProperties() {
+    return new File(
+        buildRoot.toFile(),
+        "narrativetrace-gradle-plugin/build/resources/main/narrativetrace-version.properties");
   }
 
   private static String readVersion() throws IOException {
     var props = new Properties();
-    try (var in = Files.newInputStream(GENERATED_PROPERTIES.toPath())) {
+    try (var in = Files.newInputStream(generatedProperties().toPath())) {
       props.load(in);
     }
     return props.getProperty("version");

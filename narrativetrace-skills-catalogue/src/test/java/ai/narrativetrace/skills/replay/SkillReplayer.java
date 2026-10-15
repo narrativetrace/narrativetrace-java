@@ -14,6 +14,7 @@ import ai.narrativetrace.skills.StepBody;
 import ai.narrativetrace.skills.catalogue.ClarityCommands;
 import ai.narrativetrace.skills.catalogue.DebugCommands;
 import ai.narrativetrace.skills.catalogue.DoctorCommands;
+import ai.narrativetrace.skills.catalogue.ExplainCommands;
 import ai.narrativetrace.skills.catalogue.FeedbackCommands;
 import ai.narrativetrace.skills.catalogue.InstallerCommands;
 import ai.narrativetrace.skills.catalogue.VerifyCommands;
@@ -64,8 +65,9 @@ public final class SkillReplayer {
   private static final String FIXTURE = "sixty-seconds";
 
   /**
-   * The fixture test {@code narrativetrace-verify} embeds and runs as "the smallest real path", and
-   * {@code narrativetrace-debug} as the reproduction.
+   * The fixture test {@code narrativetrace-verify} embeds and runs as "the smallest real path",
+   * {@code narrativetrace-debug} as the reproduction, and {@code narrativetrace-explain} as the one
+   * scenario that already exercises the flow somebody asked about.
    */
   private static final String FLOW_TEST = "PlaceOrderFlowTest";
 
@@ -81,6 +83,27 @@ public final class SkillReplayer {
    * back to its own auto-detection, unchanged.
    */
   private static final String TEST_MAVEN_REPO_PROPERTY = "narrativetrace.testMavenRepo";
+
+  /**
+   * System property {@code narrativetrace-skills-catalogue/build.gradle.kts} sets on every {@link
+   * org.gradle.api.tasks.testing.Test} task, naming the directory every repo-root nested build this
+   * class starts must write its module outputs into.
+   *
+   * <p>Those nested builds run against THIS checkout, so without it their own {@code
+   * compileJava}/{@code jar} tasks rewrite the jars this very test JVM has on its classpath, and a
+   * class not yet loaded when the rewrite lands never loads at all ({@code NoClassDefFoundError} —
+   * the B-75 flake). The trigger is any input the two builds disagree on, and {@code
+   * narrativetrace.toolchain} is the one that bites: a nested build inherits no project property,
+   * so it falls back to the 17 pin while the scheduled job compiles at 21. {@link
+   * #repoRootGradleArguments} forwards it as {@code -Pnarrativetrace.buildRoot}, which the root
+   * build script honours by moving every project's build directory under it.
+   *
+   * <p>What the fixture's own RUN writes is deliberately not moved: the traces, the doctor report,
+   * the install diff and the feedback draft stay at {@code <project>/build/narrativetrace/...} —
+   * the relative path the skills' adopter-facing prose names — so every path check below reads
+   * exactly where an adopter would look.
+   */
+  private static final String REPLAY_BUILD_ROOT_PROPERTY = "narrativetrace.replayBuildRoot";
 
   private SkillReplayer() {}
 
@@ -138,7 +161,15 @@ public final class SkillReplayer {
                       root, ":" + FIXTURE + ":test", "--tests", "com.example.orders." + FLOW_TEST)),
           Map.entry(
               DebugCommands.FIND_DIAGRAMS,
-              root -> findLists(root.resolve(FIXTURE), "build/narrativetrace/diagrams", "*.mmd")));
+              root -> findLists(root.resolve(FIXTURE), "build/narrativetrace/diagrams", "*.mmd")),
+          Map.entry(
+              ExplainCommands.RUN_THE_SCENARIO,
+              root ->
+                  gradleTask(
+                      root,
+                      ":" + FIXTURE + ":test",
+                      "--tests",
+                      "com.example.orders." + FLOW_TEST)));
 
   /** Prose verify strings this replayer additionally knows how to check mechanically. */
   private static final Map<String, Function<Path, Boolean>> KNOWN_VERIFIES =
@@ -194,11 +225,49 @@ public final class SkillReplayer {
 
   private static boolean gradleTask(Path repoRoot, String... args) {
     try {
-      GradleRunner.create().withProjectDir(repoRoot.toFile()).withArguments(args).build();
+      GradleRunner.create()
+          .withProjectDir(repoRoot.toFile())
+          .withArguments(repoRootGradleArguments(args))
+          .build();
       return true;
     } catch (UnexpectedBuildFailure failure) {
       return false;
     }
+  }
+
+  /**
+   * The arguments a repo-root nested build runs with: what the caller asked for, plus BOTH halves
+   * of its isolation from the build that started it — the build root {@link
+   * #REPLAY_BUILD_ROOT_PROPERTY} names, and a project cache directory of its own inside it.
+   *
+   * <p>Both, for two different reasons. Without the build root, the nested build's {@code
+   * compileJava}/{@code jar} tasks rewrite the jars this test JVM has on its classpath. Without its
+   * own project cache, it shares this checkout's {@code .gradle} — where the task history and the
+   * build-output-cleanup registry live — so the outer build's real output directories are
+   * registered outputs that no task of the nested build produces, and Gradle DELETES them as stale
+   * (measured: {@code build/classes/java/main} emptied mid-test-task, which reads as ArchUnit
+   * "failed to check any classes"). A cache of its own also ends the history churn that made every
+   * outer build recompile what a replay had touched.
+   *
+   * <p>Never optional — sharing either one with the JVM that started the build is the B-75 flake,
+   * so an absent property fails loudly here rather than flaking later.
+   */
+  static List<String> repoRootGradleArguments(String... args) {
+    return repoRootGradleArguments(List.of(args), System.getProperty(REPLAY_BUILD_ROOT_PROPERTY));
+  }
+
+  static List<String> repoRootGradleArguments(List<String> args, String buildRootPath) {
+    if (buildRootPath == null || buildRootPath.isBlank()) {
+      throw new IllegalStateException(
+          "no isolated build root for the replay's nested builds — set the "
+              + REPLAY_BUILD_ROOT_PROPERTY
+              + " system property (narrativetrace-skills-catalogue/build.gradle.kts does)");
+    }
+    List<String> isolated = new ArrayList<>(args);
+    isolated.add("-Pnarrativetrace.buildRoot=" + buildRootPath);
+    isolated.add("--project-cache-dir");
+    isolated.add(buildRootPath + "/project-cache");
+    return List.copyOf(isolated);
   }
 
   private static boolean gitStatusIsClean(Path repoRoot, String scopedPath) {

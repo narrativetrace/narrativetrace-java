@@ -25,6 +25,22 @@ publicada completa — incluidas páginas sin fichero aquí — está en
 | [Qué commitear](es/que-commitear.md) | Qué ficheros generados son artefactos de CI y cuáles son baselines revisadas que commiteas |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → solución para los modos de fallo que la gente realmente encuentra, desde parámetros `arg0` hasta un agente silencioso |
 | [Habilidades de agente](es/habilidades-de-agente.md) | Tres habilidades para configuración, diagnóstico y Clarity — cómo se construyen y cómo instalarlas en tu proyecto |
+| [Usa NarrativeTrace con tu agente](es/usa-narrativetrace-con-tu-agente.md) | Por plataforma — Cursor, Replit, Antigravity, GitHub Copilot, Claude Code — cómo llegan las habilidades a un proyecto, qué fichero de aviso escribe `init` y qué encuentra el agente |
+
+## Recetas
+
+Una página por problema, con las palabras que un usuario escribiría. Cada una
+lleva el código de su escenario y la salida real de una ejecución que hace esta
+compilación, así que nada en una receta está escrito a mano:
+[`es/recetas/`](es/recetas/).
+
+| Documento | Qué cubre |
+|---|---|
+| [Añade registro a este servicio](es/recetas/anade-registro-a-este-servicio.md) | Un checkout sin ninguna sentencia de log, envuelto una vez: cada llamada con sus parámetros y su resultado a través de tu propio logger |
+| [Ayúdame a depurar y arreglar este error](es/recetas/ayudame-a-depurar-y-arreglar-este-error.md) | Una tarjeta rechazada que deja el stock reservado — el fallo de negocio que la excepción nunca nombra, encontrado en la traza, corregido y fijado |
+| [¿Por qué falló esta prueba?](es/recetas/por-que-fallo-esta-prueba.md) | Una prueba del checkout en rojo leída span a span contra la aserción: el código hizo lo que dice, la expectativa está desactualizada |
+| [Revisa un flujo complejo antes de cambiarlo](es/recetas/revisa-un-flujo-complejo-antes-de-cambiarlo.md) | Una ejecución en `DETAIL` y en `SUMMARY`, la línea de log que lleva valores junto al `.nt` que no lleva ninguno |
+| [Revisa una refactorización: ¿cambió el comportamiento?](es/recetas/revisa-una-refactorizacion-cambio-el-comportamiento.md) | Las pruebas siguen en verde, el diff de aprobación nombra la llamada eliminada y tú apruebas o rechazas |
 
 ## Integración con frameworks
 

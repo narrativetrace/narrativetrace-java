@@ -19,9 +19,11 @@ package ai.narrativetrace.tooling.init;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * A read-only snapshot of a consumer project: everything the installer's decisions depend on, read
@@ -49,6 +51,9 @@ public final class ProjectState {
   private final List<InstalledSkill> installedSkills;
   private final Map<SkillFlavour, String> linkedInstallRoots;
   private final Map<String, String> markedRuleFiles;
+  private final Set<String> detectedPlatforms;
+  private final Map<String, String> pointerFiles;
+  private final Set<String> pointersBehindLinks;
   private final String outputDirectory;
   private final boolean gradleProject;
 
@@ -59,6 +64,9 @@ public final class ProjectState {
     this.installedSkills = List.copyOf(builder.installedSkills);
     this.linkedInstallRoots = Map.copyOf(builder.linkedInstallRoots);
     this.markedRuleFiles = Map.copyOf(builder.markedRuleFiles);
+    this.detectedPlatforms = Set.copyOf(builder.detectedPlatforms);
+    this.pointerFiles = Map.copyOf(builder.pointerFiles);
+    this.pointersBehindLinks = Set.copyOf(builder.pointersBehindLinks);
     this.outputDirectory = builder.outputDirectory;
     this.gradleProject = builder.gradleProject;
     assert invariant() : "a project state must describe one path once";
@@ -112,6 +120,27 @@ public final class ProjectState {
     return markedRuleFiles;
   }
 
+  /**
+   * The ids of the platform-table rows whose marker the project carries — {@code .cursor/}, {@code
+   * replit.md}, … — read by exact path, so a near miss such as {@code .cursorx/} proves nothing.
+   */
+  public Set<String> detectedPlatforms() {
+    return detectedPlatforms;
+  }
+
+  /**
+   * An existing platform pointer file, byte for byte, by project-relative path; empty when there is
+   * none, or when the path runs through a symbolic link ({@link #pointerBehindLink}).
+   */
+  public Optional<String> pointerFile(String path) {
+    return Optional.ofNullable(pointerFiles.get(path));
+  }
+
+  /** Whether the pointer file's path, or a directory above it, is a symbolic link. */
+  public boolean pointerBehindLink(String path) {
+    return pointersBehindLinks.contains(path);
+  }
+
   /** Where this project's rendered traces land, detected or {@link #DEFAULT_OUTPUT_DIRECTORY}. */
   public String outputDirectory() {
     return outputDirectory;
@@ -148,6 +177,9 @@ public final class ProjectState {
     private final List<InstalledSkill> installedSkills = new ArrayList<>();
     private final Map<SkillFlavour, String> linkedInstallRoots = new LinkedHashMap<>();
     private final Map<String, String> markedRuleFiles = new LinkedHashMap<>();
+    private final Set<String> detectedPlatforms = new LinkedHashSet<>();
+    private final Map<String, String> pointerFiles = new LinkedHashMap<>();
+    private final Set<String> pointersBehindLinks = new LinkedHashSet<>();
     private String outputDirectory = DEFAULT_OUTPUT_DIRECTORY;
     private boolean gradleProject;
 
@@ -181,6 +213,24 @@ public final class ProjectState {
 
     public Builder markedRuleFile(String relativePath, String content) {
       this.markedRuleFiles.put(relativePath, content);
+      return this;
+    }
+
+    /** Records that the project carries the marker of one platform-table row. */
+    public Builder detectedPlatform(String platformId) {
+      this.detectedPlatforms.add(platformId);
+      return this;
+    }
+
+    /** Records an existing platform pointer file and its text. */
+    public Builder pointerFile(String path, String content) {
+      this.pointerFiles.put(path, content);
+      return this;
+    }
+
+    /** Records that a pointer file's path runs through a symbolic link. */
+    public Builder pointerBehindLink(String path) {
+      this.pointersBehindLinks.add(path);
       return this;
     }
 

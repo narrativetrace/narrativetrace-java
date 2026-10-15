@@ -33,6 +33,21 @@ final class CaseManifest {
 
   private CaseManifest() {}
 
+  /**
+   * The boolean {@code field} holds in {@code caseDir}'s manifest ({@code "field": false}), or
+   * empty when neither exists.
+   */
+  static Optional<Boolean> booleanField(Path caseDir, String field) {
+    Path manifest = caseDir.resolve("case.json");
+    if (!Files.isRegularFile(manifest)) {
+      return Optional.empty();
+    }
+    Matcher matcher =
+        Pattern.compile("\"" + Pattern.quote(field) + "\"\\s*:\\s*(true|false)\\b")
+            .matcher(read(manifest));
+    return matcher.find() ? Optional.of(Boolean.valueOf(matcher.group(1))) : Optional.empty();
+  }
+
   /** The string {@code field} holds in {@code caseDir}'s manifest, or empty when neither exists. */
   static Optional<String> stringField(Path caseDir, String field) {
     Path manifest = caseDir.resolve("case.json");

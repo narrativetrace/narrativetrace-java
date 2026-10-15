@@ -95,7 +95,7 @@ that already consume that format.
 
 The Gradle log prints one summary line per run:
 
-```
+```text
 duplication: main 21.5% of tokens in 910 clusters (largest 1022 tokens
 narrativetrace-clarity/.../AbbreviationDictionary.java:26 ↔ .../AbbreviationDictionary.java:122)
 · test 39.2% in 2628 clusters (reported, not gated)

@@ -8,12 +8,16 @@
 package ai.narrativetrace.skills.evals;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.narrativetrace.skills.catalogue.CatalogueIndex;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The closed vocabulary of registry deliveries a Tier B case may declare. A case names one by its
@@ -26,10 +30,12 @@ class RegistryPreStepTest {
   private static final Path STAGED = Path.of("/scratch/staged");
 
   @Test
-  void parsesTheTwoDocumentedRegistryIdsAndNothingElse() {
+  void parsesTheDocumentedDeliveryIdsAndNothingElse() {
     assertThat(RegistryPreStep.parse("claude-marketplace"))
         .contains(RegistryPreStep.CLAUDE_MARKETPLACE);
     assertThat(RegistryPreStep.parse("npx-skills")).contains(RegistryPreStep.NPX_SKILLS);
+    assertThat(RegistryPreStep.parse("narrativetrace-init"))
+        .contains(RegistryPreStep.NARRATIVETRACE_INIT);
     assertThat(RegistryPreStep.parse("gemini-skills")).isEmpty();
     assertThat(RegistryPreStep.parse("")).isEmpty();
     assertThat(RegistryPreStep.parse(null)).isEqualTo(Optional.empty());
@@ -77,10 +83,48 @@ class RegistryPreStepTest {
    * be measured against.
    */
   @Test
-  void noDeliveryEverAsksForAProjectScope() {
+  void noDeliveryEverAsksForAProjectScope(@TempDir Path tempDir) throws IOException {
+    Path repo = repoWithBuiltCliJar(tempDir);
     for (RegistryPreStep step : RegistryPreStep.values()) {
-      assertThat(step.commands(REPO, STAGED))
+      assertThat(step.commands(repo, STAGED))
           .allSatisfy(command -> assertThat(command).doesNotContain("--scope", "project"));
     }
+  }
+
+  /**
+   * Our own installer as a delivery: ONE command, the built CLI jar's {@code init}, and no staging
+   * — the carrier is bundled with the jar, so the pages a later session finds are the install under
+   * test, not a published package's.
+   */
+  @Test
+  void theInstallerDeliveryRunsTheBuiltCliJarsInitAndStagesNothing(@TempDir Path tempDir)
+      throws IOException {
+    Path repo = repoWithBuiltCliJar(tempDir);
+
+    List<List<String>> commands = RegistryPreStep.NARRATIVETRACE_INIT.commands(repo, STAGED);
+
+    assertThat(commands)
+        .containsExactly(
+            List.of(
+                "java",
+                "-jar",
+                repo.resolve("narrativetrace-cli/build/libs/narrativetrace-cli-9.9.9.jar")
+                    .toString(),
+                "init"));
+  }
+
+  /** A forgotten build step is named at plan time, not three steps later as a failed trial. */
+  @Test
+  void theInstallerDeliveryNamesTheBuildStepWhenTheJarIsAbsent(@TempDir Path tempDir) {
+    assertThatThrownBy(() -> RegistryPreStep.NARRATIVETRACE_INIT.commands(tempDir, STAGED))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(":narrativetrace-cli:jar");
+  }
+
+  private static Path repoWithBuiltCliJar(Path tempDir) throws IOException {
+    Path libs = Files.createDirectories(tempDir.resolve("narrativetrace-cli/build/libs"));
+    Files.writeString(libs.resolve("narrativetrace-cli-9.9.9.jar"), "");
+    Files.writeString(libs.resolve("narrativetrace-cli-9.9.9-javadoc.jar"), "");
+    return tempDir;
   }
 }

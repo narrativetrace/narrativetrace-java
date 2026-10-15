@@ -376,4 +376,84 @@ class ProjectStateReaderTest {
         .isInstanceOf(java.io.UncheckedIOException.class)
         .hasMessageContaining("AGENTS.md");
   }
+
+  // --- platforms -------------------------------------------------------------------------------
+
+  @Test
+  void detectsCursorByItsDirectoryAndNothingNamedLikeIt(@TempDir Path dir) throws IOException {
+    Files.createDirectories(dir.resolve(".cursorx"));
+    Files.createDirectories(dir.resolve("cursor"));
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).isEmpty();
+
+    Files.createDirectories(dir.resolve(".cursor"));
+
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).containsExactly("cursor");
+  }
+
+  @Test
+  void detectsReplitByEitherOfItsFiles(@TempDir Path dir) throws IOException {
+    write(dir.resolve(".replit"), "run = \"x\"\n");
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).containsExactly("replit");
+
+    Files.delete(dir.resolve(".replit"));
+    write(dir.resolve("replit.md"), "# Replit\n");
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).containsExactly("replit");
+  }
+
+  @Test
+  void detectsEveryPlatformTheProjectCarriesAtOnce(@TempDir Path dir) throws IOException {
+    Files.createDirectories(dir.resolve(".cursor"));
+    Files.createDirectories(dir.resolve(".agents/rules"));
+    write(dir.resolve("replit.md"), "# Replit\n");
+
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms())
+        .containsExactlyInAnyOrder("cursor", "replit", "antigravity");
+  }
+
+  /**
+   * {@code .agents/skills} is what {@code init} itself writes, so it must prove nothing: a project
+   * that ran {@code init} on another platform must not come back "on Antigravity" the next time.
+   */
+  @Test
+  void theSkillsDirectoryInitWritesIsNotAnAntigravityMarker(@TempDir Path dir) throws IOException {
+    Files.createDirectories(dir.resolve(".agents/skills/narrativetrace-doctor"));
+
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).isEmpty();
+  }
+
+  @Test
+  void antigravityIsDetectedByItsLegacyAgentDirectoryToo(@TempDir Path dir) throws IOException {
+    Files.createDirectories(dir.resolve(".agent/workflows"));
+
+    assertThat(ProjectStateReader.read(dir).detectedPlatforms()).containsExactly("antigravity");
+  }
+
+  @Test
+  void readsAnExistingPointerFileByteForByte(@TempDir Path dir) throws IOException {
+    write(dir.resolve("replit.md"), "# Replit\r\nnotes");
+    write(dir.resolve(".cursor/rules/narrativetrace.mdc"), "---\n---\nrule");
+
+    ProjectState state = ProjectStateReader.read(dir);
+
+    assertThat(state.pointerFile("replit.md")).hasValue("# Replit\r\nnotes");
+    assertThat(state.pointerFile(".cursor/rules/narrativetrace.mdc")).hasValue("---\n---\nrule");
+    assertThat(state.pointerBehindLink("replit.md")).isFalse();
+  }
+
+  @Test
+  void aPointerBehindASymbolicLinkIsReportedAndNeverRead(@TempDir Path dir) throws IOException {
+    Path elsewhere = Files.createDirectories(dir.resolve("elsewhere"));
+    write(elsewhere.resolve("narrativetrace.mdc"), "somebody else's file");
+    Files.createDirectories(dir.resolve(".cursor"));
+    Files.createSymbolicLink(dir.resolve(".cursor/rules"), elsewhere);
+    write(dir.resolve("real.md"), "real");
+    Files.createSymbolicLink(dir.resolve("replit.md"), dir.resolve("real.md"));
+
+    ProjectState state = ProjectStateReader.read(dir);
+
+    assertThat(state.pointerBehindLink(".cursor/rules/narrativetrace.mdc")).isTrue();
+    assertThat(state.pointerFile(".cursor/rules/narrativetrace.mdc")).isEmpty();
+    assertThat(state.pointerBehindLink("replit.md")).isTrue();
+    assertThat(state.pointerFile("replit.md")).isEmpty();
+  }
 }

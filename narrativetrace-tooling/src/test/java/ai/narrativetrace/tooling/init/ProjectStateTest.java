@@ -67,6 +67,32 @@ class ProjectStateTest {
   }
 
   @Test
+  void anUntouchedProjectIsOnNoPlatformAndHasNoPointerFiles() {
+    ProjectState state = ProjectState.builder().build();
+
+    assertThat(state.detectedPlatforms()).isEmpty();
+    assertThat(state.pointerFile(".cursor/rules/narrativetrace.mdc")).isEmpty();
+    assertThat(state.pointerBehindLink("replit.md")).isFalse();
+  }
+
+  @Test
+  void keepsTheDetectedPlatformsAndPointerFilesItWasGiven() {
+    ProjectState state =
+        ProjectState.builder()
+            .detectedPlatform("cursor")
+            .detectedPlatform("replit")
+            .pointerFile("replit.md", "# Replit\n")
+            .pointerBehindLink(".cursor/rules/narrativetrace.mdc")
+            .build();
+
+    assertThat(state.detectedPlatforms()).containsExactlyInAnyOrder("cursor", "replit");
+    assertThat(state.pointerFile("replit.md")).hasValue("# Replit\n");
+    assertThat(state.pointerBehindLink(".cursor/rules/narrativetrace.mdc")).isTrue();
+    assertThatThrownBy(() -> state.detectedPlatforms().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
   void keepsItsCollectionsImmutable() {
     ProjectState state = ProjectState.builder().addInstalledSkill(ours("doctor")).build();
 

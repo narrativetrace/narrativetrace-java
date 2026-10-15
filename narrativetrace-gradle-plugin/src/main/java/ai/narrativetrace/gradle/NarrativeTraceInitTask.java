@@ -96,7 +96,9 @@ public abstract class NarrativeTraceInitTask extends DefaultTask {
   @Input
   @Option(
       option = "vendor",
-      description = "Force the vendor flavour on or off: claude | none. Detected by default.")
+      description =
+          "The vendor flavour beside the open-standard pages: claude | none. claude by default,"
+              + " because Claude Code loads .claude/skills only.")
   public abstract Property<String> getVendor();
 
   @Input

@@ -86,7 +86,7 @@ public final class FrameworkTableDocs {
    *
    * @throws IllegalArgumentException when the document lacks either marker
    */
-  static String splice(String document, String name, String content) {
+  public static String splice(String document, String name, String content) {
     String begin = "<!-- " + name + ":begin -->\n";
     String end = "<!-- " + name + ":end -->";
     int from = document.indexOf(begin);

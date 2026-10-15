@@ -86,7 +86,8 @@ class CarrierTest implements ContractVerifiable<Carrier> {
             "add-narrativetrace-clarity",
             "narrativetrace-feedback",
             "narrativetrace-verify",
-            "narrativetrace-debug");
+            "narrativetrace-debug",
+            "narrativetrace-explain");
   }
 
   @Test
@@ -149,7 +150,8 @@ class CarrierTest implements ContractVerifiable<Carrier> {
             "add-narrativetrace-clarity",
             "narrativetrace-feedback",
             "narrativetrace-verify",
-            "narrativetrace-debug");
+            "narrativetrace-debug",
+            "narrativetrace-explain");
   }
 
   @Test

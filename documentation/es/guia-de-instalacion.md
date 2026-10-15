@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 3a80abd150cc | translated: 2026-09-20 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 4e0d5c1dac94 | translated: 2026-09-20 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -95,7 +95,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -142,23 +142,23 @@ Empieza con el stack mínimo y luego añade solo las integraciones que necesites
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.3.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
 
     // Integraciones opcionales
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.3.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.3.0")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.3.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
 }
 ```
 
@@ -378,7 +378,7 @@ Los archivos de trazas se escriben automáticamente, a menos que `junit-platform
 
 Estructura de salida esperada:
 
-```
+```text
 build/narrativetrace/
 ├── traces/
 │   └── OrderServiceTest/

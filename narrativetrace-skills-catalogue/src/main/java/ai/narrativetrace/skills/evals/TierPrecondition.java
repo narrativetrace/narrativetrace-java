@@ -68,7 +68,8 @@ public final class TierPrecondition {
       }
       throw new IllegalStateException(
           "Tier A lints / Tier A2 replay are not green at HEAD for narrativetrace-skills — a"
-              + " sporadic-lane (codex/gemini) trial refuses to start on top of a known defect."
+              + " sporadic-lane (codex/antigravity/cursor) trial refuses to start on top of a"
+              + " known defect."
               + " Fix narrativetrace-skills' own tests before spending quota here.",
           e);
     }

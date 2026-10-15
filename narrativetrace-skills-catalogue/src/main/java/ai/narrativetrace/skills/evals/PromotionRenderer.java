@@ -21,7 +21,7 @@ public final class PromotionRenderer {
   private PromotionRenderer() {}
 
   private static final List<Platform> COLUMNS =
-      List.of(Platform.CLAUDE, Platform.CODEX, Platform.GEMINI);
+      List.of(Platform.CLAUDE, Platform.CODEX, Platform.ANTIGRAVITY, Platform.CURSOR);
 
   private static List<RunLedgerRow> rowsFor(
       List<RunLedgerRow> runs, String skill, Platform platform) {
@@ -72,8 +72,8 @@ fails `./gradlew check` (`PromotionDriftTest`).
   public static String render(List<Skill> skills, List<RunLedgerRow> runs) {
     StringBuilder out = new StringBuilder(HEADER);
     out.append('\n');
-    out.append("| Skill | Claude | Codex | Gemini |\n");
-    out.append("|---|---|---|---|\n");
+    out.append("| Skill | Claude | Codex | Antigravity | Cursor |\n");
+    out.append("|---|---|---|---|---|\n");
     for (Skill skill : skills) {
       out.append("| `").append(skill.canonicalName()).append("` | ");
       for (int i = 0; i < COLUMNS.size(); i++) {

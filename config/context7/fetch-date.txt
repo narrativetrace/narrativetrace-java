@@ -1,0 +1,5 @@
+source: https://context7.com/schema/context7.json
+fetched: 2026-10-12
+refresh: manual — re-run `curl -sS https://context7.com/schema/context7.json`, diff against
+  schema.json, update Context7Support's validation to match, and restamp this file's `fetched`
+  date. See documentation/agent-skills.md's Context7 paragraph.

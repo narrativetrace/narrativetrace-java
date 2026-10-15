@@ -68,7 +68,7 @@ from HEAD, else Maven Central's `maven-metadata.xml <latest>` for
 
 A failure names all four facts in one line, so a skim is enough:
 
-```
+```text
 contract.yaml: probed-output-default documented default "true" but
 ai.narrativetrace:narrativetrace-core <published-version> (published)
 reads "false"

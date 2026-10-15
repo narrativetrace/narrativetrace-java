@@ -161,4 +161,48 @@ class DoctorSkillsFromAnotherPackageTest {
       }
     }
   }
+
+  @Test
+  void whatTheInstallerWroteForCursorAndReplitIsWhatTheDoctorCallsPresentAndCurrent(
+      @TempDir Path project) throws IOException {
+    Files.createDirectories(project.resolve(".cursor"));
+    Files.writeString(project.resolve(".replit"), "run = \"x\"\n");
+    install(project);
+
+    Finding finding = skillsFinding(project, realCarrier());
+
+    assertThat(project.resolve(".cursor/rules/narrativetrace.mdc")).exists();
+    assertThat(project.resolve("replit.md")).exists();
+    assertThat(finding.isFailing()).isFalse();
+    assertThat(finding.message())
+        .contains("Cursor pointer present and current")
+        .contains("Replit pointer present and current");
+  }
+
+  @Test
+  void aDeletedCursorRuleIsReportedMissingAndTheInstallerRestoresIt(@TempDir Path project)
+      throws IOException {
+    Files.createDirectories(project.resolve(".cursor"));
+    install(project);
+    Files.delete(project.resolve(".cursor/rules/narrativetrace.mdc"));
+
+    Finding finding = skillsFinding(project, realCarrier());
+    install(project);
+
+    assertThat(finding.isFailing()).isTrue();
+    assertThat(finding.message()).contains("Cursor pointer").contains("missing");
+    assertThat(skillsFinding(project, realCarrier()).isFailing()).isFalse();
+  }
+
+  @Test
+  void aLookalikeDirectoryIsNotACursorProjectSoNoPointerIsWrittenOrJudged(@TempDir Path project)
+      throws IOException {
+    Files.createDirectories(project.resolve(".cursorx"));
+    install(project);
+
+    Finding finding = skillsFinding(project, realCarrier());
+
+    assertThat(project.resolve(".cursor")).doesNotExist();
+    assertThat(finding.message()).doesNotContain("pointer");
+  }
 }

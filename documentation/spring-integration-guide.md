@@ -16,7 +16,7 @@ This guide covers integrating NarrativeTrace into a Spring Boot application, fro
 Add the dependency:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
 ```
 
 Enable tracing on your configuration class:
@@ -74,7 +74,7 @@ A `NarrativeContext` bean is provided automatically. When `narrativetrace-slf4j`
 
 The tracing `BeanPostProcessor` runs at `HIGHEST_PRECEDENCE`, meaning the trace proxy is the **innermost** wrapper. When combined with Spring's `@Async` proxy, the layering is:
 
-```
+```text
 Async proxy (outer) → Trace proxy (inner) → Real bean
 ```
 
@@ -85,7 +85,7 @@ This ensures tracing runs on the actual async thread, not the caller thread.
 For tracing HTTP requests in a deployed application, add the servlet filter module:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
 ```
 
 This auto-registers `NarrativeTraceFilter` as a Spring bean. The filter follows a reset-chain-capture-export-reset lifecycle on each request:
@@ -170,8 +170,8 @@ NarrativeTrace uses [Micrometer context-propagation](https://github.com/micromet
 ### Dependencies
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
-implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
+implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
 ```
 
 ### Configuration
@@ -238,7 +238,7 @@ public class MyDecorator implements TaskDecorator {
 
 An `@Async` method should appear as a child in the trace tree, even though it runs on a different thread:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-1234")
   InventoryService.reserve(productId: "SKU-KB", quantity: 2) → ReservedInventory(...)
   PaymentService.charge(customerId: "C-1234", amount: 179.98) → Payment(...)

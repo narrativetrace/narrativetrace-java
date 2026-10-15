@@ -48,6 +48,8 @@ class ReproducibleJarTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
 
+  @TempDir static Path buildRoot;
+
   /** buildSrc's classes and their runtime dependencies, for a fixture build to load them from. */
   private static final List<String> BUILD_SRC_CLASSPATH =
       Arrays.asList(System.getProperty("buildSrcClasspath").split(File.pathSeparator));
@@ -55,6 +57,7 @@ class ReproducibleJarTest {
   private static BuildResult gradle(File projectDir, String... args) {
     var allArgs = new ArrayList<>(List.of(args));
     allArgs.add("-q");
+    allArgs.add("-Pnarrativetrace.buildRoot=" + buildRoot);
     return GradleRunner.create().withProjectDir(projectDir).withArguments(allArgs).build();
   }
 

@@ -13,12 +13,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * The Tier B trial flow: scaffold the case fixture into a scratch directory, drive the agent
@@ -173,7 +171,7 @@ public final class EvalTrial {
       int trial)
       throws IOException, InterruptedException {
     copyRecursively(fixtureDir, scratch);
-    if (!delivery.deliversTheSkills()) {
+    if (!delivery.deliversTheSkills() && seedsSkills(caseDir)) {
       copyRenderedSkills(repoRoot, scratch);
     }
     copyGradleWrapper(repoRoot, scratch);
@@ -213,6 +211,19 @@ public final class EvalTrial {
         throw new IOException("registry pre-step exited " + exit + ": " + command);
       }
     }
+  }
+
+  /**
+   * Whether this case starts with the rendered pages seeded — every case does unless its manifest
+   * says {@code "seedSkills": false}.
+   *
+   * <p><b>@llmNote</b> A case that measures whether an INSTALL made the skills visible to a later
+   * session cannot start with them already there: the seeded pages answered that question for the
+   * installer on the fresh-session case's first run (caught in the .NET port, 2026-10-10), and the
+   * row was green for a reason that had nothing to do with the product.
+   */
+  private static boolean seedsSkills(Path caseDir) {
+    return CaseManifest.booleanField(caseDir, "seedSkills").orElse(true);
   }
 
   /**
@@ -294,40 +305,9 @@ public final class EvalTrial {
     Path grader = caseDir.resolve("graders").resolve("verify.sh");
     Map<String, String> env = new HashMap<>(delivery.environment());
     env.putAll(environment.graderEnvironment());
-    cliJarPath(repoRoot).ifPresent(jar -> env.put("NARRATIVETRACE_CLI_JAR", jar.toString()));
+    CliJar.locate(repoRoot).ifPresent(jar -> env.put("NARRATIVETRACE_CLI_JAR", jar.toString()));
     List<String> argv = List.of("sh", grader.toAbsolutePath().toString());
     return processRunner.run(argv, cwd, Map.copyOf(env)) == 0;
-  }
-
-  /**
-   * The built, zero-dependency `narrativetrace-cli` jar a grader invokes directly — `./gradlew
-   * :narrativetrace-cli:jar` must have run first; empty when it hasn't.
-   *
-   * <p>That one directory accumulates everything the module ever produced: the `-sources` and
-   * `-javadoc` classifier jars, which carry no `Main-Class` at all, and one jar per released
-   * version. So the choice is made twice over — runnable names only, and of those the most recently
-   * built — never "whichever the filesystem happens to list first", which is how a grader ends up
-   * running `java -jar` against a javadoc jar and failing for a reason the case never touched.
-   */
-  private static Optional<Path> cliJarPath(Path repoRoot) throws IOException {
-    Path libsDir = repoRoot.resolve("narrativetrace-cli/build/libs");
-    if (!Files.isDirectory(libsDir)) {
-      return Optional.empty();
-    }
-    try (var stream = Files.list(libsDir)) {
-      return stream
-          .filter(EvalTrial::isRunnableCliJar)
-          .max(Comparator.comparingLong(jar -> jar.toFile().lastModified()));
-    }
-  }
-
-  /** `narrativetrace-cli-<version>.jar` — a classifier jar is not something `java -jar` can run. */
-  private static boolean isRunnableCliJar(Path path) {
-    String name = path.getFileName().toString();
-    return name.startsWith("narrativetrace-cli-")
-        && name.endsWith(".jar")
-        && !name.endsWith("-sources.jar")
-        && !name.endsWith("-javadoc.jar");
   }
 
   private void appendLedgerRow(RunLedgerRow row) throws IOException {

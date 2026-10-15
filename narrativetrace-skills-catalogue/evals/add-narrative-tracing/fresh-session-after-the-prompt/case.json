@@ -1,0 +1,9 @@
+{
+  "fixture": "narrativetrace-skills-catalogue/evals/fixtures/empty-project",
+  "seedSkills": false,
+  "turns": {
+    "2": "Yes, the diff looks right. Apply it for real and finish the remaining steps.",
+    "3": "Is NarrativeTrace wired up correctly in this project? Check the install."
+  },
+  "freshTurns": [3]
+}

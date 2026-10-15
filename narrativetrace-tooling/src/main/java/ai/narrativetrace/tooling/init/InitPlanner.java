@@ -17,6 +17,9 @@
  */
 package ai.narrativetrace.tooling.init;
 
+import ai.narrativetrace.tooling.platforms.PlatformRow;
+import ai.narrativetrace.tooling.platforms.PlatformTable;
+import ai.narrativetrace.tooling.platforms.Pointer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +67,7 @@ public final class InitPlanner {
       planAgentsMd(state, carrier, options, actions);
       planClaudeMd(state, options, actions);
       planRuleFiles(state, carrier, actions);
+      planPointers(state, carrier, options, actions);
     }
     return new InitPlan(carrier.coordinate(), options.dryRun(), withoutNoOps(actions));
   }
@@ -88,7 +92,7 @@ public final class InitPlanner {
   private static List<SkillFlavour> writableFlavours(
       ProjectState state, InitOptions options, List<Action> actions) {
     List<SkillFlavour> writable = new ArrayList<>();
-    for (SkillFlavour flavour : flavours(state, options)) {
+    for (SkillFlavour flavour : flavours(options)) {
       Optional<String> linked = state.linkedInstallRoot(flavour);
       if (linked.isEmpty()) {
         writable.add(flavour);
@@ -110,15 +114,22 @@ public final class InitPlanner {
   }
 
   /**
-   * Which flavours this project gets: the open standard always, the vendor one where the project
-   * looks like that vendor's — or wherever the caller overrode the detection.
+   * Which flavours this project gets: the open standard always, and the vendor one too unless the
+   * caller turned it off.
+   *
+   * <p>INTENT: Claude Code loads project skills from {@code .claude/skills} only — never from
+   * {@code .agents/skills}, and it reads {@code AGENTS.md} only through a {@code CLAUDE.md} import.
+   * Writing the vendor flavour only where a {@code .claude/} directory or a {@code CLAUDE.md}
+   * already existed left a fresh project's skills invisible to the very agent the published prompt
+   * is run from, while the doctor reported them installed. Cursor and the other platforms read
+   * {@code .claude/skills} as well, so no platform pays for the extra directory; {@code --vendor
+   * none} is the opt-out for a project that wants the open-standard pages alone.
    */
-  private static List<SkillFlavour> flavours(ProjectState state, InitOptions options) {
+  private static List<SkillFlavour> flavours(InitOptions options) {
     boolean vendor =
         switch (options.vendorClaude()) {
-          case ON -> true;
+          case ON, AUTO -> true;
           case OFF -> false;
-          case AUTO -> state.hasClaudeDirectory() || state.claudeMd().isPresent();
         };
     return vendor
         ? List.of(SkillFlavour.AGENTS, SkillFlavour.CLAUDE)
@@ -225,13 +236,20 @@ public final class InitPlanner {
 
   private static void planAgentsMd(
       ProjectState state, Carrier carrier, InitOptions options, List<Action> actions) {
-    String block = AgentsMdBlock.render(carrier, state);
-    Optional<String> existing = state.agentsMd();
+    planManagedHome(AGENTS_MD, state.agentsMd(), AgentsMdBlock.render(carrier, state), options)
+        .ifPresent(actions::add);
+  }
+
+  /**
+   * A markdown file that is ours to create and may carry the section: made with the created note
+   * when absent, kept current when it has a section, appended to only on {@code --write-existing}.
+   */
+  private static Optional<Action> planManagedHome(
+      Path path, Optional<String> existing, String block, InitOptions options) {
     if (existing.isEmpty()) {
-      actions.add(new Action.CreateFile(AGENTS_MD, MarkedBlock.CREATED_NOTE + "\n" + block));
-      return;
+      return Optional.of(new Action.CreateFile(path, MarkedBlock.CREATED_NOTE + "\n" + block));
     }
-    actions.add(blockAction(AGENTS_MD, existing.get(), block, options.writeExisting()));
+    return Optional.of(blockAction(path, existing.get(), block, options.writeExisting()));
   }
 
   /** The same decision for any file that may carry the section: our home and the rule files. */
@@ -300,6 +318,73 @@ public final class InitPlanner {
     state
         .markedRuleFiles()
         .forEach((path, text) -> actions.add(blockAction(Path.of(path), text, block, false)));
+  }
+
+  // --- platform pointers ------------------------------------------------------------------------
+
+  /**
+   * One pointer per DETECTED platform whose row has one. The marker decides, never a flag: a
+   * project not on Cursor gets no {@code .cursor/} directory it did not have.
+   */
+  private static void planPointers(
+      ProjectState state, Carrier carrier, InitOptions options, List<Action> actions) {
+    for (PlatformRow row : PlatformTable.ROWS) {
+      if (state.detectedPlatforms().contains(row.id())) {
+        planPointer(row.pointer(), state, carrier, options).ifPresent(actions::add);
+      }
+    }
+  }
+
+  private static Optional<Action> planPointer(
+      Pointer pointer, ProjectState state, Carrier carrier, InitOptions options) {
+    if (pointer instanceof Pointer.None) {
+      return Optional.empty();
+    }
+    Path path = Path.of(pointer.path());
+    if (state.pointerBehindLink(pointer.path())) {
+      return Optional.of(refuseLink(path));
+    }
+    Optional<String> existing = state.pointerFile(pointer.path());
+    if (pointer instanceof Pointer.Rule rule) {
+      return Optional.of(planRule(path, existing, rule, carrier));
+    }
+    return planManagedHome(path, existing, AgentsMdBlock.render(carrier, state), options);
+  }
+
+  private static Action refuseLink(Path path) {
+    return new Action.Refuse(
+        path,
+        path + " is behind a symbolic link — nothing is written through one; remove the link");
+  }
+
+  /**
+   * The rule file: made when absent, kept current when ours, ADOPTED when it is the unstamped
+   * plugin copy byte for byte, and refused when it carries no section of ours at all.
+   */
+  private static Action planRule(
+      Path path, Optional<String> existing, Pointer.Rule rule, Carrier carrier) {
+    String wanted = CursorRule.render(rule.text(), carrier.coordinate());
+    if (existing.isEmpty()) {
+      return new Action.CreateFile(path, wanted);
+    }
+    String text = existing.get();
+    if (Adoption.isAdoptable(text, CursorRule.render(rule.text(), ""))) {
+      return new Action.AdoptPage(path, text, wanted);
+    }
+    MarkedBlock.Scan scan = MarkedBlock.scan(text);
+    if (!scan.hasExactlyOneRegion()) {
+      return new Action.Refuse(
+          path,
+          path
+              + " was not written by narrativetrace (it has no single NarrativeTrace section) —"
+              + " move it aside and run the install again");
+    }
+    String section = wanted.substring(CursorRule.FRONTMATTER.length());
+    return new Action.ReplaceBlock(
+        path,
+        text,
+        MarkedBlock.replace(
+            text, scan.regions().get(0), MarkedBlock.withEol(section, MarkedBlock.eolOf(text))));
   }
 
   /**

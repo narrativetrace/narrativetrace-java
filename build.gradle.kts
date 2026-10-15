@@ -5,6 +5,37 @@
  * Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
  * years from publication; Change License: Apache-2.0
  */
+// Nested-build output isolation. A GradleRunner build started from inside a test JVM — this
+// repository's two such callers are the Tier A2 skill replay and narrativetrace-build-tests' own
+// suite (B-58) — runs against THIS checkout, so its own compileJava/jar tasks rewrite the jars
+// that test JVM has on its classpath, and a class not yet loaded when the rewrite lands never
+// loads at all (NoClassDefFoundError). The trigger is any input the two builds disagree on;
+// `narrativetrace.toolchain` is the one that bites the replay, because its nested build inherits
+// no project property and so falls back to the 17 pin while the scheduled job compiles at 21.
+// narrativetrace-build-tests' own suite bites even on a read-only query (`tasks --all`): any
+// nested build re-evaluates buildSrc, and narrativetrace-build-tests loads buildSrc's classes
+// directly off disk (see its buildSrcClasspath system property).
+//
+// Given an absolute -Pnarrativetrace.buildRoot, every project's build directory moves under that
+// root, mirroring the normal layout (<root>/<project path>/build), so a nested build writes nothing
+// the outer build reads. Set by each caller itself, never in a normal build. Deliberately NOT a
+// relocation of what the replay fixture's own run writes: the traces, the doctor report and the
+// install diff are addressed as <project>/build/narrativetrace/... by the test JVM's working
+// directory and by the CLI's own target-relative paths, which the skills' adopter-facing prose
+// names — those stay exactly where they are, and the replay keeps reading them there. buildSrc is
+// a separate build this `allprojects` block never reaches; its own read of the same property is
+// buildSrc/build.gradle.kts's isolation block.
+val isolatedBuildRoot = (findProperty("narrativetrace.buildRoot") as String?)?.takeIf { it.isNotBlank() }
+if (isolatedBuildRoot != null) {
+    require(File(isolatedBuildRoot).isAbsolute) {
+        "narrativetrace.buildRoot must be an absolute directory: $isolatedBuildRoot"
+    }
+    allprojects {
+        val segments = path.removePrefix(":").replace(':', '/')
+        layout.buildDirectory.set(file("$isolatedBuildRoot/${if (segments.isEmpty()) "" else "$segments/"}build"))
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -30,7 +61,8 @@ val publishedModules = subprojects.filter { sub ->
         // narrativetrace-skills carrier jar is rendered from, consumed by nothing outside this
         // repository. See narrativetrace-skills-catalogue/build.gradle.kts.
         "narrativetrace-skills-catalogue",
-        "sixty-seconds"
+        "sixty-seconds",
+        "recipes-checkout"
     )
 }
 
@@ -283,7 +315,9 @@ tasks.register("translationCheck") {
 // Rule 8 (docs as tests), layer 1: a quickstart's code and output are embedded from a project the
 // build compiles, tests and runs — never typed into the page. `sixty-seconds` IS
 // documentation/sixty-seconds.md; its one test writes the byte-stable artifact the page's
-// output block embeds. Depending on that test (rather than only reading whatever happens to be on
+// output block embeds. `recipes-checkout` (recipes/checkout) IS documentation/recipes/, the same
+// arrangement for five pages: its tests write every log line, rendering and structural trace those
+// pages embed, which is why this task depends on them rather than on what is left in build/. Depending on that test (rather than only reading whatever happens to be on
 // disk) is what makes `snippetCheck` a docs-as-tests gate instead of a docs-as-whatever-was-left-
 // in-build check. `:narrativetrace-cli:printInitPlan` is the same arrangement for the installer's
 // preview, which documentation/agent-skills.md embeds: it runs the built launcher against an empty
@@ -298,7 +332,13 @@ tasks.register("translationCheck") {
 tasks.register("snippetCheck") {
     description = "Verifies embedded doc blocks and version literals against their sources (docs as tests, rule 8)"
     group = "verification"
-    dependsOn(":sixty-seconds:test", ":narrativetrace-cli:printInitPlan")
+    dependsOn(
+        ":sixty-seconds:test",
+        ":recipes-checkout:test",
+        ":recipes-checkout:recipeAddLoggingLog",
+        ":recipes-checkout:recipeReviewFlowLog",
+        ":narrativetrace-cli:printInitPlan"
+    )
     val repoVersion = providers.gradleProperty("narrativetraceVersion")
     doLast {
         val problems = ai.narrativetrace.build.SnippetSupport.check(rootDir) +
@@ -323,7 +363,13 @@ tasks.register("snippetCheck") {
 tasks.register("snippetSync") {
     description = "Rewrites embedded doc blocks and install coordinates to match their sources"
     group = "verification"
-    dependsOn(":sixty-seconds:test", ":narrativetrace-cli:printInitPlan")
+    dependsOn(
+        ":sixty-seconds:test",
+        ":recipes-checkout:test",
+        ":recipes-checkout:recipeAddLoggingLog",
+        ":recipes-checkout:recipeReviewFlowLog",
+        ":narrativetrace-cli:printInitPlan"
+    )
     val repoVersion = providers.gradleProperty("narrativetraceVersion")
     doLast {
         val changed = ai.narrativetrace.build.SnippetSupport.sync(rootDir) +
@@ -378,6 +424,27 @@ tasks.register("demoWiringCheck") {
             )
         }
         println("demoWiringCheck: every example scenario has a wiring note")
+    }
+}
+
+// Context7 (context7.com) indexes this repository's public Markdown and serves code blocks from
+// it to coding agents. The root context7.json tells it where to look; this task keeps it honest,
+// offline, every commit — see Context7Support's own doc comment for the three checks it bundles.
+tasks.register("context7Check") {
+    description = "Validates context7.json against its schema, previousVersions against git tags, and every indexed fence for a language tag"
+    group = "verification"
+    doLast {
+        val problems = ai.narrativetrace.build.Context7Support.check(rootDir)
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "context7Check: ${problems.size} problem(s):\n" + problems.joinToString("\n") { "  $it" }
+            )
+        }
+        if (ai.narrativetrace.build.Context7Support.previousVersionsChecked(rootDir)) {
+            println("context7Check: context7.json is schema-valid, previousVersions matches git tags, every indexed fence is tagged")
+        } else {
+            println("context7Check: context7.json is schema-valid, every indexed fence is tagged; no v* tags in this checkout — previousVersions drift not checked")
+        }
     }
 }
 
@@ -479,6 +546,9 @@ val mutationExemptModules: Map<String, String> = mapOf(
     "sixty-seconds" to
         "the 60-second tutorial embedded into documentation/sixty-seconds.md — proven by " +
             "being executed (its own test, snippetCheck), not by mutants",
+    "recipes-checkout" to
+        "the one checkout every documentation/recipes/ page runs (recipes/checkout) — proven by " +
+            "being executed (its own tests, snippetCheck), not by mutants",
     "narrativetrace-benchmarks" to
         "JMH harness — source lives in src/jmh, not src/main; no assertable invariants to mutate",
     "narrativetrace-jcstress" to
@@ -1178,7 +1248,8 @@ val jdependExcludedModules = setOf(
 val jdependCrossModuleExcludedModules = jdependExcludedModules + setOf(
     "narrativetrace-junit4-example",
     "narrativetrace-gradle-plugin",
-    "sixty-seconds"
+    "sixty-seconds",
+    "recipes-checkout"
 )
 
 // Per-module JDepend measures nothing on narrativetrace-api. Every one of its packages is a
@@ -1420,7 +1491,7 @@ subprojects {
     // proven by the compose-orchestrated k6 smoke/two-hour run against real HTTP/JDBC, not by a
     // 98% unit-line floor on controller/JDBC glue — see mutationExemptModules' narrativetrace-soak
     // entry for the same reasoning applied to mutation testing.
-    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds", "shop", "notify")) {
+    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds", "recipes-checkout", "shop", "notify")) {
         tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
             dependsOn(tasks.named("test"))
             val threshold = if (project.name == "narrativetrace-agent") "0.97" else "0.98"
@@ -1473,6 +1544,7 @@ subprojects {
             dependsOn(tasks.named("jacocoTestCoverageVerification"))
             dependsOn(":translationCheck")
             dependsOn(":demoWiringCheck")
+            dependsOn(":context7Check")
             dependsOn(":licensingCheck")
             dependsOn(":assetMetadataCheck")
             dependsOn(":baselineFreshnessCheck")

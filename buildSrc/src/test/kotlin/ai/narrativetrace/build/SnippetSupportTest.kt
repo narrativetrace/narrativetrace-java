@@ -31,6 +31,22 @@ class SnippetSupportTest {
         file.writeText(content)
     }
 
+    private fun writeManifest() {
+        writeDoc(
+            I18nManifestSupport.MANIFEST_RELATIVE_PATH,
+            """
+            {
+              "sourceLanguage": "en",
+              "languages": [
+                {"code": "es", "displayName": "Español", "directory": "documentation/es",
+                 "index": "documentation/LEAME.md", "rootReadme": "LEAME.md", "status": "in-progress"}
+              ],
+              "documents": []
+            }
+            """.trimIndent()
+        )
+    }
+
     // Deliberately flush-left (no trimIndent()): trimIndent() picks its margin from every line of
     // a multi-line $body too, so a body whose own lines are not indented to match this function's
     // nesting would defeat it and leave stray leading whitespace on the template's own lines.
@@ -136,6 +152,20 @@ class SnippetSupportTest {
 
         assertEquals(1, found.size, found.toString())
         assertTrue(found.single().path.contains("sixty-seconds.md") && !found.single().path.contains("/es/"))
+    }
+
+    @Test
+    fun englishMarkdownFilesReadsAPageInASubdirectoryTheManifestDoesNotCallALanguage() {
+        writeManifest()
+        writeSource("recipes/checkout/src/main/java/Checkout.java", "class Checkout {}\n")
+        val content = page("<!-- snippet: recipes/checkout/src/main/java/Checkout.java -->", "class Checkout {}")
+        writeDoc("documentation/recipes/add-logging.md", content)
+        writeDoc("documentation/es/recetas/anade-registro.md", content)
+
+        val found = SnippetSupport.englishMarkdownFiles(repo)
+
+        assertEquals(1, found.size, found.toString())
+        assertTrue(found.single().path.endsWith("documentation/recipes/add-logging.md"), found.toString())
     }
 
     // ---------------------------------------------------------------------------------------
@@ -552,6 +582,39 @@ class SnippetSupportTest {
 
         assertEquals(emptyList<String>(), changed)
         assertEquals(before, doc.lastModified())
+    }
+
+    @Test
+    fun checkAcceptsASourceFileThatEndsWithoutAFinalNewline() {
+        writeSource("recipes/checkout/build/narrativetrace/traces/T/s.md", "### Call Flow\n- one call")
+        writeDoc(
+            "documentation/page.md",
+            page(
+                "<!-- snippet: recipes/checkout/build/narrativetrace/traces/T/s.md -->",
+                "### Call Flow\n- one call",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
+    fun durationMaskAlsoCoversTheTraceArtifactsOwnTimingFields() {
+        writeSource(
+            "recipes/checkout/build/narrativetrace/traces/T/s.md",
+            "duration_ms: 104.34\n**Duration:** 104.34ms | **Result:** PASSED\n"
+        )
+        writeDoc(
+            "documentation/page.md",
+            page(
+                "<!-- snippet: recipes/checkout/build/narrativetrace/traces/T/s.md mask=duration -->",
+                "duration_ms: 7\n**Duration:** 7ms | **Result:** PASSED",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
     }
 
     @Test

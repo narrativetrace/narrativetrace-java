@@ -8,8 +8,12 @@
 package ai.narrativetrace.skills.evals;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -33,8 +37,20 @@ import java.util.regex.Pattern;
  *     single-turn trial
  * @param prompts one per turn, in turn order: {@code prompt.md} first, then the case's scripted
  *     user replies
+ * @param freshTurnCommands the command of every turn that opens a NEW session instead of resuming —
+ *     the first-turn template under a session id of its own; empty for a case that resumes every
+ *     turn
  */
-public record AgentTurns(String firstTurnCommand, String resumedTurnCommand, List<String> prompts) {
+public record AgentTurns(
+    String firstTurnCommand,
+    String resumedTurnCommand,
+    List<String> prompts,
+    Map<Integer, String> freshTurnCommands) {
+
+  /** A conversation that resumes every turn after the first — every case before item 166. */
+  public AgentTurns(String firstTurnCommand, String resumedTurnCommand, List<String> prompts) {
+    this(firstTurnCommand, resumedTurnCommand, prompts, Map.of());
+  }
 
   /**
    * The shape a session id has to have to be substituted into a command safely: one opaque token.
@@ -60,6 +76,18 @@ public record AgentTurns(String firstTurnCommand, String resumedTurnCommand, Lis
       throw new IllegalArgumentException(
           "a trial of " + prompts.size() + " turns needs a template that resumes its session");
     }
+    freshTurnCommands = Map.copyOf(freshTurnCommands == null ? Map.of() : freshTurnCommands);
+    for (int fresh : freshTurnCommands.keySet()) {
+      if (fresh < 2 || fresh > prompts.size()) {
+        throw new IllegalArgumentException(
+            "fresh turn " + fresh + " is outside a conversation of " + prompts.size());
+      }
+      if (fresh != prompts.size()) {
+        throw new IllegalArgumentException(
+            "a fresh turn must be the last turn: the turn after it would have to resume the NEW"
+                + " session, and nothing here carries its id");
+      }
+    }
   }
 
   /**
@@ -82,6 +110,34 @@ public record AgentTurns(String firstTurnCommand, String resumedTurnCommand, Lis
       String firstPrompt,
       List<String> scriptedReplies,
       String sessionId) {
+    return of(
+        platform,
+        model,
+        canonicalSkillName,
+        overrideCommand,
+        firstPrompt,
+        scriptedReplies,
+        sessionId,
+        Set.of());
+  }
+
+  /**
+   * The same, with the turns that open a FRESH session instead of resuming: each runs the
+   * first-turn template under a session id of its own, generated here, so the agent of that turn
+   * remembers nothing of the turns before it — the measurement a "what does the next session find?"
+   * case exists for.
+   *
+   * @param freshTurns turn numbers (2-based: turn 1 is fresh by definition) that open a new session
+   */
+  public static AgentTurns of(
+      Platform platform,
+      String model,
+      String canonicalSkillName,
+      String overrideCommand,
+      String firstPrompt,
+      List<String> scriptedReplies,
+      String sessionId,
+      Set<Integer> freshTurns) {
     List<String> prompts = promptsOf(firstPrompt, scriptedReplies);
     if (prompts.size() == 1) {
       return new AgentTurns(
@@ -93,10 +149,16 @@ public record AgentTurns(String firstTurnCommand, String resumedTurnCommand, Lis
     }
     requireNoOverride(overrideCommand);
     requireAWellShapedSessionId(sessionId);
+    Optional<String> first = platform.presetFirstTurnCommand(model, canonicalSkillName);
+    Map<Integer, String> fresh = new HashMap<>();
+    for (int turn : freshTurns == null ? Set.<Integer>of() : freshTurns) {
+      fresh.put(turn, named(first, platform, UUID.randomUUID().toString()));
+    }
     return new AgentTurns(
-        named(platform.presetFirstTurnCommand(model, canonicalSkillName), platform, sessionId),
+        named(first, platform, sessionId),
         named(platform.presetResumedTurnCommand(model, canonicalSkillName), platform, sessionId),
-        prompts);
+        prompts,
+        fresh);
   }
 
   /** A trial that drives no agent: the fixture is graded exactly as the case scaffolded it. */
@@ -124,7 +186,17 @@ public record AgentTurns(String firstTurnCommand, String resumedTurnCommand, Lis
    * straight to {@link AgentArgv}, which only ever substitutes the prompt.
    */
   public String commandForTurn(int turn) {
-    return indexOf(turn) == 0 ? firstTurnCommand : resumedTurnCommand;
+    int index = indexOf(turn);
+    if (freshTurnCommands.containsKey(turn)) {
+      return freshTurnCommands.get(turn);
+    }
+    return index == 0 ? firstTurnCommand : resumedTurnCommand;
+  }
+
+  /** Whether {@code turn} opens a new session rather than resuming the conversation. */
+  public boolean isFreshTurn(int turn) {
+    indexOf(turn);
+    return freshTurnCommands.containsKey(turn);
   }
 
   private int indexOf(int turn) {

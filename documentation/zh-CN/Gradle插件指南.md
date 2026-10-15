@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 03b2eb50d3ce | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 9346b5ece1b7 | translated: 2026-10-09 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -312,7 +312,8 @@ narrativeTrace {
 
 - **分组**:`narrativetrace`
 - **只读**:读取构建文件、源码、渲染输出以及已安装的智能体技能;不改动任何东西
-- **绝不会因为自己的结论让构建失败**——出现结论是正常结果,而不是崩溃
+- **有结论未通过时会让构建失败**——报告会先写出来,所以"doctor 绿灯"就是退出码 0,脚本可以据此把关;
+  `-Pnarrativetrace.doctor.failOnFindings=false` 可以让自己读报告的流水线保持构建绿灯
 - `--json` 打印机器可读的报告,而不是人类可读的那份
 
 ### `narrativetraceInit`
@@ -409,7 +410,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -544,7 +545,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.3.0'
+    id 'ai.narrativetrace' version '0.4.0'
 }
 
 narrativeTrace {
@@ -567,7 +568,7 @@ narrativeTrace {
 
 插件在配置阶段(`afterEvaluate` 内)校验所有字符串属性。无效值会产生清晰的错误信息:
 
-```
+```text
 > Invalid narrativeTrace mode 'invalid'. Valid values: proxy, agent, spring
 > Invalid narrativeTrace scope 'compile'. Valid values: test, production
 > Invalid narrativeTrace format 'xml'. Valid values: markdown, text, mermaid, plantuml

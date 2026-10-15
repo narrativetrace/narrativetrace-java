@@ -10,20 +10,59 @@ package ai.narrativetrace.build;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class BuildConfigurationTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
 
+  @TempDir static Path buildRoot;
+
   private BuildResult gradle(String... args) {
     var allArgs = new ArrayList<>(List.of(args));
     allArgs.add("-q");
+    allArgs.add("-Pnarrativetrace.buildRoot=" + buildRoot);
     return GradleRunner.create().withProjectDir(PROJECT_DIR).withArguments(allArgs).build();
+  }
+
+  /** A file list + mtime + size fingerprint, cheap enough to diff a few hundred build outputs. */
+  private static List<String> snapshot(File dir) throws IOException {
+    try (var stream = Files.walk(dir.toPath())) {
+      return stream
+          .filter(Files::isRegularFile)
+          .map(p -> p + ":" + p.toFile().lastModified() + ":" + p.toFile().length())
+          .sorted()
+          .toList();
+    }
+  }
+
+  /**
+   * B-58: the nightly's reported failure (`jdependNotRegisteredOnMicronautModules` dying with
+   * `NoSuchFileException` under `build/`) is this same nested call racing the outer test JVM over
+   * {@code buildSrc/build} — {@code TaskInputInvalidationTest} loads classes straight out of it
+   * (see {@code buildSrcClasspath}), and a query task as unassuming as {@code tasks --all} still
+   * recompiles buildSrc to evaluate this repository's own convention plugins.
+   */
+  @Test
+  void aNestedBuildDoesNotRewriteThisCheckoutsBuildSrc() throws IOException {
+    var buildSrcBuild = new File(PROJECT_DIR, "buildSrc/build");
+    var before = snapshot(buildSrcBuild);
+
+    gradle(":narrativetrace-micronaut:tasks", "--all");
+
+    assertThat(snapshot(buildSrcBuild))
+        .as(
+            "a nested build must not rewrite this checkout's own buildSrc/build — the outer test"
+                + " JVM may have those classes on its classpath or loaded already")
+        .isEqualTo(before);
   }
 
   /**
@@ -163,7 +202,7 @@ class BuildConfigurationTest {
   @Test
   void agentJarManifest() throws Exception {
     gradle(":narrativetrace-agent:jar");
-    var jarDir = new File(PROJECT_DIR, "narrativetrace-agent/build/libs");
+    var jarDir = new File(buildRoot.toFile(), "narrativetrace-agent/build/libs");
     var jarFiles =
         jarDir.listFiles(
             (dir, name) ->
@@ -509,7 +548,7 @@ class BuildConfigurationTest {
   void dependencyReportProducesOutputFile() {
     gradle("dependencyReport");
     var reportFile =
-        new File(PROJECT_DIR, "build/reports/dependency-graph/module-dependencies.txt");
+        new File(buildRoot.toFile(), "build/reports/dependency-graph/module-dependencies.txt");
     assertThat(reportFile).exists();
     assertThat(reportFile.length()).isGreaterThan(0);
   }
@@ -537,7 +576,7 @@ class BuildConfigurationTest {
       gradle(":narrativetrace-examples:" + example + ":installDist");
       var script =
           new File(
-              PROJECT_DIR,
+              buildRoot.toFile(),
               "narrativetrace-examples/%s/build/install/%s/bin/%s"
                   .formatted(example, example, example));
       assertThat(script).as("start script for %s", example).exists();

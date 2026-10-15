@@ -17,6 +17,9 @@
  */
 package ai.narrativetrace.tooling.init;
 
+import ai.narrativetrace.tooling.platforms.PlatformRow;
+import ai.narrativetrace.tooling.platforms.PlatformTable;
+import ai.narrativetrace.tooling.platforms.Pointer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +59,7 @@ public final class UninstallPlanner {
       planAgentsMd(state, actions);
       planClaudeMd(state, actions);
       planRuleFiles(state, actions);
+      planPointers(state, actions);
     }
     return new InitPlan(installedCoordinate(state), options.dryRun(), actions);
   }
@@ -81,6 +85,52 @@ public final class UninstallPlanner {
         .forEach((path, text) -> removeSection(Path.of(path), text, false, actions));
   }
 
+  /**
+   * Every platform pointer the table names, whether or not the platform's marker is still there:
+   * what the installer wrote is removed even after the project stopped looking like that platform.
+   * A pointer behind a link was never written by us and is not in the snapshot.
+   */
+  private static void planPointers(ProjectState state, List<Action> actions) {
+    for (PlatformRow row : PlatformTable.ROWS) {
+      Pointer pointer = row.pointer();
+      state
+          .pointerFile(pointer.path())
+          .ifPresent(
+              text -> {
+                Path path = Path.of(pointer.path());
+                if (pointer instanceof Pointer.Rule) {
+                  removeRule(path, text, actions);
+                } else {
+                  removeSection(path, text, true, actions);
+                }
+              });
+    }
+  }
+
+  /**
+   * A rule file is deleted when nothing but its frontmatter is left once our section is gone — the
+   * installer made it — and otherwise loses only the section, so a rule the user added below ours
+   * survives.
+   */
+  private static void removeRule(Path path, String text, List<Action> actions) {
+    MarkedBlock.Scan scan = MarkedBlock.scan(text);
+    if (!scan.problems().isEmpty() || scan.regions().size() > 1) {
+      actions.add(
+          new Action.Refuse(
+              path,
+              path + " does not carry exactly one NarrativeTrace section — remove it by hand"));
+    } else if (scan.regions().size() == 1) {
+      String remainder = MarkedBlock.remove(text, scan.regions().get(0));
+      boolean onlyFrontmatter =
+          MarkedBlock.withEol(MarkedBlock.withoutByteOrderMark(remainder), "\n")
+              .equals(CursorRule.FRONTMATTER);
+      actions.add(
+          onlyFrontmatter
+              ? new Action.DeleteFile(path, text)
+              : new Action.ReplaceBlock(path, text, remainder));
+    }
+  }
+
   private static void removeSection(
       Path path, String text, boolean mayDelete, List<Action> actions) {
     MarkedBlock.Scan scan = MarkedBlock.scan(text);
@@ -99,7 +149,7 @@ public final class UninstallPlanner {
         MarkedBlock.lineIs(withoutSection, MarkedBlock.CREATED_NOTE);
     String remainder =
         created.map(line -> MarkedBlock.remove(withoutSection, line)).orElse(withoutSection);
-    if (mayDelete && created.isPresent() && remainder.isBlank()) {
+    if (mayDelete && created.isPresent() && MarkedBlock.withoutByteOrderMark(remainder).isBlank()) {
       actions.add(new Action.DeleteFile(path, text));
       return;
     }

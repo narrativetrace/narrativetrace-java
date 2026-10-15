@@ -10,6 +10,7 @@
 # The literal is the one the doctor's trap.redaction-proof check greps for, quotes included, so this
 # gate and that finding can never disagree about what counts as proof.
 set -e
+. "$(dirname "$0")/bounded.sh"
 
 grep -rq '"\[REDACTED\]"' src/test 2>/dev/null || {
   echo "expected a test asserting the literal \"[REDACTED]\" — the prompt's step 5" >&2
@@ -21,7 +22,7 @@ grep -rq '"\[REDACTED\]"' src/test 2>/dev/null || {
 # Bounded like every other command here: a cold run resolves dependencies over the network, and a
 # hanging suite has to fail this case rather than the harness.
 log=$(mktemp)
-if timeout 900 ./gradlew test --console=plain >"$log" 2>&1; then
+if bounded 900 ./gradlew test --console=plain >"$log" 2>&1; then
   echo "run_the_tests.sh: the redaction assertion is there and ./gradlew test is green"
   rm -f "$log"
 else

@@ -9,6 +9,23 @@ plugins {
     `kotlin-dsl`
 }
 
+// Nested-build output isolation, buildSrc half. The root build.gradle.kts's own block
+// relocates every subproject's build directory under -Pnarrativetrace.buildRoot; buildSrc is a
+// separate build entirely (no settings.gradle.kts, not a subproject), so that `allprojects`
+// block never reaches it. Gradle builds buildSrc with the same StartParameter as the build that
+// included it, so a -P given to the outer invocation is visible here too. Without this half, a
+// nested GradleRunner build still recompiles buildSrc under THIS checkout's buildSrc/build even
+// once every subproject is isolated — and narrativetrace-build-tests loads buildSrc's classes
+// directly off disk (see its buildSrcClasspath system property), so the two builds race over
+// exactly those files (B-58).
+val isolatedBuildRoot = (findProperty("narrativetrace.buildRoot") as String?)?.takeIf { it.isNotBlank() }
+if (isolatedBuildRoot != null) {
+    require(File(isolatedBuildRoot).isAbsolute) {
+        "narrativetrace.buildRoot must be an absolute directory: $isolatedBuildRoot"
+    }
+    layout.buildDirectory.set(file("$isolatedBuildRoot/buildSrc/build"))
+}
+
 repositories {
     mavenCentral()
     gradlePluginPortal()

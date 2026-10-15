@@ -101,6 +101,37 @@ class RenderDriftTest {
         .isEqualTo(MarketplaceJsonRenderer.render(CatalogueIndex.MARKETPLACE));
   }
 
+  @Test
+  void renderedCursorPluginManifestsMatchTheTypedCatalogue() {
+    Path plugin = RenderPaths.cursorPluginJson(REPO_ROOT);
+    Path marketplace = RenderPaths.cursorMarketplaceJson(REPO_ROOT);
+    assertThat(plugin).as(plugin + " must exist — run renderSkills and commit it").exists();
+    assertThat(marketplace)
+        .as(marketplace + " must exist — run renderSkills and commit it")
+        .exists();
+    assertThat(readText(plugin))
+        .isEqualTo(CursorPluginJsonRenderer.renderPlugin(CatalogueIndex.MARKETPLACE));
+    assertThat(readText(marketplace))
+        .isEqualTo(CursorPluginJsonRenderer.renderMarketplace(CatalogueIndex.MARKETPLACE));
+  }
+
+  /**
+   * Both Cursor manifests and the Claude marketplace are one listing: the same name, the same
+   * plugin description, the same licence — a rename in one cannot leave the others behind.
+   */
+  @Test
+  void theCursorManifestsAndTheClaudeMarketplaceNameTheSamePlugin() {
+    String listingName = "\"name\": \"" + CatalogueIndex.MARKETPLACE.name() + "\"";
+    String description = JsonText.quote(CatalogueIndex.MARKETPLACE.pluginDescription());
+    for (Path file :
+        List.of(
+            RenderPaths.marketplaceJson(REPO_ROOT),
+            RenderPaths.cursorPluginJson(REPO_ROOT),
+            RenderPaths.cursorMarketplaceJson(REPO_ROOT))) {
+      assertThat(readText(file)).as(file.toString()).contains(listingName).contains(description);
+    }
+  }
+
   /** Nothing else may sit in the carrier: a stray file would ship in the published jar. */
   @Test
   void theCarrierCarriesNothingBesidesTheRenderedPagesAndTheCatalogue() throws IOException {

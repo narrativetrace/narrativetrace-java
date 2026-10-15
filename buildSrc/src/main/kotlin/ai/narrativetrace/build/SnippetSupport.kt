@@ -32,7 +32,9 @@ import java.io.File
  * comparison* — neither the source file nor the page is ever rewritten with a masked value; the
  * page keeps whatever real value the last `snippetSync` copied over, same as it always has:
  *
- * - `duration` replaces `— \d+(\.\d+)?ms` with `— Nms`.
+ * - `duration` replaces every shape a timing is written in — the call-flow suffix `— 23ms`, a
+ *   trace artifact's `duration_ms: 23` frontmatter field and its `**Duration:** 23ms` header — so
+ *   a page may embed a whole trace artifact, not only a one-line rendering of one.
  * - `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and, where
  *   adjacent, the 7-hex trace-id fragment — wherever a `trace:`/`run:`/`trace_name:`/`runName:`
  *   label, a `The trace …:` prose lead-in, or a `## Trace: … —` Markdown title carries one, since
@@ -52,6 +54,14 @@ object SnippetSupport {
 
     private val DURATION_MASK = Regex("""— \d+(?:\.\d+)?ms""")
 
+    // The same timing, in the two other shapes a trace artifact writes it: the frontmatter field
+    // every tool reads, and the human header line above the call flow. One mask name covers all
+    // three because they are one fact — how long the run took — and a page embedding the artifact
+    // verbatim would otherwise fail on every regeneration while the call-flow line beside them
+    // passed.
+    private val DURATION_FIELD_MASK = Regex("""duration_ms: \d+(?:\.\d+)?""")
+    private val DURATION_HEADER_MASK = Regex("""\*\*Duration:\*\* \d+(?:\.\d+)?ms""")
+
     // A label immediately followed by "adjective noun verb", optionally the "(1234567)" trace-id
     // fragment — the exact shapes TraceNamer-derived text appears in across every renderer and
     // frontmatter field this repository writes.
@@ -69,9 +79,14 @@ object SnippetSupport {
 
     /**
      * Every Markdown file this mechanism governs: repository-wide, excluding translated mirrors
-     * (any `documentation/<lang>/` directory, `i18n`) and build/hidden directories — the same
-     * "English pages only" scope `snippetSync` writes to. Mirrors are never touched here;
-     * `translationCheck` is what flags their code blocks going stale against the English source.
+     * (every language directory the i18n manifest declares, at any depth beneath it) and
+     * build/hidden directories — the same "English pages only" scope `snippetSync` writes to.
+     * Mirrors are never touched here; `translationCheck` is what flags their code blocks going
+     * stale against the English source.
+     *
+     * <p>Which directories those are comes from [I18nManifestSupport.languageDirectories], never
+     * from "every directory under `documentation/`": a subdirectory of English pages
+     * (`documentation/recipes/`) is governed here exactly like a page at the top level.
      *
      * <p>`documentation/llms.txt` is included too, despite its extension: it is the first thing an
      * agent reads, its "Install and first trace" block is the same install/run/output triple the
@@ -94,11 +109,7 @@ object SnippetSupport {
      * quietly undo the dot-directory/`build` exclusion, not add to it.
      */
     fun englishMarkdownFiles(repoRoot: File): List<File> {
-        val languageDirs =
-            repoRoot.resolve("documentation").listFiles().orEmpty()
-                .filter { it.isDirectory && it.name != "i18n" }
-                .map { it.canonicalFile }
-                .toSet()
+        val languageDirs = I18nManifestSupport.languageDirectories(repoRoot)
         val llmsTxt = repoRoot.resolve("documentation/llms.txt").canonicalFile
         val claudeSkillsDir = repoRoot.resolve(".claude/skills").canonicalFile
         fun onPathToClaudeSkills(dir: File): Boolean {
@@ -135,7 +146,7 @@ object SnippetSupport {
             val (maskedExpected, maskedActual) = mask(block.marker.mask, expected, block.content)
                 ?: return@mapNotNull "$relative: snippet ${block.marker.path} — unknown mask " +
                     "'${block.marker.mask}'"
-            if (maskedExpected == maskedActual) {
+            if (withFinalNewline(maskedExpected) == withFinalNewline(maskedActual)) {
                 null
             } else {
                 "$relative: fenced block for '${block.marker.path}' differs from source " +
@@ -350,7 +361,22 @@ object SnippetSupport {
             else -> null
         }
 
-    private fun maskDuration(content: String): String = content.replace(DURATION_MASK, "— Nms")
+    /**
+     * One trailing newline on a non-empty block, so a SOURCE file that ends without a final
+     * newline compares equal to the page that embeds it. A fenced block in Markdown cannot express
+     * the difference — the closing fence is on its own line either way — so demanding it would make
+     * such a file permanently un-embeddable: `sync` writes the block with a final newline and
+     * `check` would then report the drift it just wrote. Trace artifacts are the real case (the
+     * writer ends on the last call, not on a blank line).
+     */
+    private fun withFinalNewline(content: String): String =
+        if (content.isEmpty() || content.endsWith("\n")) content else "$content\n"
+
+    private fun maskDuration(content: String): String =
+        content
+            .replace(DURATION_MASK, "— Nms")
+            .replace(DURATION_FIELD_MASK, "duration_ms: N")
+            .replace(DURATION_HEADER_MASK, "**Duration:** Nms")
 
     private fun maskTraceName(content: String): String =
         content

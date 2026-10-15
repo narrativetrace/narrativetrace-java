@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -407,7 +407,7 @@ After all tests in a class complete, the extension writes:
 - Clarity report: `<outputDir>/clarity-report.md`
 - Console summary (printed to stdout), ending with the one-line
   structural delta against the last green run:
-  ```
+  ```text
   NarrativeTrace — Suite complete
     run: bold elk soars
     2 scenarios recorded
@@ -532,7 +532,7 @@ application.
 
 **The sizing rule:**
 
-```
+```text
 capacity  ≈  peak events/s  ×  worst tolerable drain stall
 memory at saturation  ≈  capacity  ×  ~300 B/event
 ```
@@ -560,7 +560,7 @@ events carries it on the tree (`TraceTree.loss()`), and every rendered
 format with a footer slot prints one line — the count and the property to
 raise:
 
-```
+```text
 ⚠ Incomplete narrative: 1204 events shed under load (buffer full) — raise narrativetrace.buffer.capacity.
 ```
 
@@ -758,7 +758,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.
@@ -890,7 +890,7 @@ public class DefaultOrderService implements OrderService {
 }
 ```
 
-```
+```text
 TRACE [narrativetrace]        → OrderService.placeOrder(customerId: C-1234, productId: SKU-MECHANICAL-KB, quantity: 2)
 INFO  [DefaultOrderService]   Placing order: customer=C-1234, product=SKU-MECHANICAL-KB, qty=2
 TRACE [narrativetrace]        → CustomerService.findCustomer(customerId: C-1234)
@@ -921,7 +921,7 @@ Pipeline](dual-path-pipeline.md) for the pipeline's own contract.
 
 ### Data flow
 
-```
+```text
 method call → TracingLevel filter → event pipeline
                                       ↓
                               Slf4jTraceEventListener

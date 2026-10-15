@@ -1,4 +1,4 @@
-<!-- source: documentation/spring-integration-guide.md blob f9d773c88fae | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/spring-integration-guide.md blob b1df03d10d75 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
 # Guia de integração com Spring
 
 [English](../spring-integration-guide.md) | [Español](../es/guia-de-integracion-con-spring.md) | **Português** | [简体中文](../zh-CN/Spring集成指南.md)
@@ -19,7 +19,7 @@ Este guia cobre a integração do NarrativeTrace em uma aplicação Spring Boot,
 Adicione a dependência:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
 ```
 
 Habilite o tracing na sua classe de configuração:
@@ -77,7 +77,7 @@ Um bean `NarrativeContext` é fornecido automaticamente. Quando `narrativetrace-
 
 O `BeanPostProcessor` de tracing é executado em `HIGHEST_PRECEDENCE`, o que significa que o proxy de trace é o invólucro **mais interno**. Ao ser combinado com o proxy `@Async` do Spring, as camadas ficam assim:
 
-```
+```text
 Proxy Async (externo) → Proxy de trace (interno) → Bean real
 ```
 
@@ -88,7 +88,7 @@ Isso garante que o tracing seja executado na thread assíncrona real, não na th
 Para tracing de requisições HTTP em uma aplicação implantada, adicione o módulo do filtro de servlet:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring-web:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
 ```
 
 Isso registra automaticamente o `NarrativeTraceFilter` como um bean do Spring. O filtro segue um ciclo de vida de reinício-cadeia-captura-exportação-reinício em cada requisição:
@@ -173,8 +173,8 @@ O NarrativeTrace usa o [context-propagation do Micrometer](https://github.com/mi
 ### Dependências
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.3.0")
-implementation("ai.narrativetrace:narrativetrace-micrometer:0.3.0")
+implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
+implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
 ```
 
 ### Configuração
@@ -241,7 +241,7 @@ public class MyDecorator implements TaskDecorator {
 
 Um método `@Async` deve aparecer como filho na árvore de traces, mesmo que seja executado em uma thread diferente:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-1234")
   InventoryService.reserve(productId: "SKU-KB", quantity: 2) → ReservedInventory(...)
   PaymentService.charge(customerId: "C-1234", amount: 179.98) → Payment(...)

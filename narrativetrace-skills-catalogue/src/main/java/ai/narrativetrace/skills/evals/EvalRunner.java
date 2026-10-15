@@ -16,6 +16,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -55,6 +57,7 @@ public final class EvalRunner {
       Path fixtureDir,
       String prompt,
       List<String> scriptedReplies,
+      Set<Integer> freshTurns,
       Path runsPath,
       RegistryPreStep preStep) {}
 
@@ -71,7 +74,8 @@ public final class EvalRunner {
         plan.args().agentCommandOverride().orElse(null),
         plan.prompt(),
         plan.scriptedReplies(),
-        UUID.randomUUID().toString());
+        UUID.randomUUID().toString(),
+        plan.freshTurns());
   }
 
   public static void main(String[] args) throws IOException, InterruptedException {
@@ -82,6 +86,12 @@ public final class EvalRunner {
     TrialPlan plan = planFor(parsed, repoRoot, ledgerDir.resolve("runs.jsonl"));
     logTheConversationsShape(plan);
 
+    Optional<String> skip =
+        SporadicPolicy.skipReason(parsed.platform(), mergedQuotaLedger(quotaPath, List.of()));
+    if (skip.isPresent()) {
+      System.out.println(skip.get());
+      return;
+    }
     List<QuotaSpendRow> sessionSpend = new ArrayList<>();
     for (int t = 1; t <= parsed.trials(); t++) {
       if (parsed.platform().isSporadic()) {
@@ -115,6 +125,7 @@ public final class EvalRunner {
         repoRoot.resolve(CaseFixture.fixtureFor(caseDir)),
         readPrompt(caseDir),
         CaseTurns.scriptedRepliesFor(caseDir),
+        CaseTurns.freshTurnsFor(caseDir),
         runsPath,
         CaseRegistry.registryFor(caseDir).orElse(null));
   }
@@ -212,10 +223,15 @@ public final class EvalRunner {
    */
   private static void logTheConversationsShape(TrialPlan plan) {
     int replies = plan.scriptedReplies().size();
+    String fresh =
+        plan.freshTurns().isEmpty() ? "" : " (fresh session at turn " + plan.freshTurns() + ")";
     System.out.println(
         replies == 0
             ? "one turn: the case's prompt.md"
-            : (replies + 1) + " turns: the case's prompt.md, then " + plan.scriptedReplies());
+            : (replies + 1)
+                + " turns: the case's prompt.md, then "
+                + plan.scriptedReplies()
+                + fresh);
   }
 
   private static String readPrompt(Path caseDir) throws IOException {

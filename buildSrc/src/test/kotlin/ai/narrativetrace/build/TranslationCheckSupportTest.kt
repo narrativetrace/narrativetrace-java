@@ -138,6 +138,49 @@ class TranslationCheckSupportTest {
     }
 
     @Test
+    fun checkTreatsASubdirectoryTheManifestDoesNotCallALanguageAsEnglishSource() {
+        writeManifestDeclaringSpanishOnly()
+        val hash = writeSource("documentation/recipes/add-logging.md", "# Add logging\n")
+        writeTranslation("documentation/es/recetas/anade-registro.md", "documentation/recipes/add-logging.md", hash)
+
+        assertEquals(emptyList<String>(), TranslationCheckSupport.check(repo))
+    }
+
+    @Test
+    fun checkStillFlagsAStaleMirrorNestedInsideALanguageDirectory() {
+        writeManifestDeclaringSpanishOnly()
+        writeSource("documentation/recipes/add-logging.md", "# Add logging v2\n")
+        writeTranslation(
+            "documentation/es/recetas/anade-registro.md",
+            "documentation/recipes/add-logging.md",
+            "aaaaaaaaaaaa"
+        )
+
+        val problems = TranslationCheckSupport.check(repo)
+
+        assertEquals(1, problems.size)
+        assertTrue(problems[0].contains("documentation/es/recetas/anade-registro.md"), problems.toString())
+        assertTrue(problems[0].contains("stale"), problems.toString())
+    }
+
+    private fun writeManifestDeclaringSpanishOnly() {
+        val file = repo.resolve(I18nManifestSupport.MANIFEST_RELATIVE_PATH)
+        file.parentFile.mkdirs()
+        file.writeText(
+            """
+            {
+              "sourceLanguage": "en",
+              "languages": [
+                {"code": "es", "displayName": "Español", "directory": "documentation/es",
+                 "index": "documentation/LEAME.md", "rootReadme": "LEAME.md", "status": "in-progress"}
+              ],
+              "documents": []
+            }
+            """.trimIndent()
+        )
+    }
+
+    @Test
     fun checkIgnoresTheI18nDirectoryAndHeaderlessRootFiles() {
         repo.resolve("documentation/i18n").mkdirs()
         repo.resolve("documentation/i18n/terminology.md").writeText("# Terminology\n")

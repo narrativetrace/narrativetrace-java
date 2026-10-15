@@ -12,11 +12,12 @@ status. A wording or fixture change clears that skill's row; re-approval accrues
 Regenerated from `ledger/runs.jsonl` and the typed skill catalogue — never hand-edited; drift
 fails `./gradlew check` (`PromotionDriftTest`).
 
-| Skill | Claude | Codex | Gemini |
-|---|---|---|---|
-| `narrativetrace-doctor` | not yet run | not yet run | not yet run |
-| `add-narrative-tracing` | red (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |
-| `add-narrativetrace-clarity` | green (haiku, 2026-09-23) | not yet run | not yet run |
-| `narrativetrace-feedback` | green (haiku, 2026-10-05) | not yet run | not yet run |
-| `narrativetrace-verify` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |
-| `narrativetrace-debug` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run |
+| Skill | Claude | Codex | Antigravity | Cursor |
+|---|---|---|---|---|
+| `narrativetrace-doctor` | not yet run | not yet run | green (gemini-3.8-flash-low, 2026-10-10) | not yet run |
+| `add-narrative-tracing` | red (claude-haiku-5-5, 2026-10-10) | not yet run | green (gemini-3.8-flash-low, 2026-10-10) | not yet run |
+| `add-narrativetrace-clarity` | green (haiku, 2026-09-23) | not yet run | not yet run | not yet run |
+| `narrativetrace-feedback` | green (haiku, 2026-10-05) | not yet run | not yet run | not yet run |
+| `narrativetrace-verify` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |
+| `narrativetrace-debug` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |
+| `narrativetrace-explain` | green (claude-haiku-5-5, 2026-10-12) | not yet run | not yet run | not yet run |

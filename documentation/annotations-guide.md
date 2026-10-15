@@ -234,7 +234,7 @@ This single method combines narration, targeted error context, and parameter red
 
 NarrativeTrace detects this automatically during tests. After each test, the JUnit 5 extension and JUnit 4 rule scan every trace node for unresolved `{...}` patterns and print a warning:
 
-```
+```text
 WARNING: Unresolved template placeholder(s) detected:
   - OrderService.placeOrder: {custmerId} in narration
   - ExpenseService.pay: {expense.payer.name} in narration

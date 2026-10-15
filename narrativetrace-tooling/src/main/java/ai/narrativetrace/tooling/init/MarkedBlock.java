@@ -62,7 +62,8 @@ final class MarkedBlock {
   /**
    * One managed region inside a file.
    *
-   * @param start offset of the first character of the opening marker's line
+   * @param start offset of the first character of the opening marker's line, after a byte-order
+   *     mark on line 1
    * @param end offset just past the closing marker's line, its terminator included
    * @param startLine 1-based line of the opening marker, so a refusal can name it
    * @param coordinate the stamp on the opening marker, empty when it carries none
@@ -73,7 +74,7 @@ final class MarkedBlock {
    * One line of a file, with everything a marker decision needs.
    *
    * @param number 1-based line number
-   * @param start offset of the line's first character
+   * @param start offset of the line's first character, after the byte-order mark on line 1
    * @param end offset just past the line's terminator
    * @param content the line without its terminator, and without a leading byte-order mark
    * @param inFence whether the line sits inside a fenced code block
@@ -93,7 +94,9 @@ final class MarkedBlock {
       number++;
       String content = strip(raw, number);
       boolean fenceLine = isFence(content);
-      lines.add(new Line(number, offset, offset + raw.length(), content, inFence || fenceLine));
+      int bom = number == 1 && raw.startsWith(String.valueOf(BOM)) ? 1 : 0;
+      lines.add(
+          new Line(number, offset + bom, offset + raw.length(), content, inFence || fenceLine));
       if (fenceLine) {
         inFence = !inFence;
       }
@@ -218,6 +221,15 @@ final class MarkedBlock {
       return "\n";
     }
     return newline > 0 && text.charAt(newline - 1) == '\r' ? "\r\n" : "\n";
+  }
+
+  /**
+   * The text without a leading byte-order mark. A line's {@code start} is the offset of its first
+   * character AFTER such a mark, so an edit of a region on line 1 leaves the mark where it was; a
+   * caller that asks "is anything left?" strips it, because a mark alone is not content.
+   */
+  static String withoutByteOrderMark(String text) {
+    return text.startsWith(String.valueOf(BOM)) ? text.substring(1) : text;
   }
 
   /** The same text with every line ending rewritten to {@code eol}. */

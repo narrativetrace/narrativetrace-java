@@ -22,9 +22,11 @@ import ai.narrativetrace.tooling.doctor.DoctorCheck;
 import ai.narrativetrace.tooling.doctor.DoctorSnapshot;
 import ai.narrativetrace.tooling.doctor.Finding;
 import ai.narrativetrace.tooling.init.InstalledSkill;
+import ai.narrativetrace.tooling.init.PointerReading;
 import ai.narrativetrace.tooling.init.SkillFlavour;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * {@code config.skills-installed} — the NarrativeTrace agent skills this project's carrier ships
@@ -113,14 +115,78 @@ public final class SkillsInstalledCheck implements DoctorCheck {
       return stale(stale, snapshot.carrierCoordinate());
     }
     List<String> missing = missing(snapshot);
-    return missing.isEmpty() ? upToDate(ours, snapshot) : incomplete(missing);
+    if (!missing.isEmpty()) {
+      return incomplete(missing);
+    }
+    List<String> pointers = pointerProblems(snapshot);
+    return pointers.isEmpty() ? upToDate(ours, snapshot) : pointersWrong(pointers);
   }
 
   private static Finding upToDate(List<InstalledSkill> ours, DoctorSnapshot snapshot) {
     return Finding.pass(
         ID,
-        "All " + ours.size() + " agent skill(s) are installed from " + snapshot.carrierCoordinate(),
+        "All "
+            + ours.size()
+            + " agent skill(s) are installed from "
+            + snapshot.carrierCoordinate()
+            + pointersCurrent(snapshot),
         DocAnchors.AGENT_SKILLS_INSTALLING);
+  }
+
+  /** {@code "; Cursor pointer present and current, …"} — empty when no platform needs a pointer. */
+  private static String pointersCurrent(DoctorSnapshot snapshot) {
+    return snapshot.pointerReadings().isEmpty()
+        ? ""
+        : "; "
+            + snapshot.pointerReadings().stream()
+                .map(reading -> reading.platformName() + " pointer present and current")
+                .collect(Collectors.joining(", "));
+  }
+
+  private static Finding pointersWrong(List<String> problems) {
+    return Finding.fail(
+        ID,
+        "The agent skills are installed, but " + String.join("; ", problems),
+        "Run "
+            + INIT_COMMANDS
+            + ", read the diff, then run it without the flag. A rule file or section that is"
+            + " identical to this release's is adopted as it stands; where the file exists and has"
+            + " no section of ours, add --write-existing; a link must be removed by hand.",
+        DocAnchors.AGENT_SKILLS_INSTALLING);
+  }
+
+  /**
+   * One sentence per detected platform whose pointer is missing, foreign, linked or not current.
+   */
+  private static List<String> pointerProblems(DoctorSnapshot snapshot) {
+    return snapshot.pointerReadings().stream()
+        .map(reading -> problem(reading, snapshot.carrierCoordinate()))
+        .flatMap(Optional::stream)
+        .toList();
+  }
+
+  private static Optional<String> problem(PointerReading reading, String resolved) {
+    String where = reading.platformName() + " pointer " + reading.path();
+    return switch (reading.status()) {
+      case ABSENT -> Optional.of(where + " is missing");
+      case LINKED ->
+          Optional.of(where + " is behind a symbolic link, and nothing is written through one");
+      case FOREIGN -> Optional.of(where + " exists but has no NarrativeTrace section of ours");
+      case SECTION -> sectionProblem(reading, where, resolved);
+    };
+  }
+
+  private static Optional<String> sectionProblem(
+      PointerReading reading, String where, String resolved) {
+    if (reading.coordinate().isEmpty()) {
+      return Optional.of(
+          where
+              + " carries no stamp, so no release it describes can be named — init will adopt it");
+    }
+    return releaseOf(reading.coordinate()).equals(releaseOf(resolved))
+        ? Optional.empty()
+        : Optional.of(
+            where + " was written for " + reading.coordinate() + ", project resolves " + resolved);
   }
 
   private static Finding notInstalled(DoctorSnapshot snapshot) {

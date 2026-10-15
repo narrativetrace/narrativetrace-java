@@ -94,6 +94,28 @@ class EvalTrialTest {
     assertThat(scratch.resolve("marker.txt")).hasContent("fixture-content");
   }
 
+  /**
+   * A case that asks whether an INSTALL made the skills visible must start without them: the seeded
+   * pages answered the fresh-session case for the installer on its first run (the .NET port caught
+   * it, 2026-10-10), so {@code "seedSkills": false} in {@code case.json} declines the seeding for
+   * that case alone.
+   */
+  @Test
+  void aCaseCanDeclineTheSeededSkillPages(@TempDir Path tempDir) throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    Path repo = repoWithRenderedSkills(tempDir);
+    Path caseDir = Files.createDirectory(tempDir.resolve("case"));
+    Files.writeString(caseDir.resolve("case.json"), "{ \"seedSkills\": false }");
+    var trial = new EvalTrial(succeeding(2), FIXED_CLOCK, tempDir.resolve("runs.jsonl"));
+
+    trial.run(ARGS, repo, fixture, caseDir, scratch, echoing("prompt"), 1);
+
+    assertThat(scratch.resolve(".agents/skills/example/SKILL.md")).doesNotExist();
+    assertThat(scratch.resolve(".claude/skills/example/SKILL.md")).doesNotExist();
+    assertThat(scratch.resolve("marker.txt")).hasContent("fixture-content");
+  }
+
   @Test
   void makesTheRenderedCatalogueAvailableBeforeTheAgentRuns(@TempDir Path tempDir)
       throws Exception {

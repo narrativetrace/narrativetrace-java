@@ -11,7 +11,7 @@ load and after a crash.
 
 ## The shape
 
-```
+```text
  traced method (caller thread)
       │
       ▼

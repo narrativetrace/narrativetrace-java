@@ -25,6 +25,21 @@ above — each language's index lists that language's translated guides.
 | [What to Commit](what-to-commit.md) | Which generated files are CI artifacts and which are reviewed baselines you commit |
 | [Troubleshooting](troubleshooting.md) | Symptom → cause → fix for the failure modes people actually hit, from `arg0` parameters to a silent agent |
 | [Agent Skills](agent-skills.md) | Three agent-loadable skills for setup, diagnosis, and Clarity — how they're built, and how to install them in your own project |
+| [Use NarrativeTrace with your agent](use-with-your-agent.md) | Per platform — Cursor, Replit, Antigravity, GitHub Copilot, Claude Code — how the skills get into a project, which pointer file `init` writes, and what the agent finds |
+
+## Recipes
+
+One page per problem, in the words a user would type. Each one carries its
+scenario's code and the real output of a run this build performs, so nothing on
+a recipe page is typed by hand: [`recipes/`](recipes/).
+
+| Document | What it covers |
+|---|---|
+| [Add logging to this service](recipes/add-logging-to-this-service.md) | A checkout with no log statement, wrapped once: every call with its parameters and result through your own logger |
+| [Help me debug and fix this bug](recipes/help-me-debug-and-fix-this-bug.md) | A declined card that leaves the stock reserved — the business bug the exception never names, found in the trace, fixed, and pinned |
+| [Why did this test fail](recipes/why-did-this-test-fail.md) | A failing checkout test read span by span against the assertion: the code did what it says, the expectation is stale |
+| [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) | One run at `DETAIL` and at `SUMMARY`, the log line that carries values beside the `.nt` that carries none |
+| [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) | The tests stay green, the approval diff names the dropped call, and you approve or reject it |
 
 ## Framework integration
 

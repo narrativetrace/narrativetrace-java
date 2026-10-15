@@ -9,9 +9,13 @@ package ai.narrativetrace.skills.evals;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,6 +42,18 @@ public final class CaseTurns {
 
   private static final String FIELD = "turns";
 
+  /**
+   * The turns that open a NEW session rather than resuming the conversation: {@code "freshTurns":
+   * [3]}. Written for one question — what does a LATER session find? — which the install cases
+   * could not ask: an install that goes green in the session that ran it says nothing about the
+   * next session, and on 2026-10-10 the next session listed no skill at all (item 166).
+   */
+  private static final String FRESH_FIELD = "freshTurns";
+
+  /** The {@code "freshTurns": [ ... ]} array, captured without its brackets. */
+  private static final Pattern FRESH_ARRAY =
+      Pattern.compile("\"" + FRESH_FIELD + "\"\\s*:\\s*\\[([^\\]]*)\\]");
+
   /** The {@code "turns": { ... }} object, captured without its braces. */
   private static final Pattern TURNS_OBJECT =
       Pattern.compile("\"" + FIELD + "\"\\s*:\\s*\\{([^{}]*)\\}");
@@ -53,6 +69,38 @@ public final class CaseTurns {
     return CaseManifest.rawObjectField(caseDir, FIELD, TURNS_OBJECT)
         .map(body -> orderedReplies(caseDir, body))
         .orElseGet(List::of);
+  }
+
+  /**
+   * The turn numbers {@code caseDir} declares as fresh sessions, in turn order; empty when it
+   * declares none. Each must be a scripted turn (declared in {@code turns}) — a fresh turn with
+   * nothing to say cannot be driven — and never turn 1, which is a fresh session by definition.
+   */
+  public static Set<Integer> freshTurnsFor(Path caseDir) {
+    Optional<String> body = CaseManifest.rawObjectField(caseDir, FRESH_FIELD, FRESH_ARRAY);
+    if (body.isEmpty()) {
+      return Set.of();
+    }
+    int lastTurn = scriptedRepliesFor(caseDir).size() + 1;
+    Set<Integer> fresh = new TreeSet<>();
+    for (String token : body.get().split(",")) {
+      if (token.isBlank()) {
+        continue;
+      }
+      int turn = turnNumber(caseDir, token.strip());
+      if (turn > lastTurn) {
+        throw new IllegalArgumentException(
+            CaseManifest.manifestPath(caseDir)
+                + " declares turn "
+                + turn
+                + " in \""
+                + FRESH_FIELD
+                + "\" but scripts no reply for it — a fresh turn with nothing to say cannot be"
+                + " driven");
+      }
+      fresh.add(turn);
+    }
+    return Collections.unmodifiableSet(fresh);
   }
 
   /** The declared entries, read into turn order and checked for every way of being undrivable. */

@@ -15,9 +15,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * INTENT: the closed vocabulary of REGISTRY deliveries a Tier B case may declare — the step that
- * puts this repository's rendered skill pages where a tool other than our own installer put them,
- * run before the agent starts.
+ * INTENT: the closed vocabulary of deliveries a Tier B case may declare — the step that puts this
+ * repository's rendered skill pages in place before the agent starts: a REGISTRY tool, or our own
+ * installer run by the harness so that a case can ask what a session finds AFTER an install without
+ * the install itself being the agent's work.
  *
  * <p>A closed enum rather than a command string in {@code case.json}: a case file is data, and data
  * that can name any executable is a shell this harness does not have. Each constant owns the exact
@@ -32,7 +33,15 @@ public enum RegistryPreStep {
   CLAUDE_MARKETPLACE("claude-marketplace"),
 
   /** {@code npx skills add}: the open-standard pages installed into the project itself. */
-  NPX_SKILLS("npx-skills");
+  NPX_SKILLS("npx-skills"),
+  /**
+   * Our own installer, {@code narrativetrace init} from the built CLI jar, run by the harness in
+   * the scratch project: nothing is staged, the carrier is the one bundled with the jar — this
+   * checkout's own rendered pages — so what the case then measures is the install under test, never
+   * a published package that predates it (the ports' trap, 2026-10-10) and never the agent's own
+   * reading of the install prompt (two of three runs stopped before the install).
+   */
+  NARRATIVETRACE_INIT("narrativetrace-init");
 
   private final String id;
 
@@ -61,6 +70,9 @@ public enum RegistryPreStep {
    * carrier release.
    */
   public List<List<String>> commands(Path repoRoot, Path stagedSnapshot) {
+    if (this == NARRATIVETRACE_INIT) {
+      return List.of(List.of("java", "-jar", CliJar.require(repoRoot).toString(), "init"));
+    }
     List<List<String>> all =
         new ArrayList<>(StagedSnapshot.stagingCommands(repoRoot, stagedSnapshot));
     all.addAll(registryCommands(stagedSnapshot));
@@ -79,6 +91,7 @@ public enum RegistryPreStep {
               List.of("claude", "plugin", "details", installId));
       case NPX_SKILLS ->
           List.of(List.of("npx", "--yes", "skills", "add", stagedSnapshot.toString(), "-y"));
+      case NARRATIVETRACE_INIT -> throw new IllegalStateException("the installer stages nothing");
     };
   }
 }

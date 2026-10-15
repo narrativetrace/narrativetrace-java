@@ -60,6 +60,45 @@ class I18nManifestSupportTest {
     }
 
     @Test
+    fun languageDirectoriesAreTheDeclaredOnesOnly() {
+        writeManifest(
+            """
+            {
+              "sourceLanguage": "en",
+              "languages": [
+                {"code": "es", "displayName": "Español", "directory": "documentation/es",
+                 "index": "documentation/LEAME.md", "rootReadme": "LEAME.md", "status": "in-progress"}
+              ],
+              "documents": []
+            }
+            """.trimIndent()
+        )
+        repo.resolve("documentation/es").mkdirs()
+        repo.resolve("documentation/recipes").mkdirs()
+
+        val dirs = I18nManifestSupport.languageDirectories(repo)
+
+        assertEquals(setOf(repo.resolve("documentation/es").canonicalFile), dirs)
+    }
+
+    @Test
+    fun languageDirectoriesWithoutAManifestAreEveryDirectoryButI18n() {
+        repo.resolve("documentation/es").mkdirs()
+        repo.resolve("documentation/i18n").mkdirs()
+        repo.resolve("documentation/recipes").mkdirs()
+
+        val dirs = I18nManifestSupport.languageDirectories(repo)
+
+        assertEquals(
+            setOf(
+                repo.resolve("documentation/es").canonicalFile,
+                repo.resolve("documentation/recipes").canonicalFile
+            ),
+            dirs
+        )
+    }
+
+    @Test
     fun loadOrNullRejectsAnUnknownStatusValue() {
         writeManifest(
             """

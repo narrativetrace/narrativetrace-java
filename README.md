@@ -129,7 +129,7 @@ diff fails the build instead of slipping by.
 
 Run your code and get execution traces like this:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-MECHANICAL-KB", quantity: 2)
   CustomerService.findCustomer(customerId: "C-1234") -> Customer[id=C-1234, name=Alice Johnson, tier=GOLD]
   ProductCatalogService.lookupPrice(productId: "SKU-MECHANICAL-KB") -> 89.99
@@ -140,7 +140,7 @@ OrderService.placeOrder(customerId: "C-1234", productId: "SKU-MECHANICAL-KB", qu
 
 **When something goes wrong**, the trace makes the bug visible:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-BROKE", productId: "SKU-MOUSE-PAD", quantity: 3)
   CustomerService.findCustomer(customerId: "C-BROKE") -> Customer[id=C-BROKE, name=Charlie Broke, tier=STANDARD]
   ProductCatalogService.lookupPrice(productId: "SKU-MOUSE-PAD") -> 24.99
@@ -157,7 +157,7 @@ world" flow, traced twice — once with domain names, once with generic ones.
 
 **Domain names:**
 
-```
+```text
 WorldServer.playerJoined(playerName: "Steve")
   WorldGenerator.generateChunk(x: 0, z: 0) -> Chunk(x: 0, z: 0, biome: "plains")
   PlayerInventory.addItem(item: OAK_LOG, quantity: 4) -> true
@@ -167,7 +167,7 @@ WorldServer.playerJoined(playerName: "Steve")
 
 **Generic names:**
 
-```
+```text
 GameManager.handle(input: "Steve")
   DataProcessor.process(a: 0, b: 0) -> DataResult(a: 0, b: 0, tag: "plains")
   StateManager.update(type: 1, count: 4) -> true
@@ -246,9 +246,10 @@ The shortest path from "interesting library" to "I saw a useful trace of my own
 code" is the Gradle plugin plus a JUnit 5 test. Java 17+
 ([full compatibility matrix](documentation/installation-guide.md#compatibility)).
 
-**1. Apply the plugin.** It adds the dependencies, sets the `-parameters`
-compiler flag (without it traces show `arg0`, `arg1`), configures the test JVM
-and supplies the Jupiter engine.
+**1. Apply the plugin.** It adds the dependencies to the test classpath (its
+`scope` defaults to `"test"`; set `"production"` for a traced `main`), sets the
+`-parameters` compiler flag (without it traces show `arg0`, `arg1`), configures
+the test JVM and supplies the Jupiter engine.
 
 Give Maven Central the first look in `pluginManagement` — the plugin and its marker publish to
 Maven Central with every release, while the Gradle Plugin Portal listing follows Gradle's
@@ -268,7 +269,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -336,7 +337,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.3.0`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.4.0`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
@@ -429,7 +430,7 @@ domain-specific ones like `reserveInventory` or `customerId` score high, and
 traces: every run compares each scenario's *structure*
 against the last green run and ends the suite with one line:
 
-```
+```text
 NarrativeTrace — Suite complete
   5 scenarios recorded
   Clarity: 100% high | 0% moderate | 0% low
@@ -553,6 +554,7 @@ single-file reference, and every published module ships a Javadoc-rich source ja
 Start here:
 
 - [See a trace in 60 seconds](documentation/sixty-seconds.md) — the smallest path to a real trace: one file, one run, real output pasted in
+- [Recipes](documentation/recipes/) — one page per problem, in the words you would type, each carrying the code and the real output of a run this build performs
 - [Installation Guide](documentation/installation-guide.md) — dependencies, every integration path, how capture works, trace output setup
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which module you need, as a decision diagram
 - [Configuration Guide](documentation/configuration-guide.md) — tracing levels, JUnit/Gradle/Spring/Micronaut/SLF4J config. The tracing level and your logger's level are two independent dials on two different pipeline paths — see the [FAQ](documentation/faq.md) if raising or lowering one isn't doing what you expect.

@@ -46,10 +46,17 @@ import org.junit.jupiter.api.io.TempDir;
 class SemgrepScanTaskTest {
 
   private static final File PROJECT_DIR = new File(System.getProperty("projectDir"));
-  private static final File STATUS_FILE =
-      new File(PROJECT_DIR, "build/reports/security-scans/semgrep.status");
-  private static final File REPORT_FILE =
-      new File(PROJECT_DIR, "build/reports/semgrep/results.json");
+
+  @TempDir static Path buildRoot;
+
+  /** {@code buildRoot} is injected after static initialization, so these cannot be constants. */
+  private static File statusFile() {
+    return new File(buildRoot.toFile(), "build/reports/security-scans/semgrep.status");
+  }
+
+  private static File reportFile() {
+    return new File(buildRoot.toFile(), "build/reports/semgrep/results.json");
+  }
 
   private static final String TWO_FINDINGS =
       "{\"results\":[{\"check_id\":\"java.lang.security.audit.crypto.use-of-md5.use-of-md5\","
@@ -71,13 +78,13 @@ class SemgrepScanTaskTest {
     // restore, and that absence IS the value these fields carry — restore() already treats null
     // as "delete, don't write".
     previousStatus =
-        STATUS_FILE.isFile() ? Files.readAllBytes(STATUS_FILE.toPath()) : null; // NOPMD
+        statusFile().isFile() ? Files.readAllBytes(statusFile().toPath()) : null; // NOPMD
     previousReport =
-        REPORT_FILE.isFile() ? Files.readAllBytes(REPORT_FILE.toPath()) : null; // NOPMD
+        reportFile().isFile() ? Files.readAllBytes(reportFile().toPath()) : null; // NOPMD
     // Clean slate: a status left by an earlier real run (e.g. `skipped: binary not on PATH`)
     // would otherwise be indistinguishable from what THIS build wrote.
-    Files.deleteIfExists(STATUS_FILE.toPath());
-    Files.deleteIfExists(REPORT_FILE.toPath());
+    Files.deleteIfExists(statusFile().toPath());
+    Files.deleteIfExists(reportFile().toPath());
   }
 
   /**
@@ -86,8 +93,8 @@ class SemgrepScanTaskTest {
    */
   @AfterEach
   void restoreRealScanState() throws IOException {
-    restore(STATUS_FILE, previousStatus);
-    restore(REPORT_FILE, previousReport);
+    restore(statusFile(), previousStatus);
+    restore(reportFile(), previousReport);
   }
 
   private static void restore(File file, byte[] previous) throws IOException {
@@ -116,7 +123,7 @@ class SemgrepScanTaskTest {
             "java.lang.security.audit.command-injection-process-builder —"
                 + " src/main/java/Shell.java:12")
         .doesNotContain("scan itself failed");
-    assertThat(STATUS_FILE).as("findings are not a clean run").doesNotExist();
+    assertThat(statusFile()).as("findings are not a clean run").doesNotExist();
   }
 
   // --- clean --------------------------------------------------------------
@@ -129,7 +136,7 @@ class SemgrepScanTaskTest {
 
     assertThat(result.task(":semgrepScan").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
     assertThat(result.getOutput()).contains("semgrepScan: clean");
-    assertThat(Files.readString(STATUS_FILE.toPath()).strip()).isEqualTo("ran-clean");
+    assertThat(Files.readString(statusFile().toPath()).strip()).isEqualTo("ran-clean");
   }
 
   // --- scanner error ------------------------------------------------------
@@ -144,7 +151,7 @@ class SemgrepScanTaskTest {
     assertThat(result.getOutput())
         .contains("semgrepScan: the scan itself failed (exit 2)")
         .doesNotContain("finding(s)");
-    assertThat(STATUS_FILE).as("a scanner that could not run is not a clean run").doesNotExist();
+    assertThat(statusFile()).as("a scanner that could not run is not a clean run").doesNotExist();
   }
 
   /**
@@ -252,7 +259,7 @@ class SemgrepScanTaskTest {
     env.put("PATH", fakeBin + File.pathSeparator + env.getOrDefault("PATH", ""));
     return GradleRunner.create()
         .withProjectDir(PROJECT_DIR)
-        .withArguments(List.of("semgrepScan", "-q"))
+        .withArguments(List.of("semgrepScan", "-q", "-Pnarrativetrace.buildRoot=" + buildRoot))
         .withEnvironment(env);
   }
 }

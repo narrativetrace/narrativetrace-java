@@ -1,4 +1,4 @@
-<!-- source: README.md blob 4db9c98e095c | translated: 2026-09-22 | reviewed: - -->
+<!-- source: README.md blob 19219b53d54b | translated: 2026-10-11 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -129,7 +129,7 @@ y ese diff hace fallar el build en vez de pasar desapercibido.
 
 Ejecuta tu código y obtén trazas de ejecución como esta:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-1234", productId: "SKU-MECHANICAL-KB", quantity: 2)
   CustomerService.findCustomer(customerId: "C-1234") -> Customer[id=C-1234, name=Alice Johnson, tier=GOLD]
   ProductCatalogService.lookupPrice(productId: "SKU-MECHANICAL-KB") -> 89.99
@@ -140,7 +140,7 @@ OrderService.placeOrder(customerId: "C-1234", productId: "SKU-MECHANICAL-KB", qu
 
 **Cuando algo sale mal**, la traza hace visible el bug:
 
-```
+```text
 OrderService.placeOrder(customerId: "C-BROKE", productId: "SKU-MOUSE-PAD", quantity: 3)
   CustomerService.findCustomer(customerId: "C-BROKE") -> Customer[id=C-BROKE, name=Charlie Broke, tier=STANDARD]
   ProductCatalogService.lookupPrice(productId: "SKU-MOUSE-PAD") -> 24.99
@@ -158,7 +158,7 @@ con nombres genéricos.
 
 **Nombres de dominio:**
 
-```
+```text
 WorldServer.playerJoined(playerName: "Steve")
   WorldGenerator.generateChunk(x: 0, z: 0) -> Chunk(x: 0, z: 0, biome: "plains")
   PlayerInventory.addItem(item: OAK_LOG, quantity: 4) -> true
@@ -168,7 +168,7 @@ WorldServer.playerJoined(playerName: "Steve")
 
 **Nombres genéricos:**
 
-```
+```text
 GameManager.handle(input: "Steve")
   DataProcessor.process(a: 0, b: 0) -> DataResult(a: 0, b: 0, tag: "plains")
   StateManager.update(type: 1, count: 4) -> true
@@ -254,9 +254,10 @@ propio código» es el plugin de Gradle más una prueba de JUnit 5. Java 17+
 ([matriz de compatibilidad
 completa](documentation/es/guia-de-instalacion.md#compatibilidad)).
 
-**1. Aplica el plugin.** Añade las dependencias, activa el flag de compilador
-`-parameters` (sin él las trazas muestran `arg0`, `arg1`), configura la JVM de
-pruebas y aporta el motor de Jupiter.
+**1. Aplica el plugin.** Añade las dependencias al classpath de pruebas (su
+`scope` es `"test"` por defecto; usa `"production"` para un `main` trazado),
+activa el flag de compilador `-parameters` (sin él las trazas muestran `arg0`,
+`arg1`), configura la JVM de pruebas y aporta el motor de Jupiter.
 
 Dale a Maven Central la primera prioridad en `pluginManagement` — el plugin y su marcador se
 publican en Maven Central con cada versión, mientras que la inclusión en el Gradle Plugin Portal
@@ -276,7 +277,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.3.0"
+    id("ai.narrativetrace") version "0.4.0"
 }
 ```
 
@@ -349,7 +350,7 @@ las renderiza todas en Markdown.
 ### ¿Gradle o Maven?
 
 Los jars del runtime son artefactos Maven corrientes.
-`ai.narrativetrace:narrativetrace-core:0.3.0` y todos los módulos que lo
+`ai.narrativetrace:narrativetrace-core:0.4.0` y todos los módulos que lo
 acompañan se resuelven y funcionan exactamente igual desde un build de Maven;
 nada de la librería en sí es específico de Gradle. Lo que *sí* es específico de
 Gradle es el plugin de arriba — una comodidad que cablea por ti el flag del
@@ -446,7 +447,7 @@ fallar el build según el umbral que fijes. Aún es experimental.
 aplicada a trazas: cada ejecución compara la *estructura* de
 cada escenario con la última ejecución verde y cierra la suite con una línea:
 
-```
+```text
 NarrativeTrace — Suite complete
   5 scenarios recorded
   Clarity: 100% high | 0% moderate | 0% low
@@ -583,6 +584,7 @@ con Javadoc rico ([javadoc.io](https://javadoc.io/doc/ai.narrativetrace)).
 Empieza por aquí:
 
 - [Ve una traza en 60 segundos](documentation/sixty-seconds.md) (en inglés) — el camino más corto a una traza real: un archivo, una ejecución, salida real pegada tal cual
+- [Recetas](documentation/es/recetas/) — una página por problema, con las palabras que escribirías, cada una con el código y la salida real de una ejecución que hace esta compilación
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — dependencias, todas las vías de integración, cómo funciona la captura, configuración de la salida de trazas
 - [Choosing an Integration](documentation/choosing-an-integration.md) (en inglés) — qué módulo necesitas, como diagrama de decisión
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de JUnit/Gradle/Spring/Micronaut/SLF4J. El nivel de tracing y el nivel de tu logger son dos diales independientes en dos rutas distintas de la tubería — consulta las [Preguntas frecuentes](documentation/faq.md) (en inglés) si subir o bajar uno de los dos no hace lo que esperabas.

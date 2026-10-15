@@ -17,6 +17,8 @@
  */
 package ai.narrativetrace.tooling.init;
 
+import ai.narrativetrace.tooling.platforms.PlatformRow;
+import ai.narrativetrace.tooling.platforms.PlatformTable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -88,10 +90,49 @@ public final class ProjectStateReader {
     textOf(projectDirectory.resolve("AGENTS.md")).ifPresent(builder::agentsMd);
     textOf(projectDirectory.resolve("CLAUDE.md")).ifPresent(builder::claudeMd);
     readRuleFiles(projectDirectory, builder);
+    readPlatforms(projectDirectory, builder);
     for (SkillFlavour flavour : SkillFlavour.values()) {
       readInstallRoot(projectDirectory, flavour, maxSkillDirectories, builder);
     }
     return builder.build();
+  }
+
+  /**
+   * Which platform-table rows the project is on, and what each row's pointer file says now. The
+   * markers are exact paths and are looked up without following a link; a pointer file is read only
+   * when no element of its path is a symbolic link, because nothing is ever written through one.
+   */
+  private static void readPlatforms(Path projectDirectory, ProjectState.Builder builder) {
+    for (PlatformRow row : PlatformTable.ROWS) {
+      if (row.markerPaths().stream().anyMatch(marker -> exists(projectDirectory.resolve(marker)))) {
+        builder.detectedPlatform(row.id());
+      }
+      String pointer = row.pointer().path();
+      if (pointer.isEmpty()) {
+        continue;
+      }
+      if (behindLink(projectDirectory, pointer)) {
+        builder.pointerBehindLink(pointer);
+      } else {
+        textOf(projectDirectory.resolve(pointer))
+            .ifPresent(text -> builder.pointerFile(pointer, text));
+      }
+    }
+  }
+
+  private static boolean exists(Path path) {
+    return Files.exists(path, LinkOption.NOFOLLOW_LINKS);
+  }
+
+  private static boolean behindLink(Path projectDirectory, String relative) {
+    Path walked = projectDirectory;
+    for (Path element : Path.of(relative)) {
+      walked = walked.resolve(element);
+      if (Files.isSymbolicLink(walked)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void readRuleFiles(Path projectDirectory, ProjectState.Builder builder) {

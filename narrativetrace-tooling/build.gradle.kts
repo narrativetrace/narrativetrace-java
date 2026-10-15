@@ -65,6 +65,15 @@ tasks.withType<Test>().configureEach {
         .dir(rootProject.file("narrativetrace-skills/src/main/resources"))
         .withPropertyName("checkedInCarrier")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    // PlatformFilesDriftTest holds these to the platform table.
+    inputs
+        .files(
+            rootProject.file(".cursor/rules/narrativetrace.mdc"),
+            rootProject.file(".cursor-plugin/plugin.json"),
+            rootProject.file("documentation/use-with-your-agent.md"),
+        )
+        .withPropertyName("platformTableFiles")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     // FrameworkTableDocsTest holds both pages to the framework table.
     inputs
         .files(rootProject.file("documentation/llms-full.md"), rootProject.file("documentation/llms.txt"))
@@ -81,6 +90,17 @@ tasks.register<JavaExec>("renderFrameworkTable") {
     mainClass.set("ai.narrativetrace.tooling.frameworks.RenderFrameworkTableMain")
     classpath = sourceSets["test"].runtimeClasspath
     args(rootProject.projectDir.absolutePath, project.version.toString())
+}
+
+// Re-renders every repository file that is a view of the platform table (the Cursor plugin's one
+// rule, the docs page's table) from PlatformTable (RenderPlatformsMain); PlatformFilesDriftTest
+// fails until this has run.
+tasks.register<JavaExec>("renderPlatforms") {
+    group = "documentation"
+    description = "Re-renders the repository files that are views of the platform table"
+    mainClass.set("ai.narrativetrace.tooling.platforms.RenderPlatformsMain")
+    classpath = sourceSets["test"].runtimeClasspath
+    args(rootProject.projectDir.absolutePath)
 }
 
 // PIT runs the same suite in its own minion JVMs, and those inherit nothing from the `test` task:

@@ -26,6 +26,7 @@
 # under a daemon is not a process this script can stop, and an agent's own server may still hold
 # 8080. Requests go through python3, not curl — the trial's curl is a recording stand-in.
 set -e
+. "$(dirname "$0")/bounded.sh"
 
 service="$1"
 path="$2"
@@ -56,7 +57,7 @@ stop_the_server() {
 trap stop_the_server EXIT
 
 # Bounded, like every command here: a cold build resolves dependencies over the network.
-if ! timeout 900 ./gradlew bootJar --console=plain -q >"$work/build.txt" 2>&1; then
+if ! bounded 900 ./gradlew bootJar --console=plain -q >"$work/build.txt" 2>&1; then
   echo "\`./gradlew bootJar\` failed — the prompt says to run the program, and it does not build" >&2
   cat "$work/build.txt" >&2
   exit 1
@@ -95,7 +96,7 @@ if [ "$start_class" != "$app_class" ]; then
 fi
 
 port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
-SERVER_PORT="$port" timeout 300 java -jar "$jar" --server.port="$port" >"$log" 2>&1 &
+SERVER_PORT="$port" bounded 300 java -jar "$jar" --server.port="$port" >"$log" 2>&1 &
 server=$!
 
 # Up, then quiet: the port accepts a connection and the log has not grown for two seconds.
