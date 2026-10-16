@@ -98,6 +98,10 @@ class Context7SupportTest {
         git("config", "commit.gpgsign", "false")
     }
 
+    private fun writeVersion(version: String) {
+        repo.resolve("gradle.properties").writeText("narrativetraceVersion=$version\n")
+    }
+
     private fun tagCommit(tag: String) {
         repo.resolve("marker-$tag.txt").writeText(tag)
         git("add", "marker-$tag.txt")
@@ -111,6 +115,7 @@ class Context7SupportTest {
     fun `check is clean for a well-formed document, matching tags and tagged fences`() {
         writeSchema()
         writeDocument(validDocument)
+        writeVersion("0.1.0")
         initRepository()
         tagCommit("v0.1.0")
         writeDoc("documentation/guide.md", "# Guide\n\n```text\nhello\n```\n")
@@ -203,11 +208,80 @@ class Context7SupportTest {
     }
 
     @Test
+    fun `the build's own version is listed before its tag exists`() {
+        // B-82: the release tag's tree must already list the version being released — the tag is
+        // minted on that very tree, so the entry can only come before it. The rule compares against
+        // the v* tags PLUS this build's version (gradle.properties, the single version source).
+        writeSchema()
+        writeDocument(
+            """{"projectTitle": "x", "description": "0123456789", "previousVersions": [{"tag": "v0.3.0"}, {"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}"""
+        )
+        writeVersion("0.3.0")
+        initRepository()
+        tagCommit("v0.1.0")
+        tagCommit("v0.2.0")
+
+        val problems = Context7Support.check(repo)
+
+        assertTrue(problems.none { it.contains("previousVersions") }, problems.toString())
+    }
+
+    @Test
+    fun `a file that omits the build's own version is reported`() {
+        writeSchema()
+        writeDocument(
+            """{"projectTitle": "x", "description": "0123456789", "previousVersions": [{"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}"""
+        )
+        writeVersion("0.3.0")
+        initRepository()
+        tagCommit("v0.1.0")
+        tagCommit("v0.2.0")
+
+        val problems = Context7Support.check(repo)
+
+        assertTrue(
+            problems.any { it.contains("previousVersions") && it.contains("v0.3.0") },
+            problems.toString(),
+        )
+    }
+
+    @Test
+    fun `the release tag's own checkout is clean when the file lists it`() {
+        // The tag-triggered release run: the checkout holds the full tag list including the tag
+        // being released, and the file lists that same version — no drift.
+        writeSchema()
+        writeDocument(
+            """{"projectTitle": "x", "description": "0123456789", "previousVersions": [{"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}"""
+        )
+        writeVersion("0.2.0")
+        initRepository()
+        tagCommit("v0.1.0")
+        tagCommit("v0.2.0")
+
+        val problems = Context7Support.check(repo)
+
+        assertTrue(problems.none { it.contains("previousVersions") }, problems.toString())
+    }
+
+    @Test
+    fun `a tagged checkout without the version source is a misconfigured gate, not a skip`() {
+        writeSchema()
+        writeDocument(
+            """{"projectTitle": "x", "description": "0123456789", "previousVersions": [{"tag": "v0.1.0"}]}"""
+        )
+        initRepository()
+        tagCommit("v0.1.0")
+
+        assertThrows(IllegalStateException::class.java) { Context7Support.check(repo) }
+    }
+
+    @Test
     fun `previousVersions must equal the git tags, newest first`() {
         writeSchema()
         writeDocument(
             """{"projectTitle": "x", "description": "0123456789", "previousVersions": [{"tag": "v9.9.9"}]}"""
         )
+        writeVersion("0.2.0")
         initRepository()
         tagCommit("v0.1.0")
         tagCommit("v0.2.0")

@@ -431,7 +431,7 @@ tasks.register("demoWiringCheck") {
 // it to coding agents. The root context7.json tells it where to look; this task keeps it honest,
 // offline, every commit — see Context7Support's own doc comment for the three checks it bundles.
 tasks.register("context7Check") {
-    description = "Validates context7.json against its schema, previousVersions against git tags, and every indexed fence for a language tag"
+    description = "Validates context7.json against its schema, previousVersions against the v* tags plus this build's version, and every indexed fence for a language tag"
     group = "verification"
     doLast {
         val problems = ai.narrativetrace.build.Context7Support.check(rootDir)
@@ -441,7 +441,7 @@ tasks.register("context7Check") {
             )
         }
         if (ai.narrativetrace.build.Context7Support.previousVersionsChecked(rootDir)) {
-            println("context7Check: context7.json is schema-valid, previousVersions matches git tags, every indexed fence is tagged")
+            println("context7Check: context7.json is schema-valid, previousVersions matches the v* tags plus this build's version, every indexed fence is tagged")
         } else {
             println("context7Check: context7.json is schema-valid, every indexed fence is tagged; no v* tags in this checkout — previousVersions drift not checked")
         }

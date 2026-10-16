@@ -177,16 +177,47 @@ object Context7Support {
         if (tags.isEmpty()) {
             return emptyList()
         }
+        // The release tag is minted on a tree that must already list it (B-82), so the rule is the
+        // v* tags PLUS this build's own version — before its tag exists and, on the tag's own
+        // checkout, once it does.
+        val ownTag = "v" + buildVersion(repoRoot)
+        val expected = (tags + ownTag).distinct().sortedWith(newestFirst)
         val declared = (document["previousVersions"] as? List<*>).orEmpty()
             .mapNotNull { (it as? Map<*, *>)?.get("tag") as? String }
-        if (declared == tags) {
+        if (declared == expected) {
             return emptyList()
         }
         return listOf(
-            "context7.json: previousVersions $declared does not match " +
-                "`git tag --list 'v*' --sort=-v:refname` $tags"
+            "context7.json: previousVersions $declared does not match `git tag --list 'v*'` plus this " +
+                "build's version $ownTag, newest first: $expected"
         )
     }
+
+    /** `gradle.properties#narrativetraceVersion`, the single version source; absent = a misconfigured gate. */
+    private fun buildVersion(repoRoot: File): String {
+        val properties = repoRoot.resolve("gradle.properties")
+        val line = properties.takeIf { it.isFile }?.readLines()
+            ?.firstOrNull { it.trimStart().startsWith("narrativetraceVersion=") }
+            ?: throw IllegalStateException(
+                "context7Check: $properties carries no narrativetraceVersion — the previousVersions rule needs the build's version"
+            )
+        return line.substringAfter('=').trim()
+    }
+
+    /** `git tag --sort=-v:refname` order for `v<major>.<minor>.<patch>` tags: numeric, newest first. */
+    private val newestFirst = Comparator<String> { left, right ->
+        val l = versionNumbers(left)
+        val r = versionNumbers(right)
+        var order = 0
+        for (i in 0 until maxOf(l.size, r.size)) {
+            order = (r.getOrNull(i) ?: 0).compareTo(l.getOrNull(i) ?: 0)
+            if (order != 0) break
+        }
+        if (order != 0) order else right.compareTo(left)
+    }
+
+    private fun versionNumbers(tag: String): List<Int> =
+        tag.removePrefix("v").split('.').map { part -> part.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
 
     // ---------------------------------------------------------------------------------------
     // The fence audit — scoped to exactly what context7.json's own folders/excludeFolders/
