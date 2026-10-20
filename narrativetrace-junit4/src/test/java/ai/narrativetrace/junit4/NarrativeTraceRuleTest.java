@@ -79,6 +79,29 @@ class NarrativeTraceRuleTest {
   }
 
   @Test
+  void failedPrintsTheFullTraceWhenOutputIsDisabledSoNoDeltaExists() {
+    System.setProperty("narrativetrace.output", "false");
+    try {
+      var rule = new NarrativeTraceRule();
+      var out = new ByteArrayOutputStream();
+      rule.setOut(new PrintStream(out));
+      var desc = Description.createTestDescription(getClass(), "customerPlacesOrder");
+      rule.starting(desc);
+      rule.context().enterMethod(new MethodSignature("Service", "doWork", List.of()));
+      rule.context().exitMethodWithReturn("ok");
+
+      rule.failed(new AssertionError("expected"), desc);
+      rule.finished(desc);
+
+      var output = out.toString();
+      assertThat(output).contains("Scenario: Customer places order");
+      assertThat(output).contains("Service.doWork");
+    } finally {
+      System.clearProperty("narrativetrace.output");
+    }
+  }
+
+  @Test
   void failedDoesNothingWhenTraceIsEmpty() {
     var rule = new NarrativeTraceRule();
     var out = new ByteArrayOutputStream();

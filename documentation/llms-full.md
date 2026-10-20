@@ -74,7 +74,11 @@ are wiring conveniences around this path — they decide *what* gets wrapped, no
 `ClassFileTransformer`. Classes in the packages you name are rewritten as they load: every
 non-private, non-abstract method gets the same enter/exit calls compiled into its body. No
 interfaces, no wrapping, nothing to wire, and nothing outside the matched packages is
-touched.
+touched. One exception, and it is a linkage fact rather than a policy: the injected calls
+name `ai.narrativetrace.agent.AgentRuntime`, so a matched class whose own class loader
+cannot resolve that type — a bootstrap-injected class, an isolated loader that does not
+delegate to the agent's — loads **uninstrumented**, and the agent reports that loader once
+on `stderr`. Weaving it would turn the host's own call into a `NoClassDefFoundError`.
 
 What happens to a captured call is identical on both paths:
 
@@ -126,10 +130,15 @@ NarrativeTrace and other libraries that wrap the same methods (AOP proxies, cont
 libraries, container interceptors, other agents) stack, and they do not know about each
 other. Nesting order can change how a trace reads; it never changes what a method returns
 or throws, because recording is exception-isolated on every path and never replaces an
-outcome. Scoping is include-only today — `packages=` for the agent, base packages for
-Spring and Micronaut, all matched on a proper delimiter boundary so `com.acme` never
-catches `com.acmeExtra` — with no exclude list yet, and `@NotTraced` applies to parameters,
-fields and record components rather than to methods. See [Choosing an
+outcome. Scoping is include-only — `packages=` for the agent, base packages for Spring and
+Micronaut, all matched on a proper delimiter boundary so `com.acme` never catches
+`com.acmeExtra`. The agent alone also has two exclusion lists on top of that scoping: a
+built-in, structural one (JDK dynamic proxies, generator-shaped class names, bridge and
+synthetic methods — never configurable) and a configurable one named by package
+(`exclude=<pkg1>;<pkg2>` beside `packages=`, nine-entry shipped default, `exclude=` always
+wins over `packages=`); see [Installation Guide §
+Exclude packages](installation-guide.md#exclude-packages-excludepkg1pkg2). `@NotTraced`
+applies to parameters, fields and record components rather than to methods. See [Choosing an
 Integration § Stacking with other
 wrappers](choosing-an-integration.md#stacking-with-other-wrappers) for the
 per-mechanism detail.
@@ -142,7 +151,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 ```
 
@@ -196,9 +205,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.1")
 }
 ```
 
@@ -700,7 +709,7 @@ test classpath, not only NarrativeTrace's; `@ExtendWith` remains the explicit pe
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 
 narrativeTrace {
@@ -762,7 +771,7 @@ java -javaagent:narrativetrace-agent.jar=packages=com.example.app.*;com.example.
 
 - Package separators: semicolons (`;`)
 - Wildcards: `com.example.*` matches all subpackages
-- Without CLI args, falls back to `narrativetrace.properties` on classpath
+- Without CLI args, falls back to `narrativetrace.properties` and `-D` properties on classpath
 
 ### Extension points
 
@@ -818,15 +827,15 @@ Rendered from the doctor's own framework table. For every row it can observe, `n
 
 | Framework | Detected by | Add (Gradle plugin) | Add (plain Gradle) | Wiring | Doctor check |
 |---|---|---|---|---|---|
-| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
-| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
-| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
-| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
-| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
-| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
-| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
-| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
-| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.4.0` | a -javaagent JVM flag the owner adds | none — runtime-only |
+| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.4.1")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
+| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.1")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
+| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.1")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
+| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.4.1")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
+| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.1")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
+| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.1")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
+| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.1")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
+| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.1")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
+| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.4.1` | a -javaagent JVM flag the owner adds | none — runtime-only |
 
 #### Spring — wiring
 
@@ -1140,12 +1149,19 @@ Enables automatic trace propagation with Spring Boot 3, Reactor, and `@Async`.
 ### Java agent
 
 ```bash
-java -javaagent:narrativetrace-agent.jar=packages=com.example.* -jar app.jar
+java -javaagent:narrativetrace-agent.jar=packages=com.example.*,exclude=org.mockito -jar app.jar
 ```
 
 - Instruments every non-private, non-abstract method of matching classes
 - Uses ASM AdviceAdapter with try-catch-rethrow
 - No source code changes required
+- Skips a matched class whose class loader cannot resolve `AgentRuntime` (bootstrap-injected
+  or isolated loaders); it loads uninstrumented and the loader is reported once
+- Skips JDK dynamic proxies, generator-shaped class names, and bridge/synthetic methods
+  unconditionally (list 1, structural, silent)
+- `exclude=<pkg1>;<pkg2>` beside `packages=` excludes library/framework internals by package
+  (list 2); shipped default of nine prefixes, replaced rather than extended by an explicit
+  `exclude=`; `exclude=` always wins over `packages=`
 
 ---
 

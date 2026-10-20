@@ -513,6 +513,51 @@ class NarrativeTracePluginFunctionalTest {
   }
 
   @Test
+  void agentModeIncludesExcludeInConfig(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n"
+            + "    mode.set(\"agent\")\n"
+            + "    agent {\n"
+            + "        packages.set(listOf(\"com.example.app\"))\n"
+            + "        exclude.set(listOf(\"com.example.generated\"))\n"
+            + "    }\n"
+            + "}\n"
+            + "tasks.register(\"checkAgentExclude\") {\n"
+            + "    doLast {\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        println(\"EXCLUDE: \" + ext.agent.exclude.get())\n"
+            + "    }\n"
+            + "}\n");
+
+    var result = runGradle(projectDir, "checkAgentExclude");
+
+    assertThat(result.getOutput()).contains("com.example.generated");
+  }
+
+  @Test
+  void agentModeWithNoExcludeDefaultsToAnEmptyDslList(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n"
+            + "    mode.set(\"agent\")\n"
+            + "    agent { packages.set(listOf(\"com.example.app\")) }\n"
+            + "}\n"
+            + "tasks.register(\"checkAgentExclude\") {\n"
+            + "    doLast {\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        println(\"EXCLUDE: \" + ext.agent.exclude.get())\n"
+            + "    }\n"
+            + "}\n");
+
+    var result = runGradle(projectDir, "checkAgentExclude");
+
+    assertThat(result.getOutput()).contains("EXCLUDE: []");
+  }
+
+  @Test
   void proxyModeDoesNotCreateAgentConfiguration(@TempDir Path projectDir) throws IOException {
     writeBuildFile(
         projectDir,

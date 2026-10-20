@@ -45,6 +45,41 @@ class EvalRunnerArgsTest {
     assertThat(args.agentCommandOverride()).isEmpty();
   }
 
+  /**
+   * B-99: {@code --model haiku} must resolve to the full id BEFORE {@code args.model()} is read by
+   * anything — the agent command this runner builds and the ledger row {@link EvalTrial} appends
+   * both read {@code args.model()}, so resolving it once here is what keeps the two from drifting.
+   */
+  @Test
+  void resolvesAClaudeModelShorthandToItsFullIdAtParseTime() {
+    EvalRunnerArgs args =
+        EvalRunnerArgs.parse(
+            new String[] {
+              "--skill", "s", "--case", "c", "--platform", "claude", "--model", "haiku"
+            });
+    assertThat(args.model()).isEqualTo("claude-haiku-5-5");
+  }
+
+  @Test
+  void rejectsAnUnknownClaudeModelShorthand() {
+    assertThatThrownBy(
+            () ->
+                EvalRunnerArgs.parse(
+                    new String[] {
+                      "--skill", "s", "--case", "c", "--platform", "claude", "--model", "sonnet"
+                    }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("sonnet");
+  }
+
+  @Test
+  void leavesANonClaudePlatformsModelUnresolved() {
+    EvalRunnerArgs args =
+        EvalRunnerArgs.parse(
+            new String[] {"--skill", "s", "--case", "c", "--platform", "codex", "--model", "mini"});
+    assertThat(args.model()).isEqualTo("mini");
+  }
+
   @Test
   void rejectsAMissingRequiredFlag() {
     assertThatThrownBy(

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 1a3d85494f8a | translated: 2026-09-18 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 644751191657 | translated: 2026-10-20 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -57,6 +57,7 @@ narrativeTrace {
 
     agent {                                    // relevante apenas quando mode = "agent"
         packages.set(listOf("com.example.app"))
+        exclude.set(listOf("org.mockito"))     // padrão: a lista embutida de nove prefixos
     }
 
     clarity {
@@ -155,6 +156,11 @@ Mudanças de nível em tempo de execução são suportadas:
 ```java
 config.setLevel(TracingLevel.ERRORS);
 ```
+
+Quando o agente Java (§3) é anexado sob a extensão do `narrativetrace-junit5` ou as regras do
+`narrativetrace-junit4`, suas capturas fluem pelo mesmo `NarrativeTraceConfig` por teste, então o
+nível configurado para um teste rege as chamadas do agente exatamente como rege uma chamada
+rastreada por proxy.
 
 ### Estratégias de propagação de contexto
 
@@ -460,6 +466,13 @@ ausente do texto `.nt`.
 
 Para apps Java standalone e o agente de bytecode, `ConfigResolver` carrega a configuração a partir do classpath.
 
+Anexado a uma JVM de testes junto com `narrativetrace-junit5`/`narrativetrace-junit4` (inclusive via
+`mode.set("agent")` do plugin Gradle), as capturas do agente são roteadas para o contexto próprio por
+teste da extensão ou regra do JUnit, então uma classe que o agente teceu em tempo de carregamento
+escreve os mesmos arquivos por teste de Markdown/estrutural/JSON/diagrama que um teste rastreado por
+proxy — sem código do NarrativeTrace na classe instrumentada. Veja o
+[guia de instalação](guia-de-instalacao.md#opção-e-agente-java-sem-wiring-de-proxy).
+
 Ordem de resolução:
 
 1. Propriedades do sistema (maior prioridade)
@@ -526,6 +539,25 @@ servers): cada jar listado — diretórios são expandidos para os jars que
 contêm — é anexado à busca do class loader do sistema antes de o tracing
 começar. Um caminho que não existe falha rápido no momento do attach.
 Também disponível como o argumento de agente `loggingJars=`.
+
+Uma classe da qual o próprio runtime do agente não é visível — uma injetada no
+class loader bootstrap, ou definida por um loader isolado que não delega ao do
+agente — carrega **sem instrumentação** independentemente de como o filtro de
+pacotes esteja escrito, porque o bytecode instrumentado chama
+`ai.narrativetrace.agent.AgentRuntime` pelo nome. O agente reporta cada um
+desses loaders uma vez no `stderr`; nada mais na JVM é afetado.
+
+Duas exclusões mais se somam a essa, detalhadas no
+[guia de instalação](guia-de-instalacao.md#classes-geradas-e-feitas-pelo-compilador-nunca-são-instrumentadas):
+uma lista nativa e estrutural, nunca configurável (proxies dinâmicos JDK,
+nomes de classe com formato de gerador, métodos bridge e sintéticos), e uma
+lista configurável nomeada por pacote — `exclude=<pkg1>;<pkg2>` ao lado de
+`packages=`, também disponível como `narrativetrace.exclude` no caminho de
+fallback, com uma lista padrão embutida de nove prefixos (`org.mockito`,
+`net.bytebuddy`, `org.junit`, `org.testng`, `net.sf.cglib`,
+`org.springframework.cglib`, `org.aspectj`, `datadog`,
+`io.opentelemetry.javaagent`) que um `exclude=` explícito substitui, em vez
+de estender.
 
 ### Dimensionando o buffer de eventos
 
@@ -776,7 +808,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.1")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.

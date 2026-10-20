@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 4e0d5c1dac94 | translated: 2026-09-20 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob b09fd1eb7499 | translated: 2026-10-20 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -98,7 +98,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 ```
 
@@ -155,23 +155,23 @@ precisa.
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
 
     // Integrações opcionais
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.1")  // para JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.1")
 }
 ```
 
@@ -295,7 +295,10 @@ java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.* -jar your-
 
 Use isso quando você quiser instrumentação de bytecode para classes sob
 prefixos de pacote selecionados. Quando nenhum argumento de CLI é fornecido,
-o agente recorre a `narrativetrace.properties` no classpath.
+o agente recorre a `narrativetrace.properties` no classpath. Anexado a uma JVM de testes que também
+carrega a extensão do `narrativetrace-junit5` ou as regras do `narrativetrace-junit4`, as capturas
+do agente chegam aos mesmos arquivos por teste que um teste rastreado por proxy produz — sem proxy,
+sem anotação na classe instrumentada (veja [Guia de configuração §3](guia-de-configuracao.md#3-configuração-para-java-puro--agente-narrativetraceproperties)).
 
 Formato do argumento do agente: `packages=<pkg1>;<pkg2>;...`
 
@@ -341,7 +344,97 @@ soluções de uma linha, dependendo do que você quer:
 | Nenhuma narração | Anexe com `loggerName=` (vazio), ou defina `-Dnarrativetrace.narration=off` |
 
 Com a narração desligada, o agente nunca toca no SLF4J — ele inicia em
-silêncio.
+silêncio. **Sem um provedor SLF4J no classpath, o agente também fica em
+silêncio** — ele continua capturando, mas a narração vai para um logger NOP.
+
+#### Classes que não enxergam o runtime do agente carregam sem instrumentação
+
+Casar com o filtro de pacotes é necessário, mas não suficiente. O bytecode
+instrumentado chama `ai.narrativetrace.agent.AgentRuntime` pelo nome, então uma
+classe só é tecida quando o class loader que a definiu consegue resolver esse
+tipo. Dois tipos de classe não conseguem:
+
+- **classes injetadas no bootstrap** — o mock maker inline do mockito, por
+  exemplo, injeta seu despachante de métodos no class loader bootstrap
+- **loaders isolados** que não delegam ao loader pelo qual o agente chegou
+
+Essas carregam sem instrumentação, e o agente diz isso uma vez por loader:
+
+```text
+narrativetrace-agent: cannot instrument org/example/Injected (ai.narrativetrace.agent.AgentRuntime is not visible from the bootstrap class loader); classes from that loader load uninstrumented
+```
+
+Uma vez por loader, nunca uma vez por classe — um loader quente não deve inundar
+o seu fluxo de erros. Todo o resto na mesma JVM continua sendo rastreado
+normalmente; se as classes que importam para você estão entre as não
+instrumentadas, estreite `packages=` para que o filtro pare de casar com elas,
+ou rastreie-as pelo proxy.
+
+#### Classes geradas e feitas pelo compilador nunca são instrumentadas
+
+Algumas classes dentro de um pacote correspondido nunca são uma fronteira de
+negócio — são bytecode que um gerador ou o compilador fez, não código que
+você escreveu. Essas são excluídas incondicionalmente, sem nenhum
+interruptor para reativá-las:
+
+- um proxy dinâmico JDK (`$Proxy0`, `$Proxy17`, …)
+- uma classe cujo nome carrega a marca própria de um gerador: `$$` (o
+  `$$EnhancerByCGLIB$$` do CGLIB, o `$$SpringCGLIB$$` do Spring, a classe
+  oculta própria de uma lambda), `$ByteBuddy$` (a nomenclatura padrão do
+  Byte Buddy), ou `$MockitoMock$` (o mock maker inline do Mockito)
+- uma classe oculta, pelo seu sufixo `/0x…` atribuído pela JVM
+- um método bridge ou um método sintético — uma duplicata gerada pelo
+  compilador de um método real, ou um acessor que ninguém escreveu
+
+Isso é silencioso — nenhuma linha no `stderr` — porque é o caso esperado e
+estrutural; a pertinência nunca depende do nome de pacote de um fornecedor,
+então adicionar uma nova biblioteca de mocking ou de proxy às suas
+dependências não exige nenhuma mudança de configuração aqui.
+
+#### Excluir pacotes: `exclude=<pkg1>;<pkg2>`
+
+Internos de bibliotecas e frameworks — nunca sua própria fronteira de
+negócio, mas nomeados por pacote em vez de por forma — são excluídos ao
+lado de `packages=`:
+
+```bash
+java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.*,exclude=org.mockito -jar your-app.jar
+```
+
+`exclude=` sempre vence: uma classe que corresponde tanto a `packages=`
+quanto a `exclude=` não é instrumentada, mesmo quando o pacote excluído está
+dentro de um pacote correspondido (`packages=com.example`,
+`exclude=com.example.generated` — uma classe sob `com.example.generated`
+não é instrumentada; todo o resto sob `com.example` continua sendo). Lista
+padrão embutida, aplicada sempre que `exclude=` (e `narrativetrace.exclude`
+no caminho de fallback por propriedades) estiver totalmente ausente:
+
+| Prefixo | Motivo |
+|---|---|
+| `org.mockito` | O dispatcher da biblioteca de mocking e as subclasses de mock geradas |
+| `net.bytebuddy` | O gerador de código por trás do Mockito, do Hibernate e de muitas ferramentas de proxy |
+| `org.junit` | Helpers próprios do test runner |
+| `org.testng` | Helpers do outro test runner JVM mainstream |
+| `net.sf.cglib` | Internos próprios do CGLIB clássico |
+| `org.springframework.cglib` | O CGLIB reempacotado pelo Spring |
+| `org.aspectj` | O runtime de outro weaver |
+| `datadog` | O runtime de outro agente APM — evita instrumentação recursiva quando implantado junto |
+| `io.opentelemetry.javaagent` | O outro agente APM mais provável de ser implantado junto |
+
+A presença da chave decide: `exclude=` ausente significa que esse padrão
+se aplica; `exclude=` presente — mesmo sem nada depois — declara a lista
+inteira explicitamente, substituindo o padrão (vazio desativa a lista 2
+por completo). Para estender o padrão em vez de
+substituí-lo, copie esses nove prefixos para o seu próprio valor de
+`exclude=` e adicione os seus junto com eles. Respeita delimitadores como
+`packages=` (`org.acme` nunca corresponde a `org.acmeExtra`); uma chave
+`exclude=` duplicada é rejeitada como uma chave `packages=` duplicada. Uma
+classe correspondida e excluída é reportada uma vez por prefixo excluído,
+nunca uma vez por classe:
+
+```text
+narrativetrace-agent: cannot instrument org/mockito/internal/Foo (excluded package org/mockito/); classes under that package load uninstrumented
+```
 
 
 ## 4. Configure a saída de traces

@@ -88,3 +88,51 @@ tasks.register<JavaExec>("renderSkills") {
     classpath = sourceSets["main"].runtimeClasspath
     args(rootProject.projectDir.absolutePath)
 }
+
+// The OpenAI plugin directory's package: built from a release tag only (release rule: "ships with
+// releases only"), by hand, never per commit and never a release.yml step — not wired into
+// `check`. renderOpenAiPackage stages build/openai-plugin/ (plugin.json WITH the release version,
+// the drift-pinned .agents/skills tree, the two committed listing assets); openAiPluginZip zips
+// that tree reproducibly; checkOpenAiPluginZip opens the built ZIP and asserts its entries equal
+// OpenAiPackageLayout's derived list (release rule 5: derived from the build, never a glob), the
+// version is semantic and matches this build, every manifest path resolves to a real entry, each
+// icon is square and within the vendor's size bounds, and no hooks/mcp.json/.app.json/.class entry
+// is present.
+val openAiPluginVersion = providers.gradleProperty("narrativetraceVersion")
+val openAiPluginStaging = layout.buildDirectory.dir("openai-plugin")
+
+val renderOpenAiPackage =
+    tasks.register<JavaExec>("renderOpenAiPackage") {
+        group = "documentation"
+        description = "Stages the OpenAI plugin package tree under build/openai-plugin/"
+        mainClass.set("ai.narrativetrace.skills.render.OpenAiPackageMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        args(
+            rootProject.projectDir.absolutePath,
+            openAiPluginStaging.get().asFile.absolutePath,
+            openAiPluginVersion.get(),
+        )
+    }
+
+val openAiPluginZip =
+    tasks.register<Zip>("openAiPluginZip") {
+        group = "distribution"
+        description = "Zips the staged OpenAI plugin package, reproducibly"
+        dependsOn(renderOpenAiPackage)
+        from(openAiPluginStaging)
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
+        archiveFileName.set("narrativetrace-java-openai-plugin-${openAiPluginVersion.get()}.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    }
+
+val checkOpenAiPluginZip =
+    tasks.register<JavaExec>("checkOpenAiPluginZip") {
+        group = "verification"
+        description = "Opens the built OpenAI plugin ZIP and checks it against the derived layout"
+        mainClass.set("ai.narrativetrace.skills.render.OpenAiPackageCheckMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        args(openAiPluginZip.get().archiveFile.get().asFile.absolutePath, openAiPluginVersion.get())
+    }
+
+openAiPluginZip { finalizedBy(checkOpenAiPluginZip) }

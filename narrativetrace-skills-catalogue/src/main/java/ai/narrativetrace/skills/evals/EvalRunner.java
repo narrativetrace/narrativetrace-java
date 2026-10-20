@@ -36,8 +36,9 @@ import java.util.UUID;
  * platform command templates) lives in a plain, injectable class this one only calls: {@link
  * RepoRoot}, {@link AgentArgv}, {@link EvalTrial}, {@link SporadicPolicy}, {@link CaseFixture},
  * {@link CaseTurns}, {@link AgentTurns}, {@link TrialEnvironment}, {@link QuotaMarkdown}, {@link
- * TierPrecondition}, {@link Platform}, {@link RunLedgerRow}. Mirrors the TypeScript reference's
- * {@code evals/run.ts}, which carries no test of its own for the same reason.
+ * TierPrecondition}, {@link Platform}, {@link RunLedgerRow}, {@link CasePrompt}. Mirrors the
+ * TypeScript reference's {@code evals/run.ts}, which carries no test of its own for the same
+ * reason.
  */
 public final class EvalRunner {
 
@@ -234,12 +235,17 @@ public final class EvalRunner {
                 + fresh);
   }
 
+  /**
+   * The agent's actual turn-1 prompt — never {@code prompt.md}'s raw bytes when it is a case
+   * document (see {@link CasePrompt}), since a case document's own "Expected trajectory" and
+   * "Grading" sections describe what the grader checks.
+   */
   private static String readPrompt(Path caseDir) throws IOException {
     Path promptPath = caseDir.resolve("prompt.md");
     if (!Files.isRegularFile(promptPath)) {
       throw new IllegalArgumentException("No case found at " + caseDir);
     }
-    return Files.readString(promptPath);
+    return CasePrompt.taskPrompt(promptPath, Files.readString(promptPath));
   }
 
   /**

@@ -40,7 +40,9 @@ class NoticeNamesEveryRenderTargetTest {
         .as("NOTICE must name the open-standard page root")
         .contains(relative(RenderPaths.codexSkillMd(REPO_ROOT, firstSkill).getParent().getParent()))
         .as("NOTICE must name the marketplace file")
-        .contains(relative(RenderPaths.marketplaceJson(REPO_ROOT)));
+        .contains(relative(RenderPaths.marketplaceJson(REPO_ROOT)))
+        .as("NOTICE must name the OpenAI plugin directory's package root")
+        .contains(relative(RenderPaths.openAiPluginJson(REPO_ROOT).getParent()));
   }
 
   private static String relative(Path target) {

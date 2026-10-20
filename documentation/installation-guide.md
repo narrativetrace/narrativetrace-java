@@ -89,7 +89,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 ```
 
@@ -136,23 +136,23 @@ Start with the minimum stack and then add only the integrations you need.
 ```kotlin
 dependencies {
     // Minimum
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
 
     // Optional integrations
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.0")  // for JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.1")  // for JUnit 4
+    implementation("ai.narrativetrace:narrativetrace-spring:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.1")
 }
 ```
 
@@ -257,7 +257,7 @@ Configuration uses system properties (JUnit 4 has no `junit-platform.properties`
 java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.* -jar your-app.jar
 ```
 
-Use this when you want bytecode instrumentation for classes under selected package prefixes. When no CLI args are provided, the agent falls back to `narrativetrace.properties` on the classpath.
+Use this when you want bytecode instrumentation for classes under selected package prefixes. When no CLI args are provided, the agent falls back to `narrativetrace.properties` on the classpath. Attached to a test JVM that also carries `narrativetrace-junit5`'s extension or `narrativetrace-junit4`'s rules, the agent's captures land in the same per-test files a proxy-traced test produces — no proxy, no annotation needed in the instrumented class (see [Configuration Guide §3](configuration-guide.md#3-pure-java--agent-configuration-narrativetraceproperties)).
 
 Agent argument format: `packages=<pkg1>;<pkg2>;...`
 
@@ -301,7 +301,92 @@ what you want:
 | No narration at all | Attach with `loggerName=` (empty), or set `-Dnarrativetrace.narration=off` |
 
 With narration switched off the agent never touches SLF4J at all — it starts
-silent.
+silent. **Without an SLF4J provider on the classpath, the agent is silent
+too** — it still captures, but narration goes to a NOP logger.
+
+#### Classes the agent's runtime cannot see load uninstrumented
+
+Matching the package filter is necessary but not sufficient. Instrumented
+bytecode calls `ai.narrativetrace.agent.AgentRuntime` by name, so a class is
+woven only when the class loader that defined it can resolve that type. Two
+kinds of class cannot:
+
+- **bootstrap-injected classes** — mockito's inline mock maker, for one, injects
+  its method dispatcher into the bootstrap class loader
+- **isolated loaders** that do not delegate to the loader the agent arrived on
+
+Those load uninstrumented, and the agent says so once per loader:
+
+```text
+narrativetrace-agent: cannot instrument org/example/Injected (ai.narrativetrace.agent.AgentRuntime is not visible from the bootstrap class loader); classes from that loader load uninstrumented
+```
+
+Once per loader, never once per class — a hot loader must not flood your error
+stream. Everything else in the same JVM is still traced normally; if the classes
+you care about are among the uninstrumented ones, narrow `packages=` so the
+filter stops matching them, or trace them through the proxy instead.
+
+#### Generated and compiler-made classes are never instrumented
+
+Some classes under a matched package are never a business boundary — they are
+bytecode a generator or the compiler made, not code you wrote. These are
+excluded unconditionally, with no switch to re-enable them:
+
+- a JDK dynamic proxy (`$Proxy0`, `$Proxy17`, …)
+- a class whose name carries a generator's own marker: `$$` (CGLIB's
+  `$$EnhancerByCGLIB$$`, Spring's `$$SpringCGLIB$$`, a lambda's own hidden
+  class), `$ByteBuddy$` (Byte Buddy's default naming), or `$MockitoMock$`
+  (Mockito's inline mock maker)
+- a hidden class, by its JVM-assigned `/0x…` suffix
+- a bridge method or a synthetic method — a compiler-generated duplicate of a
+  real method, or an accessor nobody wrote
+
+This is silent — no `stderr` line — because it is the expected, structural
+case; membership never depends on a vendor's package name, so adding a new
+mocking or proxy library to your dependencies needs no configuration change
+here.
+
+#### Exclude packages: `exclude=<pkg1>;<pkg2>`
+
+Library and framework internals — never your own business boundary, but named
+by package rather than by shape — are excluded beside `packages=`:
+
+```bash
+java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.*,exclude=org.mockito -jar your-app.jar
+```
+
+`exclude=` always wins: a class matching both `packages=` and `exclude=` is
+not instrumented, even when the excluded package sits inside a matched one
+(`packages=com.example`, `exclude=com.example.generated` — a class under
+`com.example.generated` is not instrumented; everything else under
+`com.example` still is). Shipped default, applied whenever `exclude=` (and
+`narrativetrace.exclude` on the property fallback path) is absent entirely:
+
+| Prefix | Reason |
+|---|---|
+| `org.mockito` | Mocking library's dispatcher and generated mock subclasses |
+| `net.bytebuddy` | The code generator underneath Mockito, Hibernate and many proxy tools |
+| `org.junit` | Test runner's own helpers |
+| `org.testng` | The other mainstream JVM test runner's helpers |
+| `net.sf.cglib` | Classic CGLIB's own internals |
+| `org.springframework.cglib` | Spring's repackaged CGLIB |
+| `org.aspectj` | Another weaver's runtime |
+| `datadog` | Another APM agent's runtime — avoids recursive instrumentation when co-deployed |
+| `io.opentelemetry.javaagent` | The other APM agent most likely to be co-deployed |
+
+The key's presence decides: `exclude=` absent means this default applies;
+`exclude=` present — even with nothing after it — states the whole list
+explicitly, replacing the default (empty disables list 2 altogether). To
+extend the default rather than replace it, copy these nine
+prefixes into your own `exclude=` value and add yours alongside them.
+Delimiter-aware like `packages=` (`org.acme` never matches `org.acmeExtra`);
+a duplicate `exclude=` key is rejected like a duplicate `packages=` key. A
+matched, excluded class is reported once per excluded prefix, never once per
+class:
+
+```text
+narrativetrace-agent: cannot instrument org/mockito/internal/Foo (excluded package org/mockito/); classes under that package load uninstrumented
+```
 
 
 ## 4. Configure Trace Output

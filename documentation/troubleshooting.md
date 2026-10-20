@@ -147,7 +147,12 @@ not match what you expected — `com.example` matches `com.example.*`, never
 
 **Fix:** check the `packages=` argument; wildcards (`com.example.*`) and
 multiple packages (semicolon-separated, `packages=com.a.*;com.b.*`) are both
-supported. There is no exclude list — only inclusion.
+supported. Also check `exclude=` and its nine-entry shipped default
+(`org.mockito`, `net.bytebuddy`, `org.junit`, `org.testng`, `net.sf.cglib`,
+`org.springframework.cglib`, `org.aspectj`, `datadog`,
+`io.opentelemetry.javaagent`) — a class under one of those packages is not
+instrumented even when `packages=` matches it too; see [Installation Guide §
+Exclude packages](installation-guide.md#exclude-packages-excludepkg1pkg2).
 
 ## Agent traces but nothing appears in my logs
 
@@ -177,7 +182,7 @@ its own):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.0")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.1")
 }
 ```
 

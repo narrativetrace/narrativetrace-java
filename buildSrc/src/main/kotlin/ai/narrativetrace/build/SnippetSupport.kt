@@ -268,23 +268,31 @@ object SnippetSupport {
      * label line, or its `<!-- src/main/resources/logback.xml -->` XML equivalent) never carries
      * that text and is always preserved verbatim; `snippetSync` never writes a header into either
      * side, since it only ever writes to the page.
+     *
+     * <p>An XML source keeps its `<?xml ...?>` declaration on line 1 even after stamping
+     * (`emit_xml_header` in `scripts/publish-public.sh` inserts the header comment right after it,
+     * never before), so the header search starts one line later when the source opens with one —
+     * the declaration itself is always preserved, exactly like the body below the header.
      */
     private fun stripLicenseHeader(text: String): String {
         val lines = text.lines()
-        val first = lines.firstOrNull()?.trimStart().orEmpty()
+        val declarationLines = if (lines.firstOrNull()?.trimStart()?.startsWith("<?xml") == true) 1 else 0
+        val body = lines.drop(declarationLines)
+        val first = body.firstOrNull()?.trimStart().orEmpty()
         val headerEnd =
             when {
-                first.startsWith("/*") -> blockCommentEnd(lines, "*/")
-                first.startsWith("<!--") -> blockCommentEnd(lines, "-->")
-                first.startsWith("//") -> lineCommentEnd(lines, "//")
-                first.startsWith("#") -> lineCommentEnd(lines, "#")
+                first.startsWith("/*") -> blockCommentEnd(body, "*/")
+                first.startsWith("<!--") -> blockCommentEnd(body, "-->")
+                first.startsWith("//") -> lineCommentEnd(body, "//")
+                first.startsWith("#") -> lineCommentEnd(body, "#")
                 else -> null
             } ?: return text
-        if (!lines.subList(0, headerEnd).any { line -> LICENSE_MARKERS.any { line.contains(it) } }) {
+        if (!body.subList(0, headerEnd).any { line -> LICENSE_MARKERS.any { line.contains(it) } }) {
             return text
         }
-        val bodyStart = if (lines.getOrNull(headerEnd)?.isBlank() == true) headerEnd + 1 else headerEnd
-        return lines.subList(bodyStart, lines.size).joinToString("\n")
+        val bodyStart = if (body.getOrNull(headerEnd)?.isBlank() == true) headerEnd + 1 else headerEnd
+        val declaration = lines.take(declarationLines)
+        return (declaration + body.subList(bodyStart, body.size)).joinToString("\n")
     }
 
     /** Exclusive end index of a leading block comment closed by [closeToken] (C-style or XML), or null when it never closes. */

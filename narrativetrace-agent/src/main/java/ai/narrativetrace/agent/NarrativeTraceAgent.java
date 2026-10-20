@@ -23,6 +23,12 @@ import java.util.jar.JarFile;
  * listener — the user's provider must already be resolvable at that point. This is the supported
  * way to hand the standalone jar an SLF4J binding on hosts with no reachable classpath (app
  * servers); plain-java hosts can simply put the provider on {@code -cp} instead.
+ *
+ * <p><b>@llmNote</b> Matching the package filter is necessary but not sufficient: a class is woven
+ * only when the loader that defines it can resolve {@link AgentRuntime}, because every injected
+ * hook calls it by name. Classes the agent's runtime is not visible from — bootstrap-injected,
+ * isolated loaders — load uninstrumented, and the agent says so once per loader rather than
+ * breaking the host (B-125). See {@code LoaderVisibility}.
  */
 public final class NarrativeTraceAgent {
 

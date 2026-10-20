@@ -168,7 +168,16 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   private final ThreadLocal<TraceStack> stackHolder = new ThreadLocal<>();
 
-  /** Creates a context with the default configuration, {@link TracingLevel#DETAIL}. */
+  /**
+   * Creates a context with the default configuration, {@link TracingLevel#DETAIL}.
+   *
+   * @deprecated builds a pipeline the caller never sees and therefore can never {@code close()} —
+   *     harmless today only because the default topology starts no thread (see {@link
+   *     PipelineBootstrap}), but it hides the ownership this library otherwise requires every
+   *     lifecycle owner to hold. Prefer {@link #ThreadLocalNarrativeContext(NarrativeTraceConfig,
+   *     EventPipeline)} with a pipeline you construct and close yourself.
+   */
+  @Deprecated
   public ThreadLocalNarrativeContext() {
     this(new NarrativeTraceConfig());
   }
@@ -177,7 +186,9 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * Creates a context with the given configuration.
    *
    * @param config the tracing configuration (level can be changed at runtime)
+   * @deprecated see {@link #ThreadLocalNarrativeContext()} — same implicit, unclosable pipeline.
    */
+  @Deprecated
   public ThreadLocalNarrativeContext(NarrativeTraceConfig config) {
     this(config, defaultPipeline());
   }

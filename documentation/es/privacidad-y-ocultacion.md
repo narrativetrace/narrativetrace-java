@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 18f2bc554281 | translated: 2026-09-19 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 9e7f8d33d494 | translated: 2026-10-19 | reviewed: - -->
 # Privacidad y ocultación
 
 [English](../privacy-and-redaction.md) | **Español** | [Português](../pt-BR/privacidade-e-ocultacao.md) | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -238,9 +238,14 @@ Detalle completo y ejemplos trabajados: [Guía de anotaciones](guia-de-anotacion
   un proxy dinámico JDK, y una clase sin interfaz se deja intacta —
   en silencio, no como un error. El agente Java es la vía que no tiene
   este límite.
-- **Todavía sin lista de exclusión para el agente.** `AgentConfig` parsea
-  exactamente `packages`, `loggerName`, `level` y `loggingJars` — solo
-  inclusión, nada para tallar una excepción dentro de un paquete incluido.
+- **Sin opt-out por método en el agente, solo por paquete.** El agente
+  tiene ahora dos listas de exclusión — una estructural e integrada
+  (proxies dinámicos JDK, nombres de clase con forma de generador, métodos
+  puente/sintéticos) y una lista configurable de paquetes `exclude=` con
+  una lista predeterminada incluida de nueve entradas — pero ninguna talla
+  un solo método fuera de una clase que, por lo demás, está incluida;
+  consulta [Guía de instalación § Excluir
+  paquetes](guia-de-instalacion.md#excluir-paquetes-excludepkg1pkg2).
 - **Ninguna ocultación de los *nombres* de los tests.** El nombre visible
   de un test es texto escrito por quien desarrolla, y una plantilla
   `@ParameterizedTest(name = "find {0}")` interpola sus argumentos en él.

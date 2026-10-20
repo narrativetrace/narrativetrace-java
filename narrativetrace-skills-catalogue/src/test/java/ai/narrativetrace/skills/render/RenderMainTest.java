@@ -43,6 +43,19 @@ class RenderMainTest {
   }
 
   @Test
+  void rendersTheOpenAiPluginJson(@TempDir Path repoRoot) throws IOException {
+    Files.writeString(repoRoot.resolve("AGENTS.md"), "# A repo\n");
+    seedSnippetSources(repoRoot);
+
+    RenderMain.render(repoRoot);
+
+    Path rendered = RenderPaths.openAiPluginJson(repoRoot);
+    assertThat(rendered).exists();
+    assertThat(Files.readString(rendered))
+        .isEqualTo(OpenAiPluginJsonRenderer.render(CatalogueIndex.OPENAI_DIRECTORY));
+  }
+
+  @Test
   void writesBothCarrierFlavoursByteIdenticalToTheRenderedPages(@TempDir Path repoRoot)
       throws IOException {
     Files.writeString(repoRoot.resolve("AGENTS.md"), "# A repo\n");

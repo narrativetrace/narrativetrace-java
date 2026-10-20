@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -92,6 +93,61 @@ class EvalCaseLayoutTest {
         .as(namedCase + " must declare its own fixture, distinct from the skill's default")
         .exists();
     assertThat(REPO_ROOT.resolve(CaseFixture.fixtureFor(namedCase))).isDirectory();
+  }
+
+  /**
+   * Every case directory, happy-path and otherwise, under every catalogue skill — the union {@link
+   * #nonHappyPathCases()} deliberately excludes.
+   */
+  static List<Path> allCaseDirs() {
+    List<Path> all = new ArrayList<>();
+    for (Skill skill : skills()) {
+      Path happyPath = EVALS_DIR.resolve(skill.canonicalName()).resolve("happy-path");
+      if (Files.isDirectory(happyPath)) {
+        all.add(happyPath);
+      }
+    }
+    all.addAll(nonHappyPathCases());
+    return all;
+  }
+
+  private static final java.util.regex.Pattern FIXTURE_LINE_TARGET =
+      java.util.regex.Pattern.compile(
+          "^\\*\\*Fixture:\\*\\* `([^`]+)`", java.util.regex.Pattern.MULTILINE);
+
+  private static Optional<String> fixtureLineTarget(String text) {
+    var matcher = FIXTURE_LINE_TARGET.matcher(text);
+    return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
+  }
+
+  /**
+   * B-93: a case document's own {@code **Fixture:**} line is this repository's documentation of
+   * what the case scaffolds — read by a person, never by {@code EvalRunner}, which asks {@link
+   * CaseFixture#fixtureFor} instead. TypeScript shipped a case whose document named one fixture
+   * while a missing {@code case.json} silently scaffolded the skill's default — a doc and a runner
+   * disagreeing about the world the grader then checks. A case document with no {@code
+   * **Fixture:**} line yet (the six {@code CasePrompt} currently refuses, reformatted separately)
+   * is skipped here, not asserted against: giving it one is that other fix's job, not this test's.
+   */
+  @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+  @org.junit.jupiter.params.provider.MethodSource("allCaseDirs")
+  void aCaseDocumentsFixtureLineNamesWhatItActuallyScaffolds(Path caseDir) {
+    String text;
+    try {
+      text = Files.readString(caseDir.resolve("prompt.md"));
+    } catch (IOException e) {
+      throw new UncheckedIOException("could not read " + caseDir.resolve("prompt.md"), e);
+    }
+    if (CasePrompt.kind(text) != CasePrompt.Kind.CASE_DOCUMENT) {
+      return;
+    }
+    Optional<String> namedFixture = fixtureLineTarget(text);
+    if (namedFixture.isEmpty()) {
+      return;
+    }
+    assertThat(namedFixture.get())
+        .as(caseDir + "'s **Fixture:** line must name the fixture case.json actually scaffolds")
+        .isEqualTo(CaseFixture.fixtureFor(caseDir));
   }
 
   @Test

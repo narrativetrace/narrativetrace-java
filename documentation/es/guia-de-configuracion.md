@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 1a3d85494f8a | translated: 2026-09-18 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 644751191657 | translated: 2026-10-20 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -57,6 +57,7 @@ narrativeTrace {
 
     agent {                                    // solo relevante cuando mode = "agent"
         packages.set(listOf("com.example.app"))
+        exclude.set(listOf("org.mockito"))     // predeterminado: la lista incluida de nueve prefijos
     }
 
     clarity {
@@ -156,6 +157,11 @@ Se admite cambiar el nivel en runtime:
 config.setLevel(TracingLevel.ERRORS);
 ```
 
+Cuando el agente de Java (§3) se adjunta bajo la extensión de `narrativetrace-junit5` o las reglas de
+`narrativetrace-junit4`, sus capturas fluyen por ese mismo `NarrativeTraceConfig` por prueba, así que
+el nivel configurado para una prueba rige las llamadas del agente exactamente igual que rige una
+llamada trazada por proxy.
+
 ### Estrategias de propagación de contexto
 
 El nombre solo te dice el almacenamiento — una pila de llamadas respaldada
@@ -197,7 +203,7 @@ La extensión de JUnit usa `ExtensionContext.getConfigurationParameter()`, que r
 | `narrativetrace.canonicalJson` | `true` / `false` | `false` |
 | `narrativetrace.structuralJson` | `true` / `false` | `false` |
 | `narrativetrace.approval` | `true` / `false` | `false` |
-| `narrativetrace.approvedDir` | Directorio de líneas base confirmadas | `src/test/narratives` |
+| `narrativetrace.approvedDir` | Directorio de líneas base confirmadas | `src/test/narratives` | no |
 | `narrativetrace.bufferCapacity` | Ranuras del anillo de eventos de un contexto de prueba | `8192` |
 
 `narrativetrace.bufferCapacity` dimensiona el anillo de eventos del contexto
@@ -471,6 +477,13 @@ ausente del texto `.nt`.
 
 Para apps Java independientes y el agente de bytecode, `ConfigResolver` carga la configuración desde el classpath.
 
+Adjunto a una JVM de pruebas junto con `narrativetrace-junit5`/`narrativetrace-junit4` (incluso vía
+`mode.set("agent")` del plugin de Gradle), las capturas del agente se enrutan al contexto propio por
+prueba de la extensión o la regla de JUnit, así que una clase que el agente tejió en tiempo de carga
+escribe los mismos archivos por prueba de Markdown/estructural/JSON/diagrama que una prueba trazada
+por proxy — sin código de NarrativeTrace en la clase instrumentada. Véase la
+[guía de instalación](guia-de-instalacion.md#opción-e-agente-java-sin-cableado-de-proxies).
+
 Orden de resolución:
 
 1. Propiedades del sistema (máxima prioridad)
@@ -540,6 +553,26 @@ que contienen — se añade a la búsqueda del class loader del sistema
 antes de iniciar el trazado. Una ruta inexistente falla de inmediato en
 el momento del attach. También disponible como argumento del agente
 `loggingJars=`.
+
+Una clase desde la que no se ve el propio runtime del agente — una
+inyectada en el class loader bootstrap, o definida por un loader aislado
+que no delega al del agente — se carga **sin instrumentar** como esté
+escrito el filtro de paquetes, porque el bytecode instrumentado llama a
+`ai.narrativetrace.agent.AgentRuntime` por su nombre. El agente informa de
+cada uno de esos loaders una vez en `stderr`; nada más en la JVM se ve
+afectado.
+
+Junto a esa exclusión hay otras dos más, detalladas en la
+[guía de instalación](guia-de-instalacion.md#las-clases-generadas-o-creadas-por-el-compilador-nunca-se-instrumentan):
+una lista integrada y estructural que nunca es configurable (proxies
+dinámicos JDK, nombres de clase con forma de generador, métodos puente y
+sintéticos), y una lista configurable nombrada por paquete —
+`exclude=<pkg1>;<pkg2>` junto a `packages=`, también disponible como
+`narrativetrace.exclude` en la ruta de respaldo, con una lista
+predeterminada incluida de nueve entradas (`org.mockito`, `net.bytebuddy`,
+`org.junit`, `org.testng`, `net.sf.cglib`, `org.springframework.cglib`,
+`org.aspectj`, `datadog`, `io.opentelemetry.javaagent`) que un `exclude=`
+explícito reemplaza en vez de extender.
 
 ### Dimensionar el buffer de eventos
 
@@ -791,7 +824,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.1")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.

@@ -98,4 +98,53 @@ class AddNarrativeTracingSkillTest {
     FrameworkTable.rowsWithWiringChecks()
         .forEach(row -> assertThat(page).as(row.id()).doesNotContain(row.name()));
   }
+
+  /**
+   * Step 3's condition (Phase 6, D2): a project that already has tests gets its first trace from
+   * one EXISTING test run through the test integration, never a new demo main and never a test this
+   * page adds itself — the files that step writes are the ones narrativetrace-doctor, -verify,
+   * -debug and -explain all read. A project with no tests keeps the console-app path, now saying
+   * plainly that the script itself writes nothing to disk.
+   */
+  @Test
+  void firstTraceBranchesOnWhetherTheProjectAlreadyHasTests() {
+    Skill skill = AddNarrativeTracingSkill.build();
+    SkillStep step = skill.steps().get(2);
+
+    assertThat(step.title()).isEqualTo("First trace: wrap, call, render, run");
+    assertThat(step.condition())
+        .contains("if the project already has tests")
+        .contains("narrativetrace-junit5")
+        .contains("narrativetrace-junit4")
+        .contains(".md and .nt")
+        .contains("build/narrativetrace/")
+        .contains("narrativetrace-doctor")
+        .contains("narrativetrace-verify")
+        .contains("narrativetrace-debug")
+        .contains("narrativetrace-explain")
+        .contains("the step is done when that test's files exist")
+        .contains("nothing is written to disk by this script")
+        .contains("this page never adds a test runner or a test to a project that has none")
+        // the existing entry-point branch stays, for the no-tests case
+        .contains("do not add a demo main");
+  }
+
+  /**
+   * The third premise (B-92 follow-up): {@link AddNarrativeTracingSkill#FIRST_TRACE_HAS_TESTS}
+   * covers "has tests" and the no-tests branch covers "none" — neither says what happens when the
+   * project's tests run on a runner the doctor has no test integration for. The page keeps that
+   * runner (it never swaps it) and takes the console path below, naming no framework: {@link
+   * #theRenderedPageNamesNoFrameworkTheDoctorChecks} stays green.
+   */
+  @Test
+  void conditionNamesTheRunnerWithoutIntegrationPremise() {
+    Skill skill = AddNarrativeTracingSkill.build();
+    SkillStep step = skill.steps().get(2);
+
+    assertThat(step.condition())
+        .contains("the doctor reports a test integration for that runner")
+        .contains("a runner the doctor reports no integration for")
+        .contains("keeps that runner")
+        .contains("takes the console path below");
+  }
 }

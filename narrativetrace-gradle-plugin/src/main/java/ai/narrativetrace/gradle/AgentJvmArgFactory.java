@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.gradle;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,14 +15,23 @@ import java.util.List;
  *
  * <p>INTENT: The emitted options string is a contract with {@code AgentConfig.parse} in the agent
  * module, which requires {@code key=value} entries — package filters must be passed as {@code
- * packages=pkg1;pkg2}, never as a bare list.
+ * packages=pkg1;pkg2}, never as a bare list. {@code exclude} follows the same contract: list 2, the
+ * agent's configurable, published-default exclusion (see the installation guide's "Exclude
+ * packages" section).
  */
 final class AgentJvmArgFactory {
 
   private AgentJvmArgFactory() {}
 
-  static String javaagentArg(String agentJarPath, List<String> packages) {
-    var packagesSuffix = packages.isEmpty() ? "" : "=packages=" + String.join(";", packages);
-    return "-javaagent:" + agentJarPath + packagesSuffix;
+  static String javaagentArg(String agentJarPath, List<String> packages, List<String> exclude) {
+    var segments = new ArrayList<String>();
+    if (!packages.isEmpty()) {
+      segments.add("packages=" + String.join(";", packages));
+    }
+    if (!exclude.isEmpty()) {
+      segments.add("exclude=" + String.join(";", exclude));
+    }
+    var suffix = segments.isEmpty() ? "" : "=" + String.join(",", segments);
+    return "-javaagent:" + agentJarPath + suffix;
   }
 }

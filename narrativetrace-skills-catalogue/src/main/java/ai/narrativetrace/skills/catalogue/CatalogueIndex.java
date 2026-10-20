@@ -8,6 +8,7 @@
 package ai.narrativetrace.skills.catalogue;
 
 import ai.narrativetrace.skills.MarketplaceListing;
+import ai.narrativetrace.skills.OpenAiListing;
 import ai.narrativetrace.skills.Skill;
 import java.util.List;
 
@@ -48,6 +49,28 @@ public final class CatalogueIndex {
           "Apache-2.0",
           "https://narrativetrace.ai",
           List.of("narrativetrace", "java", "tracing", "observability", "agent-skills"));
+
+  /**
+   * How this repository presents {@link #MARKETPLACE} to the OpenAI plugin directory (shared by
+   * ChatGPT and Codex): the same listing, plus the directory's own display fields. {@code
+   * capabilities} names what the skills do — run a local build, read and write files — not a
+   * network or data-access claim; {@code defaultPrompts} are drawn verbatim from the skills' own
+   * trigger phrases in {@link #ALL}, never invented ones. {@code brandColor} is the brand bundle's
+   * tile colour, and the two icon assets are the brand bundle's own avatar renders.
+   */
+  public static final OpenAiListing OPENAI_DIRECTORY =
+      new OpenAiListing(
+          MARKETPLACE,
+          "NarrativeTrace for Java",
+          "NarrativeTrace skills for Java",
+          "Developer Tools",
+          List.of("Read", "Write"),
+          List.of(
+              "add narrative tracing to my service",
+              "check my narrativetrace setup",
+              "debug this with the trace"),
+          "#00845a",
+          MARKETPLACE.homepage());
 
   private CatalogueIndex() {}
 }

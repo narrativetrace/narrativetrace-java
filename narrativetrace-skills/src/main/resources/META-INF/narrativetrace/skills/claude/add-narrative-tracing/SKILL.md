@@ -22,8 +22,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
 }
 
 tasks.withType<JavaCompile> {
@@ -51,7 +51,7 @@ application {   // only when the project has no application entry point of its o
 
 ## 3. First trace: wrap, call, render, run
 
-**when:** if the project already has an application entry point — a main class, a web or application framework the doctor reports — do not add a demo main: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the console app, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest console app as follows
+**when:** if the project already has tests and the doctor reports a test integration for that runner, the first trace is one existing test run through the test integration (narrativetrace-junit5, or narrativetrace-junit4 for a project whose tests already run on that other major version) with output on, which writes that test's narrative files, .md and .nt, under build/narrativetrace/ — the files narrativetrace-doctor, narrativetrace-verify, narrativetrace-debug and narrativetrace-explain read; print the rendered file so the trace is also on the console; the step is done when that test's files exist; a project whose tests run on a runner the doctor reports no integration for keeps that runner and takes the console path below; otherwise, if the project already has an application entry point — a main class, a web or application framework the doctor reports — do not add a demo main: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the console app, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest console app as follows; nothing is written to disk by this script — the application's log is the record once the SLF4J consumer in the later step is wired; this page never adds a test runner or a test to a project that has none
 
 <!-- snippet: sixty-seconds/src/main/java/com/example/orders/Main.java -->
 ```java
@@ -94,7 +94,7 @@ public class Main {
 
 ```kotlin
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.1")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
 }
 ```

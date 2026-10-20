@@ -209,9 +209,13 @@ Full detail and worked examples: [Annotations Guide](annotations-guide.md).
   path.** Proxy, Spring and Micronaut all wrap through a JDK dynamic
   proxy, and a class with no interface is left untouched — silently, not
   as an error. The Java agent is the path that does not have this limit.
-- **No agent exclude list yet.** `AgentConfig` parses exactly `packages`,
-  `loggerName`, `level` and `loggingJars` — inclusion only, nothing to
-  carve an exception out of an included package.
+- **No per-method opt-out on the agent, only per-package.** The agent now
+  has two exclusion lists — a built-in structural one (JDK dynamic proxies,
+  generator-shaped class names, bridge/synthetic methods) and a configurable
+  `exclude=` package list with a nine-entry shipped default — but neither
+  carves a single method out of an otherwise-included class; see
+  [Installation Guide § Exclude
+  packages](installation-guide.md#exclude-packages-excludepkg1pkg2).
 - **No redaction of test *names*.** A test's display name is
   developer-authored text, and a `@ParameterizedTest(name = "find {0}")`
   template interpolates its arguments into it. That name reaches the

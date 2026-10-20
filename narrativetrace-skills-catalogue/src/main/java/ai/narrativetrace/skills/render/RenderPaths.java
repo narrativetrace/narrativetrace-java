@@ -67,6 +67,26 @@ public final class RenderPaths {
   }
 
   /**
+   * {@code narrativetrace-skills-catalogue/openai-plugin/plugin.json} — the OpenAI plugin
+   * directory's manifest, versionless and committed BUILD OUTPUT ({@link
+   * OpenAiPluginJsonRenderer#render(ai.narrativetrace.skills.OpenAiListing)}). Inside the module,
+   * not the repository root: the published root must never carry a second {@code plugin.json} a
+   * vendor could discover on its own.
+   */
+  public static Path openAiPluginJson(Path repoRoot) {
+    return repoRoot.resolve("narrativetrace-skills-catalogue/openai-plugin/plugin.json");
+  }
+
+  /**
+   * {@code narrativetrace-skills-catalogue/openai-plugin/assets/} — the plugin's logo and composer
+   * icon, hand-made sources {@code openAiPluginJson} points at and the release ZIP copies; never
+   * rendered.
+   */
+  public static Path openAiPluginAssets(Path repoRoot) {
+    return repoRoot.resolve("narrativetrace-skills-catalogue/openai-plugin/assets");
+  }
+
+  /**
    * The CARRIER's resource root inside the published {@code narrativetrace-skills} jar (and inside
    * the {@code narrativetrace-cli} jar, which shares the same directory as a second resource root).
    * {@code META-INF/} rather than a top-level directory: a consumer's own {@code skills/} must

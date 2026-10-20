@@ -7,14 +7,21 @@
  */
 package ai.narrativetrace.agent;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.tngtech.archunit.core.domain.JavaCall;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 @AnalyzeClasses(
     packages = "ai.narrativetrace.agent",
@@ -88,4 +95,40 @@ class ArchitectureTest {
           .should()
           .haveModifier(JavaModifier.FINAL)
           .as("AgentRuntime and AgentConfig are called from injected bytecode, not subclassed");
+
+  /**
+   * §176 ownership rule, the agent half: within this module the only caller of {@code
+   * PipelineBootstrap.createDefault}/{@code build} is {@link AgentRuntime#initialize}, the premain
+   * lifecycle owner. See {@code ai.narrativetrace.core.ArchitectureTest} for core's half of the
+   * same rule.
+   */
+  @ArchTest
+  static final ArchRule only_agentRuntime_builds_the_default_pipeline =
+      noClasses()
+          .that(not(name("ai.narrativetrace.agent.AgentRuntime")))
+          .should(callsPipelineBootstrapDefaultConstruction())
+          .as(
+              "Only AgentRuntime may build the default pipeline; every pipeline must have one "
+                  + "owner that closes it");
+
+  private static ArchCondition<JavaClass> callsPipelineBootstrapDefaultConstruction() {
+    return new ArchCondition<>("call PipelineBootstrap.createDefault or .build") {
+      @Override
+      public void check(JavaClass item, ConditionEvents events) {
+        for (var member : item.getCodeUnits()) {
+          for (JavaCall<?> call : member.getCallsFromSelf()) {
+            var target = call.getTarget();
+            if (target
+                    .getOwner()
+                    .isEquivalentTo(ai.narrativetrace.core.pipeline.PipelineBootstrap.class)
+                && (target.getName().equals("createDefault") || target.getName().equals("build"))) {
+              events.add(
+                  SimpleConditionEvent.violated(
+                      call, call.getOrigin().getFullName() + " calls " + target.getFullName()));
+            }
+          }
+        }
+      }
+    };
+  }
 }

@@ -233,4 +233,88 @@ class AgentConfigTest {
 
     assertThat(config.loggerName()).isEqualTo("myapp.traces");
   }
+
+  @Test
+  void parsesExcludeFromAgentArgs() {
+    var config = AgentConfig.parse("packages=com.x,exclude=org.mockito;net.bytebuddy");
+
+    assertThat(config.exclude()).containsExactly("org/mockito/", "net/bytebuddy/");
+  }
+
+  @Test
+  void excludeDefaultsToTheShippedListWhenArgIsAbsent() {
+    var config = AgentConfig.parse("packages=com.x");
+
+    assertThat(config.exclude())
+        .containsExactlyElementsOf(
+            AgentConfig.DEFAULT_EXCLUDE.stream().map(AgentConfig::normalizePackage).toList());
+  }
+
+  /** The chosen mechanism: an explicit {@code exclude=} REPLACES the default, never merges. */
+  @Test
+  void explicitExcludeReplacesTheDefaultRatherThanExtendingIt() {
+    var config = AgentConfig.parse("packages=com.x,exclude=com.custom.internal");
+
+    assertThat(config.exclude()).containsExactly("com/custom/internal/");
+  }
+
+  /** {@code exclude=} with nothing after it disables list 2 entirely. */
+  @Test
+  void emptyExcludeArgumentDisablesTheShippedDefault() {
+    var config = AgentConfig.parse("packages=com.x,exclude=");
+
+    assertThat(config.exclude()).isEmpty();
+  }
+
+  @Test
+  void duplicateExcludeKeyThrows() {
+    assertThatThrownBy(() -> AgentConfig.parse("packages=com.x,exclude=a,exclude=b"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Duplicate agent config key: exclude");
+  }
+
+  @Test
+  void fallsBackToExcludePropertyWhenArgsAreBlank(@org.junit.jupiter.api.io.TempDir Path tempDir)
+      throws Exception {
+    Files.writeString(
+        tempDir.resolve("narrativetrace.properties"),
+        "narrativetrace.packages=com.example\nnarrativetrace.exclude=com.custom.internal\n");
+    var classLoader = new URLClassLoader(new URL[] {tempDir.toUri().toURL()}, null);
+
+    var config = AgentConfig.parse(null, classLoader);
+
+    assertThat(config.exclude()).containsExactly("com/custom/internal/");
+  }
+
+  @Test
+  void excludePropertyAbsentMeansTheShippedDefaultApplies() {
+    var config = AgentConfig.parse(null);
+
+    assertThat(config.exclude())
+        .containsExactlyElementsOf(
+            AgentConfig.DEFAULT_EXCLUDE.stream().map(AgentConfig::normalizePackage).toList());
+  }
+
+  @Test
+  void emptyExcludePropertyDisablesTheShippedDefault() {
+    System.setProperty("narrativetrace.exclude", "");
+    try {
+      var config = AgentConfig.parse(null);
+
+      assertThat(config.exclude()).isEmpty();
+    } finally {
+      System.clearProperty("narrativetrace.exclude");
+    }
+  }
+
+  @Test
+  void convenienceConstructorsStillCarryTheShippedDefaultExclude() {
+    var threeArg = new AgentConfig(List.of("com/x/"), "narrativetrace", TracingLevel.DETAIL);
+    var fourArg =
+        new AgentConfig(List.of("com/x/"), "narrativetrace", TracingLevel.DETAIL, List.of());
+
+    var expected = AgentConfig.DEFAULT_EXCLUDE.stream().map(AgentConfig::normalizePackage).toList();
+    assertThat(threeArg.exclude()).containsExactlyElementsOf(expected);
+    assertThat(fourArg.exclude()).containsExactlyElementsOf(expected);
+  }
 }

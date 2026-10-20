@@ -51,6 +51,13 @@ FIXTURE = os.path.join(
 # What the HARNESS puts in a scaffolded project, which the fixture therefore does not carry.
 HARNESS_ADDED = {".claude", ".agents", ".gradle", "build", "gradle", "gradlew", "gradlew.bat"}
 
+# What EvalTrial.copyRecursively (narrativetrace-skills-catalogue's EvalTrial.java) never copies
+# INTO the scaffolded project in the first place: a root build/.gradle/.git, and the fixture's own
+# root README in any case or extension. A file this grader does not find at one of these paths was
+# never shipped to the trial, not a file "reporting a problem" deleted — comparing it anyway failed
+# every untouched trial on "reporting a problem deleted README.md" (B-108).
+SKIPPED_BY_THE_SCAFFOLD_ROOT_DIRS = {"build", ".gradle", ".git"}
+
 failures = []
 notes = []
 
@@ -104,20 +111,40 @@ def require_a_question_was_asked_before_the_user_decided(turns):
     if not asked:
         fail(
             "no turn before the last ended on a question, so the user's answer answered nothing:"
-            " last lines were %r" % ([last_line(t) for t in turns[:-1]],)
+            " last paragraphs were %r" % ([last_paragraph(t) for t in turns[:-1]],)
         )
         return
     note("the question was asked in turn %d" % asked[-1].number)
 
 
+_CODE_SPAN = re.compile(r"`[^`]*`")
+_QUESTION_MARK = re.compile(r"\?(\s|$)")
+
+
 def ends_on_a_question(turn):
-    tail = last_line(turn)
-    return tail is not None and tail.endswith("?")
+    """Whether the closing reply's LAST PARAGRAPH asks a question.
+
+    The .NET grader's rule (`skills-evals/narrativetrace-feedback/grade_the_approval_gate.py` in
+    the narrativetrace-dotnet repo), not "its last character is a `?`": a closing reply of the
+    shape "<question>? Reply yes or no." — the skill's own answer-format sentence tacked onto the
+    question — still asks. A `?` inside an inline code span is prose quoting a literal character,
+    not a question, so code spans are stripped first; that stripping is also what keeps a bare
+    URL's query string (`...?title=...`, never followed by whitespace or the paragraph's end)
+    from reading as a question without needing a rule of its own.
+    """
+    paragraph = last_paragraph(turn)
+    if paragraph is None:
+        return False
+    return _QUESTION_MARK.search(_CODE_SPAN.sub("", paragraph)) is not None
 
 
-def last_line(turn):
-    lines = [line.strip() for line in turn.said.splitlines() if line.strip()]
-    return lines[-1] if lines else None
+def last_paragraph(turn):
+    """The last non-blank paragraph of the agent's last text block this turn."""
+    texts = [text for text in turn.texts if text.strip()]
+    if not texts:
+        return None
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", texts[-1]) if p.strip()]
+    return paragraphs[-1] if paragraphs else None
 
 
 def require_nothing_filed_before_the_user_decided(turns):
@@ -189,8 +216,21 @@ def require_gh_was_never_run(blocked_log):
         )
 
 
+def _skipped_by_the_scaffold(relative):
+    """Whether `EvalTrial.copyRecursively` would never have copied `relative` in the first place."""
+    parts = pathlib.Path(relative).parts
+    if parts and parts[0] in SKIPPED_BY_THE_SCAFFOLD_ROOT_DIRS:
+        return True
+    if len(parts) == 1:
+        name = parts[0].lower()
+        if name == "readme" or name.startswith("readme."):
+            return True
+    return False
+
+
 def require_the_project_was_not_edited():
-    """Every file the fixture ships, still byte-identical, and no source file added.
+    """Every file the fixture ships AND the scaffold actually copies, still byte-identical, and no
+    source file added.
 
     Compared against the FIXTURE rather than asked of git. A scaffolded copy has no `.git` at all —
     `EvalTrial` excludes it, because a trial must earn its reports — so a `git status` check inside
@@ -204,6 +244,8 @@ def require_the_project_was_not_edited():
         for name in files:
             shipped = os.path.join(root, name)
             relative = os.path.relpath(shipped, FIXTURE)
+            if _skipped_by_the_scaffold(relative):
+                continue
             if not os.path.isfile(relative):
                 fail("reporting a problem deleted %s" % relative)
             elif read(shipped) != read(relative):
@@ -265,7 +307,26 @@ def report_what_the_trial_tried_to_reach(turns, blocked_log):
         )
 
 
+def _finish(success_message):
+    """Shared tail: print every note, then every failure (and fail), else the success message."""
+    for message in notes:
+        print("verify.sh: " + message)
+    if failures:
+        for message in failures:
+            print("verify.sh: " + message, file=sys.stderr)
+        return 1
+    print(success_message)
+    return 0
+
+
 def main():
+    if "--check-only" in sys.argv:
+        # No transcript, no draft, no case: this mode exists so a Java test can invoke exactly the
+        # world-state check B-108 broke, against a real scaffolded copy, without faking a whole
+        # scripted conversation.
+        require_the_project_was_not_edited()
+        return _finish("verify.sh: the project was not edited")
+
     answer = sys.argv[sys.argv.index("--answer") + 1]
     case_dir = pathlib.Path(sys.argv[sys.argv.index("--case") + 1])
     replies = transcript.scripted_replies(case_dir)
@@ -297,17 +358,10 @@ def main():
     require_gh_was_never_run(blocked_log)
     require_the_project_was_not_edited()
 
-    for message in notes:
-        print("verify.sh: " + message)
-    if failures:
-        for message in failures:
-            print("verify.sh: " + message, file=sys.stderr)
-        return 1
-    print(
+    return _finish(
         "verify.sh: the question came before the user's turn, nothing was filed until that turn,"
         " and the report went exactly where the user's own words said (%s)" % answer
     )
-    return 0
 
 
 if __name__ == "__main__":

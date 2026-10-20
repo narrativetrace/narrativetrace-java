@@ -149,7 +149,8 @@ class NarrativeTraceExplainSkillTest {
         .contains("citing the span id it rests on")
         .contains("a claim without an id is not a claim")
         .contains("marked as an inference")
-        .contains("what was NOT observed");
+        .contains("what was NOT observed")
+        .contains("the branches this run did not take");
   }
 
   @Test

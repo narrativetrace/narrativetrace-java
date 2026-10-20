@@ -342,6 +342,62 @@ class SnippetSupportTest {
     }
 
     @Test
+    fun checkStripsALicenseHeaderStampedAfterAnXmlDeclarationBeforeComparing() {
+        // The publish stamper keeps `<?xml ...?>` on line 1 and inserts the header after it
+        // (emit_xml_header in scripts/publish-public.sh) — the shape a stamped snapshot source
+        // actually has, never the in-tree source.
+        writeSource(
+            "sixty-seconds/src/main/resources/logback.xml",
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!--
+              Copyright (c) 2026 Empower Agile
+
+              SPDX-License-Identifier: BUSL-1.1
+              Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+              years from publication; Change License: Apache-2.0
+            -->
+            <configuration/>
+            """.trimIndent() + "\n"
+        )
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page(
+                "<!-- snippet: sixty-seconds/src/main/resources/logback.xml -->",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration/>",
+                lang = "xml"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
+    fun checkStripsALeadingXmlCommentLicenseHeaderWithNoDeclarationStillPasses() {
+        // Same header shape as above, minus the declaration line — the fix for the declaration
+        // case must not regress the plain leading-comment case.
+        writeSource(
+            "sixty-seconds/src/main/resources/logback.xml",
+            """
+            <!--
+              Copyright (c) 2026 Empower Agile
+
+              SPDX-License-Identifier: BUSL-1.1
+              Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+              years from publication; Change License: Apache-2.0
+            -->
+            <configuration/>
+            """.trimIndent() + "\n"
+        )
+        writeDoc(
+            "documentation/sixty-seconds.md",
+            page("<!-- snippet: sixty-seconds/src/main/resources/logback.xml -->", "<configuration/>", lang = "xml")
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
     fun checkPreservesANonLicenseLeadingXmlComment() {
         // logback.xml's own first line, unheadered — must never be mistaken for a license block.
         writeSource(

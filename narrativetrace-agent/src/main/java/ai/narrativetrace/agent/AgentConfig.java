@@ -29,17 +29,60 @@ import java.util.stream.Stream;
  * classpath (app servers): each {@code ;}-separated entry is a jar file, or a directory whose
  * {@code *.jar} files are added in sorted order. Paths are validated eagerly at parse time — a
  * missing path fails the premain loudly rather than silently producing a trace-less agent.
+ *
+ * <p>{@code exclude} is list 2 of the agent's two exclusion lists: configurable, package-named,
+ * with a shipped default. It is always fully resolved by the time this record exists — {@link
+ * #exclude} already carries either the caller's explicit list or {@link #DEFAULT_EXCLUDE},
+ * normalized exactly like {@link #packages}. The key's <em>presence</em> decides which: {@code
+ * exclude=} absent from the agent arguments (and {@code narrativetrace.exclude} absent from both
+ * the system property and the properties file) means the shipped default applies; the key present —
+ * even with nothing after it — means the caller is stating the whole list explicitly, replacing the
+ * default (an empty value disables list 2 entirely). There is deliberately no second key to
+ * "extend" the default: the nine prefixes are short and published verbatim, so extending is one
+ * `exclude=` value with the default's entries plus the caller's own.
  */
 public record AgentConfig(
-    List<String> packages, String loggerName, TracingLevel level, List<Path> loggingJars) {
+    List<String> packages,
+    String loggerName,
+    TracingLevel level,
+    List<Path> loggingJars,
+    List<String> exclude) {
 
   private static final int KEY_VALUE_PAIR = 2;
   private static final String DEFAULT_LOGGER_NAME = "narrativetrace";
   private static final TracingLevel DEFAULT_LEVEL = TracingLevel.DETAIL;
 
+  /** The agent argument naming list 2's explicit package list. */
+  private static final String EXCLUDE_ARG = "exclude";
+
+  /** The documented property naming it on the fallback path. */
+  private static final String EXCLUDE_KEY = "narrativetrace.exclude";
+
+  /**
+   * List 2's shipped default, published verbatim in the installation guide and asserted there by
+   * {@code AgentConfigExcludeDefaultDocsTest} — never typed twice.
+   */
+  static final List<String> DEFAULT_EXCLUDE =
+      List.of(
+          "org.mockito",
+          "net.bytebuddy",
+          "org.junit",
+          "org.testng",
+          "net.sf.cglib",
+          "org.springframework.cglib",
+          "org.aspectj",
+          "datadog",
+          "io.opentelemetry.javaagent");
+
   /** Convenience for callers without logging jars (most tests and programmatic use). */
   public AgentConfig(List<String> packages, String loggerName, TracingLevel level) {
-    this(packages, loggerName, level, List.of());
+    this(packages, loggerName, level, List.of(), resolveExclude(null));
+  }
+
+  /** The four-component shape predates {@code exclude} and must keep meaning what it meant. */
+  public AgentConfig(
+      List<String> packages, String loggerName, TracingLevel level, List<Path> loggingJars) {
+    this(packages, loggerName, level, loggingJars, resolveExclude(null));
   }
 
   public static AgentConfig parse(String agentArgs) {
@@ -53,7 +96,8 @@ public record AgentConfig(
       var loggerName = config.getOrDefault("loggerName", DEFAULT_LOGGER_NAME);
       var level = TracingLevel.fromName(config.get("level"), DEFAULT_LEVEL);
       var loggingJars = parseLoggingJars(config.getOrDefault("loggingJars", ""));
-      return new AgentConfig(packages, loggerName, level, loggingJars);
+      var exclude = resolveExclude(config.get(EXCLUDE_ARG));
+      return new AgentConfig(packages, loggerName, level, loggingJars, exclude);
     }
     var resolver = new ConfigResolver(classLoader);
     var packagesValue = resolver.resolve("narrativetrace.packages", "");
@@ -61,7 +105,19 @@ public record AgentConfig(
     var level =
         TracingLevel.fromName(resolver.resolve("narrativetrace.level", null), DEFAULT_LEVEL);
     var loggingJars = parseLoggingJars(resolver.resolve("narrativetrace.loggingJars", ""));
-    return new AgentConfig(parsePackages(packagesValue), loggerName, level, loggingJars);
+    var exclude = resolveExclude(resolver.resolve(EXCLUDE_KEY, null));
+    return new AgentConfig(parsePackages(packagesValue), loggerName, level, loggingJars, exclude);
+  }
+
+  /**
+   * List 2's effective list: the shipped default when the key was never given, or the caller's own
+   * value (even empty) when it was — see the record javadoc for why presence is the switch.
+   */
+  private static List<String> resolveExclude(String explicitValue) {
+    if (explicitValue == null) {
+      return parsePackages(String.join(";", DEFAULT_EXCLUDE));
+    }
+    return parsePackages(explicitValue);
   }
 
   private static List<Path> parseLoggingJars(String value) {

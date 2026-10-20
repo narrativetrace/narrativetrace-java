@@ -15,15 +15,18 @@ import ai.narrativetrace.api.event.HttpRoute;
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.SpanContext;
+import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.api.event.SpanIdGenerator;
 import ai.narrativetrace.api.event.TenantId;
 import ai.narrativetrace.api.event.TraceEvent;
+import ai.narrativetrace.api.event.TraceId;
 import ai.narrativetrace.api.event.TraceOutcome;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -176,6 +179,86 @@ class OtelTraceEventListenerTest {
 
     var span = spanExporter.getFinishedSpanItems().get(0);
     assertThat(span.getParentSpanId()).isEqualTo("0000000000000000");
+  }
+
+  @Test
+  void adoptedRootParentsOnTheRemoteContextNamedByTheHeader() {
+    var remoteTraceId = TraceId.of("4bf92f3577b34da6a3ce929d0e0e4736");
+    var remoteParentSpanId = SpanId.of("00f067aa0ba902b7");
+    var sc = adoptedRootSpanContext(remoteTraceId, remoteParentSpanId, 1);
+
+    emitEnterExit(sc, "PaymentService", "charge", "\"paid\"");
+
+    var span = spanExporter.getFinishedSpanItems().get(0);
+    assertThat(span.getTraceId()).isEqualTo(remoteTraceId.toString());
+    assertThat(span.getParentSpanContext().isRemote()).isTrue();
+    assertThat(span.getParentSpanContext().getSpanId()).isEqualTo(remoteParentSpanId.toString());
+    assertThat(span.getParentSpanContext().getTraceFlags().isSampled()).isTrue();
+  }
+
+  @Test
+  void adoptedRootCarriesTheUnsampledFlagToTheRemoteContext() {
+    // ParentBased (the provider's default sampler) would drop an unsampled child outright,
+    // which would prove nothing about whether the flag was carried — force recording instead.
+    var alwaysOnProvider =
+        SdkTracerProvider.builder()
+            .setSampler(Sampler.alwaysOn())
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build();
+    var alwaysOnListener = new OtelTraceEventListener(alwaysOnProvider.get("narrativetrace"));
+    var sc =
+        adoptedRootSpanContext(SpanIdGenerator.traceId(), SpanIdGenerator.spanId(), /* flags= */ 0);
+
+    long t0 = 1_000_000;
+    alwaysOnListener.accept(
+        new TraceEvent.EnterEvent(
+            sc, t0, new MethodSignature("PaymentService", "charge", List.of())));
+    alwaysOnListener.accept(
+        new TraceEvent.ExitEvent(sc, t0 + 1_000_000, new TraceOutcome.Returned("\"paid\""), null));
+
+    // Not closed: InMemorySpanExporter.shutdown() clears finishedSpanItems, which would wipe
+    // out the very span this test just asserted on.
+    var span = spanExporter.getFinishedSpanItems().get(0);
+    assertThat(span.getParentSpanContext().isRemote())
+        .as("a flag check on a non-remote parent proves nothing about the header's flags")
+        .isTrue();
+    assertThat(span.getParentSpanContext().getTraceFlags().isSampled()).isFalse();
+  }
+
+  @Test
+  void localChildStillParentsOnItsLocalActiveSpanWhenTheRootIsAdopted() {
+    long t0 = 1_000_000;
+    var rootSc = adoptedRootSpanContext(SpanIdGenerator.traceId(), SpanIdGenerator.spanId(), 1);
+    var childSc = childSpanContext(rootSc);
+
+    listener.accept(
+        new TraceEvent.EnterEvent(
+            rootSc, t0, new MethodSignature("OrderService", "placeOrder", List.of())));
+    listener.accept(
+        new TraceEvent.EnterEvent(
+            childSc, t0 + 100, new MethodSignature("PaymentService", "charge", List.of())));
+    listener.accept(
+        new TraceEvent.ExitEvent(
+            childSc, t0 + 1_000_000, new TraceOutcome.Returned("\"paid\""), null));
+    listener.accept(
+        new TraceEvent.ExitEvent(
+            rootSc, t0 + 2_000_000, new TraceOutcome.Returned("\"ok\""), null));
+
+    var spans = spanExporter.getFinishedSpanItems();
+    var root = spans.stream().filter(s -> s.getName().contains("placeOrder")).findFirst().get();
+    var child = spans.stream().filter(s -> s.getName().contains("charge")).findFirst().get();
+    assertThat(child.getParentSpanId()).isEqualTo(root.getSpanId());
+    assertThat(root.getParentSpanContext().isRemote())
+        .as("the root's own parent is still the remote header, not the local child")
+        .isTrue();
+  }
+
+  private static SpanContext adoptedRootSpanContext(
+      TraceId traceId, SpanId remoteParentSpanId, int traceFlags) {
+    return SpanContext.builder(traceId, SpanIdGenerator.spanId())
+        .parentSpanId(remoteParentSpanId)
+        .traceFlags(traceFlags)
+        .build();
   }
 
   @Test

@@ -8,20 +8,31 @@ json="build/narrativetrace/clarity-scan-results.json"
 markdown="build/narrativetrace/clarity-scan-report.md"
 explanation="build/narrativetrace/clarity-explanation.md"
 verifier="$(dirname "$0")/../../verify_report.py"
-# The explanation file is the agent's own write, not a Gradle task output — checked against
-# what the agent actually read, before the clean rebuild below (which, like any `clean`, removes
-# it along with the rest of build/ and does not regenerate it).
-python3 "$verifier" "$json" "$markdown" "$explanation"
+
+# The explanation file is the agent's own write, not a Gradle task output, so unlike the scan
+# artifacts below it is never regenerated: a `clean` erases it for good. The agent's OWN later
+# steps may run one (B-107: a haiku trial wrote the explanation, then ran the page's JUnit
+# enforcement path, whose `clean` erased the scan artifacts this grader used to also demand
+# already on disk, failing a trial that had done nothing wrong). So the explanation is the only
+# precondition now — copied out before this grader's own clean, which regenerates the scan
+# artifacts fresh and verifies the explanation against THOSE, never against whatever the agent's
+# own last build left behind.
+if [ ! -f "$explanation" ]; then
+    echo "verify.sh: the agent never wrote $explanation" >&2
+    exit 1
+fi
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+saved_explanation="$work/clarity-explanation.md"
+cp "$explanation" "$saved_explanation"
 
 ./gradlew clean clarityScan --console=plain
-python3 "$verifier" "$json" "$markdown"
+python3 "$verifier" "$json" "$markdown" "$saved_explanation"
 
 # The happy-path prompt asks only for a first static naming report — no enforcement was
 # requested. The fixture's own build.gradle.kts (minScore=0.0, maxHighIssues=Int.MAX_VALUE) must
 # stay exactly as it was; "add enforcement only when requested" is not just a rule for what the
 # agent adds, it also forbids raising or lowering a threshold nobody asked to change.
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
 cat > "$work/policy.gradle" <<'GRADLE'
 gradle.projectsEvaluated {
     rootProject.tasks.register('verifyClarityPolicy') {

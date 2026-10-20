@@ -14,10 +14,14 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.tngtech.archunit.core.domain.JavaCall;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 @AnalyzeClasses(
     packages = "ai.narrativetrace.core",
@@ -212,4 +216,43 @@ class ArchitectureTest {
           .as(
               "Pro-only concerns (aggregate, mcp, audit, policy, uplift) must not appear as "
                   + "subpackages of ai.narrativetrace.core (Phase 31a/31c, Wave R)");
+
+  /**
+   * §176 ownership rule, core's half: within this module the only caller of {@code
+   * PipelineBootstrap.createDefault}/{@code build} is {@code ThreadLocalNarrativeContext} — the
+   * deprecated implicit-pipeline constructors' one call site. Every lifecycle owner outside core
+   * (the JUnit 5 extension, the JUnit 4 rules, the agent, Spring's context factory) builds its own
+   * pipeline explicitly and closes it; each owning module pins that half with the same condition,
+   * since ArchUnit cannot see across the dependency direction from here.
+   */
+  @ArchTest
+  static final ArchRule only_threadLocalNarrativeContext_builds_the_default_pipeline_implicitly =
+      noClasses()
+          .that(not(name("ai.narrativetrace.core.context.ThreadLocalNarrativeContext")))
+          .should(callsPipelineBootstrapDefaultConstruction())
+          .as(
+              "Only ThreadLocalNarrativeContext's deprecated constructors may build the default "
+                  + "pipeline implicitly; every other owner must build its own and close it");
+
+  private static ArchCondition<com.tngtech.archunit.core.domain.JavaClass>
+      callsPipelineBootstrapDefaultConstruction() {
+    return new ArchCondition<>("call PipelineBootstrap.createDefault or .build") {
+      @Override
+      public void check(com.tngtech.archunit.core.domain.JavaClass item, ConditionEvents events) {
+        for (var member : item.getCodeUnits()) {
+          for (JavaCall<?> call : member.getCallsFromSelf()) {
+            var target = call.getTarget();
+            if (target
+                    .getOwner()
+                    .isEquivalentTo(ai.narrativetrace.core.pipeline.PipelineBootstrap.class)
+                && (target.getName().equals("createDefault") || target.getName().equals("build"))) {
+              events.add(
+                  SimpleConditionEvent.violated(
+                      call, call.getOrigin().getFullName() + " calls " + target.getFullName()));
+            }
+          }
+        }
+      }
+    };
+  }
 }

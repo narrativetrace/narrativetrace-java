@@ -115,6 +115,14 @@ class RenderDriftTest {
         .isEqualTo(CursorPluginJsonRenderer.renderMarketplace(CatalogueIndex.MARKETPLACE));
   }
 
+  @Test
+  void openAiPluginJsonMatchesTheTypedCatalogue() {
+    Path onDisk = RenderPaths.openAiPluginJson(REPO_ROOT);
+    assertThat(onDisk).as(onDisk + " must exist — run renderSkills and commit it").exists();
+    assertThat(readText(onDisk))
+        .isEqualTo(OpenAiPluginJsonRenderer.render(CatalogueIndex.OPENAI_DIRECTORY));
+  }
+
   /**
    * Both Cursor manifests and the Claude marketplace are one listing: the same name, the same
    * plugin description, the same licence — a rename in one cannot leave the others behind.

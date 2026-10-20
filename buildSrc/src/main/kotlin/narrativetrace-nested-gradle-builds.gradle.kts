@@ -17,18 +17,34 @@
 // daemons — and the OOM killer took the outer Gradle process ("build daemon disappeared").
 //
 // One test-kit Gradle user home per module, with its own gradle.properties telling every nested
-// build how to size itself. GradleRunner reads `org.gradle.testkit.dir`, and a Gradle user home
-// reads its gradle.properties, so this reaches every nested build without a line in any test — and
-// without weakening a single assertion. `clean` disposes of it with the rest of build/.
+// build how to size itself, and its own init.d script disabling that home's periodic cache cleanup
+// (see prepareTestKitHome below for why). GradleRunner reads `org.gradle.testkit.dir`, and a Gradle
+// user home reads its gradle.properties and init.d scripts, so this reaches every nested build
+// without a line in any test — and without weakening a single assertion. `clean` disposes of it
+// with the rest of build/.
 
 val testKitHome = layout.buildDirectory.dir("test-kit")
 
-val testKitDaemonProperties by tasks.registering {
-    description = "Sizes the nested daemons GradleRunner starts, and holds them to one"
+val prepareTestKitHome by tasks.registering {
+    description = "Sizes the nested daemons GradleRunner starts, holds them to one, and disables" +
+        " this home's own cache cleanup"
     group = "build setup"
     val propertiesFile = testKitHome.map { it.file("gradle.properties") }
+    val cleanupInitScript = testKitHome.map { it.file("init.d/no-cache-cleanup.gradle.kts") }
     outputs.file(propertiesFile)
+    outputs.file(cleanupInitScript)
     doLast {
+        val script = cleanupInitScript.get().asFile
+        script.parentFile.mkdirs()
+        script.writeText(
+            // Gradle's periodic cache cleanup removes artifact files unused for 30 days. A plugin
+            // marker POM is read once into the metadata descriptor and never again, so it counts as
+            // unused while its descriptor stays warm: cleanup removed the settings plugin from this
+            // TestKit home and every nested build of the real tree then needed the network. The real
+            // Gradle home carries the same script.
+            "beforeSettings { caches { cleanup.set(Cleanup.DISABLED) } }\n"
+        )
+
         val file = propertiesFile.get().asFile
         file.parentFile.mkdirs()
         file.writeText(
@@ -64,7 +80,7 @@ val testKitDaemonProperties by tasks.registering {
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(testKitDaemonProperties)
+    dependsOn(prepareTestKitHome)
     systemProperty("org.gradle.testkit.dir", testKitHome.get().asFile.absolutePath)
     // One nested build at a time: two test JVMs each starting their own is two outer-sized daemons
     // for no parallel gain on suites this small.

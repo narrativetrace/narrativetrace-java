@@ -42,13 +42,17 @@ public final class NarrativeTraceDoctorSkill {
             + " integration referenced and wired, whether any sink receives what is traced, whether"
             + " -parameters"
             + " degraded parameter names, whether redaction is proven in a test, whether the"
-            + " NarrativeTrace agent skills are installed and current, whether committed"
+            + " NarrativeTrace agent skills are installed in this project and current, whether"
+            + " committed"
             + " .approved.nt baselines are compared at all (approval mode on), and stale"
             + " .received.nt approval files. Read-only — makes no changes. Say 'check my"
             + " narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being"
             + " traced' to invoke it.",
         "Non-obvious triggers: a build that traces nothing without any visible error; parameter"
-            + " names printed as arg0/arg1; a stale .received.nt left after an approval mismatch.",
+            + " names printed as arg0/arg1; a stale .received.nt left after an approval mismatch;"
+            + " a user who installed these skills as a personal plugin in their agent rather than"
+            + " in this project — a plugin install is invisible to this check by design, and only"
+            + " a project install reaches teammates and other agents.",
         "sixty-seconds",
         List.of(
             new SkillStep(

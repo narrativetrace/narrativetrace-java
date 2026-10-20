@@ -34,7 +34,11 @@ evals/
 │   ├── happy-path/
 │   │   ├── case.json           # points the scaffolder at fixtures/empty-project
 │   │   ├── prompt.md
-│   │   └── graders/verify.sh
+│   │   └── graders/verify.sh   # no test source set: the grader runs the demo itself (B-92)
+│   ├── existing-service/
+│   │   ├── case.json           # points the scaffolder at fixtures/existing-service
+│   │   ├── prompt.md           # the project already has tests — one EXISTING test, not a demo
+│   │   └── graders/verify.sh   # runs the suite itself, asserts the .md AND .nt it wrote
 │   ├── run_the_program.sh     # shared by the console prompt cases: runs the project and
 │   │                          # requires a rendered trace on its standard output
 │   ├── run_the_server.sh      # the server case's runner: boot jar, one request, and a trace

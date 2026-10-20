@@ -15,9 +15,11 @@ import org.objectweb.asm.Opcodes;
 /**
  * ASM class visitor that wraps eligible methods with {@link NarrativeMethodVisitor}.
  *
- * <p>INTENT: Skip constructors, class initializers, abstract methods (no body to instrument), and
- * private methods (implementation details not part of the observable API). Instruments all
- * remaining methods using the metadata gathered during the first transformation pass.
+ * <p>INTENT: Skip constructors, class initializers, abstract methods (no body to instrument),
+ * private methods (implementation details not part of the observable API), and bridge/synthetic
+ * methods (list 1, structural, never a business boundary — a compiler-generated duplicate of a real
+ * method, or an accessor nobody wrote). Instruments all remaining methods using the metadata
+ * gathered during the first transformation pass.
  */
 public final class NarrativeClassVisitor extends ClassVisitor {
 
@@ -39,6 +41,9 @@ public final class NarrativeClassVisitor extends ClassVisitor {
       return mv;
     }
     if ((access & Opcodes.ACC_ABSTRACT) != 0 || (access & Opcodes.ACC_PRIVATE) != 0) {
+      return mv;
+    }
+    if ((access & Opcodes.ACC_BRIDGE) != 0 || (access & Opcodes.ACC_SYNTHETIC) != 0) {
       return mv;
     }
     var methodMetadata = metadata.get(MethodMetadataCollector.key(name, descriptor));

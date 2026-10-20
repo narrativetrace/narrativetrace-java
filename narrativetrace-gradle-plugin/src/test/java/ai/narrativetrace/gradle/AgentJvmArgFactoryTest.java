@@ -20,15 +20,15 @@ import org.junit.jupiter.api.Test;
 class AgentJvmArgFactoryTest {
 
   @Test
-  void noPackagesEmitsBareJavaagentArg() {
-    var arg = AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of());
+  void noPackagesOrExcludeEmitsBareJavaagentArg() {
+    var arg = AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of(), List.of());
 
     assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar");
   }
 
   @Test
   void singlePackageIsEmittedUnderThePackagesKey() {
-    var arg = AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of("com.shop"));
+    var arg = AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of("com.shop"), List.of());
 
     assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=packages=com.shop");
   }
@@ -36,8 +36,34 @@ class AgentJvmArgFactoryTest {
   @Test
   void multiplePackagesAreSemicolonJoinedUnderThePackagesKey() {
     var arg =
-        AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of("com.shop", "com.billing"));
+        AgentJvmArgFactory.javaagentArg(
+            "/libs/agent.jar", List.of("com.shop", "com.billing"), List.of());
 
     assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=packages=com.shop;com.billing");
+  }
+
+  @Test
+  void excludeAloneIsEmittedUnderTheExcludeKeyWithNoPackagesSegment() {
+    var arg = AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of(), List.of("org.mockito"));
+
+    assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=exclude=org.mockito");
+  }
+
+  @Test
+  void packagesAndExcludeAreCommaJoinedWithPackagesFirst() {
+    var arg =
+        AgentJvmArgFactory.javaagentArg(
+            "/libs/agent.jar", List.of("com.shop"), List.of("org.mockito"));
+
+    assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=packages=com.shop,exclude=org.mockito");
+  }
+
+  @Test
+  void multipleExcludeEntriesAreSemicolonJoinedUnderTheExcludeKey() {
+    var arg =
+        AgentJvmArgFactory.javaagentArg(
+            "/libs/agent.jar", List.of(), List.of("org.mockito", "net.bytebuddy"));
+
+    assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=exclude=org.mockito;net.bytebuddy");
   }
 }

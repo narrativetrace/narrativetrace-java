@@ -26,8 +26,17 @@ dependencies {
     // Every page's log lines come from the project's own logger, not from a NarrativeTrace writer:
     // narrativetrace-slf4j attaches itself to the pipeline once it is on the classpath
     // (documentation/configuration-guide.md §7), and logback-test.xml decides where its events go.
-    testRuntimeOnly(project(":narrativetrace-slf4j"))
+    // It is `testImplementation` rather than `testRuntimeOnly` for ONE page: the observability
+    // recipe composes its own pipeline, so it names the narration listener in code. Every other
+    // scenario still gets narration the way a reader does — by the module being on the classpath.
+    testImplementation(project(":narrativetrace-slf4j"))
     testRuntimeOnly("ch.qos.logback:logback-classic:1.5.38")
+
+    // documentation/recipes/send-traces-to-the-observability-stack-you-already-run.md: the live
+    // listener, the OTel API it maps onto, and the SDK's in-memory exporter the page asserts on.
+    testImplementation(project(":narrativetrace-opentelemetry"))
+    testImplementation("io.opentelemetry:opentelemetry-api:1.62.0")
+    testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.62.0")
 }
 
 // Where every file a recipe page embeds is written. One directory per page, so no two runs can
@@ -45,23 +54,38 @@ tasks.test {
     outputs.dir(recipeOutput)
 }
 
-// The two pages whose output IS log output need the log of one scenario alone in one file, and the
+// Every page whose output IS log output needs the log of one scenario alone in one file, and the
 // appender's file name is a property of the JVM, not of a test — so each gets its own test JVM.
-// `test` above runs the same classes with the suite-wide log file; these two tasks are what the
-// pages' embedded log blocks come from.
-fun registerLogCapture(taskName: String, testClass: String, slug: String) =
+// `test` above runs the same classes with the suite-wide log file; these tasks are what the pages'
+// embedded log blocks come from.
+//
+// `testFilter` is a JUnit filter pattern, so a task can name one METHOD of a class whose other
+// methods must not reach the same file: a run that deliberately loses the trace handover writes a
+// freshly generated trace id, which is the finding that page reports and the one thing an embedded
+// block can never hold. `logbackConfig` selects a configuration whose pattern carries what a page
+// is about (the correlation pages need the thread and the raw trace id); absent, the suite-wide
+// logback-test.xml applies.
+fun registerLogCapture(
+    taskName: String,
+    testFilter: String,
+    slug: String,
+    logbackConfig: String? = null
+) =
     tasks.register<Test>(taskName) {
         group = "documentation"
         description = "Captures documentation/recipes/$slug.md's log output from a real run"
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
         useJUnitPlatform()
-        filter { includeTestsMatching("com.example.checkout.$testClass") }
+        filter { includeTestsMatching("com.example.checkout.$testFilter") }
         systemProperty(
             "narrativetrace.recipes.log",
             recipeOutput.get().asFile.resolve("$slug/checkout.log").path
         )
         systemProperty("narrativetrace.outputDir", layout.buildDirectory.dir("narrativetrace").get().asFile.path)
+        if (logbackConfig != null) {
+            systemProperty("logback.configurationFile", logbackConfig)
+        }
         outputs.dir(recipeOutput.get().asFile.resolve(slug))
     }
 
@@ -78,7 +102,49 @@ val recipeReviewFlowLog =
         "review-a-complex-flow-before-changing-it"
     )
 
+// Two services in one log file, so the page can show one trace id in both: the correlation
+// configuration adds the thread and the raw trace id to the pattern.
+val recipeAcrossServicesLog =
+    registerLogCapture(
+        "recipeAcrossServicesLog",
+        "AcrossServicesRecipeTest",
+        "follow-one-request-across-services",
+        "logback-correlation.xml"
+    )
+
+// The redaction page's claim is about a log FILE, so its run needs one of its own: the suite log
+// carries every other scenario's lines, and the page embeds what one checkout wrote.
+val recipeSecretsLog =
+    registerLogCapture("recipeSecretsLog", "SecretsRecipeTest", "keep-secrets-out-of-the-logs")
+
+// The handover page's log needs the run that KEEPS the trace, alone: the same class's second test
+// deliberately loses it and writes a freshly generated trace id. Same correlation configuration as
+// the cross-service page — the thread column is half of what that page is about.
+val recipeAcrossThreadsLog =
+    registerLogCapture(
+        "recipeAcrossThreadsLog",
+        "AcrossThreadsRecipeTest.the_background_tasks_stay_in_the_customers_trace",
+        "follow-a-flow-across-threads",
+        "logback-correlation.xml"
+    )
+
+// One run, two consumers: the page shows the log lines and the exported spans side by side, so the
+// log it embeds has to come from the same run the span dump does.
+val recipeObservabilityLog =
+    registerLogCapture(
+        "recipeObservabilityLog",
+        "ObservabilityRecipeTest",
+        "send-traces-to-the-observability-stack-you-already-run"
+    )
+
 // Every page's evidence is produced by `check`, never by a developer remembering to ask for it.
 tasks.named("check") {
-    dependsOn(recipeAddLoggingLog, recipeReviewFlowLog)
+    dependsOn(
+        recipeAddLoggingLog,
+        recipeReviewFlowLog,
+        recipeAcrossServicesLog,
+        recipeSecretsLog,
+        recipeAcrossThreadsLog,
+        recipeObservabilityLog
+    )
 }

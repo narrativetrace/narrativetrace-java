@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob bd89ddac9a5f | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob 0d605d663b93 | translated: 2026-10-19 | reviewed: 2026-09-03 -->
 # Escolhendo uma integração
 
 [English](../choosing-an-integration.md) | Español | **Português** | [简体中文](../zh-CN/选择集成方式.md)
@@ -93,13 +93,16 @@ assim se mantêm em paridade por construção, não por convenção.
   silenciosamente: um bean sem interface é deixado intocado, e não gera
   erro. Os pacotes-base são apenas de inclusão.
 - **Agente Java** — todo método não privado e não abstrato dentro dos
-  pacotes correspondentes é instrumentado; hoje não há opt-out por método
-  nem lista de exclusão (`AgentConfig` interpreta `packages`, `loggerName`,
-  `level`, `loggingJars` — nada além disso). A correspondência de pacotes
-  respeita delimitadores, então `com.acme` nunca corresponde a
-  `com.acmeExtra`. Em um host sem nenhum provedor de logging no classpath —
-  na maioria das vezes, um app server sem nada instalado — o agente não
-  narra nada até que você adicione um; veja
+  pacotes correspondentes é instrumentado, exceto uma lista nativa e
+  estrutural (proxies dinâmicos JDK, nomes de classe com formato de
+  gerador, métodos bridge e sintéticos — nunca configurável) e uma lista
+  configurável `exclude=` de pacotes ao lado de `packages=` (lista padrão
+  embutida de nove prefixos, que sempre vence sobre `packages=`); ainda não
+  há opt-out por método. A correspondência de pacotes respeita
+  delimitadores, então `com.acme` nunca corresponde a `com.acmeExtra`. Em
+  um host sem nenhum provedor de logging no classpath — na maioria das
+  vezes, um app server sem nada instalado — o agente não narra nada até que
+  você adicione um; veja
   [Solução de problemas](solucao-de-problemas.md#o-agente-gera-traces-mas-nada-aparece-nos-meus-logs).
 - **Trabalho entre threads** — nenhum dos cinco caminhos acima mescla
   automaticamente as chamadas de uma thread assíncrona/executor ao trace
@@ -126,9 +129,12 @@ todos os mecanismos de anexação acima:
 - **O escopo é somente de inclusão, em todo lugar.** O `packages=` do
   agente, os pacotes-base do Spring e do Micronaut, e a interface alvo
   explícita do proxy respeitam todos um limite de delimitador (`com.acme`
-  nunca corresponde a `com.acmeExtra`), e nenhum deles tem lista de
-  exclusão ainda — uma classe que vive dentro dos seus pacotes
-  correspondentes é envolvida, seja ela sua ou de outra biblioteca.
+  nunca corresponde a `com.acmeExtra`); uma classe que vive dentro dos seus
+  pacotes correspondentes é envolvida, seja ela sua ou de outra biblioteca.
+  Só o agente restringe isso com duas listas de exclusão — veja [Guia de
+  Instalação § Excluir
+  pacotes](guia-de-instalacao.md#excluir-pacotes-excludepkg1pkg2) — mas o
+  Spring, o Micronaut e o proxy ainda não têm lista de exclusão.
 
 ## Limites de plataforma
 

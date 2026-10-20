@@ -2,11 +2,17 @@
 
 Minimal proof that agent mode captures traces with **zero NarrativeTrace code in the test
 body**. `GreetingService` (`src/main/java`) has no NarrativeTrace annotation, import, or
-interface — it is instrumented at class-load time by the `-javaagent` this module's `test`
-task attaches (see `build.gradle.kts`). `GreetingServiceAgentTest` instantiates and calls it
-exactly as it would without NarrativeTrace on the classpath at all; `AgentNarrationExtension`
-only resets and prints what the agent already recorded, through `AgentRuntime`'s shared
-context — it does no tracing of its own.
+interface — it is instrumented at class-load time by the `-javaagent` the `agentTest` /
+`agentTestJunit4` tasks attach (see `build.gradle.kts`). `GreetingServiceAgentFixture` (JUnit 5)
+and `GreetingServiceAgentJunit4Fixture` (JUnit 4) instantiate and call it exactly as they would
+without NarrativeTrace on the classpath at all, beyond the ordinary `@ExtendWith
+(NarrativeTraceExtension.class)` / linked `NarrativeTraceClassRule`+`NarrativeTraceRule` wiring
+any proxy-traced test already carries. Since §176, that is sufficient: both integrations route
+the agent's shared capture into their own lifecycle-owned context, so these fixtures write the
+same per-test Markdown/structural/JSON/diagram files (plus, for JUnit 5, the run's
+`manifest.json`) that a proxy-traced test does — `GreetingServiceAgentTest` /
+`GreetingServiceAgentJunit4Test` run each fixture through a nested JUnit Platform launch and
+assert on the files it wrote.
 
 This module is **not published** — like `narrativetrace-junit4-example`, it exists to be read
 and run, not depended on.
@@ -35,26 +41,27 @@ auto-attaches reflectively (see
 [Configuration Guide §7](../documentation/configuration-guide.md#7-slf4j-configuration)),
 and [`src/test/resources/logback-test.xml`](src/test/resources/logback-test.xml)
 sets the `narrativetrace` logger to `TRACE`. This is a separate, durable
-narration path from the best-effort console print `AgentNarrationExtension`
-does via `captureTrace()` — both fire from the same `agentTest` run.
+narration path from the per-test files the JUnit extension/rule write via
+`captureTrace()` — both fire from the same `agentTest`/`agentTestJunit4` run.
 
 This module's `-javaagent` weaves the whole `ai.narrativetrace.examples.agent`
 package (see `packages=` in `build.gradle.kts`), so the SLF4J trace also
-narrates `AgentNarrationExtension`'s and `GreetingServiceAgentTest`'s own
-methods, not only `GreetingService.greet` — expected, since the filter is a
-package, not a class.
+narrates the fixture classes' own methods, not only `GreetingService.greet` —
+expected, since the filter is a package, not a class.
 
 ## Running it
 
 ```bash
-./gradlew :narrativetrace-agent-example:agentTest
+./gradlew :narrativetrace-agent-example:agentTest        # JUnit 5 fixture
+./gradlew :narrativetrace-agent-example:agentTestJunit4   # JUnit 4 fixture
 ```
 
-The printed trace comes from `AgentNarrationExtension`, not from the test's own assertions —
-watch the console output, not just the pass/fail line. `GreetingServiceAgentTest` runs on its
-own `agentTest` task, not the default `test` task: JaCoCo's coverage agent and the
-narrativetrace agent both instrument `GreetingService`'s bytecode when they share a JVM, and
-JaCoCo cannot then match its execution data back to the class file — it silently zeroes that
-class's coverage rather than failing loudly. `GreetingServiceTest` (a plain, untraced unit
-test) covers the same class for the coverage gate; `agentTest` still runs on every
-`./gradlew check`, just outside coverage.
+Each task's own test (`GreetingServiceAgentTest` / `GreetingServiceAgentJunit4Test`) asserts
+directly on the files its fixture wrote under a temporary `narrativetrace.outputDir` — read
+those assertions, not the console, to see what agent mode produced. Neither fixture runs on the
+default `test` task: JaCoCo's coverage agent and the narrativetrace agent both instrument
+`GreetingService`'s bytecode when they share a JVM, and JaCoCo cannot then match its execution
+data back to the class file — it silently zeroes that class's coverage rather than failing
+loudly. `GreetingServiceTest` (a plain, untraced unit test) covers the same class for the
+coverage gate; both agent-mode tasks still run on every `./gradlew check`, just outside
+coverage.

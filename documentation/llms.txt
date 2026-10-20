@@ -41,9 +41,9 @@ Java 17+, Gradle 8.0+ (see "Before you start" for a fresh directory with no `./g
 plugins { java; application }
 repositories { mavenCentral() }
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
@@ -53,7 +53,7 @@ application { mainClass.set("com.example.orders.Main") }
 ```
 
 Optional, zero-code step 2 — traces also flow to your logger, `Main.java` below never changes:
-add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")` and
+add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.1")` and
 `runtimeOnly("ch.qos.logback:logback-classic:1.5.38")`, plus a `logback.xml`.
 
 (`OrderService`/`DefaultOrderService` — a one-method interface and its trivial implementation —
@@ -174,7 +174,7 @@ class RedactionTest {
 - `ThreadLocalNarrativeContext` is thread-local, not request- or trace-scoped — crossing a thread needs an explicit `ContextSnapshot`, the Micrometer accessor, or a request-scoped filter; see the [context propagation strategies table](configuration-guide.md#context-propagation-strategies).
 - Every published module and the Gradle plugin move at exactly one version — `narrativetraceVersion` in `gradle.properties` is the single source, read by `VersionResolver` at runtime and used to pin every install coordinate on this page. Install every package at that same version, never a range: a plugin and a library on different numbers can install mismatched libraries.
 
-NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability.
+NarrativeTrace is a Java library that eliminates manual logging. It wraps services with tracing proxies (or uses a Java agent) to capture every method call and renders the result as Markdown, prose, diagrams, or JSON. Includes naming clarity analysis that scores code readability. Paired with the JUnit 5 extension or JUnit 4 rules on the test classpath, the agent's captures land in the same per-test files a proxy-traced test produces — no proxy, no annotation needed in the traced class.
 
 ## Runtime support
 
@@ -209,6 +209,11 @@ One page per problem, in the words a user would type. Each page carries its scen
 - [Why did this test fail](recipes/why-did-this-test-fail.md) — a red checkout test read span by span against the assertion, where every span agrees with every other and the expectation is what is stale.
 - [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) — one run at `DETAIL` and at `SUMMARY`, with the log line that carries values beside the value-free `.nt` an agent reads.
 - [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) — the tests stay green, the approval diff names the dropped call, and `approveNarratives` is how you say yes.
+- [Follow one request across services (distributed tracing)](recipes/follow-one-request-across-services.md) — the checkout charges through a second traced service over a real socket: the W3C `traceparent` rides with the request, so one trace id is in both services' lines and the callee's root names the caller's span as its parent.
+- [Keep secrets out of the logs](recipes/keep-secrets-out-of-the-logs.md) — a password caught by its parameter name and a card number caught by its value, in the log and in the trace file, with the test that reads the log back as the proof.
+- [Follow a flow across threads](recipes/follow-a-flow-across-threads.md) — two tasks handed to an executor through a `ForkGroup` keep the customer's trace id and come home under the span that launched them; the same submit without the wrap starts a trace nobody is searching for.
+- [Send traces to the observability stack you already run](recipes/send-traces-to-the-observability-stack-you-already-run.md) — one run, two consumers: the narrative lines your logger already writes beside the OpenTelemetry spans the same events became, attribute by attribute, redactions included.
+- [Trace in production without the cost](recipes/trace-in-production-without-the-cost.md) — one declined checkout rendered at `DETAIL` and at `ERRORS`, where a run that succeeded writes no artifact at all, and only `OFF` skips interception.
 
 ## The doctor
 
@@ -221,7 +226,7 @@ Every skill ends at the same seam, and so should you:
 Nineteen read-only checks — the toolchain (JDK, JUnit range, the platform launcher), the configuration (output property, extension registration, whether the agent skills above are installed and current), one wiring check per framework integration (the framework is used but its module is not referenced, or the module is referenced but never wired — the fix prints the exact lines to add), and six known traps (silent sink, arg0 parameter names, an unused `@NotTraced` import, redaction never proven in a test, a stale `.received.nt`, a build missing `-parameters`). Every failing finding names the fix and, where one exists, the skill that owns that class of problem. The JSON report lands at `build/narrativetrace/doctor-report.json`. The task exists once the `ai.narrativetrace` Gradle plugin is applied — if the install block above did not apply it, add one line to the `plugins` block and keep the block's `dependencies` as they are, then run the doctor again. The plugin adds the `-parameters` flag itself, and it adds the libraries to the test classpath only (`testImplementation`; its `scope` defaults to `"test"`) — a traced class under `src/main`, like `Main` above, still needs the `implementation(...)` lines, or `narrativeTrace { scope.set("production") }`:
 
 ```kotlin
-plugins { id("ai.narrativetrace") version "0.4.0" }
+plugins { id("ai.narrativetrace") version "0.4.1" }
 ```
 
 <!-- covered-frameworks:begin -->
@@ -265,13 +270,13 @@ All published modules include source JARs with Javadoc written for LLM consumpti
 To access detailed API context, resolve the sources classifier from Maven Central:
 
 Gradle (sources auto-downloaded by IDEs):
-  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.4.0") }
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.4.1") }
 
 Maven:
   mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
 
 Direct download (any module):
-  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.4.0/narrativetrace-core-0.4.0-sources.jar
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.4.1/narrativetrace-core-0.4.1-sources.jar
 
 Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
 narrativetrace-junit4, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,

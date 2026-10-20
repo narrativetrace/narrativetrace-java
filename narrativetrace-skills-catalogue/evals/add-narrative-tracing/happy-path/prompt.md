@@ -15,8 +15,10 @@ project, harness §6 Q5), scaffolded into a scratch copy with nothing installed 
 
 **Grading** (§11.1 split):
 - **Gates** (every model): `graders/verify.sh` — `build.gradle.kts` declares
-  `narrativetrace-proxy`, at least one rendered `.md` trace exists under `build/narrativetrace`,
-  and every `toolchain.*` doctor finding holds.
+  `narrativetrace-proxy`; the fixture has no test source set, so the step 3 script writes nothing
+  to disk (B-92) — the grader itself runs `./gradlew run -q`, asserts it exits 0, and asserts its
+  own output contains a trace of the wrapped call (`OrderService.placeOrder`); and every
+  `toolchain.*` doctor finding holds.
 - **Report-only** (cheapest model), gates (mid model+): did the agent run the final
   `narrativetrace-doctor` seam step and read its report, rather than declaring the project done
   unprompted?

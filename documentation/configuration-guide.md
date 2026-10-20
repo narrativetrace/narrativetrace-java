@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -54,6 +54,7 @@ narrativeTrace {
 
     agent {                                    // only relevant when mode = "agent"
         packages.set(listOf("com.example.app"))
+        exclude.set(listOf("org.mockito"))     // default: the shipped nine-prefix list
     }
 
     clarity {
@@ -152,6 +153,11 @@ Runtime level changes are supported:
 ```java
 config.setLevel(TracingLevel.ERRORS);
 ```
+
+When the Java agent (§3) is attached under `narrativetrace-junit5`'s extension or
+`narrativetrace-junit4`'s rules, its captures flow through that same per-test `NarrativeTraceConfig`,
+so the level configured for a test governs the agent's calls exactly as it governs a proxy-traced
+one.
 
 ### Context propagation strategies
 
@@ -449,6 +455,12 @@ text.
 
 For standalone Java apps and the bytecode agent, `ConfigResolver` loads configuration from the classpath.
 
+Attached to a test JVM alongside `narrativetrace-junit5`/`narrativetrace-junit4` (including via the
+Gradle plugin's `mode.set("agent")`), the agent's captures route into the JUnit extension's or rule's
+own per-test context, so a class the agent wove at class-load time writes the same per-test
+Markdown/structural/JSON/diagram files a proxy-traced test does — with zero NarrativeTrace code in
+the instrumented class. See the [installation guide](installation-guide.md#option-e-java-agent-no-proxy-wiring).
+
 Resolution order:
 
 1. System properties (highest)
@@ -512,6 +524,24 @@ each listed jar — directories are expanded to the jars they contain —
 is appended to the system class loader search before tracing starts. A
 path that does not exist fails fast at attach time. Also available as
 the `loggingJars=` agent argument.
+
+A class the agent's own runtime is not visible from — one injected into the
+bootstrap class loader, or defined by an isolated loader that does not
+delegate to the agent's — loads **uninstrumented** however the package
+filter is written, because instrumented bytecode calls
+`ai.narrativetrace.agent.AgentRuntime` by name. The agent reports each such
+loader once on `stderr`; nothing else in the JVM is affected.
+
+Two more exclusions sit beside that one, detailed in the
+[installation guide](installation-guide.md#generated-and-compiler-made-classes-are-never-instrumented):
+a built-in, structural list that is never configurable (JDK dynamic
+proxies, generator-shaped class names, bridge and synthetic methods), and a
+configurable list named by package — `exclude=<pkg1>;<pkg2>` beside
+`packages=`, also available as `narrativetrace.exclude` on the fallback
+path, with a nine-entry shipped default (`org.mockito`, `net.bytebuddy`,
+`org.junit`, `org.testng`, `net.sf.cglib`, `org.springframework.cglib`,
+`org.aspectj`, `datadog`, `io.opentelemetry.javaagent`) that an explicit
+`exclude=` replaces rather than extends.
 
 ### Sizing the event buffer
 
@@ -758,7 +788,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.0")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.1")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.

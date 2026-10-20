@@ -80,3 +80,13 @@ narrativetrace-core/src/main/java/ai/narrativetrace/core/export/CanonicalEntry.j
 # expected to carry raw backspace or form-feed, so this is left as a cosmetic divergence rather than
 # a bug to chase, and is not a reason to fold the two modules' JSON writers together.
 narrativetrace-core/src/main/java/ai/narrativetrace/core/export/JsonEscape.java :: narrativetrace-tooling/src/main/java/ai/narrativetrace/tooling/doctor/DoctorRender.java
+
+# Same reflective-bridge shape, duplicated across a sibling boundary rather than by neglect (§176):
+# narrativetrace-junit4's and narrativetrace-junit5's AgentContextBridge both resolve
+# ai.narrativetrace.agent.AgentRuntime by name and swap its shared NarrativeContext for the
+# lifecycle owner's one, because neither JUnit integration depends on the other and neither may
+# depend on narrativetrace-agent (an optional, reflectively-resolved dependency, the same shape
+# PipelineBootstrap.narrationListener uses for the SLF4J listener). There is no module both already
+# depend on to fold a ~70-line class into without adding a new inter-module dependency neither
+# module needs otherwise, which would cost more than the clone it removes.
+narrativetrace-junit4/src/main/java/ai/narrativetrace/junit4/AgentContextBridge.java :: narrativetrace-junit5/src/main/java/ai/narrativetrace/junit5/AgentContextBridge.java

@@ -32,6 +32,7 @@ import ai.narrativetrace.core.output.ScenarioManifest;
 import ai.narrativetrace.core.output.TemplateWarningCollector;
 import ai.narrativetrace.core.output.TraceFileWriter;
 import ai.narrativetrace.core.output.TraceTestSupport;
+import ai.narrativetrace.core.pipeline.EventPipeline;
 import ai.narrativetrace.core.pipeline.PipelineBootstrap;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.core.spi.ExtensionRegistry;
@@ -146,9 +147,57 @@ public class NarrativeTraceExtension
   private static final ExtensionContext.Namespace NAMESPACE =
       ExtensionContext.Namespace.create(NarrativeTraceExtension.class);
   private static final String CONTEXT_KEY = "narrativeContext";
+  private static final String LOSS_BASELINE_KEY = "traceLossBaseline";
   private static final String TRACES_KEY = "accumulatedTraces";
   private static final String DELTAS_KEY = "accumulatedDeltas";
   private static final String GLOBAL_KEY = "globalTraceAccumulator";
+  private static final String SUITE_CONTEXT_KEY = "suiteContext";
+
+  /**
+   * The context this extension owns for the whole test JVM, built once in the root store beside
+   * {@link GlobalTraceAccumulator} and closed with it.
+   *
+   * <p>INTENT: §176 — a context lives as long as its lifecycle owner, and the owner here is the
+   * suite, not the test method. {@link #beforeEach} resets the shared context (never rebuilds it)
+   * and {@link #afterTestExecution} captures and writes exactly as when each test built its own;
+   * the only visible change is that an attached Java agent — bytecode-woven classes with no proxy
+   * and no annotation — now publishes into this same context via {@link AgentContextBridge}, so its
+   * calls reach the per-test files too.
+   *
+   * <p><b>@llmNote</b> The buffer capacity is read once, from whichever test's configuration first
+   * triggers construction, and held for the rest of the suite — the same "once at construction"
+   * rule {@code narrativetrace.bufferCapacity} always followed per test, now scoped to the suite
+   * instead. The capture level is re-read and applied on every {@link #beforeEach}, so two tests at
+   * different levels in one class each still get their own.
+   */
+  static final class SuiteContextResource implements ExtensionContext.Store.CloseableResource {
+    private final NarrativeTraceConfig config;
+    private final EventPipeline pipeline;
+    private final ThreadLocalNarrativeContext context;
+    private final AgentContextBridge agentBridge;
+
+    SuiteContextResource(TracingLevel level, int bufferCapacity) {
+      this.config = new NarrativeTraceConfig(level);
+      this.pipeline =
+          PipelineBootstrap.createDefault(PipelineBootstrap.DEFAULT_LOGGER_NAME, bufferCapacity);
+      this.context = new ThreadLocalNarrativeContext(config, pipeline);
+      this.agentBridge = AgentContextBridge.attach(context);
+    }
+
+    ThreadLocalNarrativeContext context() {
+      return context;
+    }
+
+    NarrativeTraceConfig config() {
+      return config;
+    }
+
+    @Override
+    public void close() {
+      agentBridge.detach();
+      pipeline.close();
+    }
+  }
 
   /**
    * Accumulates traces from all test classes in the suite and writes the combined clarity report.
@@ -364,12 +413,38 @@ public class NarrativeTraceExtension
             GLOBAL_KEY, k -> new GlobalTraceAccumulator(), GlobalTraceAccumulator.class);
   }
 
+  /**
+   * The one suite-wide {@link SuiteContextResource}, created on first use and closed by the root
+   * store beside {@link #accumulator}. The buffer capacity of whichever test triggers construction
+   * becomes the suite's, for the rest of the run — see the class doc.
+   */
+  private static SuiteContextResource suiteContext(ExtensionContext extensionContext) {
+    return extensionContext
+        .getRoot()
+        .getStore(NAMESPACE)
+        .getOrComputeIfAbsent(
+            SUITE_CONTEXT_KEY,
+            k ->
+                new SuiteContextResource(
+                    TracingLevel.fromName(
+                        configParam(
+                            extensionContext, "narrativetrace.level", TracingLevel.DETAIL.name()),
+                        TracingLevel.DETAIL),
+                    bufferCapacity(extensionContext)),
+            SuiteContextResource.class);
+  }
+
   @Override
   public void beforeEach(ExtensionContext extensionContext) {
+    var resource = suiteContext(extensionContext);
+    resource.context().reset();
     var levelName =
         configParam(extensionContext, "narrativetrace.level", TracingLevel.DETAIL.name());
-    var context = newContext(levelName, bufferCapacity(extensionContext));
-    extensionContext.getStore(NAMESPACE).put(CONTEXT_KEY, context);
+    resource.config().setLevel(TracingLevel.fromName(levelName, TracingLevel.DETAIL));
+    extensionContext.getStore(NAMESPACE).put(CONTEXT_KEY, resource.context());
+    // Loss counters on a shared context only grow (TraceLoss#since); this test's own share of the
+    // suite total is this reading bracketed against the one afterTestExecution takes.
+    extensionContext.getStore(NAMESPACE).put(LOSS_BASELINE_KEY, resource.context().traceLoss());
     // On the thread about to run the test — sequential or parallel, this always is that thread —
     // so any discovered RunListener (SLF4J's MDC, when narrativetrace-slf4j is on the classpath)
     // can attach the run's identity there before the test body runs (2026-09-13 ruling, item 2).
@@ -415,14 +490,17 @@ public class NarrativeTraceExtension
   }
 
   /**
-   * Builds the per-test context with an explicitly chosen ring size.
+   * Builds a standalone context at the given level and ring size — a direct-construction test
+   * utility, independent of {@link #beforeEach}'s suite-scoped {@link SuiteContextResource}.
    *
-   * <p>INTENT: This extension builds one context per <em>test method</em>, and a test uses a few
-   * dozen buffer slots of it. The runtime's 65,536-slot default costs 1.75 MB and ~1.5 ms per test
-   * for nothing, so this integration passes its own, smaller default — <em>explicitly</em>. Core
-   * never detects JUnit, or any framework: a runtime that behaves differently because of what is on
-   * the classpath is a runtime nobody can reason about. The integration knows its workload, so the
-   * integration says so, in its own code, in a line a reader can find.
+   * <p>INTENT: {@link #beforeEach} shares one context for the whole suite (see {@link
+   * SuiteContextResource}), and a test uses a few dozen buffer slots of it. The runtime's
+   * 65,536-slot default costs 1.75 MB and ~1.5 ms for nothing on that scale, so {@link
+   * SuiteContextResource} passes its own, smaller default — <em>explicitly</em> — and this method
+   * mirrors the same sizing for callers building one by hand. Core never detects JUnit, or any
+   * framework: a runtime that behaves differently because of what is on the classpath is a runtime
+   * nobody can reason about. The integration knows its workload, so the integration says so, in its
+   * own code, in a line a reader can find.
    *
    * @param levelName the configured capture level, or {@code null} for {@link TracingLevel#DETAIL}
    * @param bufferCapacity ring size for this context's best-effort path
@@ -441,8 +519,11 @@ public class NarrativeTraceExtension
       return;
     }
     var trace = context.captureTrace();
-    // Each test runs on its own context, so this reading is that test's loss, not the process's.
-    var loss = context.traceLoss();
+    // The context is now shared for the whole suite (SuiteContextResource), so its loss counters
+    // only grow (TraceLoss#since) — bracket against the reading beforeEach took to attribute
+    // exactly this test's share, the same number a per-test context always reported on its own.
+    var baseline = extensionContext.getStore(NAMESPACE).get(LOSS_BASELINE_KEY, TraceLoss.class);
+    var loss = baseline == null ? context.traceLoss() : context.traceLoss().since(baseline);
     accumulator(extensionContext).recordLoss(loss);
     var failed = extensionContext.getExecutionException().isPresent();
     var displayName = extensionContext.getDisplayName();

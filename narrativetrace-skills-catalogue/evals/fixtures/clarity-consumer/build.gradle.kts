@@ -7,7 +7,7 @@
  */
 plugins {
     java
-    id("ai.narrativetrace") version "0.4.0"
+    id("ai.narrativetrace") version "0.4.1"
 }
 
 repositories {

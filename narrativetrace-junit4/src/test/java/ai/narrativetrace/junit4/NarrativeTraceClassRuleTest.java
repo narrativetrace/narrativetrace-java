@@ -33,6 +33,13 @@ class NarrativeTraceClassRuleTest {
   }
 
   @Test
+  void configBuildsTheContextLazilyWhenAskedBeforeContext() {
+    var classRule = new NarrativeTraceClassRule();
+
+    assertThat(classRule.config()).isNotNull();
+  }
+
+  @Test
   void testRuleReturnsLinkedRule() {
     var classRule = new NarrativeTraceClassRule();
     var rule = classRule.testRule();

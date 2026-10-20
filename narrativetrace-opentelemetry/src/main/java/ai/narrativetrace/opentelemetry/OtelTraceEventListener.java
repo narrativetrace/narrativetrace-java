@@ -8,11 +8,15 @@
 package ai.narrativetrace.opentelemetry;
 
 import ai.narrativetrace.api.event.MethodSignature;
+import ai.narrativetrace.api.event.SpanContext;
 import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.api.event.TraceEvent;
 import ai.narrativetrace.core.pipeline.PerishableMap;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import java.time.Duration;
@@ -33,7 +37,10 @@ import java.util.function.Consumer;
  * <p><b>@llmNote</b> Parent-child relationships are reconstructed from explicit NarrativeTrace
  * parent span ids, not from OpenTelemetry's implicit thread-local context alone. Events may arrive
  * in any order due to concurrent execution — the span map handles interleaved enter/exit pairs from
- * independent traces correctly because each span is keyed by its unique {@link SpanId}.
+ * independent traces correctly because each span is keyed by its unique {@link SpanId}. A parent id
+ * that names no active frame is not necessarily rootless: under an adopted {@code traceparent} it
+ * names the remote caller's span, so the started span parents on an OTel remote {@code SpanContext}
+ * built from the header's trace id, parent span id and flags — never a synthetic active span.
  *
  * @see TraceSpanExporter
  */
@@ -84,10 +91,7 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
     var sc = enter.spanContext();
     var builder = tracer.spanBuilder(sig.className() + "." + sig.methodName());
     builder.setStartTimestamp(enter.timestampNanos(), TimeUnit.NANOSECONDS);
-    var parentFrame = sc.parentSpanId() != null ? activeSpans.get(sc.parentSpanId()) : null;
-    if (parentFrame != null) {
-      builder.setParent(Context.current().with(parentFrame.span()));
-    }
+    applyParent(builder, sc);
     var span = builder.startSpan();
     SpanContextAttributeMapper.setSpanAttributes(sig, span);
     SpanContextAttributeMapper.setTraceIdentityAttributes(sc, span);
@@ -96,6 +100,31 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
       SpanContextAttributeMapper.setTraceLevelAttributes(sc, span);
     }
     activeSpans.put(sc.spanId(), new SpanFrame(span, sig));
+  }
+
+  /**
+   * Parents the started span on an active local frame when its parent is one of ours; when the
+   * parent id names no active frame but is present — a root under an adopted {@code traceparent} —
+   * builds the OTel remote parent the header named instead of leaving the span parentless.
+   */
+  private void applyParent(SpanBuilder builder, SpanContext sc) {
+    if (sc.parentSpanId() == null) {
+      return;
+    }
+    var parentFrame = activeSpans.get(sc.parentSpanId());
+    if (parentFrame != null) {
+      builder.setParent(Context.current().with(parentFrame.span()));
+      return;
+    }
+    builder.setParent(Context.current().with(Span.wrap(remoteParentContext(sc))));
+  }
+
+  private static io.opentelemetry.api.trace.SpanContext remoteParentContext(SpanContext sc) {
+    return io.opentelemetry.api.trace.SpanContext.createFromRemoteParent(
+        sc.traceId().toString(),
+        sc.parentSpanId().toString(),
+        TraceFlags.fromByte((byte) sc.traceFlags()),
+        TraceState.getDefault());
   }
 
   private static void endAsOrphaned(Span span) {

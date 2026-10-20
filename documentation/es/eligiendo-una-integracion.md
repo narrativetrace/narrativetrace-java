@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob bd89ddac9a5f | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob 0d605d663b93 | translated: 2026-10-19 | reviewed: 2026-09-03 -->
 # Eligiendo una integración
 
 [English](../choosing-an-integration.md) | **Español** | [Português](../pt-BR/escolhendo-uma-integracao.md) | [简体中文](../zh-CN/选择集成方式.md)
@@ -94,13 +94,16 @@ construcción y no por convención.
   silencio: un bean sin interfaz se deja intacto, no es un error. Los
   paquetes base son solo de inclusión.
 - **Agente Java** — se instrumenta cada método no privado y no abstracto
-  bajo los paquetes que coinciden; hoy no hay opt-out por método ni lista
-  de exclusión (`AgentConfig` parsea `packages`, `loggerName`, `level`,
-  `loggingJars` — nada más). La coincidencia de paquetes respeta el
-  delimitador, así que `com.acme` nunca coincide con `com.acmeExtra`. En un
-  host sin proveedor de logging en el classpath — lo más habitual, un
-  servidor de aplicaciones desnudo — el agente no narra nada hasta que
-  añades uno; consulta
+  bajo los paquetes que coinciden, salvo una lista integrada y estructural
+  (proxies dinámicos JDK, nombres de clase con forma de generador, métodos
+  puente y sintéticos — nunca configurable) y una lista configurable de
+  paquetes `exclude=` junto a `packages=` (lista predeterminada incluida de
+  nueve entradas, que siempre gana sobre `packages=`); sigue sin haber
+  opt-out por método. La coincidencia de paquetes respeta el delimitador,
+  así que `com.acme` nunca coincide con `com.acmeExtra`. En un host sin
+  proveedor de logging en el classpath — lo más habitual, un servidor de
+  aplicaciones desnudo — el agente no narra nada hasta que añades uno;
+  consulta
   [Solución de problemas](solucion-de-problemas.md#el-agente-traza-pero-no-aparece-nada-en-mis-logs).
 - **Trabajo entre hilos** — ninguna de las cinco vías anteriores fusiona
   automáticamente las llamadas de un hilo asíncrono/executor con la traza
@@ -128,9 +131,12 @@ sostienen en todos los mecanismos de conexión de arriba:
 - **El alcance es solo de inclusión, en todas partes.** El `packages=`
   del agente, los paquetes base de Spring y Micronaut, y la interfaz
   objetivo explícita del proxy respetan todos un límite de delimitador
-  (`com.acme` nunca coincide con `com.acmeExtra`), y ninguno tiene todavía
-  lista de exclusión — una clase que vive dentro de tus paquetes
-  coincidentes se envuelve, sea tuya o de otra librería.
+  (`com.acme` nunca coincide con `com.acmeExtra`); una clase que vive
+  dentro de tus paquetes coincidentes se envuelve, sea tuya o de otra
+  librería. Solo el agente acota esto con dos listas de exclusión —
+  consulta [Guía de instalación § Excluir
+  paquetes](guia-de-instalacion.md#excluir-paquetes-excludepkg1pkg2) — pero
+  Spring, Micronaut y el proxy todavía no tienen lista de exclusión.
 
 ## Techos de plataforma
 

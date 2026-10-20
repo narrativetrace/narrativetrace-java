@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.junit4;
 
+import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.spi.RunListener;
 import ai.narrativetrace.api.tree.TraceTree;
@@ -15,9 +16,13 @@ import ai.narrativetrace.clarity.ClarityJsonExporter;
 import ai.narrativetrace.clarity.ClarityReportRenderer;
 import ai.narrativetrace.clarity.ClarityResult;
 import ai.narrativetrace.clarity.DomainVocabulary;
+import ai.narrativetrace.core.config.NarrativeTraceConfig;
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.output.RunIdentity;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.TraceTestSupport;
+import ai.narrativetrace.core.pipeline.EventPipeline;
+import ai.narrativetrace.core.pipeline.PipelineBootstrap;
 import ai.narrativetrace.core.spi.ExtensionRegistry;
 import ai.narrativetrace.glossary.GlossaryVocabulary;
 import java.io.IOException;
@@ -35,7 +40,8 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 /**
- * JUnit 4 class-level rule that accumulates traces across multiple test methods.
+ * JUnit 4 class-level rule that owns one context for the whole class and accumulates traces across
+ * its test methods.
  *
  * <p>INTENT: Use this with {@link NarrativeTraceRule} when you want aggregated clarity reports and
  * console summaries in addition to per-test traces.
@@ -49,6 +55,13 @@ import org.junit.runners.model.Statement;
  *     @Rule public NarrativeTraceRule rule = classRule.testRule();
  * }
  * }</pre>
+ *
+ * <p><b>@llmNote</b> §176: this rule builds its {@link ThreadLocalNarrativeContext} and {@link
+ * EventPipeline} once, when the class starts, and closes the pipeline when it ends — the linked
+ * {@link NarrativeTraceRule} resets the same context per test rather than building its own. When
+ * the Java agent is attached to this JVM, the context is also what {@code AgentRuntime}'s shared
+ * capture publishes into for the life of the class (see {@code AgentContextBridge}), so a class the
+ * agent wove — no proxy, no annotation — produces per-test files too.
  *
  * <p>After all tests in a class complete, accumulated traces are contributed to a static global
  * accumulator ({@code GLOBAL_TRACES}) that combines results across multiple test classes. The last
@@ -85,6 +98,20 @@ public class NarrativeTraceClassRule implements TestRule {
   private PrintStream err = System.err;
 
   /**
+   * This class's owned context, pipeline and agent bridge — built in {@link #apply} when the class
+   * starts and torn down when it ends. Rebuilt on every {@link #apply} call rather than once per
+   * instance: a {@code @ClassRule} static field is one object for the whole JVM, and a test harness
+   * that runs the same class more than once in one process (nested launches, as this module's own
+   * suite does) applies this rule more than once on it — a pipeline built once in the constructor
+   * would already be closed by the second run.
+   */
+  private ThreadLocalNarrativeContext context;
+
+  private NarrativeTraceConfig config;
+  private EventPipeline pipeline;
+  private AgentContextBridge agentBridge;
+
+  /**
    * Creates a linked per-test rule that reports traces back to this class rule.
    *
    * @return New per-test rule linked to this class accumulator.
@@ -93,6 +120,30 @@ public class NarrativeTraceClassRule implements TestRule {
     var rule = new NarrativeTraceRule();
     rule.setClassRule(this);
     return rule;
+  }
+
+  /**
+   * The context every linked {@link NarrativeTraceRule} resets and captures per test.
+   *
+   * <p><b>@edgeCase</b> Lazily built on first access rather than only in {@link #apply}: a test
+   * that drives this rule directly (calling {@code starting()}/{@code finished()} without the real
+   * JUnit 4 runner ever invoking {@code apply()}) still gets a working context, built once. Under
+   * ordinary {@code @ClassRule} execution {@link #apply} has already built it before any test's
+   * {@code starting()} runs, so this never rebuilds there.
+   */
+  ThreadLocalNarrativeContext context() {
+    if (context == null) {
+      startContext();
+    }
+    return context;
+  }
+
+  /** The mutable config backing {@link #context()} — a linked rule sets the level per test. */
+  NarrativeTraceConfig config() {
+    if (context == null) {
+      startContext();
+    }
+    return config;
   }
 
   void accumulate(String scenario, TraceTree trace) {
@@ -172,7 +223,8 @@ public class NarrativeTraceClassRule implements TestRule {
   }
 
   /**
-   * Wraps the class statement so the suite's report is written whether or not it passed.
+   * Wraps the class statement so the context lives for the class's whole run and the suite's report
+   * is written whether or not it passed.
    *
    * <p><b>@edgeCase</b> {@code afterAll()} used to run only when {@code base.evaluate()} returned
    * normally — and JUnit 4 reports a failing test by letting that statement throw. The aggregate
@@ -185,13 +237,29 @@ public class NarrativeTraceClassRule implements TestRule {
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
+        startContext();
         try {
           base.evaluate();
         } finally {
           afterAll();
+          closeContext();
         }
       }
     };
+  }
+
+  /** Builds this class's context and pipeline, and routes the agent into it if one is attached. */
+  private void startContext() {
+    config = new NarrativeTraceConfig(TracingLevel.DETAIL);
+    pipeline = PipelineBootstrap.createDefault(PipelineBootstrap.DEFAULT_LOGGER_NAME);
+    context = new ThreadLocalNarrativeContext(config, pipeline);
+    agentBridge = AgentContextBridge.attach(context);
+  }
+
+  /** Restores the agent's previous context (if any) and closes the pipeline this class owned. */
+  private void closeContext() {
+    agentBridge.detach();
+    pipeline.close();
   }
 
   private void afterAll() {

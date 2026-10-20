@@ -382,6 +382,36 @@ class EvalTrialTest {
     assertThat(row.pass()).isTrue();
   }
 
+  /**
+   * B-99, end to end: a trial started with {@code --model haiku} writes a ledger row carrying the
+   * full id, because {@link EvalRunnerArgs#parse} resolves the alias before {@link EvalTrial#run}
+   * ever sees {@code args.model()} — there is no second place downstream that could record the
+   * alias instead.
+   */
+  @Test
+  void aTrialStartedWithAClaudeModelShorthandWritesTheFullIdToTheLedger(@TempDir Path tempDir)
+      throws Exception {
+    Path fixture = fixtureWithMarkerFile(tempDir);
+    Path scratch = Files.createDirectory(tempDir.resolve("scratch"));
+    Path runsPath = tempDir.resolve("runs.jsonl");
+    EvalRunnerArgs argsFromHaikuFlag =
+        EvalRunnerArgs.parse(
+            new String[] {
+              "--skill", "narrativetrace-doctor",
+              "--case", "happy-path",
+              "--platform", "claude",
+              "--model", "haiku"
+            });
+    var trial = new EvalTrial(new FakeProcessRunner(0), FIXED_CLOCK, runsPath);
+
+    trial.run(
+        argsFromHaikuFlag, tempDir, fixture, tempDir, scratch, AgentTurns.graded("prompt"), 1);
+
+    List<RunLedgerRow> rows = RunLedgerRow.parseJsonl(Files.readString(runsPath));
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).model()).isEqualTo("claude-haiku-5-5");
+  }
+
   @Test
   void appendsOneRowPerTrialAcrossRepeatedCalls(@TempDir Path tempDir) throws Exception {
     Path fixture = fixtureWithMarkerFile(tempDir);

@@ -40,6 +40,11 @@ a recipe page is typed by hand: [`recipes/`](recipes/).
 | [Why did this test fail](recipes/why-did-this-test-fail.md) | A failing checkout test read span by span against the assertion: the code did what it says, the expectation is stale |
 | [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) | One run at `DETAIL` and at `SUMMARY`, the log line that carries values beside the `.nt` that carries none |
 | [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) | The tests stay green, the approval diff names the dropped call, and you approve or reject it |
+| [Follow one request across services (distributed tracing)](recipes/follow-one-request-across-services.md) | The `traceparent` header across a real socket: one trace id in both services' lines, and the parent span id on the callee's root |
+| [Keep secrets out of the logs](recipes/keep-secrets-out-of-the-logs.md) | A password caught by its name, a card number caught by its value, and the test that reads the log back as proof |
+| [Follow a flow across threads](recipes/follow-a-flow-across-threads.md) | A `ForkGroup` hands the trace over with the work; the same submit without it starts a trace nobody is searching for |
+| [Send traces to the observability stack you already run](recipes/send-traces-to-the-observability-stack-you-already-run.md) | One run, two consumers: the narrative lines beside the OpenTelemetry spans, attribute by attribute |
+| [Trace in production without the cost](recipes/trace-in-production-without-the-cost.md) | `DETAIL` and `ERRORS` on one declined run, what the level prunes and when, and where the measured figures live |
 
 ## Framework integration
 

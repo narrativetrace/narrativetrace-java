@@ -756,6 +756,91 @@ class ClassTransformerTest {
   }
 
   @Test
+  void bridgeMethodsAreNotTraced() throws Exception {
+    var tc = transformAndLoad(generateClassWithBridgeMethod(), "test/BridgeService");
+    var result = tc.clazz().getMethod("compute", Object.class).invoke(tc.instance(), "ignored");
+
+    assertThat(result).isEqualTo(9);
+    assertThat(context.captureTrace().roots()).isEmpty();
+  }
+
+  private byte[] generateClassWithBridgeMethod() {
+    var cw = newClassWithConstructor("test/BridgeService");
+    var bridge =
+        cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_BRIDGE,
+            "compute",
+            "(Ljava/lang/Object;)I",
+            null,
+            null);
+    bridge.visitCode();
+    bridge.visitIntInsn(Opcodes.BIPUSH, 9);
+    bridge.visitInsn(Opcodes.IRETURN);
+    bridge.visitMaxs(1, 2);
+    bridge.visitEnd();
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
+  @Test
+  void syntheticMethodsAreNotTraced() throws Exception {
+    var tc = transformAndLoad(generateClassWithSyntheticMethod(), "test/SyntheticAccessorService");
+    var result = tc.clazz().getMethod("access$000").invoke(tc.instance());
+
+    assertThat(result).isEqualTo(5);
+    assertThat(context.captureTrace().roots()).isEmpty();
+  }
+
+  private byte[] generateClassWithSyntheticMethod() {
+    var cw = newClassWithConstructor("test/SyntheticAccessorService");
+    var accessor =
+        cw.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNTHETIC, "access$000", "()I", null, null);
+    accessor.visitCode();
+    accessor.visitIntInsn(Opcodes.BIPUSH, 5);
+    accessor.visitInsn(Opcodes.IRETURN);
+    accessor.visitMaxs(1, 1);
+    accessor.visitEnd();
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
+  /** The boundary: a bridge sibling must not suppress tracing of the ordinary method beside it. */
+  @Test
+  void anOrdinaryMethodIsStillTracedBesideABridgeSibling() throws Exception {
+    var tc = transformAndLoad(generateClassWithBridgeAndOrdinaryMethod(), "test/MixedService");
+    tc.clazz().getMethod("real").invoke(tc.instance());
+    tc.clazz().getMethod("compute", Object.class).invoke(tc.instance(), "ignored");
+
+    var tree = context.captureTrace();
+    assertThat(tree.roots()).hasSize(1);
+    assertThat(tree.roots().get(0).signature().methodName()).isEqualTo("real");
+  }
+
+  private byte[] generateClassWithBridgeAndOrdinaryMethod() {
+    var cw = newClassWithConstructor("test/MixedService");
+    var real = cw.visitMethod(Opcodes.ACC_PUBLIC, "real", "()I", null, null);
+    real.visitCode();
+    real.visitIntInsn(Opcodes.BIPUSH, 1);
+    real.visitInsn(Opcodes.IRETURN);
+    real.visitMaxs(1, 1);
+    real.visitEnd();
+    var bridge =
+        cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_BRIDGE,
+            "compute",
+            "(Ljava/lang/Object;)I",
+            null,
+            null);
+    bridge.visitCode();
+    bridge.visitIntInsn(Opcodes.BIPUSH, 9);
+    bridge.visitInsn(Opcodes.IRETURN);
+    bridge.visitMaxs(1, 2);
+    bridge.visitEnd();
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
+  @Test
   void constructorsAndStaticInitializersAreNotInstrumented() throws Exception {
     var originalBytes =
         getClass()

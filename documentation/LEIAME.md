@@ -39,6 +39,11 @@ nada em uma receita é escrito à mão: [`pt-BR/receitas/`](pt-BR/receitas/).
 | [Por que este teste falhou](pt-BR/receitas/por-que-este-teste-falhou.md) | Um teste de checkout vermelho lido span por span contra a asserção: o código fez o que diz, a expectativa está desatualizada |
 | [Revise um fluxo complexo antes de alterá-lo](pt-BR/receitas/revise-um-fluxo-complexo-antes-de-altera-lo.md) | Uma execução em `DETAIL` e em `SUMMARY`, a linha de log que carrega valores ao lado do `.nt` que não carrega nenhum |
 | [Revise uma refatoração: o comportamento mudou?](pt-BR/receitas/revise-uma-refatoracao-o-comportamento-mudou.md) | Os testes continuam verdes, o diff de aprovação nomeia a chamada removida e você aprova ou rejeita |
+| [Acompanhe uma requisição entre serviços (tracing distribuído)](pt-BR/receitas/acompanhe-uma-requisicao-entre-servicos.md) | O header `traceparent` através de um socket real: um id de trace nas linhas dos dois serviços, e o id do span pai na raiz de quem recebe |
+| [Mantenha os segredos fora dos logs](pt-BR/receitas/mantenha-os-segredos-fora-dos-logs.md) | Uma senha pega pelo nome, um número de cartão pego pelo valor, e o teste que lê o log de volta como prova |
+| [Acompanhe um fluxo entre threads](pt-BR/receitas/acompanhe-um-fluxo-entre-threads.md) | Um `ForkGroup` entrega o trace junto com o trabalho; o mesmo submit sem ele começa um trace que ninguém está procurando |
+| [Envie os traces para o stack de observabilidade que você já tem](pt-BR/receitas/envie-os-traces-para-o-stack-de-observabilidade-que-voce-ja-tem.md) | Uma execução, dois consumidores: as linhas narrativas ao lado dos spans de OpenTelemetry, atributo por atributo |
+| [Trace em produção sem o custo](pt-BR/receitas/trace-em-producao-sem-o-custo.md) | `DETAIL` e `ERRORS` em uma execução recusada, o que o nível poda e quando, e onde as cifras medidas moram |
 
 ## Integração com frameworks
 

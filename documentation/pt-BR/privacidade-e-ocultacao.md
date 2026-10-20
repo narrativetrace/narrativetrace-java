@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 18f2bc554281 | translated: 2026-09-19 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 9e7f8d33d494 | translated: 2026-10-19 | reviewed: - -->
 # Privacidade e ocultação
 
 [English](../privacy-and-redaction.md) | Español | **Português** | [简体中文](../zh-CN/隐私与脱敏.md)
@@ -235,10 +235,13 @@ anotações](guia-de-anotacoes.md).
   proxy dinâmico JDK, e uma classe sem interface é deixada intocada —
   silenciosamente, não como um erro. O agente Java é o caminho que não
   tem essa limitação.
-- **Ainda sem lista de exclusão para o agente.** O `AgentConfig`
-  interpreta exatamente `packages`, `loggerName`, `level` e
-  `loggingJars` — só inclusão, nada para recortar uma exceção de dentro
-  de um pacote incluído.
+- **Sem opt-out por método no agente, apenas por pacote.** O agente agora
+  tem duas listas de exclusão — uma nativa e estrutural (proxies dinâmicos
+  JDK, nomes de classe com formato de gerador, métodos bridge/sintéticos) e
+  uma lista configurável `exclude=` de pacotes com uma lista padrão
+  embutida de nove prefixos — mas nenhuma das duas recorta um único método
+  de dentro de uma classe incluída; veja [Guia de Instalação § Excluir
+  pacotes](guia-de-instalacao.md#excluir-pacotes-excludepkg1pkg2).
 - **Nenhuma ocultação dos *nomes* dos testes.** O nome exibido de um teste
   é texto escrito por quem desenvolve, e um template
   `@ParameterizedTest(name = "find {0}")` interpola seus argumentos nele.

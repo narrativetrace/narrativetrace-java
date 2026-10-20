@@ -120,4 +120,15 @@
     <Method name="doGet"/>
     <Bug pattern="XSS_SERVLET"/>
   </Match>
+
+  <!--
+    PngDimensions.SIGNATURE is the eight-byte PNG file signature (0x89 'P' 'N' 'G' \r \n 0x1a \n),
+    a public, fixed magic number every PNG decoder checks for — not a cryptographic key or secret.
+    HARD_CODE_KEY's heuristic (a static final byte[] literal) cannot tell the two apart; the field's
+    own JavaDoc and name say what it is.
+  -->
+  <Match>
+    <Class name="ai.narrativetrace.skills.render.PngDimensions"/>
+    <Bug pattern="HARD_CODE_KEY"/>
+  </Match>
 </FindBugsFilter>

@@ -68,10 +68,22 @@ class NarrativeTraceVerifySkillTest {
   }
 
   @Test
-  void valuesAndTheFixAreConditionalOnAMismatch() {
+  void valuesAreOpenedOnAMismatchOrASymptomPointingAtData() {
     assertThat(step("Open values on the span that looks wrong, and only there").condition())
-        .contains("only when");
-    assertThat(step("Fix, re-run, read again").condition()).contains("only when");
+        .contains("the structural read named a span that does not match the intent")
+        .contains("the shape matches but a symptom points at data")
+        .contains("an assertion failed on a value, the output is wrong")
+        .contains("open the one span the symptom points at")
+        .contains("otherwise go on to the pin");
+  }
+
+  @Test
+  void theFixAndRerunAreConditionalOnAMismatchOrAWrongValue() {
+    assertThat(step("Fix, re-run, read again").condition())
+        .contains("only when")
+        .contains("the structural read named a span that does not match the intent")
+        .contains("the value read in step 5 was wrong")
+        .contains("otherwise go on to the pin");
     assertThat(step("Turn approval mode on").condition()).contains("approval mode is off");
   }
 
@@ -121,6 +133,16 @@ class NarrativeTraceVerifySkillTest {
 
     assertThat(last.title()).isEqualTo("Report what the trace showed");
     assertThat(last.verify()).contains("span id").contains("a claim without an id is not a claim");
+  }
+
+  @Test
+  void theReportNamesWhatThisRunDidNotExerciseBecauseOneTraceShowsOnePath() {
+    SkillStep last = skill.steps().get(skill.steps().size() - 1);
+
+    assertThat(last.verify())
+        .contains("on the path this run took")
+        .contains("the report names the branches and inputs this run did not exercise")
+        .contains("one trace shows one path, not every execution");
   }
 
   @Test

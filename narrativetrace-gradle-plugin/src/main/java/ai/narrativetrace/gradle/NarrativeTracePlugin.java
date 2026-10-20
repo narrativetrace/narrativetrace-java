@@ -602,6 +602,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
         .add("narrativeTraceAgent", "ai.narrativetrace:narrativetrace-agent:" + version);
 
     var packages = extension.getAgent().getPackages().get();
+    var exclude = extension.getAgent().getExclude().get();
 
     project
         .getTasks()
@@ -615,7 +616,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                       ((Test) t)
                           .jvmArgs(
                               AgentJvmArgFactory.javaagentArg(
-                                  agentJar.getAbsolutePath(), packages));
+                                  agentJar.getAbsolutePath(), packages, exclude));
                     }));
   }
 }

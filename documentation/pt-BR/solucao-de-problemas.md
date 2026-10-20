@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob e25dd1b707f6 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 979ff2294e29 | translated: 2026-10-19 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -159,8 +159,14 @@ com `com.example.*`, nunca com `com.exampleExtra`.
 
 **Correção:** verifique o argumento `packages=`; tanto wildcards
 (`com.example.*`) quanto múltiplos pacotes (separados por ponto e
-vírgula, `packages=com.a.*;com.b.*`) são suportados. Não há lista de
-exclusão — apenas inclusão.
+vírgula, `packages=com.a.*;com.b.*`) são suportados. Verifique também
+`exclude=` e sua lista padrão embutida de nove prefixos (`org.mockito`,
+`net.bytebuddy`, `org.junit`, `org.testng`, `net.sf.cglib`,
+`org.springframework.cglib`, `org.aspectj`, `datadog`,
+`io.opentelemetry.javaagent`) — uma classe sob um desses pacotes não é
+instrumentada mesmo quando `packages=` também corresponde a ela; veja
+[Guia de Instalação § Excluir
+pacotes](guia-de-instalacao.md#excluir-pacotes-excludepkg1pkg2).
 
 ## O agente gera traces, mas nada aparece nos meus logs
 
@@ -193,7 +199,7 @@ nenhuma dependência de runtime própria):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.0")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.1")
 }
 ```
 

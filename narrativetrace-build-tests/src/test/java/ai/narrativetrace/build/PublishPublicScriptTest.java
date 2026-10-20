@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -797,6 +798,212 @@ class PublishPublicScriptTest {
       assertThat(privateTagObjectAfter)
           .as("the private release tag must be untouched by the publish")
           .isEqualTo(fx.privateTagObjectBefore());
+    }
+  }
+
+  // -----------------------------------------------------------------------------------------
+  // 6. The verify checkout carries the public v* tags (2026-10-17 fix): --verify commits the
+  //    staged snapshot into a throwaway `git init` tree with no tags at all, so every gate rule
+  //    that reads git tag state (context7Check's `previousVersions` rule) silently skips there
+  //    and only runs for real on a tag checkout of the public repository -- the gap that let a
+  //    green verify ship a `previousVersions` drift that only failed in public. The fix factors
+  //    the tag-name derivation into public_release_tags() (next to release_precondition()) and
+  //    mints each name as a lightweight tag on the verify checkout's one commit.
+  // -----------------------------------------------------------------------------------------
+
+  @Nested
+  class VerifyCheckoutCarriesPublicTags {
+
+    // From the function's opening `public_release_tags() {` through its closing, unindented `}`.
+    private final String functionSnippet = extract("public_release_tags\\(\\) \\{.*?\\n\\}");
+    // The verify block's tagging step: from `verify_tags="$(public_release_tags` through the
+    // `done <<< "$verify_tags"` that closes the tag-creation loop.
+    private final String taggingSnippet =
+        extract("verify_tags=\"\\$\\(public_release_tags.*?\\n    done <<< \"\\$verify_tags\"");
+
+    private record GitResult(String output, int exitCode) {}
+
+    private GitResult git(Path dir, String... args) throws IOException, InterruptedException {
+      var command = new java.util.ArrayList<String>();
+      command.add("git");
+      command.addAll(List.of(args));
+      var process =
+          new ProcessBuilder(command).directory(dir.toFile()).redirectErrorStream(true).start();
+      var output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      var exitCode = process.waitFor();
+      return new GitResult(output, exitCode);
+    }
+
+    private void requireGit(Path dir, String... args) throws IOException, InterruptedException {
+      var result = git(dir, args);
+      if (result.exitCode() != 0) {
+        throw new IOException(
+            "git "
+                + String.join(" ", args)
+                + " failed ("
+                + result.exitCode()
+                + "): "
+                + result.output());
+      }
+    }
+
+    /** A bare working repo at {@code remote} with the three release tags plus one decoy. */
+    private Path releaseRemoteWithTags(Path tmp) throws IOException, InterruptedException {
+      var remote = tmp.resolve("public-remote");
+      Files.createDirectories(remote);
+      requireGit(remote, "init", "-q", "-b", "main");
+      requireGit(remote, "config", "user.email", "verify-test@example.com");
+      requireGit(remote, "config", "user.name", "verify-test");
+      requireGit(remote, "config", "commit.gpgsign", "false");
+      Files.writeString(remote.resolve("f.txt"), "hi\n");
+      requireGit(remote, "add", "-A");
+      requireGit(remote, "commit", "-q", "-m", "init");
+      for (var tag : List.of("v0.2.0", "v0.3.0", "v0.4.0")) {
+        requireGit(remote, "tag", "-a", tag, "-m", "release " + tag);
+      }
+      requireGit(remote, "tag", "-a", "withdrawn-v0.1.0", "-m", "withdrawn, not a release");
+      return remote;
+    }
+
+    private ScriptResult runPublicReleaseTags(Path remote, String cuttingTag)
+        throws IOException, InterruptedException {
+      var body =
+          String.join(
+              "\n",
+              "set -euo pipefail",
+              functionSnippet,
+              "public_release_tags \"" + remote + "\" \"" + cuttingTag + "\"");
+      return runBash(body, Map.of());
+    }
+
+    @Test
+    void printsExactlyTheThreeVStarNamesNoCaretBraceEntries(@TempDir Path tmp) throws Exception {
+      var remote = releaseRemoteWithTags(tmp);
+
+      var result = runPublicReleaseTags(remote, "");
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+      assertThat(result.stdout().lines().toList())
+          .containsExactlyInAnyOrder("v0.2.0", "v0.3.0", "v0.4.0");
+    }
+
+    @Test
+    void includesTheTagBeingCutExactlyOnce(@TempDir Path tmp) throws Exception {
+      var remote = releaseRemoteWithTags(tmp);
+
+      var result = runPublicReleaseTags(remote, "v0.4.1");
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+      var lines = result.stdout().lines().toList();
+      assertThat(lines).containsExactlyInAnyOrder("v0.2.0", "v0.3.0", "v0.4.0", "v0.4.1");
+      assertThat(lines.stream().filter(l -> l.equals("v0.4.1")).count())
+          .as("the cut tag must not be duplicated")
+          .isEqualTo(1);
+    }
+
+    @Test
+    void exitsNonZeroNamingTheProblemWhenTheRemoteIsNotARepository(@TempDir Path tmp)
+        throws Exception {
+      var notARepo = tmp.resolve("not-a-repo");
+      Files.createDirectories(notARepo);
+
+      var body =
+          String.join(
+              "\n",
+              "set +e",
+              functionSnippet,
+              "public_release_tags \"" + notARepo + "\" ''",
+              "echo \"exit:$?\"");
+      var result = runBash(body, Map.of());
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+      assertThat(result.stdout()).contains("exit:1");
+      assertThat(result.stdout().toLowerCase(Locale.ROOT)).contains("cannot list public");
+    }
+
+    @Test
+    void verifyTaggingSnippetYieldsTheExpectedTagListEndToEnd(@TempDir Path tmp) throws Exception {
+      var remote = releaseRemoteWithTags(tmp);
+      var verifyDir = tmp.resolve("verify-checkout");
+      Files.createDirectories(verifyDir);
+      requireGit(verifyDir, "init", "-q");
+      requireGit(verifyDir, "config", "user.email", "verify@example.com");
+      requireGit(verifyDir, "config", "user.name", "publish-verify");
+      requireGit(verifyDir, "config", "commit.gpgsign", "false");
+      Files.writeString(verifyDir.resolve("f.txt"), "snapshot\n");
+      requireGit(verifyDir, "add", "-A");
+      requireGit(verifyDir, "commit", "-q", "-m", "verify snapshot");
+
+      var body =
+          String.join(
+              "\n",
+              "set -euo pipefail",
+              "PUBLIC_REMOTE=\"" + remote + "\"",
+              "TAG=\"v0.4.1\"",
+              "VERIFY_DIR=\"" + verifyDir + "\"",
+              functionSnippet,
+              taggingSnippet);
+      var result = runBash(body, Map.of());
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+      var tagList = git(verifyDir, "tag", "--list", "v*");
+      assertThat(tagList.output().lines().toList())
+          .containsExactlyInAnyOrder("v0.2.0", "v0.3.0", "v0.4.0", "v0.4.1");
+    }
+  }
+
+  // -----------------------------------------------------------------------------------------
+  // 7. The verify asserts the context7Check `previousVersions matches` line (B-98 fix): the
+  //    gate's own exit code only proves `check` passed, not that a given rule actually ran.
+  //    context7Check prints a DIFFERENT line when no v* tags reached the checkout (a silent
+  //    skip, not a check) -- before this fix nothing told the two apart, so a rule that stopped
+  //    running would still pass the verify. The fix tees the gate's output to a log and greps
+  //    it for the exact sentence the rule prints on the run path.
+  // -----------------------------------------------------------------------------------------
+
+  @Nested
+  class VerifyAssertsContext7PreviousVersionsLine {
+
+    // From the `CONTEXT7_LINE="context7Check:` assignment through the closing `exit 1; }` of
+    // the grep check that follows it -- the post-gate assertion itself, independent of the
+    // docker/gradle machinery that produces the log it reads.
+    private final String assertionSnippet = extract("CONTEXT7_LINE=\"context7Check:.*?exit 1; \\}");
+
+    private ScriptResult runAssertion(String logContents) throws IOException, InterruptedException {
+      var log = Files.createTempFile("verify-log", ".log");
+      Files.writeString(log, logContents);
+      var body =
+          String.join(
+              "\n",
+              "set -euo pipefail",
+              "VERIFY_LOG=\"" + log + "\"",
+              "verify_stop_daemons() { :; }",
+              "docker() { :; }",
+              assertionSnippet);
+      return runBash(body, Map.of());
+    }
+
+    @Test
+    void exitsNonZeroNamingTheLineWhenTheLogLacksIt() throws Exception {
+      var result =
+          runAssertion(
+              "context7Check: context7.json is schema-valid, every indexed fence is tagged; "
+                  + "no v* tags in this checkout — previousVersions drift not checked\n");
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isNotZero();
+      assertThat(result.stdout())
+          .contains("ERROR:")
+          .contains("previousVersions matches the v* tags plus this build's version");
+    }
+
+    @Test
+    void exitsZeroWhenTheLogHasTheLine() throws Exception {
+      var result =
+          runAssertion(
+              "context7Check: context7.json is schema-valid, previousVersions matches the v* "
+                  + "tags plus this build's version, every indexed fence is tagged\n");
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
     }
   }
 }

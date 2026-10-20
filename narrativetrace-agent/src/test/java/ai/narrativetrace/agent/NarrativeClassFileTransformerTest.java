@@ -46,7 +46,12 @@ class NarrativeClassFileTransformerTest {
       // The JVM discards transformer exceptions silently; the contract is: warn, never throw,
       // let the class load uninstrumented.
       var result =
-          transformer.transform(null, "ai/narrativetrace/test/Broken", null, null, notAClassFile);
+          transformer.transform(
+              getClass().getClassLoader(),
+              "ai/narrativetrace/test/Broken",
+              null,
+              null,
+              notAClassFile);
 
       assertThat(result).isNull();
       assertThat(captured.toString(java.nio.charset.StandardCharsets.UTF_8))
@@ -69,7 +74,11 @@ class NarrativeClassFileTransformerTest {
 
     var result =
         transformer.transform(
-            null, "ai/narrativetrace/agent/sample/Calculator", null, null, originalBytes);
+            getClass().getClassLoader(),
+            "ai/narrativetrace/agent/sample/Calculator",
+            null,
+            null,
+            originalBytes);
 
     assertThat(result).isNotNull();
     assertThat(result).isNotEqualTo(originalBytes);

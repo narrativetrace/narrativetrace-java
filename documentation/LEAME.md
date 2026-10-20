@@ -41,6 +41,11 @@ compilación, así que nada en una receta está escrito a mano:
 | [¿Por qué falló esta prueba?](es/recetas/por-que-fallo-esta-prueba.md) | Una prueba del checkout en rojo leída span a span contra la aserción: el código hizo lo que dice, la expectativa está desactualizada |
 | [Revisa un flujo complejo antes de cambiarlo](es/recetas/revisa-un-flujo-complejo-antes-de-cambiarlo.md) | Una ejecución en `DETAIL` y en `SUMMARY`, la línea de log que lleva valores junto al `.nt` que no lleva ninguno |
 | [Revisa una refactorización: ¿cambió el comportamiento?](es/recetas/revisa-una-refactorizacion-cambio-el-comportamiento.md) | Las pruebas siguen en verde, el diff de aprobación nombra la llamada eliminada y tú apruebas o rechazas |
+| [Sigue una petición entre servicios (tracing distribuido)](es/recetas/sigue-una-peticion-entre-servicios.md) | La cabecera `traceparent` a través de un socket real: un identificador de traza en las líneas de los dos servicios, y el id del span padre en la raíz de quien recibe |
+| [Mantén los secretos fuera de los logs](es/recetas/manten-los-secretos-fuera-de-los-logs.md) | Una contraseña atrapada por su nombre, un número de tarjeta atrapado por su valor, y la prueba que lee el log de vuelta como evidencia |
+| [Sigue un flujo entre hilos](es/recetas/sigue-un-flujo-entre-hilos.md) | Un `ForkGroup` entrega la traza junto con el trabajo; el mismo submit sin él empieza una traza que nadie está buscando |
+| [Envía las trazas al stack de observabilidad que ya tienes](es/recetas/envia-las-trazas-al-stack-de-observabilidad-que-ya-tienes.md) | Una ejecución, dos consumidores: las líneas narrativas junto a los spans de OpenTelemetry, atributo a atributo |
+| [Traza en producción sin el coste](es/recetas/traza-en-produccion-sin-el-coste.md) | `DETAIL` y `ERRORS` sobre una ejecución rechazada, qué poda el nivel y cuándo, y dónde viven las cifras medidas |
 
 ## Integración con frameworks
 

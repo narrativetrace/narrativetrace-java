@@ -8,6 +8,7 @@
 package ai.narrativetrace.junit4;
 
 import ai.narrativetrace.api.config.TracingLevel;
+import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.NarrativeContext;
@@ -18,6 +19,8 @@ import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
 import ai.narrativetrace.core.output.TemplateWarningCollector;
 import ai.narrativetrace.core.output.TraceTestSupport;
+import ai.narrativetrace.core.pipeline.EventPipeline;
+import ai.narrativetrace.core.pipeline.PipelineBootstrap;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.diagrams.SequenceDiagramRenderers;
 import java.io.IOException;
@@ -28,10 +31,18 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 
 /**
- * JUnit 4 per-test rule that creates and captures one test-scoped trace context.
+ * JUnit 4 per-test rule that resets and captures one test-scoped trace context.
  *
  * <p>INTENT: Use this as a {@code @Rule} when individual test methods need direct access to a
  * {@link NarrativeContext} for wrapping services or asserting captured traces.
+ *
+ * <p><b>@llmNote</b> §176: linked to a {@link NarrativeTraceClassRule} (the usual pairing), this
+ * rule resets and reconfigures the class rule's own context per test rather than building one — the
+ * class rule is the lifecycle owner, builds the pipeline once when the class starts and closes it
+ * when the class ends. Used standalone (no {@code @ClassRule}), this rule builds and owns its own
+ * context and pipeline for the one test it runs, routes the agent into it if one is attached, and
+ * closes both in {@code finished} — the same per-test shape every {@code @Rule} field already has
+ * in JUnit 4.
  *
  * <p>For class-level output (clarity reports, console summaries), pair with {@link
  * NarrativeTraceClassRule}:
@@ -54,13 +65,25 @@ import org.junit.runner.Description;
  */
 public class NarrativeTraceRule extends TestWatcher {
 
-  private NarrativeContext context;
+  private ThreadLocalNarrativeContext context;
   private boolean testFailed;
   private NarrativeTraceClassRule classRule;
   private PrintStream out = System.out;
   private PrintStream err = System.err;
   private NarrativeRenderer mermaidRenderer = SequenceDiagramRenderers.mermaid();
   private NarrativeRenderer plantumlRenderer = SequenceDiagramRenderers.plantUml();
+
+  /** This test's own loss, read at {@link #starting} and bracketed against at {@link #finished}. */
+  private TraceLoss lossBaseline;
+
+  /**
+   * This test's own pipeline and agent bridge — only set when this rule stands alone (no linked
+   * {@link NarrativeTraceClassRule}), since a linked rule resets and reports through the class
+   * rule's context without owning a pipeline of its own.
+   */
+  private EventPipeline ownPipeline;
+
+  private AgentContextBridge ownAgentBridge;
 
   /**
    * Returns the current test's {@link NarrativeContext}.
@@ -91,10 +114,27 @@ public class NarrativeTraceRule extends TestWatcher {
     this.plantumlRenderer = plantumlRenderer;
   }
 
+  /**
+   * §176: linked to a class rule, this resets and reconfigures the class's own context rather than
+   * building one; standalone (no {@code @ClassRule}), it builds and owns its own context and
+   * pipeline for this one test, exactly as every {@code @Rule} field already does in JUnit 4 (a new
+   * instance per test method) — closed in {@link #finished}.
+   */
   @Override
   protected void starting(Description description) {
-    context = newContext(System.getProperty("narrativetrace.level", TracingLevel.DETAIL.name()));
+    var level =
+        TracingLevel.fromName(
+            System.getProperty("narrativetrace.level", TracingLevel.DETAIL.name()),
+            TracingLevel.DETAIL);
+    if (classRule != null) {
+      context = classRule.context();
+      context.reset();
+      classRule.config().setLevel(level);
+    } else {
+      context = buildOwnContext(level);
+    }
     testFailed = false;
+    lossBaseline = context.traceLoss();
     // Only when linked to a class rule: a lone @Rule with no aggregator names no run, the same
     // way it produces no console footer or manifest today (2026-09-13 ruling, item 2).
     if (classRule != null) {
@@ -103,12 +143,27 @@ public class NarrativeTraceRule extends TestWatcher {
   }
 
   /**
-   * Builds the per-test context at the given {@code narrativetrace.level} name. An unknown, blank,
-   * or null level degrades to {@link TracingLevel#DETAIL} rather than failing the test run.
+   * Builds a standalone context at the given {@code narrativetrace.level} name, independent of this
+   * rule's own lifecycle fields — a direct-construction test utility, like {@code
+   * NarrativeTraceExtension.newContext} in the JUnit 5 module. An unknown, blank, or null level
+   * degrades to {@link TracingLevel#DETAIL} rather than failing the test run.
    */
   static ThreadLocalNarrativeContext newContext(String levelName) {
     var level = TracingLevel.fromName(levelName, TracingLevel.DETAIL);
-    return new ThreadLocalNarrativeContext(new NarrativeTraceConfig(level));
+    return new ThreadLocalNarrativeContext(
+        new NarrativeTraceConfig(level),
+        PipelineBootstrap.createDefault(PipelineBootstrap.DEFAULT_LOGGER_NAME));
+  }
+
+  /**
+   * Builds the context and pipeline this rule owns when it stands alone (no linked {@link
+   * NarrativeTraceClassRule}), and routes the agent into it — closed in {@link #finished}.
+   */
+  private ThreadLocalNarrativeContext buildOwnContext(TracingLevel level) {
+    ownPipeline = PipelineBootstrap.createDefault(PipelineBootstrap.DEFAULT_LOGGER_NAME);
+    var built = new ThreadLocalNarrativeContext(new NarrativeTraceConfig(level), ownPipeline);
+    ownAgentBridge = AgentContextBridge.attach(built);
+    return built;
   }
 
   @Override
@@ -121,18 +176,45 @@ public class NarrativeTraceRule extends TestWatcher {
     if (context == null) {
       return;
     }
-    printTemplateWarnings();
-    // The verdict has to be known BEFORE anything is written: an approval rejection fails the test
-    // too, and a run that ends red must not advance the last-green artifact.
-    var rejection = testFailed ? null : approvalRejection(description);
-    // Output before the report so the failure report can speak in terms of the structural delta the
-    // write computed — TestWatcher guarantees finished() runs after failed().
-    var delta = writeTraceIfEnabled(description, testFailed || rejection != null);
-    printFailureReport(description, delta);
-    accumulateIfLinked(description);
-    if (rejection != null) {
-      throw rejection;
+    try {
+      printTemplateWarnings();
+      // The verdict has to be known BEFORE anything is written: an approval rejection fails the
+      // test too, and a run that ends red must not advance the last-green artifact.
+      var rejection = testFailed ? null : approvalRejection(description);
+      // Output before the report so the failure report can speak in terms of the structural delta
+      // the write computed — TestWatcher guarantees finished() runs after failed().
+      var delta = writeTraceIfEnabled(description, testFailed || rejection != null);
+      printFailureReport(description, delta);
+      accumulateIfLinked(description);
+      if (rejection != null) {
+        throw rejection;
+      }
+    } finally {
+      closeOwnContextIfStandalone();
     }
+  }
+
+  /**
+   * Closes the context and pipeline this rule owns, and restores the agent's previous context —
+   * only when this rule stands alone. A rule linked to a {@link NarrativeTraceClassRule} resets and
+   * reports through the class rule's context but never owns or closes a pipeline; the class rule
+   * closes its own when the class ends.
+   */
+  private void closeOwnContextIfStandalone() {
+    if (classRule != null) {
+      return;
+    }
+    ownAgentBridge.detach();
+    ownPipeline.close();
+  }
+
+  /**
+   * This test's own share of the context's loss, bracketed against the reading {@link #starting}
+   * took — always non-null there, in the same step that sets {@link #context}, so a test that
+   * reaches this (i.e. with {@link #context} non-null) always has one.
+   */
+  private TraceLoss currentLoss() {
+    return context.traceLoss().since(lossBaseline);
   }
 
   /**
@@ -183,7 +265,7 @@ public class NarrativeTraceRule extends TestWatcher {
               trace,
               identity.structuralScenario(description.getMethodName()),
               approvedFile,
-              context.traceLoss());
+              currentLoss());
       if (!note.isEmpty()) {
         System.out.println("  Approval: " + note);
       }
@@ -271,7 +353,7 @@ public class NarrativeTraceRule extends TestWatcher {
     if (classRule == null) {
       return;
     }
-    classRule.accumulateLoss(context.traceLoss());
+    classRule.accumulateLoss(currentLoss());
     var trace = context.captureTrace();
     if (!trace.isEmpty()) {
       var scenario = ScenarioFramer.humanize(description.getMethodName());

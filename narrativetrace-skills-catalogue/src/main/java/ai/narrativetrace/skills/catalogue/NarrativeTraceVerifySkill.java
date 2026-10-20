@@ -37,10 +37,21 @@ import java.util.List;
  */
 public final class NarrativeTraceVerifySkill {
 
-  /** Values, the fix and the re-read happen only when the structural read found a mismatch. */
-  static final String ONLY_ON_A_MISMATCH =
-      "only when the structural read named a span that does not match the intent; otherwise go"
-          + " on to the pin";
+  /**
+   * Values are opened on a shape mismatch, OR a shape match a symptom still points at — one span,
+   * chosen by the symptom (Phase 7 rule).
+   */
+  static final String OPEN_VALUES_WHEN =
+      "when the structural read named a span that does not match the intent, or the shape matches"
+          + " but a symptom points at data — an assertion failed on a value, the output is wrong —"
+          + " then open the one span the symptom points at; otherwise go on to the pin";
+
+  /**
+   * The fix and the re-read happen only on a structural mismatch, or a wrong value step 5 found.
+   */
+  static final String FIX_AND_RERUN_WHEN =
+      "only when the structural read named a span that does not match the intent, or the value"
+          + " read in step 5 was wrong; otherwise go on to the pin";
 
   private NarrativeTraceVerifySkill() {}
 
@@ -126,7 +137,7 @@ public final class NarrativeTraceVerifySkill {
                 + " not the whole file; a [REDACTED] value stays redacted",
             List.of(),
             null,
-            ONLY_ON_A_MISMATCH),
+            OPEN_VALUES_WHEN),
         new SkillStep(
             "Fix, re-run, read again",
             new StepBody.CommandStep(List.of(VerifyCommands.RUN_THE_PATH)),
@@ -135,17 +146,18 @@ public final class NarrativeTraceVerifySkill {
                 + " again from the structural read",
             List.of(),
             null,
-            ONLY_ON_A_MISMATCH));
+            FIX_AND_RERUN_WHEN));
   }
 
   private static SkillStep report() {
     return new SkillStep(
         "Report what the trace showed",
         new StepBody.CommandStep(List.of()),
-        "two sentences on what the trace showed, every claim citing the span id it rests on —"
-            + " a claim without an id is not a claim, and only ids in the .nt that was read"
-            + " count — with the .nt attached or quoted; 'tests pass' alone is not the"
-            + " report");
+        "two sentences on what the trace showed on the path this run took, every claim citing the"
+            + " span id it rests on — a claim without an id is not a claim, and only ids in the .nt"
+            + " that was read count — with the .nt attached or quoted; the report names the"
+            + " branches and inputs this run did not exercise, because one trace shows one path,"
+            + " not every execution; 'tests pass' alone is not the report");
   }
 
   private static SkillStep decide() {

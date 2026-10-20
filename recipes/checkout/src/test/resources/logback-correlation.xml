@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Empower Agile
+
+  SPDX-License-Identifier: BUSL-1.1
+  Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+  years from publication; Change License: Apache-2.0
+-->
+<configuration>
+    <!-- The configuration the two correlation recipes run under: src/main/resources/logback.xml
+         with the thread name and the raw trace id added to the pattern, because those two pages
+         are about which trace a line belongs to and which thread wrote it. A Gradle task selects
+         this file with -Dlogback.configurationFile=logback-correlation.xml and names the FILE
+         appender's target with narrativetrace.recipes.log, so one scenario's lines land in one
+         file a page can embed. Deliberately no %d{HH:mm:ss.SSS}: a clock would differ on every
+         run and the embedded block is a real run's bytes. -->
+    <property name="LOG_FILE"
+              value="${narrativetrace.recipes.log:-build/narrativetrace/recipes/suite.log}" />
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%-5level [%thread] [%logger] [%X{traceId}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>${LOG_FILE}</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%-5level [%thread] [%logger] [%X{traceId}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="narrativetrace" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </root>
+</configuration>

@@ -82,6 +82,41 @@ public final class AddNarrativeTracingSkill {
           + " as follows";
 
   /**
+   * Step 3's other condition (Phase 6, D2), beside {@link #ENTRY_POINT_RUNS_ITSELF}: whether the
+   * project already has tests is read from its build — a {@code src/test} source set, a {@code
+   * testImplementation} dependency, a test task — and from the doctor's report, never from a list
+   * on this page. A project with tests gets its first trace from one EXISTING test, not a new demo
+   * main: the files that run writes are the ones narrativetrace-doctor, narrativetrace-verify,
+   * narrativetrace-debug and narrativetrace-explain all read.
+   *
+   * <p>Three premises, not two: tests with a wired runner take the test path; no tests takes the
+   * console path below; tests on a runner the doctor has no integration for ALSO take the console
+   * path, keeping that runner rather than swapping it for one NarrativeTrace supports — this page
+   * never names which runners those are, the doctor's own framework table is the oracle.
+   */
+  static final String FIRST_TRACE_HAS_TESTS =
+      "if the project already has tests and the doctor reports a test integration for that"
+          + " runner, the first trace is one existing test run through the test integration"
+          + " (narrativetrace-junit5, or narrativetrace-junit4 for a project whose tests already"
+          + " run on that other major version) with output on, which writes that test's"
+          + " narrative files, .md and .nt, under build/narrativetrace/ — the files"
+          + " narrativetrace-doctor, narrativetrace-verify, narrativetrace-debug and"
+          + " narrativetrace-explain read; print the rendered file so the trace is also on the"
+          + " console; the step is done when that test's files exist; a project whose tests run"
+          + " on a runner the doctor reports no integration for keeps that runner and takes the"
+          + " console path below";
+
+  /**
+   * Appended after {@link #ENTRY_POINT_RUNS_ITSELF} to close step 3's condition (Phase 6, D2): the
+   * no-tests branch's console script never touches disk, and this page never adds a test runner or
+   * a test to a project that has none.
+   */
+  static final String FIRST_TRACE_WRITES_NOTHING_WITHOUT_TESTS =
+      "; nothing is written to disk by this script — the application's log is the record once"
+          + " the SLF4J consumer in the later step is wired; this page never adds a test runner"
+          + " or a test to a project that has none";
+
+  /**
    * The install's hand-off to the next session (Phase 7, D7): once the skills are installed, the
    * session after this one reads what its changes did before reporting them.
    */
@@ -126,8 +161,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.1")
 }
 
 tasks.withType<JavaCompile> {
@@ -160,14 +195,17 @@ application {   // only when the project has no application entry point of its o
                 DoctorCommands.RUN_PROJECT,
                 List.of(),
                 null,
-                ENTRY_POINT_RUNS_ITSELF),
+                FIRST_TRACE_HAS_TESTS
+                    + "; otherwise, "
+                    + ENTRY_POINT_RUNS_ITSELF
+                    + FIRST_TRACE_WRITES_NOTHING_WITHOUT_TESTS),
             new SkillStep(
                 "Send it to your logger",
                 new StepBody.CodeStep(
                     "kotlin",
                     """
                     dependencies {
-                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.0")
+                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.1")
                         runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
                     }
                     """),

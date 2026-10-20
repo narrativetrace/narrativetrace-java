@@ -1,0 +1,48 @@
+/*
+ * Copyright (c) 2026 Empower Agile
+ *
+ * SPDX-License-Identifier: BUSL-1.1
+ * Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+ * years from publication; Change License: Apache-2.0
+ */
+package ai.narrativetrace.junit5;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+
+/**
+ * §176 build step 1: the context is shared for the whole suite, but the capture level is re-read
+ * and reapplied on every {@code beforeEach} — so two tests at different levels in one class each
+ * still get their own, exactly as they did when every test built a fresh context.
+ */
+class LevelPerTestFixtureTest {
+
+  @Test
+  void twoTestsAtDifferentLevelsInOneClassEachGetTheirOwnLevel() {
+    System.clearProperty("narrativetrace.level");
+    try {
+      runSuite(LevelPerTestFixture.class);
+    } finally {
+      System.clearProperty("narrativetrace.level");
+    }
+
+    assertThat(LevelPerTestFixture.firstCapturedParameterValues)
+        .as("the first test ran at the default level, DETAIL")
+        .isTrue();
+    assertThat(LevelPerTestFixture.secondCapturedParameterValues)
+        .as("the second test ran at the level the first test set for it, SUMMARY")
+        .isFalse();
+  }
+
+  private static void runSuite(Class<?> fixture) {
+    var request =
+        LauncherDiscoveryRequestBuilder.request()
+            .selectors(DiscoverySelectors.selectClass(fixture))
+            .build();
+    LauncherFactory.create().execute(request);
+  }
+}

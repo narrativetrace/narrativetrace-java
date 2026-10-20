@@ -61,7 +61,11 @@ public record EvalRunnerArgs(
     String agentCommand = valueOf(args, "--agent-command");
     String trialsArg = valueOf(args, "--trials");
     int trials = trialsArg == null ? 1 : Integer.parseInt(trialsArg);
-    return new EvalRunnerArgs(skill, caseName, platform, model, agentCommand, trials);
+    // Resolved here, once (B-99): every later reader of model() — the agent command this runner
+    // builds and the ledger row EvalTrial appends — reads the same already-resolved id, so the two
+    // can never drift apart the way a raw "--model haiku" let them.
+    return new EvalRunnerArgs(
+        skill, caseName, platform, ModelAlias.resolve(platform, model), agentCommand, trials);
   }
 
   private static String valueOf(List<String> args, String flag) {

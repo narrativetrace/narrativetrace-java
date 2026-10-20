@@ -15,9 +15,9 @@ fails `./gradlew check` (`PromotionDriftTest`).
 | Skill | Claude | Codex | Antigravity | Cursor |
 |---|---|---|---|---|
 | `narrativetrace-doctor` | not yet run | not yet run | green (gemini-3.8-flash-low, 2026-10-10) | not yet run |
-| `add-narrative-tracing` | red (claude-haiku-5-5, 2026-10-10) | not yet run | green (gemini-3.8-flash-low, 2026-10-10) | not yet run |
-| `add-narrativetrace-clarity` | green (haiku, 2026-09-23) | not yet run | not yet run | not yet run |
-| `narrativetrace-feedback` | green (haiku, 2026-10-05) | not yet run | not yet run | not yet run |
+| `add-narrative-tracing` | green (claude-haiku-5-5, 2026-10-17) | not yet run | green (gemini-3.8-flash-low, 2026-10-10) | not yet run |
+| `add-narrativetrace-clarity` | green (claude-haiku-5-5, 2026-10-18) | not yet run | not yet run | not yet run |
+| `narrativetrace-feedback` | green (claude-haiku-5-5, 2026-10-18) | not yet run | not yet run | not yet run |
 | `narrativetrace-verify` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |
 | `narrativetrace-debug` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |
 | `narrativetrace-explain` | green (claude-haiku-5-5, 2026-10-12) | not yet run | not yet run | not yet run |

@@ -32,4 +32,5 @@ dependencies {
     testImplementation("org.junit.vintage:junit-vintage-engine:5.11.4")
     testImplementation("org.junit.platform:junit-platform-launcher:1.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")
 }

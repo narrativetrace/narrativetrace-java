@@ -226,6 +226,6 @@ public final class NarrativeTraceExplainSkill {
             + " branch it took, and where the time went when that was the question. Every"
             + " sentence that goes beyond what the trace shows is marked as an inference, and the"
             + " last part names what was NOT observed: the code no span covers, because only"
-            + " wrapped or intercepted code has one");
+            + " wrapped or intercepted code has one, and the branches this run did not take");
   }
 }

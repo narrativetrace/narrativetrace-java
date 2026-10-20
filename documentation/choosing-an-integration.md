@@ -85,12 +85,14 @@ convention.
   bean with no interface is left untouched, not an error. Base packages are
   include-only.
 - **Java agent** — every non-private, non-abstract method under the matched
-  packages is instrumented; there is no per-method opt-out and no exclude
-  list today (`AgentConfig` parses `packages`, `loggerName`, `level`,
-  `loggingJars` — nothing else). Package matching is delimiter-aware, so
-  `com.acme` never matches `com.acmeExtra`. On a host with no logging
-  provider on the classpath — a bare app server, most often — the agent
-  narrates nothing until you add one; see
+  packages is instrumented, except a built-in, structural list (JDK dynamic
+  proxies, generator-shaped class names, bridge and synthetic methods — never
+  configurable) and a configurable `exclude=` package list beside `packages=`
+  (nine-entry shipped default, always wins over `packages=`); there is still
+  no per-method opt-out. Package matching is delimiter-aware, so `com.acme`
+  never matches `com.acmeExtra`. On a host with no logging provider on the
+  classpath — a bare app server, most often — the agent narrates nothing
+  until you add one; see
   [Troubleshooting](troubleshooting.md#agent-traces-but-nothing-appears-in-my-logs).
 - **Cross-thread work** — none of the five paths above merges an
   async/executor thread's calls into the parent trace automatically. Use
@@ -116,9 +118,11 @@ mechanism above:
 - **Scoping is include-only, everywhere.** The agent's `packages=`, Spring's
   and Micronaut's base packages, and the proxy's explicit target interface
   all match on a delimiter boundary (`com.acme` never matches
-  `com.acmeExtra`), and none of them has an exclude list yet — a class that
-  lives inside your matched packages is wrapped whether it is yours or
-  another library's.
+  `com.acmeExtra`); a class that lives inside your matched packages is
+  wrapped whether it is yours or another library's. The agent alone narrows
+  this with two exclusion lists — see [Installation Guide § Exclude
+  packages](installation-guide.md#exclude-packages-excludepkg1pkg2) — but
+  Spring, Micronaut and the proxy still have no exclude list.
 
 ## Platform ceilings
 

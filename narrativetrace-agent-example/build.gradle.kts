@@ -17,9 +17,17 @@
 // for the published-coordinate equivalent a real consumer's build uses instead).
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.junit.platform:junit-platform-launcher:1.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation(project(":narrativetrace-agent"))
     testImplementation(project(":narrativetrace-core"))
+    // The §176 proof: both test integrations route the agent's shared context into their own
+    // lifecycle-owned one, so GreetingServiceAgentFixture/GreetingServiceAgentJunit4Fixture need
+    // only the ordinary extension/rule wiring, same as a proxy-traced test.
+    testImplementation(project(":narrativetrace-junit5"))
+    testImplementation(project(":narrativetrace-junit4"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.junit.vintage:junit-vintage-engine:5.11.4")
     // AgentRuntime builds its pipeline through the same PipelineBootstrap as every other
     // integration, so Slf4jTraceEventListener attaches reflectively once this is on the
     // classpath too (documentation/configuration-guide.md §7) — even in agent mode.
@@ -30,38 +38,61 @@ dependencies {
 
 val agentShadowJar = project(":narrativetrace-agent").tasks.named<Jar>("shadowJar")
 
-// GreetingServiceAgentTest is tagged "agent" and lives in this same test source set, but must
-// never run inside the default `test` task: JaCoCo's own coverage agent and the narrativetrace
-// agent both instrument GreetingService's bytecode in that JVM, and JaCoCo then cannot match
-// its execution data back to the class file — it zeroes that class's reported coverage instead
-// of failing loudly, which would sink the 98% gate for a class GreetingServiceTest covers fully
-// on its own. `test` runs everything else; `agentTest` runs only the agent-woven proof.
+// GreetingServiceAgentTest/GreetingServiceAgentJunit4Test are tagged "agent" and live in this
+// same test source set, but must never run inside the default `test` task: JaCoCo's own coverage
+// agent and the narrativetrace agent both instrument GreetingService's bytecode in that JVM, and
+// JaCoCo then cannot match its execution data back to the class file — it zeroes that class's
+// reported coverage instead of failing loudly, which would sink the 98% gate for a class
+// GreetingServiceTest covers fully on its own. The two fixture classes they each drive through a
+// nested Launcher call (GreetingServiceAgentFixture, GreetingServiceAgentJunit4Fixture) are excluded
+// by name rather than by tag: JUnit 4 carries no `@Tag`, and in both cases GreetingService must
+// still be unloaded in the task's own JVM when the agent weaves it, so Gradle's own test discovery
+// must never touch them directly either. `test` runs everything else; `agentTest`/`agentTestJunit4`
+// run only the agent-woven proofs.
 tasks.test {
     useJUnitPlatform {
         excludeTags("agent")
     }
+    exclude("**/GreetingServiceAgentFixture.class")
+    exclude("**/GreetingServiceAgentJunit4Fixture.class")
+    exclude("**/ParallelGreetingAgentFixture.class")
 }
 
 val testSourceSet = extensions.getByType<SourceSetContainer>()["test"]
-val agentTestTask = tasks.register<Test>("agentTest") {
-    description = "Runs the agent-mode proof (GreetingServiceAgentTest) with -javaagent attached"
-    group = "verification"
-    useJUnitPlatform {
-        includeTags("agent")
+
+fun registerAgentProofTask(name: String, description: String, vararg testClassNames: String) =
+    tasks.register<Test>(name) {
+        this.description = description
+        group = "verification"
+        useJUnitPlatform()
+        filter {
+            testClassNames.forEach { includeTestsMatching(it) }
+        }
+        testClassesDirs = testSourceSet.output.classesDirs
+        classpath = testSourceSet.runtimeClasspath
+        dependsOn(agentShadowJar)
+        // Resolved at execution time, after shadowJar has actually run — mirrors the Gradle
+        // plugin's own agent-mode wiring (NarrativeTracePlugin.configureAgentJvmArg).
+        doFirst {
+            val agentJarPath = agentShadowJar.get().archiveFile.get().asFile.absolutePath
+            jvmArgs("-javaagent:$agentJarPath=packages=ai.narrativetrace.examples.agent")
+        }
     }
-    testClassesDirs = testSourceSet.output.classesDirs
-    classpath = testSourceSet.runtimeClasspath
-    dependsOn(agentShadowJar)
-    // Resolved at execution time, after shadowJar has actually run — mirrors the Gradle
-    // plugin's own agent-mode wiring (NarrativeTracePlugin.configureAgentJvmArg).
-    doFirst {
-        val agentJarPath = agentShadowJar.get().archiveFile.get().asFile.absolutePath
-        jvmArgs("-javaagent:$agentJarPath=packages=ai.narrativetrace.examples.agent")
-    }
-}
+
+val agentTestTask = registerAgentProofTask(
+    "agentTest",
+    "Runs the agent-mode proofs (JUnit 5: GreetingServiceAgentTest, ParallelAgentIsolationTest) with -javaagent attached",
+    "ai.narrativetrace.examples.agent.GreetingServiceAgentTest",
+    "ai.narrativetrace.examples.agent.ParallelAgentIsolationTest"
+)
+val agentTestJunit4Task = registerAgentProofTask(
+    "agentTestJunit4",
+    "Runs the agent-mode proof (GreetingServiceAgentJunit4Test, JUnit 4) with -javaagent attached",
+    "ai.narrativetrace.examples.agent.GreetingServiceAgentJunit4Test"
+)
 
 // Not coverage-gated (see the comment on `tasks.test` above), but still runs on every `check` —
 // the point being demonstrated is proven on every gate, the same as any other test.
 tasks.named("check") {
-    dependsOn(agentTestTask)
+    dependsOn(agentTestTask, agentTestJunit4Task)
 }
