@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob bd5b536c9a7d | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob c1de6a862979 | translated: 2026-10-09 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.1"
+    id("ai.narrativetrace") version "0.4.2"
 }
 ```
 
@@ -423,7 +423,7 @@ Quando definida, toda dependência gerenciada do NarrativeTrace é resolvida nes
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.1"
+    id("ai.narrativetrace") version "0.4.2"
 }
 ```
 
@@ -559,7 +559,7 @@ Todos os exemplos acima usam o DSL do Kotlin. O equivalente em Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.4.1'
+    id 'ai.narrativetrace' version '0.4.2'
 }
 
 narrativeTrace {

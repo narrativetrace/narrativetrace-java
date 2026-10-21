@@ -98,13 +98,33 @@ public final class Slf4jTraceEventListener implements Consumer<TraceEvent> {
     } else if (event instanceof TraceEvent.ExitEvent exit) {
       logExit(exit);
     } else if (event instanceof TraceEvent.ForkCreatedEvent fork) {
-      logger.atLevel(entryLevel).log("⑂ fork group created [groupId: {}]", fork.groupId());
+      log(entryLevel, "⑂ fork group created [groupId: {}]", fork.groupId());
     } else if (event instanceof TraceEvent.MergeEvent merge) {
-      logger
-          .atLevel(entryLevel)
-          .log("⑃ fork joined [groupId: {}, members: {}]", merge.groupId(), merge.memberCount());
+      log(
+          entryLevel,
+          "⑃ fork joined [groupId: {}, members: {}]",
+          merge.groupId(),
+          merge.memberCount());
     } else if (event instanceof TraceEvent.FireAndForgetEvent ff) {
-      logger.atLevel(entryLevel).log("⤳ fire-and-forget launched [groupId: {}]", ff.groupId());
+      log(entryLevel, "⤳ fire-and-forget launched [groupId: {}]", ff.groupId());
+    }
+  }
+
+  /**
+   * Dispatches to the per-level {@code Logger} methods present in both slf4j-api 1.7 and 2.x.
+   *
+   * <p><b>@llmNote</b> Never call the fluent {@code Logger.atLevel(Level).log(...)} API from this
+   * class — it exists only from slf4j-api 2.0, and throws {@link NoSuchMethodError} on a 1.7
+   * classpath (dubbo pins 1.7.25; Spring Boot 2.x ships 1.7), which the pipeline's catch-Throwable
+   * boundary swallows, leaving narration silently empty.
+   */
+  private void log(Level level, String format, Object... args) {
+    switch (level) {
+      case TRACE -> logger.trace(format, args);
+      case DEBUG -> logger.debug(format, args);
+      case INFO -> logger.info(format, args);
+      case WARN -> logger.warn(format, args);
+      case ERROR -> logger.error(format, args);
     }
   }
 
@@ -122,9 +142,7 @@ public final class Slf4jTraceEventListener implements Consumer<TraceEvent> {
     setIdentityMdc(enter);
     boolean[] owned = setSpanMdc(enter.spanContext());
     try {
-      logger
-          .atLevel(entryLevel)
-          .log("→ {}.{}({})", signature.className(), signature.methodName(), params);
+      log(entryLevel, "→ {}.{}({})", signature.className(), signature.methodName(), params);
     } finally {
       MDC.remove("nt.class");
       MDC.remove("nt.method");
@@ -161,9 +179,9 @@ public final class Slf4jTraceEventListener implements Consumer<TraceEvent> {
     try {
       if (exit.outcome() instanceof TraceOutcome.Returned returned) {
         if (returned.renderedValue() == null) {
-          logger.atLevel(returnLevel).log("← completed");
+          log(returnLevel, "← completed");
         } else {
-          logger.atLevel(returnLevel).log("← returned: {}", returned.renderedValue());
+          log(returnLevel, "← returned: {}", returned.renderedValue());
         }
       } else if (exit.outcome() instanceof TraceOutcome.Threw threw) {
         logException(threw.exception(), exit.errorContext());
@@ -257,11 +275,9 @@ public final class Slf4jTraceEventListener implements Consumer<TraceEvent> {
     var type = exception.getClass().getSimpleName();
     var message = ExceptionMessage.text(exception);
     if (errorContext != null) {
-      logger
-          .atLevel(exceptionLevel)
-          .log("!! {}: {} [{}]", type, message, ControlEscape.sanitize(errorContext));
+      log(exceptionLevel, "!! {}: {} [{}]", type, message, ControlEscape.sanitize(errorContext));
     } else {
-      logger.atLevel(exceptionLevel).log("!! {}: {}", type, message);
+      log(exceptionLevel, "!! {}: {}", type, message);
     }
   }
 }

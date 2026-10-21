@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 979ff2294e29 | translated: 2026-10-19 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob b68585f55525 | translated: 2026-10-19 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -199,7 +199,7 @@ nenhuma dependência de runtime própria):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.1")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.2")
 }
 ```
 

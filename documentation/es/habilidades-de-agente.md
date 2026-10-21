@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 2ccf27694161 | translated: 2026-10-12 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 0ee72223e780 | translated: 2026-10-12 | reviewed: - -->
 # Habilidades de agente
 
 NarrativeTrace incluye **habilidades** (*skills*): procedimientos cargables por un agente que
@@ -114,7 +114,7 @@ como un envoltorio sobre el que un script puede decidir:
 
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.1",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.2",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},

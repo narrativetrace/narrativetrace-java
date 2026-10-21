@@ -16,6 +16,7 @@
     "Running ./gradlew narrativetraceInit --diff previews installing ready-made Claude Code and Codex agent skills (.claude/skills/, .agents/skills/) and a pointer section in AGENTS.md."
   ],
   "previousVersions": [
+    {"tag": "v0.4.2"},
     {"tag": "v0.4.1"},
     {"tag": "v0.4.0"},
     {"tag": "v0.3.0"},
