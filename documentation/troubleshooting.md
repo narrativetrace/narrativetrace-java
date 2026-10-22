@@ -169,6 +169,27 @@ classpath. To silence narration on purpose instead, attach with
 `loggerName=` (empty) or `-Dnarrativetrace.narration=off`. Full recipe in
 [Installation Guide § Narration needs an SLF4J provider](installation-guide.md#narration-needs-an-slf4j-provider--the-agent-never-brings-one).
 
+## A Mockito spy reports extra interactions after a traced call
+
+**Cause:** the Java agent traced a method that received or returned an
+inline Mockito spy of a JDK collection (`spy(new LinkedList<>())`).
+Rendering that value reads its state — `size()`, iteration — and Mockito
+records that read as an interaction on the spy, same as a call your own
+code made. The levels suppress different things here: a tracing level only
+suppresses *parameter* values (`DETAIL` is the one level that renders
+them — `ERRORS`/`SUMMARY`/`NARRATIVE` do not), but a *return* value renders
+at every level tracing is active at all, `DETAIL` down to `ERRORS`. A test
+calling `verifyNoMoreInteractions(spy)` or `verify(spy, times(n))` after
+such a call then sees calls it never made.
+
+**Fix:** exclude the package that receives the spy from instrumentation
+(`exclude=` — see [Installation Guide § Exclude
+packages](installation-guide.md#exclude-packages-excludepkg1pkg2)). Dropping
+the level below `DETAIL` only helps when the spy is a traced *parameter*;
+a spy returned from a traced method still renders at every level except
+`OFF`, so excluding the package is the only fix once the spy is a return
+value.
+
 ## `@NotTraced` fails to compile: "package ai.narrativetrace.api.annotation does not exist"
 
 **Cause:** the Gradle plugin's default `scope` is `"test"`, so
@@ -182,7 +203,7 @@ its own):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.2")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.3")
 }
 ```
 

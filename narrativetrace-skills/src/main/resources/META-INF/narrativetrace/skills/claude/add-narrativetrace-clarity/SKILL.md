@@ -21,7 +21,7 @@ Choose the path that matches the request:
 ```kotlin
 plugins {
     java
-    id("ai.narrativetrace") version "0.4.2"
+    id("ai.narrativetrace") version "0.4.3"
 }
 
 repositories {

@@ -317,6 +317,26 @@ class CliTest {
         .contains("ai.narrativetrace:narrativetrace-skills:1.2.3");
   }
 
+  /**
+   * A project with a Gradle build file but no {@code ai.narrativetrace} plugin applied — every
+   * Maven project is unaffected, but a bare Gradle project installed through the CLI is not. The
+   * CLI is the route writing this section, so it must name its own verbs, never the plugin's tasks
+   * that do not exist here.
+   */
+  @Test
+  void initOnAGradleShapedProjectWithoutOurPluginNamesTheCliVerbs(@TempDir Path dir)
+      throws IOException {
+    Files.writeString(dir.resolve("build.gradle.kts"), "plugins {\n  id(\"java\")\n}\n");
+
+    init(dir, dir.resolve("carrier"));
+
+    assertThat(Files.readString(dir.resolve("AGENTS.md")))
+        .contains("narrativetrace doctor")
+        .contains("narrativetrace init --dry-run")
+        .contains("narrativetrace uninstall")
+        .doesNotContain("./gradlew");
+  }
+
   @Test
   void initDryRunWritesNothingAndPrintsTheDiff(@TempDir Path dir) {
     int code = init(dir, dir.resolve("carrier"), "--dry-run");

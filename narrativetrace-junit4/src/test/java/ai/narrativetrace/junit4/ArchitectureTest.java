@@ -28,20 +28,22 @@ class ArchitectureTest {
 
   /**
    * §176 ownership rule, the JUnit 4 half: within this module the only callers of {@code
-   * PipelineBootstrap.createDefault}/{@code build} are {@link NarrativeTraceClassRule} (the
-   * class-level owner) and {@link NarrativeTraceRule} (the standalone-rule owner, and its
-   * deprecated-style {@code newContext} test utility). See {@code
-   * ai.narrativetrace.core.ArchitectureTest} for core's half of the same rule.
+   * PipelineBootstrap.createDefault}/{@code build} are {@code SuiteContext} (the suite-level owner
+   * every class rule shares) and {@link NarrativeTraceRule} (the standalone-rule owner, and its
+   * deprecated-style {@code newContext} test utility). {@link NarrativeTraceClassRule} is
+   * deliberately NOT on this list: a class rule lives in a static field that never unloads, so a
+   * pipeline it built would be retained for the life of the test JVM, once per test class. See
+   * {@code ai.narrativetrace.core.ArchitectureTest} for core's half of the same rule.
    */
   @ArchTest
-  static final ArchRule only_the_rule_and_class_rule_build_the_default_pipeline =
+  static final ArchRule only_the_suite_context_and_standalone_rule_build_the_default_pipeline =
       noClasses()
-          .that(not(name("ai.narrativetrace.junit4.NarrativeTraceClassRule")))
+          .that(not(name("ai.narrativetrace.junit4.SuiteContext")))
           .and(not(name("ai.narrativetrace.junit4.NarrativeTraceRule")))
           .should(callsPipelineBootstrapDefaultConstruction())
           .as(
-              "Only NarrativeTraceClassRule and NarrativeTraceRule may build the default "
-                  + "pipeline; every pipeline must have one owner that closes it");
+              "Only SuiteContext and NarrativeTraceRule may build the default pipeline; every "
+                  + "pipeline must have one owner that closes it");
 
   private static ArchCondition<JavaClass> callsPipelineBootstrapDefaultConstruction() {
     return new ArchCondition<>("call PipelineBootstrap.createDefault or .build") {

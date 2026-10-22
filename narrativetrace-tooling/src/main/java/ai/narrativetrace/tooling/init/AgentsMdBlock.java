@@ -29,15 +29,14 @@ package ai.narrativetrace.tooling.init;
  * the three rules the evaluations keep tripping over.
  *
  * <p><b>@llmNote</b> Nothing project-specific goes in beyond what the snapshot DETECTED — the
- * output directory and whether this is a Gradle build. No inference, no generated coding rules, and
- * no version talk: the coordinate on the opening marker is a machine-written stamp, and it is the
- * only version this block ever carries.
+ * output directory. No inference, no generated coding rules, and no version talk: the coordinate on
+ * the opening marker is a machine-written stamp, and it is the only version this block ever
+ * carries.
  *
- * <p><b>@llmNote</b> The Gradle preview command is {@code narrativetraceInit --diff}, NOT {@code
- * --dry-run}: Gradle owns {@code --dry-run} as a built-in that skips every task in the graph, so a
- * section naming it would send every reader to a command that prints nothing. The command-line verb
- * keeps {@code init --dry-run}, where nothing shadows it. The two spellings are deliberate and the
- * tests pin both.
+ * <p><b>@llmNote</b> The three commands come from the {@link CommandRoute} the caller passes in —
+ * never from anything detected about the project. A Gradle build file on disk proves the project IS
+ * built with Gradle, never that THIS install ran through the plugin rather than the launcher; only
+ * the caller that is actually running knows which binary that is.
  *
  * <p><b>@llmNote</b> Renders with {@code \n} throughout. A caller writing into a file that uses
  * another line ending converts with {@link MarkedBlock#withEol}.
@@ -50,15 +49,16 @@ final class AgentsMdBlock {
   private AgentsMdBlock() {}
 
   /** The whole section, opening marker through closing marker, ending with a newline. */
-  static String render(Carrier carrier, ProjectState state) {
-    if (carrier == null || state == null) {
-      throw new IllegalArgumentException("a carrier and a project state are needed to render");
+  static String render(Carrier carrier, ProjectState state, CommandRoute route) {
+    if (carrier == null || state == null || route == null) {
+      throw new IllegalArgumentException(
+          "a carrier, a project state and a command route are needed to render");
     }
     StringBuilder out = new StringBuilder();
     out.append(MarkedBlock.START).append(' ').append(carrier.coordinate()).append(" -->\n");
     appendIntroduction(out, state);
     appendSkills(out, carrier);
-    appendCommands(out, state);
+    appendCommands(out, route);
     appendRules(out);
     out.append(MarkedBlock.END).append('\n');
     assert MarkedBlock.scan(out.toString()).hasExactlyOneRegion() : "the block must be one region";
@@ -86,18 +86,17 @@ final class AgentsMdBlock {
     out.append('\n');
   }
 
-  private static void appendCommands(StringBuilder out, ProjectState state) {
-    boolean gradle = state.gradleProject();
+  private static void appendCommands(StringBuilder out, CommandRoute route) {
     out.append("### Commands\n\n")
         .append("- `")
-        .append(gradle ? "./gradlew narrativetraceDoctor" : "narrativetrace doctor")
+        .append(route.doctorCommand())
         .append("` — diagnose this install; read-only, and every finding names the skill that")
         .append(" fixes it\n")
         .append("- `")
-        .append(gradle ? "./gradlew narrativetraceInit --diff" : "narrativetrace init --dry-run")
+        .append(route.diffCommand())
         .append("` — show what re-installing the skills would change, as a diff\n")
         .append("- `")
-        .append(gradle ? "./gradlew narrativetraceUninstall" : "narrativetrace uninstall")
+        .append(route.uninstallCommand())
         .append("` — remove exactly what the installer wrote, this section included\n\n")
         .append("Documentation: ")
         .append(DOCS_URL)

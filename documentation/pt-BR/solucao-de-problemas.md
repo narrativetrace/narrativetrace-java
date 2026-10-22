@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob b68585f55525 | translated: 2026-10-19 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 2d50ab26892a | translated: 2026-10-21 | reviewed: - -->
 # Solução de problemas
 
 [English](../troubleshooting.md) | Español | **Português** | [简体中文](../zh-CN/故障排查.md)
@@ -186,6 +186,28 @@ vez disso, conecte com `loggerName=` (vazio) ou
 instalação § A narração precisa de um provedor
 SLF4J](guia-de-instalacao.md#a-narração-precisa-de-um-provedor-slf4j--o-agente-nunca-traz-um).
 
+## Um spy do Mockito reporta interações extras após uma chamada rastreada
+
+**Causa:** o agente Java rastreou um método que recebeu ou retornou um spy
+do Mockito em linha sobre uma coleção do JDK (`spy(new LinkedList<>())`).
+Renderizar esse valor lê seu estado — `size()`, iteração — e o Mockito
+registra essa leitura como uma interação sobre o spy, da mesma forma que
+uma chamada feita pelo seu próprio código. Os níveis suprimem coisas
+diferentes aqui: um nível de tracing só suprime valores de *parâmetro*
+(`DETAIL` é o único nível que os renderiza — `ERRORS`/`SUMMARY`/`NARRATIVE`
+não o fazem), mas um valor de *retorno* é renderizado em qualquer nível em
+que o tracing esteja ativo, de `DETAIL` até `ERRORS`. Um teste que chama
+`verifyNoMoreInteractions(spy)` ou `verify(spy, times(n))` depois dessa
+chamada passa então a ver chamadas que nunca fez.
+
+**Correção:** exclua da instrumentação o pacote que recebe o spy
+(`exclude=` — veja [Guia de instalação § Excluir
+pacotes](guia-de-instalacao.md#excluir-pacotes-excludepkg1pkg2)). Baixar o
+nível abaixo de `DETAIL` só ajuda quando o spy é um *parâmetro* rastreado;
+um spy retornado por um método rastreado continua sendo renderizado em
+qualquer nível, exceto `OFF`, então excluir o pacote é a única correção
+quando o spy é um valor de retorno.
+
 ## `@NotTraced` falha ao compilar: "package ai.narrativetrace.api.annotation does not exist"
 
 **Causa:** o `scope` padrão do plugin do Gradle é `"test"`, então o
@@ -199,7 +221,7 @@ nenhuma dependência de runtime própria):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.2")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.3")
 }
 ```
 

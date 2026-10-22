@@ -55,7 +55,6 @@ public final class ProjectState {
   private final Map<String, String> pointerFiles;
   private final Set<String> pointersBehindLinks;
   private final String outputDirectory;
-  private final boolean gradleProject;
 
   private ProjectState(Builder builder) {
     this.agentsMd = builder.agentsMd;
@@ -68,7 +67,6 @@ public final class ProjectState {
     this.pointerFiles = Map.copyOf(builder.pointerFiles);
     this.pointersBehindLinks = Set.copyOf(builder.pointersBehindLinks);
     this.outputDirectory = builder.outputDirectory;
-    this.gradleProject = builder.gradleProject;
     assert invariant() : "a project state must describe one path once";
   }
 
@@ -146,11 +144,6 @@ public final class ProjectState {
     return outputDirectory;
   }
 
-  /** Whether this is a Gradle build — decides which commands the managed block names. */
-  public boolean gradleProject() {
-    return gradleProject;
-  }
-
   /**
    * No path is described twice: one snapshot entry per (flavour, name), and nothing is listed under
    * a flavour whose whole install root is a link — what was found there was found through it.
@@ -181,7 +174,6 @@ public final class ProjectState {
     private final Map<String, String> pointerFiles = new LinkedHashMap<>();
     private final Set<String> pointersBehindLinks = new LinkedHashSet<>();
     private String outputDirectory = DEFAULT_OUTPUT_DIRECTORY;
-    private boolean gradleProject;
 
     private Builder() {}
 
@@ -236,11 +228,6 @@ public final class ProjectState {
 
     public Builder outputDirectory(String directory) {
       this.outputDirectory = directory;
-      return this;
-    }
-
-    public Builder gradleProject(boolean gradle) {
-      this.gradleProject = gradle;
       return this;
     }
 

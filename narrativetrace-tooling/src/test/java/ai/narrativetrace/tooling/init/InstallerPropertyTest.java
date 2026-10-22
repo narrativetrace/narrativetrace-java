@@ -56,8 +56,11 @@ class InstallerPropertyTest {
           write(project.resolve("AGENTS.md"), agentsMd);
           write(project.resolve("CLAUDE.md"), claudeMd);
 
-          apply(project, InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE));
-          InitPlan second = InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE);
+          apply(
+              project,
+              InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE, CommandRoute.CLI));
+          InitPlan second =
+              InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE, CommandRoute.CLI);
 
           assertThat(edits(second))
               .as("a second install of the same carrier has nothing to write")
@@ -80,7 +83,9 @@ class InstallerPropertyTest {
           write(project.resolve("CLAUDE.md"), claudeMd);
           Map<String, String> before = Projects.snapshotOf(project);
 
-          apply(project, InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE));
+          apply(
+              project,
+              InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE, CommandRoute.CLI));
           apply(project, UninstallPlanner.plan(read(project), PERMISSIVE));
 
           Map<String, String> after = Projects.snapshotOf(project);
@@ -102,7 +107,8 @@ class InstallerPropertyTest {
           write(project.resolve("CLAUDE.md"), claudeMd);
           Files.createDirectories(project.resolve(".claude"));
 
-          InitPlan install = InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE);
+          InitPlan install =
+              InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE, CommandRoute.CLI);
           apply(project, install);
           InitPlan uninstall = UninstallPlanner.plan(read(project), PERMISSIVE);
 
@@ -118,7 +124,8 @@ class InstallerPropertyTest {
         project -> {
           write(project.resolve("AGENTS.md"), agentsMd);
 
-          InitPlan plan = InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE);
+          InitPlan plan =
+              InitPlanner.plan(read(project), Carriers.shared(), PERMISSIVE, CommandRoute.CLI);
           apply(project, plan);
 
           for (Action.FileEdit edit : edits(plan)) {

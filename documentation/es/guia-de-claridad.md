@@ -1,4 +1,4 @@
-<!-- source: documentation/clarity-guide.md blob 397d758582a3 | translated: 2026-09-23 | reviewed: - -->
+<!-- source: documentation/clarity-guide.md blob d5a0225471c0 | translated: 2026-10-21 | reviewed: - -->
 # Guía de claridad de NarrativeTrace Java
 [English](../clarity-guide.md) | **Español** | [简体中文](../zh-CN/清晰度指南.md)
 
@@ -290,6 +290,13 @@ cada clase y escribe `clarity-report.md` y `clarity-results.json`, combinando la
 clases finalizadas en esa JVM de pruebas. Una `new NarrativeTraceRule()` independiente
 produce narrativas por prueba, pero no contribuye al informe agregado de Clarity.
 
+El pipeline de eventos y el contexto de la regla de clase pertenecen a la JVM de
+pruebas, no a la clase: el primer `@ClassRule` que se ejecuta los construye una
+sola vez, cada regla de clase posterior en esa misma JVM reutiliza ese mismo
+pipeline, y un shutdown hook lo cierra una sola vez, al salir la JVM — nunca se
+reconstruye por clase. Las narrativas por prueba no se ven afectadas: cada prueba
+sigue reiniciando y capturando su propia traza exactamente como antes.
+
 `NarrativeTestCase` conecta ambas reglas como clase base opcional cuando no hay una
 superclase existente que conservar. JUnit 4 lee `narrativetrace.output` (predeterminado:
 `true`) y `narrativetrace.outputDir` como propiedades del sistema de la JVM de pruebas,
@@ -311,7 +318,7 @@ El plugin de Gradle proporciona una tarea `clarityCheck` que hace fallar el buil
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.2"
+    id("ai.narrativetrace") version "0.4.3"
 }
 
 narrativeTrace {

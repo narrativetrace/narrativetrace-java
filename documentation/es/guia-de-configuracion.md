@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 3b0db0591556 | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 5f8bbf921371 | translated: 2026-10-21 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.2"
+    id("ai.narrativetrace") version "0.4.3"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -161,6 +161,11 @@ Cuando el agente de Java (§3) se adjunta bajo la extensión de `narrativetrace-
 `narrativetrace-junit4`, sus capturas fluyen por ese mismo `NarrativeTraceConfig` por prueba, así que
 el nivel configurado para una prueba rige las llamadas del agente exactamente igual que rige una
 llamada trazada por proxy.
+
+Para JUnit 4, ese `NarrativeTraceConfig` es la única instancia que construye el `SuiteContext` de
+la JVM de pruebas — cada regla de clase vinculada la reutiliza, así que establecer
+`narrativetrace.level` desde una prueba de una clase cambia el nivel para todas las pruebas que se
+ejecuten después de ella en esa JVM, no solo para el resto de su propia clase.
 
 ### Estrategias de propagación de contexto
 
@@ -824,7 +829,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.3")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.

@@ -1912,7 +1912,13 @@ class NarrativeTracePluginFunctionalTest {
             "<!-- narrativetrace:start ai.narrativetrace:narrativetrace-skills:"
                 + CARRIER_VERSION
                 + " -->")
-        .contains("<!-- narrativetrace:end -->");
+        .contains("<!-- narrativetrace:end -->")
+        .contains("./gradlew narrativetraceDoctor")
+        .contains("./gradlew narrativetraceInit --diff")
+        .contains("./gradlew narrativetraceUninstall")
+        .doesNotContain("narrativetrace doctor")
+        .doesNotContain("narrativetrace init --dry-run")
+        .doesNotContain("narrativetrace uninstall");
   }
 
   @Test

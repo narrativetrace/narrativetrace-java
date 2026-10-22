@@ -49,7 +49,6 @@ class ProjectStateReaderTest {
     assertThat(state.installedSkills()).isEmpty();
     assertThat(state.markedRuleFiles()).isEmpty();
     assertThat(state.outputDirectory()).isEqualTo("build/narrativetrace");
-    assertThat(state.gradleProject()).isFalse();
   }
 
   @Test
@@ -321,7 +320,6 @@ class ProjectStateReaderTest {
     ProjectState state = ProjectStateReader.read(dir);
 
     assertThat(state.outputDirectory()).isEqualTo("build/traces");
-    assertThat(state.gradleProject()).isTrue();
   }
 
   @Test
@@ -331,14 +329,6 @@ class ProjectStateReaderTest {
     ProjectState state = ProjectStateReader.read(dir);
 
     assertThat(state.outputDirectory()).isEqualTo("out");
-    assertThat(state.gradleProject()).isTrue();
-  }
-
-  @Test
-  void recognisesAGradleProjectBySettingsAlone(@TempDir Path dir) throws IOException {
-    write(dir.resolve("settings.gradle.kts"), "rootProject.name = \"x\"\n");
-
-    assertThat(ProjectStateReader.read(dir).gradleProject()).isTrue();
   }
 
   @Test

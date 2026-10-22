@@ -285,6 +285,12 @@ each class and writes `clarity-report.md` and `clarity-results.json`, combining
 completed classes in that test JVM. A standalone `new NarrativeTraceRule()` produces
 per-test narratives but does not contribute to the aggregate Clarity report.
 
+The class rule's event pipeline and context belong to the test JVM, not the class:
+the first `@ClassRule` to run builds them once, every class rule after it in the
+same JVM reuses that same pipeline, and a shutdown hook closes it once, at JVM exit
+— never rebuilt per class. Per-test narratives are unaffected: each test still
+resets and captures its own trace exactly as before.
+
 `NarrativeTestCase` wires both rules as an optional base class when the test has no
 existing superclass to preserve. JUnit 4 reads `narrativetrace.output` (default:
 `true`) and `narrativetrace.outputDir` as test JVM system properties, not from
@@ -305,7 +311,7 @@ The Gradle plugin provides a `clarityCheck` task that fails the build when namin
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.2"
+    id("ai.narrativetrace") version "0.4.3"
 }
 
 narrativeTrace {

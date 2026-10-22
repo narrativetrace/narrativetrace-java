@@ -58,11 +58,11 @@ class InitPlannerTest {
   }
 
   private InitPlan plan(ProjectState state) {
-    return InitPlanner.plan(state, carrier, InitOptions.defaults());
+    return InitPlanner.plan(state, carrier, InitOptions.defaults(), CommandRoute.CLI);
   }
 
   private InitPlan plan(ProjectState state, InitOptions options) {
-    return InitPlanner.plan(state, carrier, options);
+    return InitPlanner.plan(state, carrier, options, CommandRoute.CLI);
   }
 
   private static Optional<Action> actionOn(InitPlan plan, Path path) {
@@ -74,7 +74,7 @@ class InitPlannerTest {
   }
 
   private String block(ProjectState state) {
-    return AgentsMdBlock.render(carrier, state);
+    return AgentsMdBlock.render(carrier, state, CommandRoute.CLI);
   }
 
   private static ProjectState.Builder project() {
@@ -742,12 +742,18 @@ class InitPlannerTest {
   }
 
   @Test
-  void refusesToPlanWithoutASnapshotACarrierOrOptions() {
-    assertThatThrownBy(() -> InitPlanner.plan(null, carrier, InitOptions.defaults()))
+  void refusesToPlanWithoutASnapshotACarrierOptionsOrARoute() {
+    assertThatThrownBy(
+            () -> InitPlanner.plan(null, carrier, InitOptions.defaults(), CommandRoute.CLI))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> InitPlanner.plan(project().build(), null, InitOptions.defaults()))
+    assertThatThrownBy(
+            () ->
+                InitPlanner.plan(project().build(), null, InitOptions.defaults(), CommandRoute.CLI))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> InitPlanner.plan(project().build(), carrier, null))
+    assertThatThrownBy(() -> InitPlanner.plan(project().build(), carrier, null, CommandRoute.CLI))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () -> InitPlanner.plan(project().build(), carrier, InitOptions.defaults(), null))
         .isInstanceOf(IllegalArgumentException.class);
   }
 

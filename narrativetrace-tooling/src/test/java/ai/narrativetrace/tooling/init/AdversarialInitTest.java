@@ -58,7 +58,7 @@ class AdversarialInitTest {
   }
 
   private InitPlan plan(ProjectState state, InitOptions options) {
-    return InitPlanner.plan(state, carrier, options);
+    return InitPlanner.plan(state, carrier, options, CommandRoute.CLI);
   }
 
   private InitPlan plan(ProjectState state) {

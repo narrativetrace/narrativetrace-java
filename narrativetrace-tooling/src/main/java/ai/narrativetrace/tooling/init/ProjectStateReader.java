@@ -52,9 +52,6 @@ public final class ProjectStateReader {
 
   private static final List<String> BUILD_FILES = List.of("build.gradle.kts", "build.gradle");
 
-  private static final List<String> SETTINGS_FILES =
-      List.of("settings.gradle.kts", "settings.gradle");
-
   private static final String OUTPUT_DIRECTORY_KEY = "narrativetrace.outputDir";
 
   /** {@code systemProperty("narrativetrace.outputDir", "out")}, Kotlin or Groovy DSL. */
@@ -85,7 +82,6 @@ public final class ProjectStateReader {
     ProjectState.Builder builder =
         ProjectState.builder()
             .claudeDirectory(Files.isDirectory(projectDirectory.resolve(".claude")))
-            .gradleProject(isGradleProject(projectDirectory))
             .outputDirectory(outputDirectory(projectDirectory));
     textOf(projectDirectory.resolve("AGENTS.md")).ifPresent(builder::agentsMd);
     textOf(projectDirectory.resolve("CLAUDE.md")).ifPresent(builder::claudeMd);
@@ -284,11 +280,6 @@ public final class ProjectStateReader {
   private static Optional<String> inBuildFile(String buildFile) {
     Matcher matcher = OUTPUT_DIRECTORY_IN_BUILD_FILE.matcher(buildFile);
     return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
-  }
-
-  private static boolean isGradleProject(Path projectDirectory) {
-    return Stream.concat(BUILD_FILES.stream(), SETTINGS_FILES.stream())
-        .anyMatch(name -> Files.isRegularFile(projectDirectory.resolve(name)));
   }
 
   /**

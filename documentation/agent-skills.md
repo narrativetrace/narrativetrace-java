@@ -103,7 +103,7 @@ an envelope a script can gate on:
 <!-- snippet: narrativetrace-cli/build/narrativetrace/init-plan.json -->
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.2",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.3",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},

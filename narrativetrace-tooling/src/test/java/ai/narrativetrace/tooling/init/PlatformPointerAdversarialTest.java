@@ -64,7 +64,7 @@ class PlatformPointerAdversarialTest {
   }
 
   private InitPlan planInstall(InitOptions options) {
-    return InitPlanner.plan(ProjectStateReader.read(project), carrier, options);
+    return InitPlanner.plan(ProjectStateReader.read(project), carrier, options, CommandRoute.CLI);
   }
 
   private InitPlan planUninstall() {
@@ -80,7 +80,7 @@ class PlatformPointerAdversarialTest {
   }
 
   private String section() {
-    return AgentsMdBlock.render(carrier, ProjectStateReader.read(project));
+    return AgentsMdBlock.render(carrier, ProjectStateReader.read(project), CommandRoute.CLI);
   }
 
   private static String crlf(String text) {

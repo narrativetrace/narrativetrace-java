@@ -24,8 +24,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.2")
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.3")
 }
 
 tasks.withType<JavaCompile> {
@@ -163,9 +163,9 @@ moment it is on the classpath; the two commented lines below are the change:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.2")
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.2")   // new: attaches to the pipeline
+    implementation("ai.narrativetrace:narrativetrace-core:0.4.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.3")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.3")   // new: attaches to the pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // new: the SLF4J backend it needs
 }
 ```

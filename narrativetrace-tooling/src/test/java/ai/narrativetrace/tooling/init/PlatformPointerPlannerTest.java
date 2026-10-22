@@ -51,7 +51,7 @@ class PlatformPointerPlannerTest {
   }
 
   private InitPlan plan(ProjectState state) {
-    return InitPlanner.plan(state, carrier, InitOptions.defaults());
+    return InitPlanner.plan(state, carrier, InitOptions.defaults(), CommandRoute.CLI);
   }
 
   private static ProjectState.Builder project() {
@@ -72,7 +72,7 @@ class PlatformPointerPlannerTest {
   }
 
   private String section(ProjectState state) {
-    return AgentsMdBlock.render(carrier, state);
+    return AgentsMdBlock.render(carrier, state, CommandRoute.CLI);
   }
 
   // --- no marker, no pointer --------------------------------------------------------------------
@@ -125,7 +125,8 @@ class PlatformPointerPlannerTest {
         project().detectedPlatform("replit").pointerFile("replit.md", "# My notes\n").build();
 
     InitPlan plan =
-        InitPlanner.plan(state, carrier, InitOptions.defaults().withWriteExisting(true));
+        InitPlanner.plan(
+            state, carrier, InitOptions.defaults().withWriteExisting(true), CommandRoute.CLI);
 
     assertThat(on(plan, REPLIT_MD)).get().isInstanceOf(AppendBlock.class);
     assertThat(after(plan, REPLIT_MD)).startsWith("# My notes\n\n").endsWith(section(state));
@@ -250,7 +251,8 @@ class PlatformPointerPlannerTest {
     ProjectState state = project().detectedPlatform("cursor").detectedPlatform("replit").build();
 
     InitPlan plan =
-        InitPlanner.plan(state, carrier, InitOptions.defaults().withScope(Scope.SKILLS));
+        InitPlanner.plan(
+            state, carrier, InitOptions.defaults().withScope(Scope.SKILLS), CommandRoute.CLI);
 
     assertThat(on(plan, REPLIT_MD)).isEmpty();
     assertThat(on(plan, CURSOR_RULE)).isEmpty();

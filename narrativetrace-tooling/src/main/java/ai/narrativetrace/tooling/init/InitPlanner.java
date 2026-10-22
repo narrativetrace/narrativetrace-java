@@ -55,19 +55,21 @@ public final class InitPlanner {
   private InitPlanner() {}
 
   /** The plan an install with these options would apply to this project. */
-  public static InitPlan plan(ProjectState state, Carrier carrier, InitOptions options) {
-    if (state == null || carrier == null || options == null) {
-      throw new IllegalArgumentException("planning needs a project state, a carrier and options");
+  public static InitPlan plan(
+      ProjectState state, Carrier carrier, InitOptions options, CommandRoute route) {
+    if (state == null || carrier == null || options == null || route == null) {
+      throw new IllegalArgumentException(
+          "planning needs a project state, a carrier, options and a command route");
     }
     List<Action> actions = new ArrayList<>();
     if (options.scope().includesSkills()) {
       planSkills(state, carrier, options, actions);
     }
     if (options.scope().includesAgentsMd()) {
-      planAgentsMd(state, carrier, options, actions);
+      planAgentsMd(state, carrier, options, route, actions);
       planClaudeMd(state, options, actions);
-      planRuleFiles(state, carrier, actions);
-      planPointers(state, carrier, options, actions);
+      planRuleFiles(state, carrier, route, actions);
+      planPointers(state, carrier, options, route, actions);
     }
     return new InitPlan(carrier.coordinate(), options.dryRun(), withoutNoOps(actions));
   }
@@ -235,9 +237,13 @@ public final class InitPlanner {
   // --- the managed section --------------------------------------------------------------------
 
   private static void planAgentsMd(
-      ProjectState state, Carrier carrier, InitOptions options, List<Action> actions) {
-    planManagedHome(AGENTS_MD, state.agentsMd(), AgentsMdBlock.render(carrier, state), options)
-        .ifPresent(actions::add);
+      ProjectState state,
+      Carrier carrier,
+      InitOptions options,
+      CommandRoute route,
+      List<Action> actions) {
+    String block = AgentsMdBlock.render(carrier, state, route);
+    planManagedHome(AGENTS_MD, state.agentsMd(), block, options).ifPresent(actions::add);
   }
 
   /**
@@ -313,8 +319,9 @@ public final class InitPlanner {
    * A vendor rule file is never created and never appended to: an existing managed section in one
    * is kept current, and that is all.
    */
-  private static void planRuleFiles(ProjectState state, Carrier carrier, List<Action> actions) {
-    String block = AgentsMdBlock.render(carrier, state);
+  private static void planRuleFiles(
+      ProjectState state, Carrier carrier, CommandRoute route, List<Action> actions) {
+    String block = AgentsMdBlock.render(carrier, state, route);
     state
         .markedRuleFiles()
         .forEach((path, text) -> actions.add(blockAction(Path.of(path), text, block, false)));
@@ -327,16 +334,24 @@ public final class InitPlanner {
    * project not on Cursor gets no {@code .cursor/} directory it did not have.
    */
   private static void planPointers(
-      ProjectState state, Carrier carrier, InitOptions options, List<Action> actions) {
+      ProjectState state,
+      Carrier carrier,
+      InitOptions options,
+      CommandRoute route,
+      List<Action> actions) {
     for (PlatformRow row : PlatformTable.ROWS) {
       if (state.detectedPlatforms().contains(row.id())) {
-        planPointer(row.pointer(), state, carrier, options).ifPresent(actions::add);
+        planPointer(row.pointer(), state, carrier, options, route).ifPresent(actions::add);
       }
     }
   }
 
   private static Optional<Action> planPointer(
-      Pointer pointer, ProjectState state, Carrier carrier, InitOptions options) {
+      Pointer pointer,
+      ProjectState state,
+      Carrier carrier,
+      InitOptions options,
+      CommandRoute route) {
     if (pointer instanceof Pointer.None) {
       return Optional.empty();
     }
@@ -348,7 +363,7 @@ public final class InitPlanner {
     if (pointer instanceof Pointer.Rule rule) {
       return Optional.of(planRule(path, existing, rule, carrier));
     }
-    return planManagedHome(path, existing, AgentsMdBlock.render(carrier, state), options);
+    return planManagedHome(path, existing, AgentsMdBlock.render(carrier, state, route), options);
   }
 
   private static Action refuseLink(Path path) {

@@ -46,12 +46,17 @@ public final class RefreshPlanner {
    * The install plan, kept down to the actions that REWRITE something already ours. Every other
    * kind — a page to create, a section to append, an import line to add, a refusal — is dropped
    * here, which is what keeps a build from starting an install nobody asked for.
+   *
+   * <p>The command route is fixed to {@link CommandRoute#GRADLE_PLUGIN}: this planner has exactly
+   * one caller, a Gradle task, so there is no other route a refresh could ever run through.
    */
   private static List<Action> rewrites(ProjectState state, Carrier carrier) {
     if (!isStale(state, carrier.coordinate())) {
       return List.of();
     }
-    return InitPlanner.plan(state, carrier, InitOptions.defaults()).actions().stream()
+    return InitPlanner.plan(state, carrier, InitOptions.defaults(), CommandRoute.GRADLE_PLUGIN)
+        .actions()
+        .stream()
         .filter(Action.ReplaceBlock.class::isInstance)
         .toList();
   }

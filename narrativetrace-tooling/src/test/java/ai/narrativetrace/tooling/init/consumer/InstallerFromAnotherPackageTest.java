@@ -20,6 +20,7 @@ package ai.narrativetrace.tooling.init.consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.narrativetrace.tooling.init.Carrier;
+import ai.narrativetrace.tooling.init.CommandRoute;
 import ai.narrativetrace.tooling.init.ExecutionReport;
 import ai.narrativetrace.tooling.init.InitOptions;
 import ai.narrativetrace.tooling.init.InitPlan;
@@ -63,7 +64,8 @@ class InstallerFromAnotherPackageTest {
 
   private static ExecutionReport install(Path project, InitOptions options) {
     Carrier carrier = realCarrier();
-    InitPlan plan = InitPlanner.plan(ProjectStateReader.read(project), carrier, options);
+    InitPlan plan =
+        InitPlanner.plan(ProjectStateReader.read(project), carrier, options, CommandRoute.CLI);
     return PlanExecutor.execute(plan, project);
   }
 
@@ -114,7 +116,11 @@ class InstallerFromAnotherPackageTest {
     install(project, InitOptions.defaults());
 
     InitPlan second =
-        InitPlanner.plan(ProjectStateReader.read(project), realCarrier(), InitOptions.defaults());
+        InitPlanner.plan(
+            ProjectStateReader.read(project),
+            realCarrier(),
+            InitOptions.defaults(),
+            CommandRoute.CLI);
 
     assertThat(second.isEmpty()).isTrue();
     assertThat(PlanRenderer.renderText(second)).contains("nothing to do");
@@ -127,7 +133,8 @@ class InstallerFromAnotherPackageTest {
         InitPlanner.plan(
             ProjectStateReader.read(project),
             realCarrier(),
-            InitOptions.defaults().withDryRun(true));
+            InitOptions.defaults().withDryRun(true),
+            CommandRoute.CLI);
 
     String diff = PlanRenderer.renderDiff(plan);
 

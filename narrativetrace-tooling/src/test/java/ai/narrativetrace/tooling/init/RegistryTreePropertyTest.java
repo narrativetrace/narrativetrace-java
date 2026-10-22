@@ -181,7 +181,7 @@ class RegistryTreePropertyTest {
   }
 
   private static InitPlan plan(Path project) {
-    return InitPlanner.plan(read(project), CARRIER, InitOptions.defaults());
+    return InitPlanner.plan(read(project), CARRIER, InitOptions.defaults(), CommandRoute.CLI);
   }
 
   private static ExecutionReport install(Path project) {

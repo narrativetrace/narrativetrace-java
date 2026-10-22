@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.narrativetrace.tooling.init.Action;
 import ai.narrativetrace.tooling.init.Carrier;
+import ai.narrativetrace.tooling.init.CommandRoute;
 import ai.narrativetrace.tooling.init.CursorRule;
 import ai.narrativetrace.tooling.init.InitOptions;
 import ai.narrativetrace.tooling.init.InitPlan;
@@ -76,7 +77,7 @@ class PlatformPointerFromAnotherPackageTest {
 
   private InitPlan planInstall() {
     return InitPlanner.plan(
-        ProjectStateReader.read(project), realCarrier(), InitOptions.defaults());
+        ProjectStateReader.read(project), realCarrier(), InitOptions.defaults(), CommandRoute.CLI);
   }
 
   private InitPlan planUninstall() {

@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.2"
+    id("ai.narrativetrace") version "0.4.3"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -158,6 +158,10 @@ When the Java agent (§3) is attached under `narrativetrace-junit5`'s extension 
 `narrativetrace-junit4`'s rules, its captures flow through that same per-test `NarrativeTraceConfig`,
 so the level configured for a test governs the agent's calls exactly as it governs a proxy-traced
 one.
+
+For JUnit 4, that `NarrativeTraceConfig` is the one instance the test JVM's `SuiteContext` builds —
+every linked class rule reuses it, so setting `narrativetrace.level` from one test's class changes
+the level for every test that runs after it in the JVM, not only the rest of its own class.
 
 ### Context propagation strategies
 
@@ -788,7 +792,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.3")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.

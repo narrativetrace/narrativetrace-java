@@ -23,6 +23,7 @@ import ai.narrativetrace.tooling.doctor.DoctorReport;
 import ai.narrativetrace.tooling.doctor.DoctorSnapshot;
 import ai.narrativetrace.tooling.doctor.SnapshotBuilder;
 import ai.narrativetrace.tooling.init.Carrier;
+import ai.narrativetrace.tooling.init.CommandRoute;
 import ai.narrativetrace.tooling.init.ExecutionReport;
 import ai.narrativetrace.tooling.init.InitPlan;
 import ai.narrativetrace.tooling.init.InitPlanner;
@@ -280,7 +281,10 @@ Options:
       deps.err().println(e.getMessage() + "\n\n" + FETCH_HINT);
       return 1;
     }
-    return runPlan(state -> InitPlanner.plan(state, carrier, parsed.options()), parsed, deps);
+    return runPlan(
+        state -> InitPlanner.plan(state, carrier, parsed.options(), CommandRoute.CLI),
+        parsed,
+        deps);
   }
 
   private static int runUninstall(InstallerArguments parsed, Deps deps) {

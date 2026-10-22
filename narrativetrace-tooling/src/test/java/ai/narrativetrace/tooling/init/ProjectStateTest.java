@@ -36,7 +36,6 @@ class ProjectStateTest {
     assertThat(state.agentsMd()).isEmpty();
     assertThat(state.claudeMd()).isEmpty();
     assertThat(state.hasClaudeDirectory()).isFalse();
-    assertThat(state.gradleProject()).isFalse();
     assertThat(state.installedSkills()).isEmpty();
     assertThat(state.markedRuleFiles()).isEmpty();
     assertThat(state.outputDirectory()).isEqualTo("build/narrativetrace");
@@ -50,7 +49,6 @@ class ProjectStateTest {
             .agentsMd("# A\n")
             .claudeMd("# C\n")
             .claudeDirectory(true)
-            .gradleProject(true)
             .outputDirectory("out")
             .markedRuleFile(".cursorrules", "rules")
             .addInstalledSkill(ours("doctor"))
@@ -59,7 +57,6 @@ class ProjectStateTest {
     assertThat(state.agentsMd()).hasValue("# A\n");
     assertThat(state.claudeMd()).hasValue("# C\n");
     assertThat(state.hasClaudeDirectory()).isTrue();
-    assertThat(state.gradleProject()).isTrue();
     assertThat(state.outputDirectory()).isEqualTo("out");
     assertThat(state.markedRuleFiles()).containsEntry(".cursorrules", "rules");
     assertThat(state.installedSkill(SkillFlavour.AGENTS, "doctor")).isPresent();

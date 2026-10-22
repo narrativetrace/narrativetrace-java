@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob b68585f55525 | translated: 2026-10-19 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 2d50ab26892a | translated: 2026-10-21 | reviewed: - -->
 # Solución de problemas
 
 [English](../troubleshooting.md) | **Español** | [Português](../pt-BR/solucao-de-problemas.md) | [简体中文](../zh-CN/故障排查.md)
@@ -183,6 +183,28 @@ su lugar, adjunta con `loggerName=` (vacío) o
 `-Dnarrativetrace.narration=off`. Receta completa en
 [Guía de instalación § La narración necesita un proveedor SLF4J](guia-de-instalacion.md#la-narración-necesita-un-proveedor-slf4j--el-agente-nunca-trae-uno).
 
+## Un spy de Mockito reporta interacciones de más tras una llamada trazada
+
+**Causa:** el agente de Java trazó un método que recibió o devolvió un spy
+de Mockito en línea sobre una colección del JDK (`spy(new LinkedList<>())`).
+Renderizar ese valor lee su estado — `size()`, iteración — y Mockito
+registra esa lectura como una interacción sobre el spy, igual que una
+llamada hecha por tu propio código. Aquí los niveles suprimen cosas
+distintas: un nivel de tracing solo suprime los valores de *parámetro*
+(`DETAIL` es el único nivel que los renderiza — `ERRORS`/`SUMMARY`/`NARRATIVE`
+no lo hacen), pero un valor de *retorno* se renderiza en cualquier nivel en
+el que el tracing esté activo, de `DETAIL` hasta `ERRORS`. Una prueba que
+llama a `verifyNoMoreInteractions(spy)` o `verify(spy, times(n))` después de
+esa llamada ve entonces llamadas que nunca hizo.
+
+**Solución:** excluye de la instrumentación el paquete que recibe el spy
+(`exclude=` — consulta [Guía de instalación § Excluir
+paquetes](guia-de-instalacion.md#excluir-paquetes-excludepkg1pkg2)). Bajar el
+nivel por debajo de `DETAIL` solo ayuda cuando el spy es un *parámetro*
+trazado; un spy devuelto por un método trazado sigue renderizándose en
+cualquier nivel salvo `OFF`, así que excluir el paquete es la única
+solución una vez que el spy es un valor de retorno.
+
 ## `@NotTraced` falla al compilar: "package ai.narrativetrace.api.annotation does not exist"
 
 **Causa:** el `scope` por defecto del plugin de Gradle es `"test"`, así que
@@ -196,7 +218,7 @@ dependencias de runtime propias):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.2")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.4.3")
 }
 ```
 

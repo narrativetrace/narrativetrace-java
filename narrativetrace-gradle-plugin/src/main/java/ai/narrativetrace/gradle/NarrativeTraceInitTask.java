@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.gradle;
 
+import ai.narrativetrace.tooling.init.CommandRoute;
 import ai.narrativetrace.tooling.init.InitOptions;
 import ai.narrativetrace.tooling.init.InitPlan;
 import ai.narrativetrace.tooling.init.InitPlanner;
@@ -124,7 +125,11 @@ public abstract class NarrativeTraceInitTask extends DefaultTask {
               + resolution.failure());
     }
     InitPlan plan =
-        InitPlanner.plan(ProjectStateReader.read(project), resolution.carrier(), options);
+        InitPlanner.plan(
+            ProjectStateReader.read(project),
+            resolution.carrier(),
+            options,
+            CommandRoute.GRADLE_PLUGIN);
     InstallerTasks.announce(
         this, InstallerTaskOutput.run(plan, project, getName(), getJson().get()));
   }

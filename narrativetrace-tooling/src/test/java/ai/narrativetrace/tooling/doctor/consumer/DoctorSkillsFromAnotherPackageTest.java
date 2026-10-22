@@ -24,6 +24,7 @@ import ai.narrativetrace.tooling.doctor.DoctorReport;
 import ai.narrativetrace.tooling.doctor.Finding;
 import ai.narrativetrace.tooling.doctor.SnapshotBuilder;
 import ai.narrativetrace.tooling.init.Carrier;
+import ai.narrativetrace.tooling.init.CommandRoute;
 import ai.narrativetrace.tooling.init.InitOptions;
 import ai.narrativetrace.tooling.init.InitPlan;
 import ai.narrativetrace.tooling.init.InitPlanner;
@@ -62,7 +63,8 @@ class DoctorSkillsFromAnotherPackageTest {
   private static void install(Path project) {
     Carrier carrier = realCarrier();
     InitPlan plan =
-        InitPlanner.plan(ProjectStateReader.read(project), carrier, InitOptions.defaults());
+        InitPlanner.plan(
+            ProjectStateReader.read(project), carrier, InitOptions.defaults(), CommandRoute.CLI);
     PlanExecutor.execute(plan, project);
   }
 

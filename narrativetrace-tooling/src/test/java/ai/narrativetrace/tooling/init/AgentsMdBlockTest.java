@@ -30,13 +30,13 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class AgentsMdBlockTest {
 
-  private static ProjectState gradleProject() {
-    return ProjectState.builder().gradleProject(true).build();
+  private static ProjectState untouchedProject() {
+    return ProjectState.builder().build();
   }
 
   @Test
   void isOneWellFormedRegionStampedWithTheCarrier() {
-    String block = AgentsMdBlock.render(Carriers.real(), gradleProject());
+    String block = AgentsMdBlock.render(Carriers.real(), untouchedProject(), CommandRoute.CLI);
 
     MarkedBlock.Scan scan = MarkedBlock.scan(block);
     assertThat(scan.problems()).isEmpty();
@@ -51,7 +51,7 @@ class AgentsMdBlockTest {
   void listsEverySkillWithItsCatalogueDescriptionVerbatimAndInOrder() {
     Carrier carrier = Carriers.real();
 
-    String block = AgentsMdBlock.render(carrier, gradleProject());
+    String block = AgentsMdBlock.render(carrier, untouchedProject(), CommandRoute.CLI);
 
     int previous = -1;
     for (SkillEntry skill : carrier.skills()) {
@@ -67,8 +67,9 @@ class AgentsMdBlockTest {
   void namesWhereTracesLand(@TempDir Path dir) {
     ProjectState detected = ProjectState.builder().outputDirectory("out/traces").build();
 
-    assertThat(AgentsMdBlock.render(Carriers.fake(dir, "a"), detected)).contains("`out/traces`");
-    assertThat(AgentsMdBlock.render(Carriers.fake(dir, "a"), ProjectState.builder().build()))
+    assertThat(AgentsMdBlock.render(Carriers.fake(dir, "a"), detected, CommandRoute.CLI))
+        .contains("`out/traces`");
+    assertThat(AgentsMdBlock.render(Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.CLI))
         .contains("`build/narrativetrace`");
   }
 
@@ -79,8 +80,10 @@ class AgentsMdBlockTest {
    * it.
    */
   @Test
-  void namesTheGradleTasksInAGradleProject(@TempDir Path dir) {
-    String block = AgentsMdBlock.render(Carriers.fake(dir, "a"), gradleProject());
+  void namesTheGradleTasksOnTheGradlePluginRoute(@TempDir Path dir) {
+    String block =
+        AgentsMdBlock.render(
+            Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.GRADLE_PLUGIN);
 
     assertThat(block)
         .contains("./gradlew narrativetraceDoctor")
@@ -91,8 +94,9 @@ class AgentsMdBlockTest {
   }
 
   @Test
-  void namesTheCommandLineVerbsWhereThereIsNoGradleBuild(@TempDir Path dir) {
-    String block = AgentsMdBlock.render(Carriers.fake(dir, "a"), ProjectState.builder().build());
+  void namesTheCommandLineVerbsOnTheCliRoute(@TempDir Path dir) {
+    String block =
+        AgentsMdBlock.render(Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.CLI);
 
     assertThat(block)
         .contains("narrativetrace doctor")
@@ -103,32 +107,41 @@ class AgentsMdBlockTest {
 
   @Test
   void pointsAtTheRuntimesDocumentationIndex(@TempDir Path dir) {
-    assertThat(AgentsMdBlock.render(Carriers.fake(dir, "a"), gradleProject()))
+    assertThat(
+            AgentsMdBlock.render(
+                Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.GRADLE_PLUGIN))
         .contains("https://narrativetrace.ai/java/llms.txt");
   }
 
   @Test
   void carriesTheThreeRulesTheEvaluationsKeepTrippingOver(@TempDir Path dir) {
-    String block = AgentsMdBlock.render(Carriers.fake(dir, "a"), gradleProject());
+    String block =
+        AgentsMdBlock.render(
+            Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.GRADLE_PLUGIN);
 
     assertThat(block).contains("-parameters").contains("redaction").contains(".received.nt");
   }
 
   @Test
   void saysNothingAboutAVersionBeyondTheMachineWrittenStamp(@TempDir Path dir) {
-    String block = AgentsMdBlock.render(Carriers.fake(dir, "a"), gradleProject());
+    String block =
+        AgentsMdBlock.render(
+            Carriers.fake(dir, "a"), untouchedProject(), CommandRoute.GRADLE_PLUGIN);
     String withoutTheMarker = block.substring(block.indexOf('\n'));
 
     assertThat(withoutTheMarker).doesNotContainPattern("\\d+\\.\\d+\\.\\d+");
   }
 
   @Test
-  void refusesToRenderWithoutACarrierOrAProject(@TempDir Path dir) {
+  void refusesToRenderWithoutACarrierAProjectOrARoute(@TempDir Path dir) {
     org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> AgentsMdBlock.render(null, gradleProject()))
+            () -> AgentsMdBlock.render(null, untouchedProject(), CommandRoute.CLI))
         .isInstanceOf(IllegalArgumentException.class);
     org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> AgentsMdBlock.render(Carriers.fake(dir, "a"), null))
+            () -> AgentsMdBlock.render(Carriers.fake(dir, "a"), null, CommandRoute.CLI))
+        .isInstanceOf(IllegalArgumentException.class);
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> AgentsMdBlock.render(Carriers.fake(dir, "a"), untouchedProject(), null))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -136,7 +149,7 @@ class AgentsMdBlockTest {
   void isTheSameTextForTheSameInputs(@TempDir Path dir) {
     Carrier carrier = Carriers.fake(dir, "a", "b");
 
-    assertThat(AgentsMdBlock.render(carrier, gradleProject()))
-        .isEqualTo(AgentsMdBlock.render(carrier, gradleProject()));
+    assertThat(AgentsMdBlock.render(carrier, untouchedProject(), CommandRoute.CLI))
+        .isEqualTo(AgentsMdBlock.render(carrier, untouchedProject(), CommandRoute.CLI));
   }
 }
