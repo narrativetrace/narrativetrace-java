@@ -56,6 +56,9 @@ public final class HostileGraphs {
   /** A one-component record, for the {@code holder} layer. */
   public record Holder(Object held) {}
 
+  /** One rung of the {@code sharedLadder} shape: both components hold the same next rung. */
+  public record Rung(Object left, Object right) {}
+
   /** A two-component record, for the {@code record} layer. */
   public record Wrapped(String label, Object payload) {}
 
@@ -80,6 +83,7 @@ public final class HostileGraphs {
       case "cycle" -> ring(graphCase.n(), sentinel);
       case "selfInCollection" -> selfReferencing(graphCase.container(), payload);
       case "diamond" -> diamond(payload);
+      case "sharedLadder" -> sharedLadder(graphCase.n(), payload);
       case "hostileMember" -> hostile(graphCase.member(), sentinel);
       case "manyFields" -> new HostileMembers.ManyFields(secret(sentinel));
       case "emptyContainers" -> emptyContainers();
@@ -234,6 +238,18 @@ public final class HostileGraphs {
     var entry = new AbstractMap.SimpleEntry<Object, Object>(payload, "placeholder");
     entry.setValue(entry);
     return entry;
+  }
+
+  /**
+   * {@code n} rungs whose two components hold the same next rung, the payload at the foot: {@code n
+   * + 1} distinct objects reached by 2<sup>n</sup> paths. The diamond, repeated down the graph.
+   */
+  private static Object sharedLadder(int rungs, Object payload) {
+    var current = payload;
+    for (var i = 0; i < rungs; i++) {
+      current = new Rung(current, current);
+    }
+    return current;
   }
 
   /** The same object twice by different paths: shared, not cyclic — a cycle guard must allow it. */

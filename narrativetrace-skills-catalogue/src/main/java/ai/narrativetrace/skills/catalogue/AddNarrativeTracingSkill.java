@@ -162,8 +162,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
 }
 
 tasks.withType<JavaCompile> {
@@ -206,7 +206,7 @@ application {   // only when the project has no application entry point of its o
                     "kotlin",
                     """
                     dependencies {
-                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.0")
+                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.1")
                         runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
                     }
                     """),

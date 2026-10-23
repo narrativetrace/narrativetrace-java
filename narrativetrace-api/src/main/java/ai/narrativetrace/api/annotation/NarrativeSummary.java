@@ -44,6 +44,11 @@ import java.lang.annotation.Target;
  * <p>The method must be public and accept no arguments. Its return value is converted with {@link
  * String#valueOf(Object)}; if invocation fails, the runtime's {@code ValueRenderer} fallback rules
  * apply.
+ *
+ * <p>The method runs at most once per instance per captured value: the flat and structured
+ * renderings of one parameter or return value share its answer, and so does a second reference to
+ * the same instance inside that value. A narration template that names the same value renders it
+ * separately and may run it once more.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

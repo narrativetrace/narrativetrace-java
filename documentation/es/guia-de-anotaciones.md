@@ -1,4 +1,4 @@
-<!-- source: documentation/annotations-guide.md blob 584e8b847822 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/annotations-guide.md blob 179465b4371d | translated: 2026-10-23 | reviewed: - -->
 
 # Guía de anotaciones de NarrativeTrace para Java
 
@@ -123,6 +123,12 @@ Cómo funciona:
 - Si no lo encuentra, el renderizado recorre los campos del objeto. Solo un tipo hoja de la
   plataforma conserva en su lugar su propio `toString()`; un tipo sin ningún campo legible se
   renderiza como el nombre de su tipo.
+- El método se ejecuta como mucho una vez por instancia y por valor capturado. Un parámetro o un
+  valor de retorno se renderiza dos veces — como texto y como valor estructurado — y ambos
+  renderizados reutilizan la misma respuesta, igual que una segunda referencia a la misma instancia
+  dentro del valor. Un resumen con un efecto secundario (un contador, una carga diferida) no se
+  repite, por tanto, a causa del trazado; una plantilla `@Narrated` que nombra el mismo valor es un
+  renderizado aparte y puede ejecutarlo una vez más.
 
 ### `@NarrativeElements`
 

@@ -8,7 +8,7 @@
 package ai.narrativetrace.core.render;
 
 /**
- * Per-thread flag marking that a {@link ValueRenderer} entry point is executing on the calling
+ * Per-thread depth marking that a {@link ValueRenderer} entry point is executing on the calling
  * thread right now.
  *
  * <p>INTENT: {@link ValueRenderer} reflectively invokes record accessors while rendering a
@@ -17,25 +17,30 @@ package ai.narrativetrace.core.render;
  * application never made, and one attributed as a root because rendering happens outside any traced
  * scope: before {@code beginScope} for a parameter (rendered while building the enter event), after
  * {@code endScope} for a return value (rendered after the traced method's own scope already
- * closed). This flag is how the instrumented gate recognizes "I am being invoked back from inside
+ * closed). This guard is how the instrumented gate recognizes "I am being invoked back from inside
  * my own rendering" and answers with the untraced fast path instead of opening a span. The proxy
  * path has the identical exposure through its own {@code ValueRenderer} instance, which is exactly
  * why this lives here rather than in the agent module: a real deployment can have both engines
- * attached to the same JVM and thread, and the flag must be shared by call, not by renderer
+ * attached to the same JVM and thread, and the guard must be shared by call, not by renderer
  * instance.
  *
- * <p><b>@llmNote</b> One boolean, not a counter, is enough. {@link ValueRenderer}'s public entry
- * points never observe re-entry on the same thread: a reflective call into a woven accessor made
- * while the guard is active is stopped at the instrumented method's own gate before it can call
- * back into {@code ValueRenderer}, so the guard is never asked to nest.
+ * <p><b>@llmNote</b> A depth counter, not one boolean: the guard nests. A woven accessor reached
+ * reflectively is stopped at its own gate and never calls back into {@code ValueRenderer}, but the
+ * narrative-summary hook is a sanctioned door into user code, invoked by the renderer on purpose,
+ * and that code may render a value of its own — another {@code ValueRenderer}, a proxied
+ * collaborator whose parameters are rendered, an SLF4J listener, a {@code @Narrated} template
+ * resolved through {@code TemplateParser.accessProperty}. Each runs its own {@link #enter()}/{@link
+ * #leave()} pair inside the outer one, so {@link #leave()} restores what {@link #enter()} found and
+ * the guard stays up for the rest of the outer walk (ADV-2026-10-23-2).
  *
- * <p><b>@sideEffects</b> {@link #leave()} removes the thread-local entry rather than resetting it
- * to {@code false} — this runs on the application thread once per rendered value, so it must not
- * leave a live map entry behind for every thread that ever rendered a value once.
+ * <p><b>@sideEffects</b> The last {@link #leave()} removes the thread-local entry rather than
+ * storing a zero — this runs on the application thread once per rendered value, so it must not
+ * leave a live map entry behind for every thread that ever rendered a value once. A {@link
+ * #leave()} with no open entry is a no-op, never a negative depth.
  */
 public final class RenderingGuard {
 
-  private static final ThreadLocal<Boolean> RENDERING = new ThreadLocal<>();
+  private static final ThreadLocal<Integer> DEPTH = new ThreadLocal<>();
 
   private RenderingGuard() {}
 
@@ -47,7 +52,7 @@ public final class RenderingGuard {
    * that can throw or block.
    */
   public static boolean isActive() {
-    return RENDERING.get() != null;
+    return DEPTH.get() != null;
   }
 
   /**
@@ -60,11 +65,20 @@ public final class RenderingGuard {
    * run woven bytecode exactly as a record accessor invoked from {@code ValueRenderer} can.
    */
   public static void enter() {
-    RENDERING.set(Boolean.TRUE);
+    var depth = DEPTH.get();
+    DEPTH.set(depth == null ? 1 : depth + 1);
   }
 
-  /** Clears the calling thread's rendering flag. Always called from a finally block. */
+  /**
+   * Closes the calling thread's innermost rendering entry, restoring the state {@link #enter()}
+   * found. Always called from a finally block.
+   */
   public static void leave() {
-    RENDERING.remove();
+    var depth = DEPTH.get();
+    if (depth == null || depth <= 1) {
+      DEPTH.remove();
+    } else {
+      DEPTH.set(depth - 1);
+    }
   }
 }

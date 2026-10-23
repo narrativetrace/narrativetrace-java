@@ -465,9 +465,9 @@ public final class AgentRuntime {
   public static void exitMethodWithReturn(Object returnValue) {
     try {
       if (!context.isActive()) return;
-      var rendered = VALUE_RENDERER.render(returnValue);
-      var structured = VALUE_RENDERER.renderStructured(returnValue);
-      context.exitMethodWithReturn(rendered, structured, null);
+      // One capture, so a @NarrativeSummary hook on the value runs once, not once per render path.
+      var capture = VALUE_RENDERER.renderForCapture(returnValue);
+      context.exitMethodWithReturn(capture.rendered(), capture.structured(), null);
     } catch (Throwable t) { // NOPMD AvoidCatchingThrowable - tracing may not fail the method
       // The business return value must reach the caller whatever rendering did
     }

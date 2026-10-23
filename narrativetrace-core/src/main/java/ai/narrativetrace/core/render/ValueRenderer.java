@@ -86,6 +86,14 @@ import java.util.stream.Collectors;
  * cap beside the string, collection and field limits, and per path, so a shallow sibling after a
  * deep one still renders whole.
  *
+ * <p><b>@edgeCase</b> Every cap above is per level, and a shared object is deliberately not a
+ * cycle, so a graph whose sharing repeats (a ladder whose two fields hold the same next rung)
+ * rendered 2<sup>n</sup> nodes for {@code n} objects. Two walk-scoped answers bound it, on both
+ * paths alike: an instance whose rendering of at least {@link RenderWalk#REPEAT_MIN_NODES} values
+ * completed renders, when reached again, as {@code <repeat: TypeName>}; and every value counts
+ * against {@link RenderWalk#MAX_NODES}, past which a value renders {@code <max-nodes>} — the fifth
+ * cap, and the one that bounds an unshared graph too.
+ *
  * <p><b>@sideEffects</b> {@link #render(Object)} and {@link #renderStructured(Object)} hold {@link
  * RenderingGuard} for their whole call. A record component, a field or a {@code @NarrativeSummary}
  * method can be invoked reflectively here, and when its declaring class is woven by the agent that
@@ -114,6 +122,16 @@ public final class ValueRenderer {
    * narrative should say.
    */
   private static final String TOO_DEEP = "<max-depth>";
+
+  /**
+   * Rendered form of a value the walk refused because it had already rendered {@link
+   * RenderWalk#MAX_NODES} values — the total cap beside the per-level ones. Marker-shaped like
+   * {@link #TOO_DEEP}: the graph continued, and the trace says so instead of walking it.
+   */
+  private static final String TOO_MANY = "<max-nodes>";
+
+  /** Opening of the back-reference marker; see {@link #repeatMarker}. */
+  private static final String REPEAT_PREFIX = "<repeat: ";
 
   /** Opening of the typed failure marker; see {@link #renderFailed}. */
   private static final String FAILURE_PREFIX = "<error: ";
@@ -230,15 +248,46 @@ public final class ValueRenderer {
    * — a comparison that cannot tell a real match from an unrelated value whose own rendering
    * happens to coincide.
    *
-   * <p><b>@sideEffects</b> None beyond {@link #render(Object)} and {@link
-   * #renderStructured(Object)}, which this calls once each; total, like every other entry point.
+   * <p><b>@sideEffects</b> None beyond what {@link #render(Object)} and {@link
+   * #renderStructured(Object)} would do, with one difference: the two walks share the
+   * narrative-summary hook's answers, so a {@code @NarrativeSummary} method runs at most once per
+   * instance for the whole capture, not once per path. A hook is user code and may have a side
+   * effect; tracing doubling it would change the host. Total, like every other entry point.
    *
    * @param value the parameter's raw runtime value, exactly what {@link #render(Object)} would take
    * @return the flat and structured renderings plus whether the top-level value's own shape matched
    */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // rendering may never fail the traced method
   public CapturedRendering renderForCapture(Object value) {
-    return new CapturedRendering(
-        render(value), renderStructured(value), topLevelShapeRedacted(value));
+    RenderingGuard.enter();
+    try {
+      RenderWalk walk = null;
+      String flat;
+      try {
+        var scalar = renderScalar(value);
+        if (scalar != null) {
+          flat = scalar;
+        } else {
+          walk = new RenderWalk();
+          flat = renderGuarded(value, walk);
+        }
+      } catch (Throwable t) { // NOPMD
+        flat = typeMarker(value);
+      }
+      RenderedValue structured;
+      try {
+        var scalar = renderStructuredScalar(value);
+        structured =
+            scalar != null
+                ? scalar
+                : renderStructuredGuarded(value, walk == null ? new RenderWalk() : walk.nextPath());
+      } catch (Throwable t) { // NOPMD
+        structured = new RenderedValue.StringVal(typeMarker(value));
+      }
+      return new CapturedRendering(flat, structured, topLevelShapeRedacted(value));
+    } finally {
+      RenderingGuard.leave();
+    }
   }
 
   /**
@@ -281,6 +330,9 @@ public final class ValueRenderer {
   }
 
   private RenderedValue renderStructured(Object value, RenderWalk walk) {
+    if (!walk.count()) {
+      return new RenderedValue.StringVal(TOO_MANY);
+    }
     var scalar = renderStructuredScalar(value);
     return scalar != null ? scalar : renderStructuredGuarded(value, walk);
   }
@@ -346,16 +398,26 @@ public final class ValueRenderer {
     return null;
   }
 
-  /** Structured twin of {@link #renderGuarded}: one level deeper, or the depth marker. */
+  /**
+   * Structured twin of {@link #renderGuarded}: the back-reference, one level deeper, or the depth
+   * marker — the same decision in the same order, encoded as a {@link RenderedValue}.
+   */
   private RenderedValue renderStructuredGuarded(Object value, RenderWalk walk) {
+    if (walk.isRepeat(value)) {
+      return new RenderedValue.StringVal(repeatMarker(value));
+    }
     if (!walk.descend()) {
       return new RenderedValue.StringVal(TOO_DEEP);
     }
+    var nodesBefore = walk.nodes();
+    RenderedValue rendered;
     try {
-      return renderStructuredComplex(value, walk);
+      rendered = renderStructuredComplex(value, walk);
     } finally {
       walk.ascend();
     }
+    walk.rendered(value, nodesBefore);
+    return rendered;
   }
 
   private static RenderedValue renderStructuredTemporal(Object value) {
@@ -404,7 +466,7 @@ public final class ValueRenderer {
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
-      return new RenderedValue.StringVal(summarize(summaryMethod, value));
+      return new RenderedValue.StringVal(summarize(summaryMethod, value, walk));
     }
     if (value.getClass().isRecord()) {
       return renderStructuredRecord(value, walk);
@@ -826,7 +888,18 @@ public final class ValueRenderer {
         }
       };
 
+  /**
+   * One nested value: counted against the walk's total budget first, then the scalar forms, then
+   * the funnel.
+   *
+   * <p><b>@llmNote</b> The count comes before the scalar split on purpose, here and in the
+   * structured twin: the two paths disagree on which platform leaves are scalars, and counting
+   * every value rendered keeps their budgets, and therefore their back-references, identical.
+   */
   private String render(Object value, RenderWalk walk) {
+    if (!walk.count()) {
+      return TOO_MANY;
+    }
     var scalar = renderScalar(value);
     return scalar != null ? scalar : renderGuarded(value, walk);
   }
@@ -934,16 +1007,45 @@ public final class ValueRenderer {
     return name.substring(cut + 1);
   }
 
-  /** Follows a reference one level deeper, or renders {@link #TOO_DEEP} instead of descending. */
+  /**
+   * Follows a reference one level deeper, or renders {@link #TOO_DEEP} instead of descending — or,
+   * for an instance this walk already rendered in full, the back-reference instead of a second
+   * walk.
+   *
+   * <p><b>@edgeCase</b> Only a rendering that completed is remembered: one that threw is not (its
+   * caller renders the failure marker and a later reference tries again), and one refused by the
+   * depth cap never began, so a later, shallower reference to the same instance renders it in full.
+   */
   private String renderGuarded(Object value, RenderWalk walk) {
+    if (walk.isRepeat(value)) {
+      return repeatMarker(value);
+    }
     if (!walk.descend()) {
       return TOO_DEEP;
     }
+    var nodesBefore = walk.nodes();
+    String rendered;
     try {
-      return renderComplex(value, walk);
+      rendered = renderComplex(value, walk);
     } finally {
       walk.ascend();
     }
+    walk.rendered(value, nodesBefore);
+    return rendered;
+  }
+
+  /**
+   * Rendered form of an instance reached again after its full rendering earlier in the same walk:
+   * {@code <repeat: TypeName>}. Shared, not cyclic — the cycle marker names an identity, this one
+   * says "the same instance, shown above", deterministically, so goldens stay stable.
+   */
+  private static String repeatMarker(Object value) {
+    return REPEAT_PREFIX + displayName(value.getClass()) + ">";
+  }
+
+  /** {@link #simpleName}, with an array named by its component type, as {@code Object[]}. */
+  private static String displayName(Class<?> clazz) {
+    return clazz.isArray() ? displayName(clazz.getComponentType()) + "[]" : simpleName(clazz);
   }
 
   private String renderComplex(Object value, RenderWalk walk) {
@@ -960,7 +1062,7 @@ public final class ValueRenderer {
     }
     var summaryMethod = findNarrativeSummaryMethod(value.getClass());
     if (summaryMethod != null) {
-      return summarize(summaryMethod, value);
+      return summarize(summaryMethod, value, walk);
     }
     if (value.getClass().isRecord()) {
       return renderRecord(value, walk);
@@ -1136,12 +1238,27 @@ public final class ValueRenderer {
    * through hid the failure: a reader saw a field dump and could not tell it apart from a class
    * that never declared a summary at all. The failed part now says so, in the type-only marker.
    *
+   * <p><b>@sideEffects</b> The hook runs at most once per instance per walk, and per capture when
+   * {@link #renderForCapture} shares the answers across both paths: the walk caches the answer,
+   * failure marker included, so a hook with a side effect is not repeated by tracing.
+   *
    * @param summary the zero-argument annotated method, already made accessible
    * @param value the instance to summarize
+   * @param walk the walk whose summary cache to consult and fill
    * @return the sanitized summary, the redaction marker, or the typed failure marker
    */
+  private String summarize(Method summary, Object value, RenderWalk walk) {
+    var cached = walk.cachedSummary(value);
+    if (cached != null) {
+      return cached;
+    }
+    var text = invokeSummary(summary, value);
+    walk.cacheSummary(value, text);
+    return text;
+  }
+
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // a summary method may throw Error
-  private String summarize(Method summary, Object value) {
+  private String invokeSummary(Method summary, Object value) {
     try {
       return scanned(String.valueOf(summary.invoke(value)));
     } catch (Throwable t) { // NOPMD

@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.0"
+    id("ai.narrativetrace") version "0.5.1"
 }
 ```
 
@@ -421,7 +421,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.0"
+    id("ai.narrativetrace") version "0.5.1"
 }
 ```
 
@@ -557,7 +557,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.0'
+    id 'ai.narrativetrace' version '0.5.1'
 }
 
 narrativeTrace {

@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 3d8d7b5ce1c0 | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 7940cea3b60e | translated: 2026-10-23 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.0"
+    id("ai.narrativetrace") version "0.5.1"
 }
 ```
 
@@ -413,7 +413,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.0"
+    id("ai.narrativetrace") version "0.5.1"
 }
 ```
 
@@ -548,7 +548,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.0'
+    id 'ai.narrativetrace' version '0.5.1'
 }
 
 narrativeTrace {

@@ -31,6 +31,7 @@
     { "id": "self-in-atomic-reference-array", "description": "the indexed holder holding itself", "kind": "selfInCollection", "container": "atomicReferenceArray", "payload": "secret-record" },
     { "id": "self-in-entry", "description": "an entry whose value is the entry", "kind": "selfInCollection", "container": "entry", "payload": "secret-record" },
     { "id": "diamond", "description": "the same object reached twice by different paths - shared, not cyclic", "kind": "diamond", "payload": "secret-record" },
+    { "id": "shared-subgraph-ladder", "description": "a ladder of n rungs whose two fields hold the same next rung - n + 1 distinct objects but 2^n paths, so a walk that re-renders a shared object once per path is exponential; the rendered size must be bounded by distinct objects and a total budget, never by paths", "kind": "sharedLadder", "n": 16, "payload": "secret-record" },
     { "id": "throwing-to-string", "description": "a toString that throws", "kind": "hostileMember", "member": "toStringThrows", "payload": "secret-record" },
     { "id": "throwing-to-string-with-secret", "description": "a toString whose exception message carries the payload", "kind": "hostileMember", "member": "toStringThrowsWithPayload", "payload": "secret-record" },
     { "id": "recursive-to-string", "description": "a toString that recurses until the stack ends", "kind": "hostileMember", "member": "toStringRecurses", "payload": "secret-record" },

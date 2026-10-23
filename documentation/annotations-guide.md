@@ -116,6 +116,11 @@ How it works:
   value that failed to format.
 - If not found, rendering walks the object's fields. Only a platform leaf type keeps its own
   `toString()` instead; a type with no readable field renders as its type name.
+- The method runs at most once per instance per captured value. A parameter or return value is
+  rendered twice — as text and as a structured value — and both renderings reuse the one answer,
+  as does a second reference to the same instance inside the value. A summary with a side effect
+  (a counter, a lazy load) is therefore not repeated by tracing; a `@Narrated` template that names
+  the same value is a rendering of its own and may run it once more.
 
 ### `@NarrativeElements`
 

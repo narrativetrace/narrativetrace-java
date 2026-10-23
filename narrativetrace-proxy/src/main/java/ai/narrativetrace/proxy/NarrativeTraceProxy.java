@@ -14,6 +14,7 @@ import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.render.RedactionPolicy;
+import ai.narrativetrace.core.render.RenderingGuard;
 import ai.narrativetrace.core.render.ValueRenderer;
 import ai.narrativetrace.core.template.TemplateParser;
 import java.lang.reflect.InvocationHandler;
@@ -303,9 +304,20 @@ public final class NarrativeTraceProxy {
     }
   }
 
-  /** Whether tracing is on. A context that will not answer is treated as off. */
+  /**
+   * Whether tracing is on. A context that will not answer is treated as off.
+   *
+   * <p><b>@llmNote</b> Also off while {@link RenderingGuard#isActive()} says the calling thread is
+   * inside a {@link ValueRenderer} entry point, read first exactly as {@code
+   * AgentRuntime.isActive()} reads it. The narrative-summary hook is user code the renderer invokes
+   * on purpose; when it calls a proxied collaborator, this gate is reached for a call the
+   * application never made.
+   */
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // tracing setup may never fail the call
   private static boolean tracingActive(NarrativeContext context) {
+    if (RenderingGuard.isActive()) {
+      return false;
+    }
     try {
       return context.isActive();
     } catch (Throwable t) { // NOPMD
@@ -478,9 +490,9 @@ public final class NarrativeTraceProxy {
       exitDeferredSideEffect(context, future, spanId);
       return result;
     }
-    var rendered = VALUE_RENDERER.render(result);
-    var structured = VALUE_RENDERER.renderStructured(result);
-    context.exitMethodWithReturn(rendered, structured, spanId);
+    // One capture, so a @NarrativeSummary hook on the result runs once, not once per render path.
+    var capture = VALUE_RENDERER.renderForCapture(result);
+    context.exitMethodWithReturn(capture.rendered(), capture.structured(), spanId);
     return result;
   }
 
@@ -532,8 +544,8 @@ public final class NarrativeTraceProxy {
       if (failure != null) {
         context.exitMethodWithException(unwrapCompletion(failure), null, spanId);
       } else {
-        context.exitMethodWithReturn(
-            VALUE_RENDERER.render(value), VALUE_RENDERER.renderStructured(value), spanId);
+        var capture = VALUE_RENDERER.renderForCapture(value);
+        context.exitMethodWithReturn(capture.rendered(), capture.structured(), spanId);
       }
     } catch (Throwable t) { // NOPMD
       // The future's own outcome is the caller's; recording it is best-effort

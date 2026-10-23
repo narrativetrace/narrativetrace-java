@@ -41,9 +41,9 @@ Java 17+, Gradle 8.0+ (see "Before you start" for a fresh directory with no `./g
 plugins { java; application }
 repositories { mavenCentral() }
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.0")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.0")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
@@ -53,7 +53,7 @@ application { mainClass.set("com.example.orders.Main") }
 ```
 
 Optional, zero-code step 2 — traces also flow to your logger, `Main.java` below never changes:
-add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.0")` and
+add `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.1")` and
 `runtimeOnly("ch.qos.logback:logback-classic:1.5.38")`, plus a `logback.xml`.
 
 (`OrderService`/`DefaultOrderService` — a one-method interface and its trivial implementation —
@@ -226,7 +226,7 @@ Every skill ends at the same seam, and so should you:
 Nineteen read-only checks — the toolchain (JDK, JUnit range, the platform launcher), the configuration (output property, extension registration, whether the agent skills above are installed and current), one wiring check per framework integration (the framework is used but its module is not referenced, or the module is referenced but never wired — the fix prints the exact lines to add), and six known traps (silent sink, arg0 parameter names, an unused `@NotTraced` import, redaction never proven in a test, a stale `.received.nt`, a build missing `-parameters`). Every failing finding names the fix and, where one exists, the skill that owns that class of problem. The JSON report lands at `build/narrativetrace/doctor-report.json`. The task exists once the `ai.narrativetrace` Gradle plugin is applied — if the install block above did not apply it, add one line to the `plugins` block and keep the block's `dependencies` as they are, then run the doctor again. The plugin adds the `-parameters` flag itself, and it adds the libraries to the test classpath only (`testImplementation`; its `scope` defaults to `"test"`) — a traced class under `src/main`, like `Main` above, still needs the `implementation(...)` lines, or `narrativeTrace { scope.set("production") }`:
 
 ```kotlin
-plugins { id("ai.narrativetrace") version "0.5.0" }
+plugins { id("ai.narrativetrace") version "0.5.1" }
 ```
 
 <!-- covered-frameworks:begin -->
@@ -270,13 +270,13 @@ All published modules include source JARs with Javadoc written for LLM consumpti
 To access detailed API context, resolve the sources classifier from Maven Central:
 
 Gradle (sources auto-downloaded by IDEs):
-  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.5.0") }
+  dependencies { implementation("ai.narrativetrace:narrativetrace-core:0.5.1") }
 
 Maven:
   mvn dependency:sources -DincludeGroupIds=ai.narrativetrace
 
 Direct download (any module):
-  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.5.0/narrativetrace-core-0.5.0-sources.jar
+  https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/0.5.1/narrativetrace-core-0.5.1-sources.jar
 
 Available modules: narrativetrace-api, narrativetrace-core, narrativetrace-proxy, narrativetrace-junit5,
 narrativetrace-junit4, narrativetrace-testng, narrativetrace-clarity, narrativetrace-glossary, narrativetrace-diagrams,
