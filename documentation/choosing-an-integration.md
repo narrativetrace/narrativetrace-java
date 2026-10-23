@@ -11,6 +11,7 @@ a decision diagram, then with the caveats each path has.
 |---|---|
 | Traces in tests, least wiring | Gradle plugin + `narrativetrace-junit5` |
 | The same, on JUnit 4 | `narrativetrace-junit4` |
+| The same, on TestNG | `narrativetrace-testng` |
 | To choose exactly what is wrapped, in plain Java | `narrativetrace-proxy` (JDK dynamic proxy) |
 | Spring beans traced automatically | `narrativetrace-spring` |
 | Spring HTTP request lifecycle in production | `narrativetrace-spring-web` (wires `narrativetrace-servlet`) |

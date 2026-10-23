@@ -103,6 +103,13 @@ trace_name: solid wand romps
 method_count: 4
 error_count: 0
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: CheckoutReviewFixture.a_customer_buys_two_keyboards, passed, 1.996 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: none, no call threw in this run.
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — OrderService.placeOrder
 
@@ -133,6 +140,13 @@ trace_name: solid wand romps
 method_count: 4
 error_count: 0
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: CheckoutReviewFixture.a_customer_buys_two_keyboards, passed, 1.334 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: none, no call threw in this run.
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — OrderService.placeOrder
 

@@ -56,10 +56,30 @@ class FrameworkRowContractTest {
                     "X",
                     marker(),
                     module(),
-                    new Wiring.DependenciesOnly("deps"),
+                    new Wiring.OwnerOptIn("a JVM flag"),
                     check("config.x-y"),
                     FrameworkRow.NO_TIER_B_CASE))
-        .hasMessageContaining("source");
+        .hasMessageContaining("manifest or source");
+  }
+
+  /**
+   * A module that attaches itself once present (TestNG's service-loader listener) has exactly one
+   * thing the doctor can observe going wrong — the framework is declared and the module is not — so
+   * its row may earn a wiring check of its own.
+   */
+  @Test
+  void aDependenciesOnlyRowMayEarnAWiringCheck() {
+    var row =
+        new FrameworkRow(
+            "x",
+            "X",
+            marker(),
+            module(),
+            new Wiring.DependenciesOnly("deps"),
+            check("config.x-y"),
+            FrameworkRow.NO_TIER_B_CASE);
+
+    assertThat(row.check()).isEqualTo(check("config.x-y"));
   }
 
   @Test

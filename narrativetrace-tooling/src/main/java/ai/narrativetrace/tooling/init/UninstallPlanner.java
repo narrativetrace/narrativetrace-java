@@ -162,11 +162,23 @@ public final class UninstallPlanner {
         .ifPresent(
             text ->
                 MarkedBlock.lineIs(text, InitPlanner.IMPORT_LINE)
-                    .ifPresent(
-                        line ->
-                            actions.add(
-                                new Action.ReplaceBlock(
-                                    InitPlanner.CLAUDE_MD, text, MarkedBlock.remove(text, line)))));
+                    .ifPresent(line -> actions.add(withoutImport(text, line))));
+  }
+
+  /**
+   * The import removed; a CLAUDE.md the installer created (the created note, the import and nothing
+   * else) is deleted rather than left empty.
+   */
+  private static Action withoutImport(String text, MarkedBlock.Line line) {
+    String withoutImport = MarkedBlock.remove(text, line);
+    Optional<MarkedBlock.Line> created =
+        MarkedBlock.lineIs(withoutImport, MarkedBlock.CREATED_NOTE);
+    String remainder =
+        created.map(note -> MarkedBlock.remove(withoutImport, note)).orElse(withoutImport);
+    if (created.isPresent() && MarkedBlock.withoutByteOrderMark(remainder).isBlank()) {
+      return new Action.DeleteFile(InitPlanner.CLAUDE_MD, text);
+    }
+    return new Action.ReplaceBlock(InitPlanner.CLAUDE_MD, text, remainder);
   }
 
   /**

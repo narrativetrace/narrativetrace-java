@@ -18,7 +18,10 @@ import ai.narrativetrace.clarity.DomainVocabulary;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.output.RunIdentity;
+import ai.narrativetrace.core.output.RunIndex;
+import ai.narrativetrace.core.output.RunPointers;
 import ai.narrativetrace.core.output.ScenarioDelta;
+import ai.narrativetrace.core.output.ScenarioManifest;
 import ai.narrativetrace.core.output.TraceTestSupport;
 import ai.narrativetrace.core.pipeline.EventPipeline;
 import ai.narrativetrace.core.spi.ExtensionRegistry;
@@ -62,6 +65,13 @@ import org.junit.runners.model.Statement;
  * publishes into for the life of the class (see {@code AgentContextBridge}), so a class the agent
  * wove — no proxy, no annotation — produces per-test files too.
  *
+ * <p><b>@llmNote</b> A failing test says where its trace is: the linked {@link NarrativeTraceRule}
+ * prints one line on <em>standard error</em> under the failure — {@code narrativetrace: trace of
+ * <Class.method> → <absolute path>} — and this rule's footer repeats those lines for every failing
+ * test, failing tests first, one per line, before the summary. Gradle hides test output unless
+ * {@code testLogging { showStandardStreams = true }} is set (the lines are still in the test
+ * report's {@code system-err}); Maven surefire prints them.
+ *
  * <p>After all tests in a class complete, accumulated traces are contributed to a static global
  * accumulator ({@code GLOBAL_TRACES}) that combines results across multiple test classes. The last
  * class to finish writes the complete clarity report.
@@ -73,6 +83,10 @@ public class NarrativeTraceClassRule implements TestRule {
   private static final List<Map.Entry<String, TraceTree>> GLOBAL_TRACES =
       Collections.synchronizedList(new ArrayList<>());
   private static final List<ScenarioDelta> GLOBAL_DELTAS =
+      Collections.synchronizedList(new ArrayList<>());
+
+  /** One manifest row per traced scenario of the JVM's run, in execution order. */
+  private static final List<ScenarioManifest.Entry> GLOBAL_ROWS =
       Collections.synchronizedList(new ArrayList<>());
 
   /** Suite-wide loss, summed across tests; each test's context reports its own. */
@@ -157,6 +171,11 @@ public class NarrativeTraceClassRule implements TestRule {
     accumulatedDeltas.add(delta);
   }
 
+  /** Adds one scenario's row to the run's manifest and index. */
+  void accumulateRow(ScenarioManifest.Entry row) {
+    GLOBAL_ROWS.add(row);
+  }
+
   Map<String, TraceTree> accumulatedTraces() {
     return accumulatedTraces;
   }
@@ -172,6 +191,7 @@ public class NarrativeTraceClassRule implements TestRule {
   static void resetGlobalAccumulator() {
     GLOBAL_TRACES.clear();
     GLOBAL_DELTAS.clear();
+    GLOBAL_ROWS.clear();
     GLOBAL_RUN_IDENTITY = RunIdentity.generate();
   }
 
@@ -287,6 +307,7 @@ public class NarrativeTraceClassRule implements TestRule {
     } catch (IOException e) {
       err.println("Failed to write clarity report: " + e.getMessage());
     }
+    writeRunIndex(outputDir);
     TraceTestSupport.printConsoleSummary(
         GLOBAL_TRACES,
         outputDir,
@@ -295,6 +316,21 @@ public class NarrativeTraceClassRule implements TestRule {
         GLOBAL_DELTAS,
         GLOBAL_LOSS.getAndSet(TraceLoss.none()),
         GLOBAL_RUN_IDENTITY);
+  }
+
+  /**
+   * Writes the run's manifest and index from every row recorded so far, then lists the failing
+   * tests' traces in the footer, failing tests first.
+   */
+  private void writeRunIndex(Path outputDir) {
+    var rows = List.copyOf(GLOBAL_ROWS);
+    try {
+      ScenarioManifest.write(rows, outputDir, GLOBAL_RUN_IDENTITY);
+      RunIndex.write(rows, outputDir);
+    } catch (IOException e) {
+      err.println("Failed to write run manifest: " + e.getMessage());
+    }
+    RunPointers.printFailingFirst(rows, outputDir, out);
   }
 
   /**

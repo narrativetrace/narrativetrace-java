@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/trace-in-production-without-the-cost.md blob fee0ebd589b5 | translated: 2026-10-17 | reviewed: - -->
+<!-- source: documentation/recipes/trace-in-production-without-the-cost.md blob c6daba7c3d47 | translated: 2026-10-22 | reviewed: - -->
 # Traza en producción sin el coste
 
 [English](../../recipes/trace-in-production-without-the-cost.md) | **Español** | [Português](../../pt-BR/receitas/trace-em-producao-sem-o-custo.md) | [简体中文](../../zh-CN/实用方案/在生产环境追踪而不付出代价.md)
@@ -174,6 +174,13 @@ trace_name: solid wand romps
 method_count: 4
 error_count: 2
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: DeclinedPaymentFixture.the_stock_is_released_when_the_card_is_declined, passed, 1.763 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: line 31 of this file (the first call that threw).
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — OrderService.placeOrder
 
@@ -205,6 +212,13 @@ trace_name: solid wand romps
 method_count: 4
 error_count: 2
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: DeclinedPaymentFixture.the_stock_is_released_when_the_card_is_declined, passed, 1.697 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: line 31 of this file (the first call that threw).
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — OrderService.placeOrder
 

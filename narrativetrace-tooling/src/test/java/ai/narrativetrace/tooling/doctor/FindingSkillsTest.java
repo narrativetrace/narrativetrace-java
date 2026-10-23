@@ -50,6 +50,7 @@ class FindingSkillsTest {
     "config.junit4-rule, add-narrative-tracing",
     "config.micrometer-accessor, add-narrative-tracing",
     "config.otel-listener, add-narrative-tracing",
+    "config.testng-listener, add-narrative-tracing",
   })
   void namesTheSkillThatFixesEachFindingClass(String id, String skill) {
     assertThat(FindingSkills.forCheck(id)).isEqualTo(skill);

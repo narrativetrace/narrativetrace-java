@@ -207,6 +207,14 @@ class UninstallPlannerTest {
   // --- the import line ------------------------------------------------------------------------
 
   @Test
+  void deletesAClaudeMdTheInstallerCreated() {
+    ProjectState state =
+        ProjectState.builder().claudeMd("<!-- narrativetrace:created -->\n@AGENTS.md\n").build();
+
+    assertThat(actionOn(plan(state), CLAUDE_MD)).get().isInstanceOf(DeleteFile.class);
+  }
+
+  @Test
   void removesTheExactImportLineItAdded() {
     ProjectState state = ProjectState.builder().claudeMd("# Project\n\n@AGENTS.md\n").build();
 

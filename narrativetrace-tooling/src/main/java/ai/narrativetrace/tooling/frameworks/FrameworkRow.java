@@ -53,9 +53,12 @@ public record FrameworkRow(
     if (tierBCase == null || tierBCase.isBlank()) {
       throw new IllegalArgumentException("row " + id + " names a Tier B case or none");
     }
-    if (check instanceof CheckBinding.WiringCheck && !(wiring instanceof Wiring.Snippet)) {
+    if (check instanceof CheckBinding.WiringCheck && wiring instanceof Wiring.OwnerOptIn) {
       throw new IllegalArgumentException(
-          "row " + id + " earns a wiring check only for wiring the doctor can see in source");
+          "row "
+              + id
+              + " earns a wiring check only for wiring the doctor can observe from manifest or"
+              + " source");
     }
   }
 }

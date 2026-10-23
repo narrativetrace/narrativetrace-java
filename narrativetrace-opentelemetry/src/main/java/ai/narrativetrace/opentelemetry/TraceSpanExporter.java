@@ -24,7 +24,10 @@ import java.util.List;
  * into an OpenTelemetry backend.
  *
  * <p><b>@llmNote</b> Parent-child structure is recreated by nesting span scopes during export. The
- * exporter does not reuse the original {@code SpanContext} ids as OTel span ids.
+ * exporter reuses a node's NarrativeTrace span id as its OTel span id only when the SDK runs {@link
+ * NarrativeTraceIdGenerator}; otherwise the SDK's own ids apply. With mirrored ids, a span already
+ * exported live by {@link OtelTraceEventListener} is not mirrored a second time (see the
+ * generator).
  *
  * <p><b>@edgeCase</b> Nodes with {@code TraceOutcome.Incomplete} are exported with outcome
  * attribute {@code "in-flight"}.
@@ -98,7 +101,13 @@ public final class TraceSpanExporter {
 
   private Span buildSpan(TraceNode node, boolean isRoot) {
     var sig = node.signature();
-    var span = tracer.spanBuilder(sig.className() + "." + sig.methodName()).startSpan();
+    var offer = IdHandoff.offer(node.spanContext(), IdHandoff.Source.BATCH);
+    Span span;
+    try {
+      span = tracer.spanBuilder(sig.className() + "." + sig.methodName()).startSpan();
+    } finally {
+      IdHandoff.withdraw(offer);
+    }
     SpanContextAttributeMapper.setSpanAttributes(sig, span);
     SpanContextAttributeMapper.setTraceIdentityAttributes(node.spanContext(), span);
     SpanContextAttributeMapper.setNtSchemaAttributes(node.spanContext(), span);

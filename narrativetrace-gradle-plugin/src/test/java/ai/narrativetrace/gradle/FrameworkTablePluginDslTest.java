@@ -14,6 +14,7 @@ import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import ai.narrativetrace.tooling.frameworks.PluginDsl;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -28,6 +29,13 @@ class FrameworkTablePluginDslTest {
 
   static List<FrameworkRow> rowsWithAPluginSetting() {
     return FrameworkTable.ROWS.stream().filter(row -> row.module().plugin() != null).toList();
+  }
+
+  @Test
+  void theTestNgRowIsAskedForThroughTheTestFrameworkSetting() {
+    assertThat(rowsWithAPluginSetting()).extracting(FrameworkRow::id).contains("junit4", "testng");
+    assertThat(FrameworkTable.row("testng").orElseThrow().module().pluginLine())
+        .isEqualTo("narrativeTrace { testFramework.set(\"testng\") }");
   }
 
   @ParameterizedTest

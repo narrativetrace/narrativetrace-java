@@ -17,6 +17,7 @@ import ai.narrativetrace.api.export.RequestContext
 import ai.narrativetrace.api.export.TraceExporter
 import ai.narrativetrace.core.context.ContextExport
 import ai.narrativetrace.core.context.NarrativeContext
+import ai.narrativetrace.core.context.RequestScope
 import ai.narrativetrace.core.render.TraceNamer
 import io.micronaut.http.BasicHttpAttributes
 import io.micronaut.http.HttpRequest
@@ -37,14 +38,19 @@ import reactor.core.publisher.Mono
  * httpRoute, clientIp, enduserId, sessionId, tenantId) so all downstream log messages carry them.
  *
  * Lifecycle:
- * 1. Reset the narrative context (clear stale state)
+ * 1. Open the request's own trace scope ([RequestScope]) — fresh state, nothing to reset
  * 2. Adopt an inbound W3C `traceparent` so a call from another service continues its trace
  * 3. Stamp request metadata and user identity onto the context
  * 4. Populate persistent MDC with trace-level fields
  * 5. Proceed through the filter chain via [Mono.from]
  * 6. Capture the accumulated trace tree
  * 7. Export via the configured [TraceExporter]
- * 8. Clear MDC and reset context (cleanup)
+ * 8. Restore the MDC found on entry and end the request's scope (cleanup)
+ *
+ * Steps 2–7 each run with the request's scope active on the thread that runs them, and only
+ * then: stamping and the eager `chain.proceed` call, the upstream subscription, the export in
+ * `doOnSuccess`/`doOnError`. Requests interleaved on one event-loop thread therefore never share
+ * trace state — B starting does not reset A, A's export captures A, A's cleanup leaves B alone.
  *
  * @edgeCase Capture, export, MDC cleanup, context reset and [RequestContextProvider] failures are
  * each swallowed independently, `Error` subclasses included — observability must never fail
@@ -53,6 +59,10 @@ import reactor.core.publisher.Mono
  * @edgeCase Empty traces are not exported (no-op optimization).
  * @edgeCase An absent, malformed or forbidden `traceparent` is ignored and the request gets a
  * freshly generated trace id — a stranger's bad header must never fail a request.
+ * @edgeCase Handler code the response publisher runs on another thread or after a scheduler hop
+ * (`publishOn`, a blocking executor) runs outside the scope's segments and joins the request only
+ * through a `snapshot()`, as before. MDC is not scoped: between segments it is the thread's, so two
+ * requests interleaved on one event loop can still see each other's MDC keys there.
  * @llmNote MDC is ThreadLocal. In reactive contexts where Reactor switches threads, MDC fields
  * set here may not be visible on other threads. Use Micrometer context-propagation for cross-thread
  * MDC if needed.
@@ -70,24 +80,65 @@ class NarrativeTraceHttpFilter(
         chain: ServerFilterChain,
     ): Publisher<MutableHttpResponse<*>> {
         val startTime = System.currentTimeMillis()
-        prepareContext(request)
+        val foundMdc = copyMdc()
+        val scope = openScope()
+        val upstream =
+            within(scope) {
+                prepareContext(request)
+                chain.proceed(request)
+            }
+        val scopedUpstream = Publisher<MutableHttpResponse<*>> { subscriber -> within(scope) { upstream.subscribe(subscriber) } }
 
         return Mono
-            .from(chain.proceed(request))
+            .from(scopedUpstream)
             .doOnSuccess { response ->
-                exportTrace(response?.status?.code ?: 200, startTime)
+                within(scope) { exportTrace(response?.status?.code ?: 200, startTime) }
             }.doOnError {
-                exportTrace(500, startTime)
+                within(scope) { exportTrace(500, startTime) }
             }.doFinally {
-                clearMdc()
-                resetContext()
+                restoreMdc(foundMdc)
+                endScope(scope)
             }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun openScope(): RequestScope? =
+        try {
+            context.openRequestScope()
+        } catch (_: Throwable) {
+            null
+        }
+
+    /**
+     * Runs [block] with the request's scope active, then puts back what the thread held. The
+     * block's own outcome — a value, the application's exception — passes through unchanged;
+     * activation failures are swallowed and the block runs on the thread's state.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun <T> within(
+        scope: RequestScope?,
+        block: () -> T,
+    ): T {
+        val active =
+            try {
+                scope?.activate()
+            } catch (_: Throwable) {
+                null
+            }
+        try {
+            return block()
+        } finally {
+            try {
+                active?.close()
+            } catch (_: Throwable) {
+                // Observability failure must never become a request failure
+            }
+        }
     }
 
     @Suppress("TooGenericExceptionCaught")
     private fun prepareContext(request: HttpRequest<*>) {
         try {
-            context.reset()
             stampContext(request)
         } catch (_: Throwable) {
             // Observability failure must never become a request failure
@@ -95,18 +146,27 @@ class NarrativeTraceHttpFilter(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private fun clearMdc() {
+    private fun copyMdc(): Map<String, String>? =
         try {
-            MDC.clear()
+            MDC.getCopyOfContextMap()
+        } catch (_: Throwable) {
+            null
+        }
+
+    /** Puts back the MDC found on entry (an outer filter's keys survive); clears when none was there. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun restoreMdc(foundMdc: Map<String, String>?) {
+        try {
+            if (foundMdc.isNullOrEmpty()) MDC.clear() else MDC.setContextMap(foundMdc)
         } catch (_: Throwable) {
             // Observability failure must never become a request failure
         }
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private fun resetContext() {
+    private fun endScope(scope: RequestScope?) {
         try {
-            context.reset()
+            if (scope != null) scope.end() else context.reset()
         } catch (_: Throwable) {
             // Observability failure must never become a request failure
         }

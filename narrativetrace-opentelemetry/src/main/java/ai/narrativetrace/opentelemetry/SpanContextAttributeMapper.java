@@ -84,9 +84,50 @@ final class SpanContextAttributeMapper {
       span.setAttribute(AttributeKey.stringKey("narrative.outcome"), r.renderedValue());
     } else if (outcome instanceof TraceOutcome.Threw t) {
       span.setStatus(StatusCode.ERROR, ExceptionMessage.text(t.exception()));
-      span.recordException(t.exception());
+      addExceptionEvent(span, t.exception());
     } else if (outcome instanceof TraceOutcome.Incomplete) {
       span.setAttribute(AttributeKey.stringKey("narrative.outcome"), "in-flight");
+    }
+  }
+
+  /**
+   * Adds the semantic-convention {@code exception} event by hand instead of {@code
+   * Span.recordException}, which would hand the SDK the raw throwable and let it render {@code
+   * getMessage()} and the cause messages unredacted.
+   *
+   * <p><b>@edgeCase</b> {@code exception.message} goes through {@link ExceptionMessage#text}, the
+   * same redaction as the status description. {@code exception.stacktrace} is the frames only: the
+   * throwable's class name without its message, then each frame; every cause contributes its class
+   * name, its redacted message and its frames. A cyclic cause chain is cut at the first repeat.
+   */
+  private static void addExceptionEvent(Span span, Throwable thrown) {
+    var stacktrace = new StringBuilder(thrown.getClass().getName());
+    appendFrames(stacktrace, thrown);
+    var seen =
+        java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Throwable, Boolean>());
+    seen.add(thrown);
+    for (var cause = thrown.getCause();
+        cause != null && seen.add(cause);
+        cause = cause.getCause()) {
+      stacktrace
+          .append("\nCaused by: ")
+          .append(cause.getClass().getName())
+          .append(": ")
+          .append(ExceptionMessage.text(cause));
+      appendFrames(stacktrace, cause);
+    }
+    span.addEvent(
+        "exception",
+        Attributes.builder()
+            .put(AttributeKey.stringKey("exception.type"), thrown.getClass().getName())
+            .put(AttributeKey.stringKey("exception.message"), ExceptionMessage.text(thrown))
+            .put(AttributeKey.stringKey("exception.stacktrace"), stacktrace.toString())
+            .build());
+  }
+
+  private static void appendFrames(StringBuilder out, Throwable thrown) {
+    for (var frame : thrown.getStackTrace()) {
+      out.append("\n\tat ").append(frame);
     }
   }
 

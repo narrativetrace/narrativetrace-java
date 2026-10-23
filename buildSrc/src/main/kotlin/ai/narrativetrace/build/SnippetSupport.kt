@@ -33,7 +33,8 @@ import java.io.File
  * page keeps whatever real value the last `snippetSync` copied over, same as it always has:
  *
  * - `duration` replaces every shape a timing is written in — the call-flow suffix `— 23ms`, a
- *   trace artifact's `duration_ms: 23` frontmatter field and its `**Duration:** 23ms` header — so
+ *   trace artifact's `duration_ms: 23` frontmatter field, its `**Duration:** 23ms` header and the
+ *   `failed, 23 ms.` of its self-describing header — so
  *   a page may embed a whole trace artifact, not only a one-line rendering of one.
  * - `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and, where
  *   adjacent, the 7-hex trace-id fragment — wherever a `trace:`/`run:`/`trace_name:`/`runName:`
@@ -61,6 +62,10 @@ object SnippetSupport {
     // passed.
     private val DURATION_FIELD_MASK = Regex("""duration_ms: \d+(?:\.\d+)?""")
     private val DURATION_HEADER_MASK = Regex("""\*\*Duration:\*\* \d+(?:\.\d+)?ms""")
+
+    // And the fourth: the sentence a written trace file's self-describing header opens with,
+    // "…one test run: T.m, failed, 2.7 ms." — in the Markdown and text comment block.
+    private val DURATION_ABOUT_MASK = Regex("""(passed|failed), \d+(?:\.\d+)? ms\.""")
 
     // A label immediately followed by "adjective noun verb", optionally the "(1234567)" trace-id
     // fragment — the exact shapes TraceNamer-derived text appears in across every renderer and
@@ -385,6 +390,7 @@ object SnippetSupport {
             .replace(DURATION_MASK, "— Nms")
             .replace(DURATION_FIELD_MASK, "duration_ms: N")
             .replace(DURATION_HEADER_MASK, "**Duration:** Nms")
+            .replace(DURATION_ABOUT_MASK, "$1, N ms.")
 
     private fun maskTraceName(content: String): String =
         content

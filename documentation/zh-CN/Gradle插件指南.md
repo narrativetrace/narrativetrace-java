@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 48710af431b8 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 3d8d7b5ce1c0 | translated: 2026-10-23 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -39,7 +39,7 @@ plugins {
 |---|---|
 | 添加 `-parameters` 编译器参数 | 作用于所有 `JavaCompile` 任务,若已存在则跳过 |
 | 添加依赖 | 依据 `mode`、`modules` 和 `testFramework`;版本从插件 JAR 中自动检测 |
-| 添加 JUnit Platform 引擎 | 仅当 `testFramework = "junit5"`:`testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`,让第一次 `gradle test` 能够运行,而不是以 *"Cannot create Launcher without at least one TestEngine"* 失败。JUnit 4 不会获得引擎——它并未切换到该平台 |
+| 添加 JUnit Platform 引擎 | 仅当 `testFramework = "junit5"`:`testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`,让第一次 `gradle test` 能够运行,而不是以 *"Cannot create Launcher without at least one TestEngine"* 失败。JUnit 4 和 TestNG 都不会获得引擎——两者都未切换到该平台(`"testng"` 会把任务切换为 `useTestNG()`) |
 | 设置测试 JVM 属性 | `narrativetrace.output=true`、`narrativetrace.outputDir`,以及可选的 `narrativetrace.format`、`narrativetrace.level`、术语表属性对(`glossary=true`)和审批属性对(`approval=true`) |
 | 注册 `clarityCheck` 任务 | 读取 `clarity-results.json`,强制执行阈值,并接入 `check` 生命周期 |
 | 注册 `clarityScan` 任务 | 基于编译后的类进行独立的清晰度分析(无需运行测试) |
@@ -87,8 +87,11 @@ narrativeTrace {
 |---|---|
 | `"junit5"` | `narrativetrace-junit5` |
 | `"junit4"` | `narrativetrace-junit4` |
+| `"testng"` | `narrativetrace-testng` |
 
 默认值:`"junit5"`
+
+`"testng"` 会把每个 `Test` 任务切换为 `useTestNG()`,在 `testImplementation` 上添加 `narrativetrace-testng`,并传入与 JUnit 4 相同的 `narrativetrace.*` 系统属性。该模块的监听器通过 TestNG 的 service loader 自行挂接,因此插件不注册任何东西。请像对待 JUnit 4 那样自己声明 `org.testng:testng`;如果没有声明,该模块的 `api` 依赖会带来 TestNG 7.10.2。不会添加 Jupiter 引擎,也不会添加 JUnit Platform。
 
 ### `scope`
 
@@ -303,7 +306,7 @@ narrativeTrace {
 
 ### `narrativetraceDoctor`
 
-在同一个进程内针对本项目运行 doctor 的二十项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
+在同一个进程内针对本项目运行 doctor 的二十一项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
 检查。它会写出 `build/narrativetrace/doctor-report.json`,并打印人类可读的报告。
 
 ```bash
@@ -410,7 +413,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -545,12 +548,12 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.4.3'
+    id 'ai.narrativetrace' version '0.5.0'
 }
 
 narrativeTrace {
     mode = 'proxy'
-    testFramework = 'junit5'
+    testFramework = 'junit5'                   // 'junit5' (默认) | 'junit4' | 'testng'
     scope = 'test'
 
     modules {
@@ -583,7 +586,7 @@ narrativeTrace {
 narrativeTrace {
     enabled.set(true)                          // 默认: true
     mode.set("proxy")                          // "proxy" (默认) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (默认) | "junit4"
+    testFramework.set("junit5")               // "junit5" (默认) | "junit4" | "testng"
     scope.set("test")                          // "test" (默认) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"

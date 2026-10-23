@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob 0d605d663b93 | translated: 2026-10-19 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob a6eb3cd5e6c4 | translated: 2026-10-23 | reviewed: 2026-09-03 -->
 # Escolhendo uma integração
 
 [English](../choosing-an-integration.md) | Español | **Português** | [简体中文](../zh-CN/选择集成方式.md)
@@ -15,6 +15,7 @@ diagrama de decisão, e por fim com as ressalvas que cada caminho tem.
 |---|---|
 | Traces em testes, com o mínimo de wiring | Plugin do Gradle + `narrativetrace-junit5` |
 | O mesmo, no JUnit 4 | `narrativetrace-junit4` |
+| O mesmo, no TestNG | `narrativetrace-testng` |
 | Para escolher exatamente o que é encapsulado, em Java puro | `narrativetrace-proxy` (proxy JDK dinâmico) |
 | Beans do Spring capturados automaticamente | `narrativetrace-spring` |
 | Ciclo de vida de requisições HTTP do Spring em produção | `narrativetrace-spring-web` (conecta o `narrativetrace-servlet`) |

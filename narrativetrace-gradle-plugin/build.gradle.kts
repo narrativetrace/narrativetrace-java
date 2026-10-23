@@ -87,6 +87,14 @@ val functionalTestTask = tasks.register<Test>("functionalTest") {
     // every case offline and independent of `publishSkillsTestRepo`.
     dependsOn(":narrativetrace-skills:jar")
     systemProperty("projectDir", rootProject.projectDir.absolutePath)
+    // The TestNG cases run a real test task, so the libraries the plugin adds must resolve: they
+    // come from the same local file repository the skills replay uses (real jars, real POMs),
+    // filled by publishSkillsTestRepo — never a published coordinate, never the network for them.
+    dependsOn(":publishSkillsTestRepo")
+    systemProperty(
+        "narrativetrace.testMavenRepo",
+        project(":narrativetrace-skills-catalogue").layout.buildDirectory.dir("test-repo").get().asFile.absolutePath
+    )
 }
 
 tasks.named("check") {

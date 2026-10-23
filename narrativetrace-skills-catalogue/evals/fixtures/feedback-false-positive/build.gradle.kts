@@ -7,7 +7,7 @@
  */
 plugins {
     java
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 
 repositories {
@@ -15,10 +15,10 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.3")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.0")
 
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.3")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }

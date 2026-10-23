@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 48710af431b8 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 3d8d7b5ce1c0 | translated: 2026-10-23 | reviewed: - -->
 # Guía del plugin de Gradle de NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | **Español** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ El plugin de Gradle `ai.narrativetrace` es la forma recomendada de usar Narrativ
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -39,7 +39,7 @@ No hace falta añadir ninguna dependencia de JUnit. Con el valor por defecto `te
 |---|---|
 | Añade el flag del compilador `-parameters` | En todas las tareas `JavaCompile`; se omite si ya está presente |
 | Añade dependencias | Según `mode`, `modules` y `testFramework`; la versión se detecta automáticamente desde el JAR del plugin |
-| Añade el motor de la JUnit Platform | Solo con `testFramework = "junit5"`: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, para que el primer `gradle test` se ejecute en vez de fallar con *«Cannot create Launcher without at least one TestEngine»*. JUnit 4 no recibe ninguno: no se cambia a la plataforma |
+| Añade el motor de la JUnit Platform | Solo con `testFramework = "junit5"`: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, para que el primer `gradle test` se ejecute en vez de fallar con *«Cannot create Launcher without at least one TestEngine»*. JUnit 4 y TestNG no reciben ninguno: ninguno se cambia a la plataforma (`"testng"` cambia la tarea a `useTestNG()`) |
 | Establece propiedades JVM de las pruebas | `narrativetrace.output=true`, `narrativetrace.outputDir` y, opcionalmente, `narrativetrace.format`, `narrativetrace.level`, el par de glosario (`glossary=true`) y el par de aprobación (`approval=true`) |
 | Registra la tarea `clarityCheck` | Lee `clarity-results.json`, aplica los umbrales, conectada al ciclo de vida `check` |
 | Registra la tarea `clarityScan` | Análisis de claridad independiente a partir de las clases compiladas (no requiere pruebas) |
@@ -87,8 +87,11 @@ Por defecto: `"proxy"`
 |---|---|
 | `"junit5"` | `narrativetrace-junit5` |
 | `"junit4"` | `narrativetrace-junit4` |
+| `"testng"` | `narrativetrace-testng` |
 
 Por defecto: `"junit5"`
+
+`"testng"` cambia cada tarea `Test` a `useTestNG()`, añade `narrativetrace-testng` en `testImplementation` y pasa las mismas propiedades de sistema `narrativetrace.*` que con JUnit 4. El listener del módulo se engancha solo mediante el service loader de TestNG, así que el plugin no registra nada. Declara `org.testng:testng` tú mismo, como harías con JUnit 4; si no lo haces, la dependencia `api` del módulo trae TestNG 7.10.2. No se añade ningún motor de Jupiter ni la JUnit Platform.
 
 ### `scope`
 
@@ -307,7 +310,7 @@ Acepta los cambios estructurales intencionados en el [modo de aprobación](#appr
 
 ### `narrativetraceDoctor`
 
-Ejecuta las veinte comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
+Ejecuta las veintiuna comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
 — las mismas que ejecuta el verbo `doctor` del lanzador independiente. Escribe
 `build/narrativetrace/doctor-report.json` e imprime el informe legible.
 
@@ -423,7 +426,7 @@ Cuando se define, todas las dependencias de NarrativeTrace gestionadas se resuel
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -559,12 +562,12 @@ Todos los ejemplos anteriores usan el DSL de Kotlin. El equivalente en Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.4.3'
+    id 'ai.narrativetrace' version '0.5.0'
 }
 
 narrativeTrace {
     mode = 'proxy'
-    testFramework = 'junit5'
+    testFramework = 'junit5'                   // 'junit5' (por defecto) | 'junit4' | 'testng'
     scope = 'test'
 
     modules {
@@ -597,7 +600,7 @@ Punto de partida para copiar y pegar con todas las propiedades mostradas:
 narrativeTrace {
     enabled.set(true)                          // por defecto: true
     mode.set("proxy")                          // "proxy" (por defecto) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (por defecto) | "junit4"
+    testFramework.set("junit5")               // "junit5" (por defecto) | "junit4" | "testng"
     scope.set("test")                          // "test" (por defecto) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"

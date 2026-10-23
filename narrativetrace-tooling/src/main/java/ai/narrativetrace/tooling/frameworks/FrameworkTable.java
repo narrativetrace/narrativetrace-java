@@ -58,7 +58,8 @@ public final class FrameworkTable {
           micrometer(),
           opentelemetry(),
           defaultLogger(),
-          agent());
+          agent(),
+          testng());
 
   private FrameworkTable() {}
 
@@ -283,6 +284,30 @@ public final class FrameworkTable {
         module("narrativetrace-agent", null, new PluginDsl("mode", "\"agent\"", false)),
         new Wiring.OwnerOptIn("a -javaagent JVM flag the owner adds"),
         new CheckBinding.NoCheck("runtime-only"),
+        FrameworkRow.NO_TIER_B_CASE);
+  }
+
+  /**
+   * TestNG: the listener registers itself through TestNG's service loader ({@code
+   * META-INF/services/org.testng.ITestNGListener}), so the dependency is the whole wiring, and the
+   * one thing the doctor can see going wrong is TestNG declared without the module. A plugin
+   * project asks for it with {@code testFramework = "testng"}, which also switches the test task to
+   * {@code useTestNG()}.
+   */
+  private static FrameworkRow testng() {
+    return new FrameworkRow(
+        "testng",
+        "TestNG",
+        new Marker(
+            "an org.testng:testng dependency", List.of(dependency("org.testng:testng")), List.of()),
+        module(
+            "narrativetrace-testng",
+            "testImplementation",
+            new PluginDsl("testFramework", "\"testng\"", false)),
+        new Wiring.DependenciesOnly(
+            "the testImplementation dependency — its listener registers itself through TestNG's"
+                + " service loader"),
+        new CheckBinding.WiringCheck("config.testng-listener"),
         FrameworkRow.NO_TIER_B_CASE);
   }
 

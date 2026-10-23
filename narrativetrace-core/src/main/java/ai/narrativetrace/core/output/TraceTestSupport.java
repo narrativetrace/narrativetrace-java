@@ -11,6 +11,7 @@ import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.export.JsonExporter;
+import ai.narrativetrace.core.render.DurationFormat;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.core.render.MarkdownRenderer;
 import ai.narrativetrace.core.render.ScenarioResult;
@@ -268,7 +269,8 @@ public final class TraceTestSupport {
             foldLoops,
             runName);
     var writer = new TraceFileWriter();
-    writer.write(content, file);
+    var facts = headerFacts(identity, trace, failed, outputDir, file);
+    writer.write(TraceFileHeader.apply(format, content, facts), file);
     out.println(
         "\n"
             + ScenarioFramer.frame(displayName)
@@ -283,6 +285,22 @@ public final class TraceTestSupport {
     return Optional.of(
         writeMarkdownExtras(
             writer, resolver, identity, displayName, trace, failed, mermaidRenderer, runName));
+  }
+
+  /** What a written trace file's header says about it, with paths relative to that file. */
+  private static TraceFileHeader.Facts headerFacts(
+      ArtifactIdentity identity, TraceTree trace, boolean failed, Path outputDir, Path file) {
+    var directory = file.toAbsolutePath().normalize().getParent();
+    var base = outputDir.toAbsolutePath().normalize();
+    return new TraceFileHeader.Facts(
+        RunPointers.label(identity),
+        failed ? ScenarioManifest.Entry.FAILED : ScenarioManifest.Entry.PASSED,
+        DurationFormat.millis(trace.durationNanos()),
+        directory.relativize(base.resolve(RunIndex.FILE_NAME)).toString().replace('\\', '/'),
+        directory
+            .relativize(base.resolve(ScenarioManifest.FILE_NAME))
+            .toString()
+            .replace('\\', '/'));
   }
 
   /**

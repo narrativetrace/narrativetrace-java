@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 65e0f788de3d | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob 1d2fc8538014 | translated: 2026-10-23 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -24,6 +24,7 @@ que você trouxer.
 | Gradle (para o plugin) | **8.0+** — desenvolvido e testado contra a 8.14.2 | sua |
 | JUnit 5 | 5.11.4 (`narrativetrace-junit5` expõe `junit-jupiter-api` como `api`) | incluída |
 | JUnit 4 | 4.13.2 | incluída |
+| TestNG | 7.10.2 | incluída |
 | Spring Framework | 6.2.3 — ou seja, Spring Boot 3.x | incluída |
 | Micronaut | 4.7.6 | incluída |
 | Jakarta Servlet | 6.0 (`narrativetrace-servlet`) | sua |
@@ -98,7 +99,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -155,23 +156,24 @@ precisa.
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.3")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.0")
 
     // Integrações opcionais
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.4.3")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.4.3")  // para JUnit 4
-    implementation("ai.narrativetrace:narrativetrace-spring:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.3")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.0")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.0")  // para JUnit 4
+    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.0")  // para TestNG
+    implementation("ai.narrativetrace:narrativetrace-spring:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.0")
 }
 ```
 
@@ -286,6 +288,48 @@ A configuração usa propriedades de sistema (o JUnit 4 não tem
 - `narrativetrace.output` — `true`/`false` (padrão: `true`)
 - `narrativetrace.outputDir` — caminho (padrão: `build/narrativetrace`)
 - `narrativetrace.format` — `markdown`/`text`/`mermaid`/`plantuml` (padrão: `markdown`)
+
+### Opção D2: contexto automático do TestNG + saída de traces
+
+Com o plugin do Gradle, `narrativeTrace { testFramework.set("testng") }` é toda a configuração: ele adiciona
+`narrativetrace-testng` em `testImplementation`, muda a task `test` para `useTestNG()` e passa as propriedades
+de sistema `narrativetrace.*`; o listener se anexa sozinho. Declare `org.testng:testng` você mesmo, como faria
+com o JUnit 4 (a dependência `api` do módulo traz o TestNG 7.10.2 se você não o fizer). Sem o plugin:
+
+Adicione `narrativetrace-testng` em `testImplementation` e nada mais: o service loader do TestNG
+registra o listener (`NarrativeTraceListener`) em toda execução — `useTestNG()` do Gradle, Maven
+surefire, a IDE. `@Listeners(NarrativeTraceListener.class)` em uma classe de teste também o
+registra explicitamente; com os dois ao mesmo tempo, cada teste continua sendo rastreado uma vez.
+
+```java
+public class OrderServiceTest {
+    private final OrderService orderService = NarrativeTraceProxy.trace(
+        new DefaultOrderService(), OrderService.class, NarrativeTraceListener.context());
+
+    @Test
+    public void customerPlacesOrder() {
+        orderService.placeOrder("C-1234", "SKU-KB", 2);
+    }
+}
+```
+
+O que é escrito — os mesmos arquivos das integrações do JUnit:
+- Um trace por método de teste em `build/narrativetrace/traces/<TestClass>/`: `.md`, `.json`, um diagrama de sequência e o `.nt` estrutural
+- Um teste que falha imprime seu relatório de falha e, na saída de erro padrão, `narrativetrace: trace of <Class.method> → <caminho absoluto>`
+- Quando a execução termina: `manifest.json`, `INDEX.md` (testes que falham primeiro), `clarity-report.md` e o rodapé do console, que repete os ponteiros dos testes que falharam
+- Uma linha de data provider, uma repetição de `invocationCount` ou uma instância de `@Factory` é uma invocação com seus próprios arquivos — `<method>-001.md`, rotulada `Class.method[#1]`
+- Os traces de aprovação (`narrativetrace.approval=true`) comparam cada teste com seu `.approved.nt` versionado, como no JUnit
+
+A configuração usa as mesmas propriedades de sistema do JUnit 4 (`narrativetrace.output`, `narrativetrace.outputDir`,
+`narrativetrace.format`, `narrativetrace.level`, `narrativetrace.approval`, `narrativetrace.approvedDir`).
+
+Limites:
+- `NarrativeTraceListener.context()` é como um teste obtém o contexto — o TestNG não consegue injetá-lo como parâmetro do método de teste
+- Os arquivos da execução são escritos quando a execução do TestNG termina; o TestNG não tem um fim por classe, então nada é escrito por classe
+- Um único pipeline atende toda a JVM de testes; cada teste vê apenas as chamadas feitas na própria thread enquanto roda, incluindo `parallel="methods"`
+- Um teste com `timeOut` executa seu corpo em uma thread separada do TestNG, então suas chamadas não aparecem no trace
+- Uma linha de data provider é rotulada pelo número, nunca pelos argumentos: a renderização nunca executa o `toString` dos seus objetos
+- Sem coleta do glossário (`narrativetrace.glossary`) — essa etapa pertence à extensão do JUnit 5
 
 ### Opção E: agente Java (sem wiring de proxy)
 
@@ -556,6 +600,7 @@ O `traceId` em hex continua sendo o identificador de referência. `traceName`
 | `narrativetrace-proxy` | Tracing baseado em interface via proxies JDK |
 | `narrativetrace-junit5` | Extensão do JUnit 5 e emissão de arquivos de trace |
 | `narrativetrace-junit4` | Regra e regra de classe do JUnit 4 para saída de traces |
+| `narrativetrace-testng` | Listener do TestNG para saída de traces, registrado pelo service loader do TestNG |
 | `narrativetrace-spring` | Encapsulamento automático de beans do Spring via `@EnableNarrativeTrace` |
 | `narrativetrace-slf4j` | Emite eventos de narrativa para o logger do SLF4J |
 | `narrativetrace-diagrams` | Renderizadores Mermaid / PlantUML |

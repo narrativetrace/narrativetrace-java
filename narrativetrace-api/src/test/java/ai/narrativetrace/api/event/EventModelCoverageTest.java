@@ -47,10 +47,21 @@ class EventModelCoverageTest {
   }
 
   @Test
-  void groupLifecycleEventsBelongToNoSpan() {
+  void groupLifecycleEventsWithoutAnOwnerBelongToNoSpan() {
     assertThat(TraceEvent.spanIdOf(new TraceEvent.ForkCreatedEvent("g", 1L))).isNull();
     assertThat(TraceEvent.spanIdOf(new TraceEvent.MergeEvent("g", 2, 1L))).isNull();
     assertThat(TraceEvent.spanIdOf(new TraceEvent.FireAndForgetEvent("g", 1L))).isNull();
+  }
+
+  @Test
+  void groupLifecycleEventsBelongToTheirOwningSpan() {
+    var owner = SPAN.spanId();
+
+    assertThat(TraceEvent.spanIdOf(new TraceEvent.ForkCreatedEvent("g", 1L, owner)))
+        .isEqualTo(owner);
+    assertThat(TraceEvent.spanIdOf(new TraceEvent.MergeEvent("g", 2, 1L, owner))).isEqualTo(owner);
+    assertThat(TraceEvent.spanIdOf(new TraceEvent.FireAndForgetEvent("g", 1L, owner)))
+        .isEqualTo(owner);
   }
 
   @Test

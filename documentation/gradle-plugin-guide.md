@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -36,7 +36,7 @@ You do not need to add a JUnit dependency. With the default `testFramework = "ju
 |---|---|
 | Adds `-parameters` compiler flag | On all `JavaCompile` tasks, skipped if already present |
 | Adds dependencies | Based on `mode`, `modules`, and `testFramework`; version auto-detected from plugin JAR |
-| Adds the JUnit Platform engine | `testFramework = "junit5"` only: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, so the first `gradle test` runs instead of failing with *"Cannot create Launcher without at least one TestEngine"*. JUnit 4 gets none — it is not switched onto the platform |
+| Adds the JUnit Platform engine | `testFramework = "junit5"` only: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, so the first `gradle test` runs instead of failing with *"Cannot create Launcher without at least one TestEngine"*. JUnit 4 and TestNG get none — neither is switched onto the platform (`"testng"` switches the task to `useTestNG()`) |
 | Sets test JVM properties | `narrativetrace.output=true`, `narrativetrace.outputDir`, and optionally `narrativetrace.format`, `narrativetrace.level`, the glossary pair (`glossary=true`), and the approval pair (`approval=true`) |
 | Registers `clarityCheck` task | Reads `clarity-results.json`, enforces thresholds, wired into `check` lifecycle |
 | Registers `clarityScan` task | Standalone clarity analysis from compiled classes (no tests required) |
@@ -84,8 +84,11 @@ Default: `"proxy"`
 |---|---|
 | `"junit5"` | `narrativetrace-junit5` |
 | `"junit4"` | `narrativetrace-junit4` |
+| `"testng"` | `narrativetrace-testng` |
 
 Default: `"junit5"`
+
+`"testng"` switches every `Test` task to `useTestNG()`, adds `narrativetrace-testng` on `testImplementation`, and passes the same `narrativetrace.*` system properties as for JUnit 4. The module's listener attaches itself through TestNG's service loader, so the plugin registers nothing. Declare `org.testng:testng` yourself, as you would JUnit 4; if you do not, the module's `api` dependency brings TestNG 7.10.2. No Jupiter engine and no JUnit Platform are added.
 
 ### `scope`
 
@@ -304,7 +307,7 @@ Accepts intended structural changes in [approval mode](#approval): promotes ever
 
 ### `narrativetraceDoctor`
 
-Runs the doctor's twenty read-only checks against this project, in process — the same checks the
+Runs the doctor's twenty-one read-only checks against this project, in process — the same checks the
 standalone launcher's `doctor` verb runs. Writes `build/narrativetrace/doctor-report.json` and
 prints the human report.
 
@@ -418,7 +421,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -554,12 +557,12 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.4.3'
+    id 'ai.narrativetrace' version '0.5.0'
 }
 
 narrativeTrace {
     mode = 'proxy'
-    testFramework = 'junit5'
+    testFramework = 'junit5'                   // 'junit5' (default) | 'junit4' | 'testng'
     scope = 'test'
 
     modules {
@@ -592,7 +595,7 @@ Copy-paste starting point with every property shown:
 narrativeTrace {
     enabled.set(true)                          // default: true
     mode.set("proxy")                          // "proxy" (default) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (default) | "junit4"
+    testFramework.set("junit5")               // "junit5" (default) | "junit4" | "testng"
     scope.set("test")                          // "test" (default) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"

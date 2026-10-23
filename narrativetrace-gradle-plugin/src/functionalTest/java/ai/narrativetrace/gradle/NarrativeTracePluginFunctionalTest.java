@@ -194,8 +194,9 @@ class NarrativeTracePluginFunctionalTest {
   }
 
   @Test
-  void invalidTestFrameworkThrowsError(@TempDir Path projectDir) throws IOException {
-    writeBuildFile(projectDir, "narrativeTrace { testFramework.set(\"testng\") }\n");
+  void invalidTestFrameworkThrowsErrorListingTheThreeNames(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(projectDir, "narrativeTrace { testFramework.set(\"spock\") }\n");
 
     var result =
         GradleRunner.create()
@@ -204,7 +205,18 @@ class NarrativeTracePluginFunctionalTest {
             .withArguments("tasks")
             .buildAndFail();
 
-    assertThat(result.getOutput()).contains("Invalid narrativeTrace testFramework 'testng'");
+    assertThat(result.getOutput())
+        .contains("Invalid narrativeTrace testFramework 'spock'")
+        .contains("Valid values: junit4, junit5, testng");
+  }
+
+  @Test
+  void testngIsAValidTestFramework(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(projectDir, "narrativeTrace { testFramework.set(\"testng\") }\n");
+
+    var result = runGradle(projectDir, "tasks");
+
+    assertThat(result.task(":tasks").getOutcome()).isEqualTo(SUCCESS);
   }
 
   @Test
@@ -843,6 +855,127 @@ class NarrativeTracePluginFunctionalTest {
     var result = runGradle(projectDir, "checkTestPlatform");
 
     assertThat(result.getOutput()).doesNotContain("FRAMEWORK: JUnitPlatformTestFramework");
+  }
+
+  @Test
+  void testngTestFrameworkAddsTheModuleAndNeitherTestNgNorJunit(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(
+        projectDir, "narrativeTrace { testFramework.set(\"testng\") }\n" + listDepsTask());
+
+    var result = runGradle(projectDir, "listDeps");
+
+    assertThat(result.getOutput())
+        .contains("DEP: ai.narrativetrace:narrativetrace-testng")
+        .doesNotContain("narrativetrace-junit")
+        .doesNotContain("org.testng");
+  }
+
+  @Test
+  void testngModeSwitchesTheTestTaskToTestNgAndKeepsTheSystemProperties(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n"
+            + "    testFramework.set(\"testng\")\n"
+            + "    format.set(\"text\")\n"
+            + "}\n"
+            + "tasks.register(\"checkTestNg\") {\n"
+            + "    doLast {\n"
+            + "        val testTask = tasks.named(\"test\", Test::class.java).get()\n"
+            + "        println(\"FRAMEWORK: \" + testTask.testFramework.javaClass.simpleName)\n"
+            + "        println(\"SYS_OUTPUT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.output\"])\n"
+            + "        println(\"SYS_FORMAT: \" +"
+            + " testTask.systemProperties[\"narrativetrace.format\"])\n"
+            + "        println(\"SYS_DIR: \" +"
+            + " testTask.systemProperties[\"narrativetrace.outputDir\"])\n"
+            + "    }\n"
+            + "}\n");
+
+    var result = runGradle(projectDir, "checkTestNg");
+
+    assertThat(result.getOutput())
+        .contains("FRAMEWORK: TestNGTestFramework")
+        .contains("SYS_OUTPUT: true")
+        .contains("SYS_FORMAT: text")
+        .contains("build/narrativetrace");
+  }
+
+  /**
+   * The adopter's whole wiring, driven for real: the plugin, one setting, a TestNG test. The
+   * NarrativeTrace libraries resolve from the local repository {@code publishSkillsTestRepo} fills
+   * (the real POMs, so the module's {@code api} dependency on TestNG is what supplies TestNG when
+   * the project declares none).
+   */
+  @Test
+  void aTestNgProjectRunsOnTestNgAndWritesATraceFile(@TempDir Path projectDir) throws IOException {
+    writeTestNgProject(projectDir, "testImplementation(\"org.testng:testng:7.10.2\")\n");
+    writeTestNgTest(projectDir);
+
+    var result = runGradle(projectDir, "test", "--info");
+
+    assertThat(result.task(":test").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(projectDir.resolve("build/narrativetrace/traces/GreetingTest/greets_the_caller.md"))
+        .exists();
+    assertThat(result.getOutput()).doesNotContain("JUnit Platform");
+    assertThat(
+            Files.readString(projectDir.resolve("build/test-results/test/TEST-GreetingTest.xml")))
+        .contains("greetsTheCaller");
+    assertThat(projectDir.resolve("build/reports/tests/test/classes/GreetingTest.html")).exists();
+  }
+
+  @Test
+  void aTestNgProjectDeclaringNoTestNgResolvesItThroughTheModulesApiDependency(
+      @TempDir Path projectDir) throws IOException {
+    writeTestNgProject(projectDir, "");
+    writeTestNgTest(projectDir);
+
+    var result = runGradle(projectDir, "test");
+
+    assertThat(result.task(":test").getOutcome()).isEqualTo(SUCCESS);
+    assertThat(projectDir.resolve("build/narrativetrace/traces/GreetingTest/greets_the_caller.md"))
+        .exists();
+  }
+
+  private void writeTestNgProject(Path projectDir, String testngDependency) throws IOException {
+    Files.writeString(
+        projectDir.resolve("settings.gradle.kts"), "rootProject.name = \"test-project\"");
+    Files.writeString(
+        projectDir.resolve("build.gradle.kts"),
+        "plugins {\n"
+            + "    java\n"
+            + "    id(\"ai.narrativetrace\")\n"
+            + "}\n"
+            + "repositories {\n"
+            + "    maven { url = uri(\""
+            + System.getProperty("narrativetrace.testMavenRepo")
+            + "\") }\n"
+            + "    mavenCentral()\n"
+            + "}\n"
+            + "narrativeTrace { testFramework.set(\"testng\") }\n"
+            + "dependencies {\n"
+            + testngDependency
+            + "}\n");
+  }
+
+  private void writeTestNgTest(Path projectDir) throws IOException {
+    var testDir = projectDir.resolve("src/test/java");
+    Files.createDirectories(testDir);
+    Files.writeString(
+        testDir.resolve("GreetingTest.java"),
+        "import ai.narrativetrace.api.event.MethodSignature;\n"
+            + "import ai.narrativetrace.testng.NarrativeTraceListener;\n"
+            + "import java.util.List;\n"
+            + "import org.testng.annotations.Test;\n"
+            + "public class GreetingTest {\n"
+            + "  @Test\n"
+            + "  public void greetsTheCaller() {\n"
+            + "    var context = NarrativeTraceListener.context();\n"
+            + "    context.enterMethod(new MethodSignature(\"Greeter\", \"greet\", List.of()));\n"
+            + "    context.exitMethodWithReturn(\"hello\");\n"
+            + "  }\n"
+            + "}\n");
   }
 
   @Test
@@ -2040,6 +2173,18 @@ class NarrativeTracePluginFunctionalTest {
     runGradle(projectDir, "narrativetraceInit", "--write-existing");
 
     assertThat(Files.readString(projectDir.resolve("CLAUDE.md"))).contains("@AGENTS.md");
+  }
+
+  @Test
+  void aProjectWithNoClaudeMdGetsOneHoldingTheImportAlone(
+      @TempDir Path projectDir, @TempDir Path repo) throws IOException {
+    writeCarrierBuildFile(projectDir, carrierRepository(repo), "");
+
+    runGradle(projectDir, "narrativetraceInit");
+    runGradle(projectDir, "narrativetraceInit");
+
+    assertThat(Files.readString(projectDir.resolve("CLAUDE.md")))
+        .isEqualTo("<!-- narrativetrace:created -->\n@AGENTS.md\n");
   }
 
   @Test

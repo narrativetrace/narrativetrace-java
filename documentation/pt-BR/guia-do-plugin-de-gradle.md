@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 48710af431b8 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 3d8d7b5ce1c0 | translated: 2026-10-23 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -39,7 +39,7 @@ Você não precisa adicionar nenhuma dependência do JUnit. Com o valor padrão 
 |---|---|
 | Adiciona a flag do compilador `-parameters` | Em todas as tasks `JavaCompile`, ignorada se já estiver presente |
 | Adiciona dependências | Baseado em `mode`, `modules` e `testFramework`; a versão é detectada automaticamente a partir do JAR do plugin |
-| Adiciona a engine da JUnit Platform | Somente com `testFramework = "junit5"`: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, para que o primeiro `gradle test` seja executado em vez de falhar com *"Cannot create Launcher without at least one TestEngine"*. O JUnit 4 não recebe nenhuma — ele não é movido para a plataforma |
+| Adiciona a engine da JUnit Platform | Somente com `testFramework = "junit5"`: `testRuntimeOnly org.junit.jupiter:junit-jupiter-engine:5.11.4`, para que o primeiro `gradle test` seja executado em vez de falhar com *"Cannot create Launcher without at least one TestEngine"*. O JUnit 4 e o TestNG não recebem nenhuma — nenhum dos dois é movido para a plataforma (`"testng"` muda a task para `useTestNG()`) |
 | Define propriedades da JVM de teste | `narrativetrace.output=true`, `narrativetrace.outputDir` e, opcionalmente, `narrativetrace.format`, `narrativetrace.level`, o par do glossário (`glossary=true`) e o par de aprovação (`approval=true`) |
 | Registra a task `clarityCheck` | Lê `clarity-results.json`, aplica os limiares, conectada ao ciclo de vida `check` |
 | Registra a task `clarityScan` | Análise de clareza independente a partir das classes compiladas (não requer testes) |
@@ -87,8 +87,11 @@ Padrão: `"proxy"`
 |---|---|
 | `"junit5"` | `narrativetrace-junit5` |
 | `"junit4"` | `narrativetrace-junit4` |
+| `"testng"` | `narrativetrace-testng` |
 
 Padrão: `"junit5"`
+
+`"testng"` muda cada task `Test` para `useTestNG()`, adiciona `narrativetrace-testng` em `testImplementation` e passa as mesmas propriedades de sistema `narrativetrace.*` que no JUnit 4. O listener do módulo se anexa sozinho pelo service loader do TestNG, então o plugin não registra nada. Declare `org.testng:testng` você mesmo, como faria com o JUnit 4; se não o fizer, a dependência `api` do módulo traz o TestNG 7.10.2. Nenhuma engine do Jupiter e nenhuma JUnit Platform são adicionadas.
 
 ### `scope`
 
@@ -307,7 +310,7 @@ Aceita mudanças estruturais intencionais no [modo de aprovação](#approval): p
 
 ### `narrativetraceDoctor`
 
-Executa as vinte verificações somente-leitura do doctor contra este projeto, no mesmo processo — as
+Executa as vinte e uma verificações somente-leitura do doctor contra este projeto, no mesmo processo — as
 mesmas que o verbo `doctor` do launcher independente executa. Escreve
 `build/narrativetrace/doctor-report.json` e imprime o relatório legível.
 
@@ -423,7 +426,7 @@ Quando definida, toda dependência gerenciada do NarrativeTrace é resolvida nes
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -559,12 +562,12 @@ Todos os exemplos acima usam o DSL do Kotlin. O equivalente em Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.4.3'
+    id 'ai.narrativetrace' version '0.5.0'
 }
 
 narrativeTrace {
     mode = 'proxy'
-    testFramework = 'junit5'
+    testFramework = 'junit5'                   // 'junit5' (padrão) | 'junit4' | 'testng'
     scope = 'test'
 
     modules {
@@ -597,7 +600,7 @@ Ponto de partida para copiar e colar, com todas as propriedades mostradas:
 narrativeTrace {
     enabled.set(true)                          // padrão: true
     mode.set("proxy")                          // "proxy" (padrão) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (padrão) | "junit4"
+    testFramework.set("junit5")               // "junit5" (padrão) | "junit4" | "testng"
     scope.set("test")                          // "test" (padrão) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"

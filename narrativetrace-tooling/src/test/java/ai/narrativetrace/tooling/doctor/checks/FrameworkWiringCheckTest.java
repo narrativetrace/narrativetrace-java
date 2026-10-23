@@ -322,6 +322,40 @@ class FrameworkWiringCheckTest {
     assertThat(check.run(cured).isFailing()).as(rowId).isFalse();
   }
 
+  /**
+   * TestNG's row: the listener registers itself through TestNG's service loader, so the dependency
+   * IS the wiring. The check fails a TestNG project without the module, prints the plugin setting
+   * (testFramework = "testng") and the plain dependency line, and passes once the module is
+   * referenced — by either route.
+   */
+  @Test
+  void theTestNgRowAsksForTheModuleAndPassesOnceItIsReferenced() {
+    FrameworkWiringCheck testng = check("testng");
+    String marker = "testImplementation(\"org.testng:testng:7.10.2\")";
+    String module = "testImplementation(\"ai.narrativetrace:narrativetrace-testng:0.2.5\")";
+
+    Finding absent = testng.run(DoctorSnapshot.builder().build());
+    Finding unreferenced = testng.run(manifest(marker));
+    Finding referenced = testng.run(manifest(marker + "\n" + module));
+
+    assertThat(absent.id()).isEqualTo("config.testng-listener");
+    assertThat(absent.isFailing()).isFalse();
+    assertThat(unreferenced.isFailing()).isTrue();
+    assertThat(unreferenced.message())
+        .contains("TestNG detected")
+        .contains("narrativetrace-testng is not referenced");
+    assertThat(unreferenced.fix())
+        .contains("narrativeTrace { testFramework.set(\"testng\") }")
+        .contains("without it, " + module);
+    assertThat(referenced.isFailing()).isFalse();
+    assertThat(
+            testng
+                .run(manifest(marker + "\nnarrativeTrace { testFramework.set(\"testng\") }"))
+                .isFailing())
+        .isFalse();
+    assertThat(referenced.message()).contains("narrativetrace-testng").contains("service loader");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"default-logger", "agent"})
   void aRowWithoutSourceWiringEarnsNoCheckOfItsOwn(String rowId) {

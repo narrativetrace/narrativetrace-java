@@ -61,7 +61,7 @@ page needs two runtime dependencies and one configuration file:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.3")   // attaches to the pipeline
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.0")   // attaches to the pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // the SLF4J backend it needs
 }
 ```

@@ -269,7 +269,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -337,7 +337,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.4.3`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.5.0`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
@@ -361,6 +361,7 @@ Tests are where most people start. This is where you go next:
 |---|---|
 | Traces in tests, least wiring | Gradle plugin + `narrativetrace-junit5` |
 | The same, on JUnit 4 | `narrativetrace-junit4` |
+| The same, on TestNG | `narrativetrace-testng` |
 | To choose exactly what is wrapped, in plain Java | `narrativetrace-proxy` (JDK dynamic proxy) |
 | Spring beans traced automatically | `narrativetrace-spring` |
 | Spring HTTP request lifecycle in production | `narrativetrace-spring-web` (wires `narrativetrace-servlet`) |
@@ -397,6 +398,7 @@ for picking one is in
 | `narrativetrace-proxy` | Using JDK proxy tracing (most common). |
 | `narrativetrace-junit5` | Auto-tracing in JUnit 5 tests. |
 | `narrativetrace-junit4` | Auto-tracing in JUnit 4 tests. |
+| `narrativetrace-testng` | Auto-tracing in TestNG tests. |
 | `narrativetrace-spring` | Auto-wrapping Spring beans. |
 | `narrativetrace-micronaut` | Auto-wrapping Micronaut beans. |
 | `narrativetrace-slf4j` | Routing traces through SLF4J/Logback. |

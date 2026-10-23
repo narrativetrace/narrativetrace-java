@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/why-did-this-test-fail.md blob 3e9b39b9dd80 | translated: 2026-10-11 | reviewed: - -->
+<!-- source: documentation/recipes/why-did-this-test-fail.md blob 7611edf325ab | translated: 2026-10-22 | reviewed: - -->
 # Por que este teste falhou
 
 [English](../../recipes/why-did-this-test-fail.md) | [Español](../../es/recetas/por-que-fallo-esta-prueba.md) | **Português** | [简体中文](../../zh-CN/实用方案/这个测试为什么失败了.md)
@@ -98,6 +98,13 @@ trace_name: solid wand romps
 method_count: 4
 error_count: 0
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: StaleExpectationFixture.the_customer_gets_an_order_id_for_their_keyboards, failed, 2.03 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: none, no call threw in this run.
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — OrderService.placeOrder
 

@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
 class DoctorChecksTest {
 
   @Test
-  void registersTwentyChecksWithStableUniqueIds() {
-    assertThat(DoctorChecks.ALL).hasSize(20);
+  void registersTwentyOneChecksWithStableUniqueIds() {
+    assertThat(DoctorChecks.ALL).hasSize(21);
     Set<String> ids = new HashSet<>();
     for (var check : DoctorChecks.ALL) {
       Finding f = check.run(DoctorSnapshot.healthy());
@@ -44,7 +44,7 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.healthy());
     assertThat(report.exitCode()).isZero();
     assertThat(report.allPassed()).isTrue();
-    assertThat(report.findings()).hasSize(20).allMatch(f -> !f.isFailing());
+    assertThat(report.findings()).hasSize(21).allMatch(f -> !f.isFailing());
   }
 
   /**
@@ -58,7 +58,7 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.builder().build());
     assertThat(report.exitCode()).isZero();
     assertThat(report.failureCount()).isZero();
-    assertThat(report.findings()).hasSize(20);
+    assertThat(report.findings()).hasSize(21);
   }
 
   /**
@@ -71,7 +71,7 @@ class DoctorChecksTest {
     List<String> ids =
         DoctorChecks.ALL.stream().map(c -> c.run(DoctorSnapshot.healthy()).id()).toList();
     List<String> rowChecks = FrameworkTable.wiringCheckIds();
-    assertThat(rowChecks).hasSize(7);
+    assertThat(rowChecks).hasSize(8);
     int first = ids.indexOf(rowChecks.get(0));
     assertThat(ids.subList(first, first + rowChecks.size())).isEqualTo(rowChecks);
     assertThat(ids.get(first - 1)).isEqualTo("config.skills-installed");

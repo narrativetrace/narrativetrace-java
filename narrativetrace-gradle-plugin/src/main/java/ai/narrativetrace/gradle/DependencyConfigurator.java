@@ -167,13 +167,19 @@ final class DependencyConfigurator {
 
   /**
    * The test-framework module, plus — for JUnit 5 only — the platform engine and launcher that
-   * {@code useJUnitPlatform()} needs at run time. JUnit 4 gets neither: the plugin does not switch
-   * it onto the platform, and {@code narrativetrace-junit4} already brings {@code junit:junit}.
+   * {@code useJUnitPlatform()} needs at run time. JUnit 4 and TestNG get neither: the plugin does
+   * not switch them onto the platform ({@code testng} switches the task to {@code useTestNG()}),
+   * and {@code narrativetrace-junit4} already brings {@code junit:junit} just as {@code
+   * narrativetrace-testng} brings {@code org.testng:testng} through its {@code api} dependency.
    */
   private static void addTestFrameworkDep(
       List<ResolvedDependency> deps, String testFramework, String version) {
     if ("junit4".equals(testFramework)) {
       deps.add(new ResolvedDependency("testImplementation", gav("narrativetrace-junit4", version)));
+      return;
+    }
+    if ("testng".equals(testFramework)) {
+      deps.add(new ResolvedDependency("testImplementation", gav("narrativetrace-testng", version)));
       return;
     }
     deps.add(new ResolvedDependency("testImplementation", gav("narrativetrace-junit5", version)));

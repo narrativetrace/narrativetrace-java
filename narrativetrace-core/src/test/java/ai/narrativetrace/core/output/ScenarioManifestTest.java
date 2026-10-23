@@ -85,7 +85,7 @@ class ScenarioManifestTest {
                     ArtifactIdentity.ofInvocation("com.example.CatalogTest", "finds", 2, "TENT"),
                     Map.of("trace", "traces/CatalogTest/finds-002-tent.md"))));
 
-    assertThat(manifest).contains("\"schema\": \"narrativetrace/scenario-manifest/1\"");
+    assertThat(manifest).contains("\"schema\": \"narrativetrace/scenario-manifest/2\"");
     assertThat(manifest).contains("\"scenario\": \"customer places order\"");
     assertThat(manifest).contains("\"testClass\": \"com.example.OrderTest\"");
     assertThat(manifest).contains("\"testMethod\": \"customerPlacesOrder\"");

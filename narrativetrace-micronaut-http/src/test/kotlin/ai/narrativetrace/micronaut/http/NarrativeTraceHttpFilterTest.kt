@@ -156,10 +156,12 @@ class NarrativeTraceHttpFilterTest {
 
     @Test
     fun cleansUpWhenChainErrors() {
-        context.enterMethod(traceSignature("stale"))
-        context.exitMethodWithReturn("stale")
-
-        val chain = errorChain(RuntimeException("chain failed"))
+        val chain =
+            ServerFilterChain {
+                context.enterMethod(traceSignature("failing"))
+                context.exitMethodWithException(RuntimeException("boom"), null)
+                Flux.error(RuntimeException("chain failed"))
+            }
 
         try {
             Mono.from(filter.doFilter(getRequest("/test"), chain)).block()
@@ -167,9 +169,30 @@ class NarrativeTraceHttpFilterTest {
             // Expected
         }
 
-        // Context should be reset even on error
-        val tree = context.captureTrace()
-        assertThat(tree.isEmpty()).isTrue()
+        assertThat(exportedContexts.single().statusCode()).isEqualTo(500)
+        // The request's own state ended with it, error or not: nothing of it is left on the thread
+        assertThat(context.captureTrace().isEmpty()).isTrue()
+    }
+
+    @Test
+    fun staleThreadStateNeitherLeaksIntoTheRequestNorIsErasedByIt() {
+        // B-157: the request owns its scope; what the thread held before is not the request's
+        context.enterMethod(traceSignature("stale"))
+        context.exitMethodWithReturn("stale")
+        val chain =
+            chain {
+                context.enterMethod(traceSignature("doWork"))
+                context.exitMethodWithReturn("\"ok\"")
+                okResponse()
+            }
+
+        Mono.from(filter.doFilter(getRequest("/test"), chain)).block()
+
+        assertThat(exportedTrees.single().roots().map { it.signature().methodName() })
+            .containsExactly("doWork")
+        assertThat(context.captureTrace().roots().map { it.signature().methodName() })
+            .containsExactly("stale")
+        context.reset()
     }
 
     @Test

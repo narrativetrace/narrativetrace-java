@@ -564,6 +564,8 @@ val mutationExemptModules: Map<String, String> = mapOf(
             "DEFERRED — candidate for a later increment",
     "narrativetrace-junit4" to
         "thin JUnit 4 adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
+    "narrativetrace-testng" to
+        "thin TestNG listener adapter, small surface — the JUnit 4 rule's tier; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
     "narrativetrace-servlet" to
         "thin servlet-filter adapter, small surface; DEFERRED — owner: \"we will increment gradually\" (2026-09-10)",
     "narrativetrace-spring" to

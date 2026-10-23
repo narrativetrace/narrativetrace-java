@@ -41,8 +41,9 @@ public final class EventStore {
   }
 
   /**
-   * Removes only the events belonging to the given span ids, leaving other traces' events (and
-   * group lifecycle events) untouched.
+   * Removes only the events belonging to the given span ids — enter/exit events of those spans and
+   * group lifecycle events they own ({@link TraceEvent#spanIdOf}) — leaving other traces' events,
+   * and group events created outside every span, untouched.
    */
   public synchronized void removeSpans(Set<SpanId> spanIds) {
     events.removeIf(

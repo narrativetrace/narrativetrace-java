@@ -252,8 +252,19 @@ class InitPlannerTest {
   // --- CLAUDE.md ------------------------------------------------------------------------------
 
   @Test
-  void createsNoVendorContextFileWhenTheProjectHasNone() {
-    assertThat(actionOn(plan(project().build()), CLAUDE_MD)).isEmpty();
+  void createsTheVendorContextFileWithTheImportAloneWhenTheProjectHasNone() {
+    InitPlan plan = plan(project().build());
+
+    assertThat(actionOn(plan, CLAUDE_MD)).get().isInstanceOf(Action.CreateFile.class);
+    assertThat(after(plan, CLAUDE_MD)).isEqualTo("<!-- narrativetrace:created -->\n@AGENTS.md\n");
+  }
+
+  @Test
+  void aSecondInstallOverTheCreatedVendorContextFilePlansNothingForIt() {
+    ProjectState state =
+        project().claudeMd("<!-- narrativetrace:created -->\n@AGENTS.md\n").build();
+
+    assertThat(actionOn(plan(state), CLAUDE_MD)).isEmpty();
   }
 
   @Test

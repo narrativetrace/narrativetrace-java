@@ -46,7 +46,10 @@ public final class InitPlanner {
   /** The managed home, the one file the section is ever written into. */
   static final Path AGENTS_MD = Path.of("AGENTS.md");
 
-  /** The vendor context file, which gets an import line and never a copy of the section. */
+  /**
+   * The vendor context file, which gets an import line and never a copy of the section. Created
+   * with that line alone when the project has none; only ever appended to when it exists.
+   */
   static final Path CLAUDE_MD = Path.of("CLAUDE.md");
 
   /** The line that points the vendor's context file at the managed home. */
@@ -294,8 +297,14 @@ public final class InitPlanner {
 
   private static void planClaudeMd(ProjectState state, InitOptions options, List<Action> actions) {
     Optional<String> existing = state.claudeMd();
-    if (existing.isEmpty()
-        || MarkedBlock.lineIsIgnoringTrailingSpace(existing.get(), IMPORT_LINE).isPresent()) {
+    if (existing.isEmpty()) {
+      // Claude Code loads CLAUDE.md and never AGENTS.md, so without this file the managed section
+      // is invisible to the agent it was written for. The file holds the import and nothing else.
+      actions.add(
+          new Action.CreateFile(CLAUDE_MD, MarkedBlock.CREATED_NOTE + "\n" + IMPORT_LINE + "\n"));
+      return;
+    }
+    if (MarkedBlock.lineIsIgnoringTrailingSpace(existing.get(), IMPORT_LINE).isPresent()) {
       return;
     }
     if (!options.writeExisting()) {

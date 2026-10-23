@@ -310,6 +310,21 @@ class CliTest {
   }
 
   @Test
+  void initOnAProjectWithNoClaudeMdCreatesOneThatHoldsTheImportAlone(@TempDir Path dir)
+      throws IOException {
+    init(dir, dir.resolve("carrier"));
+
+    Path claude = dir.resolve("CLAUDE.md");
+    assertThat(Files.readString(claude)).isEqualTo("<!-- narrativetrace:created -->\n@AGENTS.md\n");
+
+    init(dir, dir.resolve("carrier"));
+
+    assertThat(Files.readString(claude)).isEqualTo("<!-- narrativetrace:created -->\n@AGENTS.md\n");
+    uninstall(dir);
+    assertThat(claude).doesNotExist();
+  }
+
+  @Test
   void initStampsEveryPageWithTheCarriersCoordinate(@TempDir Path dir) throws IOException {
     init(dir, dir.resolve("carrier"));
 

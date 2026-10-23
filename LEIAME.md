@@ -1,4 +1,4 @@
-<!-- source: README.md blob 1caf7558b548 | translated: 2026-10-11 | reviewed: - -->
+<!-- source: README.md blob 4d8c01d5d359 | translated: 2026-10-23 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | [Español](LEAME.md) | **Português** | [简体中文](自述文件.md)
@@ -276,7 +276,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 ```
 
@@ -348,7 +348,7 @@ também renderiza todas elas em Markdown.
 ### Gradle ou Maven?
 
 Os jars de runtime são artefatos Maven comuns.
-`ai.narrativetrace:narrativetrace-core:0.4.3` e todos os módulos ao lado dele
+`ai.narrativetrace:narrativetrace-core:0.5.0` e todos os módulos ao lado dele
 se resolvem e funcionam exatamente da mesma forma a partir de um build Maven;
 nada na própria biblioteca é específico do Gradle. O que *é* específico do
 Gradle é o plugin acima — uma conveniência que conecta a flag do compilador,
@@ -374,6 +374,7 @@ Os testes são por onde a maioria começa. É para onde você vai a seguir:
 |---|---|
 | Traces nos testes, com o mínimo de wiring | Plugin de Gradle + `narrativetrace-junit5` |
 | O mesmo, em JUnit 4 | `narrativetrace-junit4` |
+| O mesmo, em TestNG | `narrativetrace-testng` |
 | Escolher exatamente o que é envolvido, em Java puro | `narrativetrace-proxy` (proxy dinâmico da JDK) |
 | Beans do Spring traçados automaticamente | `narrativetrace-spring` |
 | Ciclo de vida de requisições HTTP do Spring em produção | `narrativetrace-spring-web` (conecta o `narrativetrace-servlet`) |
@@ -412,6 +413,7 @@ integração](documentation/pt-BR/escolhendo-uma-integracao.md).
 | `narrativetrace-proxy` | Usa tracing com proxy JDK (o mais comum). |
 | `narrativetrace-junit5` | Auto-tracing em testes JUnit 5. |
 | `narrativetrace-junit4` | Auto-tracing em testes JUnit 4. |
+| `narrativetrace-testng` | Auto-tracing em testes TestNG. |
 | `narrativetrace-spring` | Auto-encapsulamento de beans do Spring. |
 | `narrativetrace-micronaut` | Auto-encapsulamento de beans do Micronaut. |
 | `narrativetrace-slf4j` | Encaminha traces através de SLF4J/Logback. |

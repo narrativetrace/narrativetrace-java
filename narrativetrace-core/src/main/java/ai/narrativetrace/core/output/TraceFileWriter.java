@@ -38,6 +38,33 @@ public final class TraceFileWriter {
     Files.write(file, encode(content));
   }
 
+  /**
+   * The same write, never leaving a half-written file where a reader can find it: the bytes go to a
+   * sibling temporary file and are moved over {@code file} in one step.
+   *
+   * <p>INTENT: for an artifact a reader opens WHILE the run is still going (the run index) — a
+   * partial read of it is a wrong answer, not a missing one.
+   */
+  public void writeAtomically(String content, Path file) throws IOException {
+    var parent = file.toAbsolutePath().getParent();
+    Files.createDirectories(parent);
+    var temporary = file.resolveSibling("." + file.getFileName() + ".tmp");
+    try {
+      Files.write(temporary, encode(content));
+      try {
+        Files.move(
+            temporary,
+            file,
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+        Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      }
+    } finally {
+      Files.deleteIfExists(temporary);
+    }
+  }
+
   /** UTF-8 bytes, substituting rather than refusing what the charset cannot represent. */
   private static byte[] encode(String content) throws IOException {
     var encoder =

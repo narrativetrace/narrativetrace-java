@@ -40,7 +40,7 @@ public final class AddNarrativeTraceClaritySkill {
                 "Inspect the existing Gradle setup",
                 new StepBody.CommandStep(List.of()),
                 """
-Read the target module's plugins, repositories, test framework (JUnit 4 or 5), NarrativeTrace settings, outputDir, and thresholds; preserve them. Run commands in that consumer module and adapt report paths to its outputDir.
+Read the target module's plugins, repositories, test framework (JUnit 4, JUnit 5 or TestNG), NarrativeTrace settings, outputDir, and thresholds; preserve them. Run commands in that consumer module and adapt report paths to its outputDir.
 
 Choose the path that matches the request:
 - First static naming report: scan, inspect artifacts, and explain their contents.
@@ -57,7 +57,7 @@ Choose the path that matches the request:
                     """
                     plugins {
                         java
-                        id("ai.narrativetrace") version "0.4.3"
+                        id("ai.narrativetrace") version "0.5.0"
                     }
 
                     repositories {
@@ -68,7 +68,8 @@ Choose the path that matches the request:
                     + " and thresholds are preserved. When applying the plugin to a JUnit 4"
                     + " project, also set narrativeTrace { testFramework.set(\"junit4\") } before"
                     + " running tasks, including a static scan; do not silently switch its tests to"
-                    + " the default JUnit 5 mode"),
+                    + " the default JUnit 5 mode. For a TestNG project set"
+                    + " narrativeTrace { testFramework.set(\"testng\") } the same way"),
             new SkillStep(
                 "Run a clean static scan for a first naming report",
                 new StepBody.CommandStep(List.of(ClarityCommands.CLEAN_STATIC_SCAN)),
@@ -160,6 +161,27 @@ Base the explanation on the report you read:
                     + " The linked class rule writes clarity-results.json and clarity-report.md"
                     + " after each class, aggregating completed classes in that JVM"),
             new SkillStep(
+                "For TestNG, keep its runner and let the listener attach itself",
+                new StepBody.CodeStep(
+                    "kotlin",
+                    """
+                    narrativeTrace {
+                        testFramework.set("testng")
+                    }
+                    """),
+                "use this branch only for an existing TestNG suite; skip the JUnit 5 and JUnit 4"
+                    + " examples. The plugin adds narrativetrace-testng and calls useTestNG(), so"
+                    + " the runner stays TestNG. Without the plugin the line is"
+                    + " testImplementation(\"ai.narrativetrace:narrativetrace-testng:<version>\")."
+                    + " No code changes in the tests: TestNG's service loader registers the"
+                    + " listener, so no @Listeners is needed; add"
+                    + " @Listeners(NarrativeTraceListener.class) only for a runner that skips"
+                    + " service-loader listeners. A test reaches the context through"
+                    + " NarrativeTraceListener.context(). Configure output with the"
+                    + " narrativetrace.* system properties (narrativetrace.output, outputDir), not"
+                    + " junit-platform.properties; the run's files are written when the TestNG run"
+                    + " ends, not per class"),
+            new SkillStep(
                 "Add enforcement only when requested",
                 new StepBody.CodeStep(
                     "kotlin",
@@ -199,9 +221,11 @@ After clean clarityCheck, read fresh clarity-results.json and clarity-report.md 
                     + " NarrativeTraceRule from one created by classRule.testRule(), so confirm"
                     + " that linkage for the aggregate report yourself. Its extension,"
                     + " Jupiter-version, and launcher checks target JUnit 5 and are not a reason to"
-                    + " migrate a JUnit 4 suite. When the user requested setup or repair, apply the"
-                    + " identified configuration fix and repeat verification; do not stop after"
-                    + " merely naming the doctor",
+                    + " migrate a JUnit 4 suite. For a TestNG suite its config.testng-listener"
+                    + " check reports narrativetrace-testng missing from testImplementation; the"
+                    + " listener needs no other wiring. When the user requested setup or repair,"
+                    + " apply the identified configuration fix and repeat verification; do not stop"
+                    + " after merely naming the doctor",
                 List.of(),
                 null)),
         List.of(

@@ -627,17 +627,19 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
   @Override
   public void onForkCreated(String groupId) {
-    pipeline.publish(new TraceEvent.ForkCreatedEvent(groupId, System.nanoTime()));
+    pipeline.publish(new TraceEvent.ForkCreatedEvent(groupId, System.nanoTime(), currentSpanId()));
   }
 
   @Override
   public void onMerge(String groupId, java.util.List<TraceNode> members) {
-    pipeline.publish(new TraceEvent.MergeEvent(groupId, members.size(), System.nanoTime()));
+    pipeline.publish(
+        new TraceEvent.MergeEvent(groupId, members.size(), System.nanoTime(), currentSpanId()));
   }
 
   @Override
   public void onFireAndForgetLaunched(String groupId) {
-    pipeline.publish(new TraceEvent.FireAndForgetEvent(groupId, System.nanoTime()));
+    pipeline.publish(
+        new TraceEvent.FireAndForgetEvent(groupId, System.nanoTime(), currentSpanId()));
   }
 
   /**
@@ -948,6 +950,52 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     var stack = stack();
     return new ThreadLocalContextSnapshot(
         this, stack.traceId(), resolveParentSpanId(stack), stack.metadata(), stack);
+  }
+
+  /**
+   * Opens a request scope over a fresh trace stack of its own.
+   *
+   * <p><b>@pattern</b> The stack is swapped into the thread-local holder for each active segment
+   * and the holder is put back exactly as found afterwards — removed when the thread held nothing,
+   * so an event-loop thread is never left holding an empty stack. {@code end()} runs {@link
+   * #reset()} against the request's stack, which closes it (so a worker still holding a snapshot of
+   * it discards its spans) and sweeps every span it can report.
+   */
+  @Override
+  public RequestScope openRequestScope() {
+    var requestStack = new TraceStack();
+    return new RequestScope() {
+      private final java.util.concurrent.atomic.AtomicBoolean ended =
+          new java.util.concurrent.atomic.AtomicBoolean();
+
+      @Override
+      public ContextScope activate() {
+        return install(requestStack);
+      }
+
+      @Override
+      public void end() {
+        if (!ended.compareAndSet(false, true)) {
+          return;
+        }
+        try (var active = install(requestStack)) {
+          reset();
+        }
+      }
+    };
+  }
+
+  /** Makes {@code stack} current; the handle restores the holder exactly, absent included. */
+  private ContextScope install(TraceStack stack) {
+    var previous = stackHolder.get();
+    stackHolder.set(stack);
+    return () -> {
+      if (previous == null) {
+        stackHolder.remove();
+      } else {
+        stackHolder.set(previous);
+      }
+    };
   }
 
   TraceStack swapStack(TraceStack replacement) {

@@ -361,6 +361,19 @@ public interface NarrativeContext {
   default void emitTraceNode(TraceNode node, SpanId parentSpanId) {}
 
   /**
+   * Opens a trace scope owned by one request instead of by the calling thread.
+   *
+   * <p>INTENT: For servers that interleave requests on one thread (reactive event loops). See
+   * {@link RequestScope}. The default shares the thread's state, reset at open and at end — the
+   * behaviour of a context with no per-request state of its own.
+   *
+   * @return a new scope, not yet active on any thread
+   */
+  default RequestScope openRequestScope() {
+    return RequestScope.sharedThreadState(this);
+  }
+
+  /**
    * Lifecycle callback fired when a {@link ForkGroup} is created.
    *
    * @param groupId the unique fork group identifier

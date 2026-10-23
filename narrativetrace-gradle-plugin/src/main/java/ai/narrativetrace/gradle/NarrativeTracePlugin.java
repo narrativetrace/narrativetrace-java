@@ -42,7 +42,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
   private static final String CARRIER_MODULE = "ai.narrativetrace:narrativetrace-skills";
 
   private static final Set<String> VALID_MODES = Set.of("proxy", "agent", "spring");
-  private static final Set<String> VALID_TEST_FRAMEWORKS = Set.of("junit4", "junit5");
+  private static final Set<String> VALID_TEST_FRAMEWORKS = Set.of("junit4", "junit5", "testng");
   private static final Set<String> VALID_SCOPES = Set.of("test", "production");
   private static final Set<String> VALID_FORMATS =
       Set.of("markdown", "text", "mermaid", "plantuml");
@@ -126,7 +126,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
       throw new GradleException(
           "Invalid narrativeTrace testFramework '"
               + testFramework
-              + "'. Valid values: junit4, junit5");
+              + "'. Valid values: junit4, junit5, testng");
     }
     var scope = extension.getScope().get();
     if (!VALID_SCOPES.contains(scope)) {
@@ -334,14 +334,14 @@ public class NarrativeTracePlugin implements Plugin<Project> {
   /**
    * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
    * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free
-   * tooling library's twenty doctor checks against this project, in-process, and writes the JSON
-   * report to the extension's own output directory. Not gated on {@code enabled}: diagnosing a
+   * tooling library's twenty-one doctor checks against this project, in-process, and writes the
+   * JSON report to the extension's own output directory. Not gated on {@code enabled}: diagnosing a
    * misconfigured install is exactly the case where the plugin's own tracing behaviour should not
    * stand in the way.
    *
-   * <p>It takes the same carrier the installer tasks take, because one of the twenty checks reports
-   * on the agent skills this project has installed — and reads it leniently, so a build with no
-   * repository for it still gets a diagnosis.
+   * <p>It takes the same carrier the installer tasks take, because one of the twenty-one checks
+   * reports on the agent skills this project has installed — and reads it leniently, so a build
+   * with no repository for it still gets a diagnosis.
    */
   private void registerNarrativeTraceDoctorTask(
       Project project,
@@ -554,8 +554,13 @@ public class NarrativeTracePlugin implements Plugin<Project> {
         .withType(
             Test.class,
             task -> {
-              if ("junit5".equals(extension.getTestFramework().get())) {
+              var testFramework = extension.getTestFramework().get();
+              if ("junit5".equals(testFramework)) {
                 task.useJUnitPlatform();
+              } else if ("testng".equals(testFramework)) {
+                // The listener attaches itself through TestNG's service loader; the plugin only
+                // switches the task and passes the same system properties JUnit 4 reads.
+                task.useTestNG();
               }
               task.systemProperty("narrativetrace.output", "true");
               task.systemProperty(

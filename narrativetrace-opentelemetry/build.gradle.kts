@@ -15,9 +15,12 @@ extra["publishDescription"] = "OpenTelemetry span export for NarrativeTrace tree
 dependencies {
     api(project(":narrativetrace-core"))
     compileOnly("io.opentelemetry:opentelemetry-api:1.62.0")
+    compileOnly("io.opentelemetry:opentelemetry-sdk-trace:1.62.0")
+    compileOnly("io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:1.62.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation("io.opentelemetry:opentelemetry-api:1.62.0")
     testImplementation("io.opentelemetry:opentelemetry-sdk-testing:1.62.0")
+    testImplementation("io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:1.62.0")
 }

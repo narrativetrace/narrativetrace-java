@@ -14,6 +14,7 @@ extra["publishDescription"] = "JUnit 5 extension for automatic trace output"
 
 tasks.test {
     exclude("**/FailingTestFixture.class")
+    exclude("**/MixedOutcomeFailingTestFixture.class")
     // The suite's own fixtures (IoErrorFixture, MultiTestFixture, ...) carry real @Test methods
     // and can be selected directly (`--tests`, an IDE run) outside the runSuite() harness that
     // otherwise always points narrativetrace.outputDir at a @TempDir. A directly-run fixture then

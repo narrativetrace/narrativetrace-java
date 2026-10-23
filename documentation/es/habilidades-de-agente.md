@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 27a68213a72d | translated: 2026-10-12 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 997586fb2448 | translated: 2026-10-22 | reviewed: - -->
 # Habilidades de agente
 
 NarrativeTrace incluye **habilidades** (*skills*): procedimientos cargables por un agente que
@@ -114,7 +114,7 @@ como un envoltorio sobre el que un script puede decidir:
 
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.3",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.0",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
@@ -149,8 +149,11 @@ Lo que escribe:
   marcadores si una ejecución anterior escribió una. Un `AGENTS.md` que ya existe sin nuestros
   marcadores requiere `--write-existing`, de modo que una primera ejecución nunca pueda añadir texto
   a un fichero que no esperabas que tocara.
-- una única línea de importación `@AGENTS.md` en un `CLAUDE.md` existente, y nunca un `CLAUDE.md`
-  propio.
+- una única línea de importación `@AGENTS.md` en `CLAUDE.md`: se añade a un `CLAUDE.md` existente
+  (con `--write-existing`) y, cuando el proyecto no tiene ninguno, se crea un `CLAUDE.md` nuevo con
+  esa línea y nada más. Claude Code carga `CLAUDE.md` y nunca `AGENTS.md`, así que sin la importación
+  la sección no se lee. Volver a ejecutar no cambia nada; `narrativetraceUninstall` elimina un
+  `CLAUDE.md` que haya creado.
 - un fichero de aviso para cada plataforma que el proyecto muestra usar — una sección marcada en
   `replit.md` cuando el proyecto tiene `replit.md` o `.replit`, y `.cursor/rules/narrativetrace.mdc`
   cuando tiene un directorio `.cursor/`; nada para una plataforma que el proyecto no usa. Ver

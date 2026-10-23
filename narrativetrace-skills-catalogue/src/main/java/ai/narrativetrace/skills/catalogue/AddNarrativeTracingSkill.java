@@ -95,15 +95,16 @@ public final class AddNarrativeTracingSkill {
    * never names which runners those are, the doctor's own framework table is the oracle.
    */
   static final String FIRST_TRACE_HAS_TESTS =
-      "if the project already has tests and the doctor reports a test integration for that"
-          + " runner, the first trace is one existing test run through the test integration"
-          + " (narrativetrace-junit5, or narrativetrace-junit4 for a project whose tests already"
-          + " run on that other major version) with output on, which writes that test's"
-          + " narrative files, .md and .nt, under build/narrativetrace/ — the files"
+      "if the project already has tests and the doctor reports a test integration for that runner,"
+          + " the first trace is one existing test run through the test integration"
+          + " (narrativetrace-junit5, narrativetrace-junit4 for a project whose tests already run"
+          + " on that other major version, or narrativetrace-testng for a project whose tests"
+          + " already run on the runner that module is named for) with output on, which writes that"
+          + " test's narrative files, .md and .nt, under build/narrativetrace/ — the files"
           + " narrativetrace-doctor, narrativetrace-verify, narrativetrace-debug and"
           + " narrativetrace-explain read; print the rendered file so the trace is also on the"
-          + " console; the step is done when that test's files exist; a project whose tests run"
-          + " on a runner the doctor reports no integration for keeps that runner and takes the"
+          + " console; the step is done when that test's files exist; a project whose tests run on"
+          + " a runner the doctor reports no integration for keeps that runner and takes the"
           + " console path below";
 
   /**
@@ -161,8 +162,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.4.3")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.4.3")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.0")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.0")
 }
 
 tasks.withType<JavaCompile> {
@@ -205,7 +206,7 @@ application {   // only when the project has no application entry point of its o
                     "kotlin",
                     """
                     dependencies {
-                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.4.3")
+                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.0")
                         runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
                     }
                     """),

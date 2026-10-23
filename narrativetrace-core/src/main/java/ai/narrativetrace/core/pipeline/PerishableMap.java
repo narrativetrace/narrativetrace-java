@@ -8,6 +8,7 @@
 package ai.narrativetrace.core.pipeline;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -95,42 +96,56 @@ public final class PerishableMap<K, V> {
     return entries.size();
   }
 
+  /**
+   * Removes each expired entry FIRST and calls back only when this caller won the removal, so an
+   * entry is evicted exactly once however many callers (or a re-entrant callback) scan it, and a
+   * replacement put under the same key is never the one removed.
+   */
   private void evictExpired() {
     long now = clock.getAsLong();
-    var it = entries.entrySet().iterator();
-    while (it.hasNext()) {
-      var entry = it.next();
-      if (now - entry.getValue().createdNanos() > ttlNanos) {
-        onEvict.accept(entry.getValue().value());
-        it.remove();
+    for (var entry : entries.entrySet()) {
+      var examined = entry.getValue();
+      if (now - examined.createdNanos() > ttlNanos && entries.remove(entry.getKey(), examined)) {
+        onEvict.accept(examined.value());
       }
     }
   }
 
+  /** Same order as {@link #evictExpired}: the entry found oldest is removed, then called back. */
   private void evictOverCapacity() {
     while (entries.size() >= maxCapacity) {
-      K oldestKey = findOldest();
-      if (oldestKey == null) {
+      var oldest = findOldest();
+      if (oldest == null) {
         break;
       }
-      var removed = entries.remove(oldestKey);
-      if (removed != null) {
-        onEvict.accept(removed.value());
+      if (entries.remove(oldest.getKey(), oldest.getValue())) {
+        onEvict.accept(oldest.getValue().value());
       }
     }
   }
 
-  private K findOldest() {
-    K oldestKey = null;
+  private Map.Entry<K, TimedEntry<V>> findOldest() {
+    Map.Entry<K, TimedEntry<V>> oldest = null;
     long oldestTime = Long.MAX_VALUE;
     for (var entry : entries.entrySet()) {
       if (entry.getValue().createdNanos() < oldestTime) {
         oldestTime = entry.getValue().createdNanos();
-        oldestKey = entry.getKey();
+        oldest = entry;
       }
     }
-    return oldestKey;
+    return oldest;
   }
 
-  private record TimedEntry<V>(V value, long createdNanos) {}
+  /** Identity equality: a replacement entry never compares equal to the one it replaced. */
+  private record TimedEntry<V>(V value, long createdNanos) {
+    @Override
+    public boolean equals(Object other) {
+      return this == other;
+    }
+
+    @Override
+    public int hashCode() {
+      return System.identityHashCode(this);
+    }
+  }
 }

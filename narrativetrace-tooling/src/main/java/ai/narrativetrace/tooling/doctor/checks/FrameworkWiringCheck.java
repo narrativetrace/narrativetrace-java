@@ -27,12 +27,15 @@ import ai.narrativetrace.tooling.frameworks.FrameworkTable;
 import ai.narrativetrace.tooling.frameworks.IntegrationModule;
 import ai.narrativetrace.tooling.frameworks.Wiring;
 import ai.narrativetrace.tooling.frameworks.WiringSnippets;
+import java.util.Optional;
 
 /**
  * {@code config.<framework>-*} — one framework-table row, observed from manifest and source: the
  * framework is present but its integration module is not referenced, or the module is referenced
  * but its wiring was never applied. Generalises {@link ExtensionRegisteredCheck}'s "on the
- * classpath, never registered" to every row whose wiring is source-level.
+ * classpath, never registered" to every row whose wiring is source-level — and, for a module that
+ * attaches itself once present ({@link Wiring.DependenciesOnly}, TestNG's service-loader listener),
+ * checks the one half that can go wrong: the framework is declared and the module is not.
  *
  * <p>INTENT: the {@code add-narrative-tracing} skill lists no framework; its one framework step
  * runs the doctor and applies every {@code config.<framework>-*} fix in order. So every failing fix
@@ -47,19 +50,22 @@ import ai.narrativetrace.tooling.frameworks.WiringSnippets;
 public final class FrameworkWiringCheck implements DoctorCheck {
 
   private final FrameworkRow row;
-  private final Wiring.Snippet wiring;
+
+  /** The row's source wiring; empty for a module whose dependency is its wiring. */
+  private final Optional<Wiring.Snippet> wiring;
+
   private final String id;
 
   /**
    * @throws IllegalArgumentException for a row that earns no wiring check of its own
    */
   public FrameworkWiringCheck(FrameworkRow row) {
-    if (!(row.check() instanceof CheckBinding.WiringCheck check)
-        || !(row.wiring() instanceof Wiring.Snippet snippet)) {
-      throw new IllegalArgumentException("row " + row.id() + " has no source-level wiring check");
+    if (!(row.check() instanceof CheckBinding.WiringCheck check)) {
+      throw new IllegalArgumentException("row " + row.id() + " earns no wiring check of its own");
     }
     this.row = row;
-    this.wiring = snippet;
+    this.wiring =
+        row.wiring() instanceof Wiring.Snippet snippet ? Optional.of(snippet) : Optional.empty();
     this.id = check.id();
   }
 
@@ -85,31 +91,37 @@ public final class FrameworkWiringCheck implements DoctorCheck {
               + row.module().artifact()
               + " — "
               + row.module().addInstruction(snapshot.narrativeTraceVersionOrPlaceholder())
-              + ". Then "
-              + wiringFix(),
+              + wiring.map(snippet -> ". Then " + wiringFix(snippet)).orElse("."),
           DocAnchors.CHOOSING_AN_INTEGRATION);
     }
-    if (wiring.appliedIn(snapshot.wiringTexts())) {
+    if (wiring.isEmpty()) {
       return Finding.pass(
           id,
-          module.artifact() + " is wired: " + wiring.description(),
+          module.artifact() + " is referenced: " + row.wiring().description(),
+          DocAnchors.CHOOSING_AN_INTEGRATION);
+    }
+    var snippet = wiring.get();
+    if (snippet.appliedIn(snapshot.wiringTexts())) {
+      return Finding.pass(
+          id,
+          module.artifact() + " is wired: " + snippet.description(),
           DocAnchors.CHOOSING_AN_INTEGRATION);
     }
     return Finding.fail(
         id,
         module.artifact()
             + " is referenced but its wiring ("
-            + wiring.description()
+            + snippet.description()
             + ") is never applied — nothing in it is traced",
-        "Apply the wiring: " + wiringFix(),
+        "Apply the wiring: " + wiringFix(snippet),
         DocAnchors.CHOOSING_AN_INTEGRATION);
   }
 
-  private String wiringFix() {
+  private String wiringFix(Wiring.Snippet snippet) {
     return "add "
-        + wiring.description()
+        + snippet.description()
         + ", adapted to this project's packages (from "
-        + wiring.fixture()
+        + snippet.fixture()
         + "):\n"
         + WiringSnippets.text(row.id());
   }

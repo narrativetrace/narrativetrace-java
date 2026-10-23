@@ -133,6 +133,23 @@ class DependencyConfiguratorTest {
   }
 
   @Test
+  void testngTestFramework() {
+    var deps =
+        DependencyConfigurator.resolve(
+            "proxy", "testng", "test", false, false, false, false, VERSION);
+
+    assertThat(deps).contains(dep("testImplementation", "narrativetrace-testng"));
+    assertThat(deps).noneMatch(d -> d.artifact().contains("narrativetrace-junit"));
+    // TestNG itself is the adopter's to declare, as JUnit 4 is; the module's api dependency
+    // brings it when they do not. No Jupiter engine or platform launcher either: the task is
+    // switched to useTestNG(), not the JUnit Platform.
+    assertThat(deps).noneMatch(d -> d.artifact().startsWith("org.testng:"));
+    assertThat(deps).noneMatch(d -> d.artifact().contains("junit-jupiter-engine"));
+    assertThat(deps).noneMatch(d -> d.artifact().contains("junit-platform-launcher"));
+    assertThat(deps).noneMatch(d -> "testRuntimeOnly".equals(d.configuration()));
+  }
+
+  @Test
   void micrometerModuleAdded() {
     var deps =
         DependencyConfigurator.resolve(

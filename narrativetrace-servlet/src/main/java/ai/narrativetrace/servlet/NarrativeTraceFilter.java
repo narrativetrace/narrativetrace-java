@@ -22,6 +22,7 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Map;
 import org.slf4j.MDC;
 
 /**
@@ -105,11 +106,12 @@ public class NarrativeTraceFilter implements Filter {
       return;
     }
     long startTime = System.currentTimeMillis();
+    var foundMdc = copyMdc();
     prepareContext(httpRequest);
     try {
       chain.doFilter(request, response);
     } finally {
-      captureAndExport(httpResponse, startTime);
+      captureAndExport(httpResponse, startTime, foundMdc);
     }
   }
 
@@ -147,9 +149,10 @@ public class NarrativeTraceFilter implements Filter {
    * {@code MDC.clear()} that throws used to take {@code context.reset()} down with it, leaving the
    * request thread carrying the finished request's trace stack into the next request it serves.
    */
-  private void captureAndExport(HttpServletResponse httpResponse, long startTime) {
+  private void captureAndExport(
+      HttpServletResponse httpResponse, long startTime, Map<String, String> foundMdc) {
     exportTrace(httpResponse, startTime);
-    clearMdc();
+    restoreMdc(foundMdc);
     resetContext();
   }
 
@@ -167,9 +170,26 @@ public class NarrativeTraceFilter implements Filter {
   }
 
   @SuppressWarnings("PMD.AvoidCatchingThrowable") // cleanup failure must not fail the request
-  private void clearMdc() {
+  private static Map<String, String> copyMdc() {
     try {
-      MDC.clear();
+      return MDC.getCopyOfContextMap();
+    } catch (Throwable ignored) { // NOPMD
+      return null; // NOPMD
+    }
+  }
+
+  /**
+   * Puts back the MDC the filter found on entry; an outer filter's keys survive, the filter's own
+   * keys go. Clears when nothing was there.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable") // cleanup failure must not fail the request
+  private void restoreMdc(Map<String, String> foundMdc) {
+    try {
+      if (foundMdc == null || foundMdc.isEmpty()) {
+        MDC.clear();
+      } else {
+        MDC.setContextMap(foundMdc);
+      }
     } catch (Throwable ignored) { // NOPMD
       // Observability failure must never become a request failure
     }

@@ -674,6 +674,26 @@ class SnippetSupportTest {
     }
 
     @Test
+    fun durationMaskAlsoCoversTheTimingInTheTraceFilesSelfDescribingHeader() {
+        writeSource(
+            "recipes/checkout/build/narrativetrace/traces/T/s.md",
+            "What this is: the recorded call tree of one test run: T.s, failed, 104.34 ms.\n" +
+                "{\"what\": \"The recorded call tree of one test run: T.s, passed, 3 ms.\"}\n"
+        )
+        writeDoc(
+            "documentation/page.md",
+            page(
+                "<!-- snippet: recipes/checkout/build/narrativetrace/traces/T/s.md mask=duration -->",
+                "What this is: the recorded call tree of one test run: T.s, failed, 7 ms.\n" +
+                    "{\"what\": \"The recorded call tree of one test run: T.s, passed, 41.5 ms.\"}",
+                lang = "text"
+            )
+        )
+
+        assertEquals(emptyList<String>(), SnippetSupport.check(repo))
+    }
+
+    @Test
     fun syncCopiesTheRealDurationEvenUnderAMaskedMarker() {
         writeSource("sixty-seconds/build/narrativetrace/see-a-trace.txt", "placeOrder(...) — 17ms\n")
         val doc = repo.resolve("documentation/sixty-seconds.md")

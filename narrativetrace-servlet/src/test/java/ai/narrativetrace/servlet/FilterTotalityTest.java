@@ -19,11 +19,14 @@ import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.slf4j.spi.MDCAdapter;
 
 /**
  * A request the application handled is never turned into a failure by tracing.
@@ -136,6 +139,40 @@ class FilterTotalityTest {
                     new StubHttpServletRequest("GET", "/api/test"),
                     new StubHttpServletResponse(),
                     tracingChain(context)));
+  }
+
+  @Test
+  void anMdcThatFailsToCopyOrRestoreDoesNotFailTheRequest() throws Exception {
+    // The adapter's static field is named differently across slf4j-api 2.0.x releases
+    Field field = null;
+    for (var candidate : MDC.class.getDeclaredFields()) {
+      if (candidate.getType() == MDCAdapter.class) {
+        field = candidate;
+      }
+    }
+    assertThat(field).isNotNull();
+    field.setAccessible(true);
+    var original = field.get(null);
+    var broken =
+        Proxy.newProxyInstance(
+            MDCAdapter.class.getClassLoader(),
+            new Class<?>[] {MDCAdapter.class},
+            (proxy, method, args) -> {
+              throw new AssertionError("MDC must not fail the request");
+            });
+    var filter = new NarrativeTraceFilter(new ThreadLocalNarrativeContext(), (tree, req) -> {});
+    field.set(null, broken);
+    try {
+      assertThatNoException()
+          .isThrownBy(
+              () ->
+                  filter.doFilter(
+                      new StubHttpServletRequest("GET", "/api/test"),
+                      new StubHttpServletResponse(),
+                      DOES_NOTHING));
+    } finally {
+      field.set(null, original);
+    }
   }
 
   @Test

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 5f8bbf921371 | translated: 2026-10-21 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 22459f6c0343 | translated: 2026-10-23 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -39,7 +39,7 @@ narrativeTrace { }
 narrativeTrace {
     enabled.set(true)                          // predeterminado: true
     mode.set("proxy")                          // "proxy" (predeterminado) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (predeterminado) | "junit4"
+    testFramework.set("junit5")               // "junit5" (predeterminado) | "junit4" | "testng"
     scope.set("test")                          // "test" (predeterminado) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"
@@ -163,9 +163,10 @@ el nivel configurado para una prueba rige las llamadas del agente exactamente ig
 llamada trazada por proxy.
 
 Para JUnit 4, ese `NarrativeTraceConfig` es la única instancia que construye el `SuiteContext` de
-la JVM de pruebas — cada regla de clase vinculada la reutiliza, así que establecer
-`narrativetrace.level` desde una prueba de una clase cambia el nivel para todas las pruebas que se
-ejecuten después de ella en esa JVM, no solo para el resto de su propia clase.
+la JVM de pruebas — cada regla de clase vinculada la reutiliza.
+`narrativetrace.level` se lee de la propiedad de sistema de toda la JVM al inicio de cada prueba, así
+que establecerla en cualquier lugar cambia todas las pruebas que se ejecuten después en esa JVM; el
+pipeline compartido no cambia esto.
 
 ### Estrategias de propagación de contexto
 
@@ -410,7 +411,7 @@ Cuando terminan todos los tests de una clase, la extensión escribe:
   cuando conoces el escenario y quieres el archivo:
   ```json
   {
-    "schema": "narrativetrace/scenario-manifest/1",
+    "schema": "narrativetrace/scenario-manifest/2",
     "run": {
       "id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
       "name": "bold elk soars"
@@ -421,6 +422,7 @@ Cuando terminan todos los tests de una clase, la extensión escribe:
         "testClass": "traildepot.CatalogTest",
         "testMethod": "equipmentCanBeFound",
         "invocation": 2,
+        "outcome": "passed",
         "artifacts": {
           "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
           "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
@@ -431,6 +433,12 @@ Cuando terminan todos los tests de una clase, la extensión escribe:
   ```
   Solo se listan los artefactos realmente presentes en disco, así que la
   fila refleja el formato y los flags que usó la ejecución.
+- Índice de la ejecución: `<outputDir>/INDEX.md` — se escribe junto al manifiesto,
+  a partir de las mismas filas. Empieza con un párrafo que dice qué es el
+  directorio y por dónde empezar; sigue una tabla `## Failing` (prueba,
+  resultado, ruta de la traza, mensaje de error en una línea) con las pruebas
+  que fallan primero, y después `## Passing`. Las rutas son relativas al índice.
+  Es el archivo que conviene nombrar en el prompt de un agente.
 - Informe de claridad: `<outputDir>/clarity-report.md`
 - Resumen en consola (impreso en stdout), que termina con el delta
   estructural de una línea contra la última ejecución verde:
@@ -442,6 +450,19 @@ Cuando terminan todos los tests de una clase, la extensión escribe:
     Reports: build/narrativetrace
     Since last green: 1 scenario unchanged · 1 changed: "Customer places order" (+1 call InventoryService.release)
   ```
+
+Una prueba que falla también dice dónde está su traza, justo debajo del fallo:
+una línea en la **salida de error estándar**,
+`narrativetrace: trace of <Class.method> → <ruta absoluta>`. El pie de la ejecución
+repite esas líneas para cada prueba fallida, las fallidas primero y una por línea,
+luego nombra `INDEX.md` y después imprime el resumen. Gradle oculta la salida de
+las pruebas salvo con `testLogging { showStandardStreams = true }` (las líneas
+siguen en el `system-err` del informe de pruebas); Maven surefire las imprime.
+Cada archivo de traza escrito abre con un máximo de diez líneas que dicen qué es,
+cómo leerlo, en qué línea está la primera llamada que lanzó y dónde están el
+índice y el manifiesto: un comentario HTML en Markdown (tras el frontmatter) y
+líneas `#` en texto. Los formatos de diagrama y el JSON complementario quedan
+exactamente como los producen los renderizadores.
 
 El informe en consola de un test que falla imprime el delta estructural
 contra el último artefacto verde — resumen más diff legible — en lugar de
@@ -829,7 +850,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.3")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.0")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.

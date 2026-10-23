@@ -121,9 +121,10 @@ class BuildConfigurationTest {
         .contains("LIBRARY ai.narrativetrace narrativetrace-opentelemetry")
         .contains("LIBRARY ai.narrativetrace narrativetrace-junit4")
         .contains("LIBRARY ai.narrativetrace narrativetrace-junit5")
+        .contains("LIBRARY ai.narrativetrace narrativetrace-testng")
         .contains("LIBRARY ai.narrativetrace narrativetrace-skills")
         .contains("LIBRARY ai.narrativetrace narrativetrace-tooling");
-    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(20);
+    assertThat(printed.lines().filter(line -> line.startsWith("LIBRARY ")).count()).isEqualTo(21);
   }
 
   @Test

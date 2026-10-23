@@ -80,7 +80,9 @@ class InstallBlockDoctorTest {
         .containsExactly("config.skills-installed");
   }
 
-  /** The whole faithful path: paste the block, run {@code init}, run the doctor — twenty green. */
+  /**
+   * The whole faithful path: paste the block, run {@code init}, run the doctor — twenty-one green.
+   */
   @Test
   void theFaithfulPathEndsAtAFullyGreenDoctorReport(@TempDir Path project)
       throws IOException, InterruptedException {
@@ -92,7 +94,7 @@ class InstallBlockDoctorTest {
     assertThat(install.exitCode()).as(install.output()).isZero();
     assertThat(failingFindings(doctor.output())).as(doctor.output()).isEmpty();
     assertThat(doctor.output())
-        .contains("20 check(s), 0 finding(s)")
+        .contains("21 check(s), 0 finding(s)")
         .contains("All checks passed.");
     assertThat(doctor.exitCode()).isZero();
   }

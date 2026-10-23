@@ -15,12 +15,15 @@ import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.output.ArtifactIdentity;
 import ai.narrativetrace.core.output.NarrativeApproval;
+import ai.narrativetrace.core.output.RunPointers;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
+import ai.narrativetrace.core.output.ScenarioManifest;
 import ai.narrativetrace.core.output.TemplateWarningCollector;
 import ai.narrativetrace.core.output.TraceTestSupport;
 import ai.narrativetrace.core.pipeline.EventPipeline;
 import ai.narrativetrace.core.pipeline.PipelineBootstrap;
+import ai.narrativetrace.core.render.ExceptionMessage;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.diagrams.SequenceDiagramRenderers;
 import java.io.IOException;
@@ -67,6 +70,10 @@ public class NarrativeTraceRule extends TestWatcher {
 
   private ThreadLocalNarrativeContext context;
   private boolean testFailed;
+
+  /** What failed the test, for the manifest row's message; the approval rejection when that did. */
+  private Optional<Throwable> failure = Optional.empty();
+
   private NarrativeTraceClassRule classRule;
   private PrintStream out = System.out;
   private PrintStream err = System.err;
@@ -134,6 +141,7 @@ public class NarrativeTraceRule extends TestWatcher {
       context = buildOwnContext(level);
     }
     testFailed = false;
+    failure = Optional.empty();
     lossBaseline = context.traceLoss();
     // Only when linked to a class rule: a lone @Rule with no aggregator names no run, the same
     // way it produces no console footer or manifest today (2026-09-13 ruling, item 2).
@@ -169,6 +177,7 @@ public class NarrativeTraceRule extends TestWatcher {
   @Override
   protected void failed(Throwable e, Description description) {
     testFailed = true;
+    failure = Optional.of(e);
   }
 
   @Override
@@ -185,7 +194,19 @@ public class NarrativeTraceRule extends TestWatcher {
       // the write computed — TestWatcher guarantees finished() runs after failed().
       var delta = writeTraceIfEnabled(description, testFailed || rejection != null);
       printFailureReport(description, delta);
-      accumulateIfLinked(description);
+      if (rejection != null) {
+        failure = Optional.of(rejection);
+      }
+      var row = accumulateIfLinked(description, testFailed || rejection != null);
+      // After the failure report, so it is the last thing under the failing test.
+      row.filter(ScenarioManifest.Entry::failed)
+          .flatMap(
+              entry ->
+                  RunPointers.pointerLine(
+                      entry,
+                      Path.of(
+                          System.getProperty("narrativetrace.outputDir", "build/narrativetrace"))))
+          .ifPresent(err::println);
       if (rejection != null) {
         throw rejection;
       }
@@ -349,16 +370,34 @@ public class NarrativeTraceRule extends TestWatcher {
     }
   }
 
-  private void accumulateIfLinked(Description description) {
+  private Optional<ScenarioManifest.Entry> accumulateIfLinked(
+      Description description, boolean verdictFailed) {
     if (classRule == null) {
-      return;
+      return Optional.empty();
     }
     classRule.accumulateLoss(currentLoss());
     var trace = context.captureTrace();
-    if (!trace.isEmpty()) {
-      var scenario = ScenarioFramer.humanize(description.getMethodName());
-      classRule.accumulate(scenario, trace);
+    if (trace.isEmpty()) {
+      return Optional.empty();
     }
+    var scenario = ScenarioFramer.humanize(description.getMethodName());
+    classRule.accumulate(scenario, trace);
+    if (!isOutputEnabled()) {
+      return Optional.empty();
+    }
+    var testClassName =
+        description.getTestClass() != null
+            ? description.getTestClass().getName()
+            : description.getClassName();
+    var row =
+        ScenarioManifest.entryFor(
+            Path.of(System.getProperty("narrativetrace.outputDir", "build/narrativetrace")),
+            ArtifactIdentity.ofMethod(testClassName, description.getMethodName()),
+            scenario,
+            verdictFailed ? ScenarioManifest.Entry.FAILED : ScenarioManifest.Entry.PASSED,
+            verdictFailed ? failure.map(ExceptionMessage::of).orElse(null) : null);
+    classRule.accumulateRow(row);
+    return Optional.of(row);
   }
 
   /**

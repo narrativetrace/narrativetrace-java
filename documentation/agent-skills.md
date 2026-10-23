@@ -103,7 +103,7 @@ an envelope a script can gate on:
 <!-- snippet: narrativetrace-cli/build/narrativetrace/init-plan.json -->
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.4.3",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.0",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
@@ -119,7 +119,8 @@ an envelope a script can gate on:
     {"kind": "create", "path": ".claude/skills/narrativetrace-debug/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".agents/skills/narrativetrace-explain/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-explain/SKILL.md", "status": "planned"},
-    {"kind": "create", "path": "AGENTS.md", "status": "planned"}
+    {"kind": "create", "path": "AGENTS.md", "status": "planned"},
+    {"kind": "create", "path": "CLAUDE.md", "status": "planned"}
   ],
   "exitCode": 0
 }
@@ -136,7 +137,11 @@ there is no postinstall hook and no build step that installs skills behind you. 
 - a marked section in `AGENTS.md`, created if the file is absent, replaced between its own markers
   if a previous run wrote one. An `AGENTS.md` that exists without our markers needs
   `--write-existing`, so a first run can never append to a file you did not expect it to touch.
-- one `@AGENTS.md` import line in an existing `CLAUDE.md`, and never a `CLAUDE.md` of its own.
+- one `@AGENTS.md` import line in `CLAUDE.md`: appended to an existing `CLAUDE.md` (with
+  `--write-existing`), and when the project has none, a new `CLAUDE.md` holding that line and
+  nothing else. Claude Code loads `CLAUDE.md` and never `AGENTS.md`, so without the import the
+  section is not read at all. Re-running changes nothing; `narrativetraceUninstall` deletes a
+  `CLAUDE.md` it created.
 - a pointer file for each platform the project shows it uses — a marked section in `replit.md` when
   the project has `replit.md` or `.replit`, and `.cursor/rules/narrativetrace.mdc` when it has a
   `.cursor/` directory; nothing for a platform the project does not use. See

@@ -12,6 +12,7 @@ import ai.narrativetrace.api.event.SpanContext;
 import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.api.event.TraceEvent;
 import ai.narrativetrace.core.pipeline.PerishableMap;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.StatusCode;
@@ -42,6 +43,23 @@ import java.util.function.Consumer;
  * names the remote caller's span, so the started span parents on an OTel remote {@code SpanContext}
  * built from the header's trace id, parent span id and flags — never a synthetic active span.
  *
+ * <p><b>@edgeCase</b> A child can start after its local parent has ended — work resumed from a
+ * {@code snapshot()} by a scheduler, a fire-and-forget member. Ended frames are remembered in a
+ * second bounded map (same capacity and TTL as the active one), so such a child parents on its real
+ * OTel parent. A child later than that memory (past the TTL after its parent's end, or past {@code
+ * maxActiveSpans} newer finished frames) gets a parent context reconstructed from the
+ * NarrativeTrace parent id: a local context (never presented as a remote, backend-known one) and,
+ * unless ids are mirrored, marked on the child with {@code narrative.parent.synthetic=true} and
+ * {@code narrative.parent_span_id}. The two unknown-parent cases are told apart by the event: a
+ * span opened by local hand-off (snapshot, fork, fire-and-forget) carries {@code ConcurrencyInfo};
+ * a root under an adopted {@code traceparent} does not.
+ *
+ * <p><b>@edgeCase</b> Mode is detected at runtime from the first span started: when its OTel span
+ * id equals its NarrativeTrace span id, the SDK mirrors ids ({@link NarrativeTraceIdGenerator}),
+ * the reconstructed parent is exact, and finished frames need no memory. Otherwise (no generator
+ * installed, the OpenTelemetry Java agent's isolated SDK, the API's no-op tracer) the memory and
+ * the synthetic marking apply.
+ *
  * @see TraceSpanExporter
  */
 public final class OtelTraceEventListener implements Consumer<TraceEvent> {
@@ -50,7 +68,24 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
   private static final Duration DEFAULT_TTL = Duration.ofHours(1);
 
   private final Tracer tracer;
+  static final AttributeKey<Boolean> PARENT_SYNTHETIC =
+      AttributeKey.booleanKey("narrative.parent.synthetic");
+  static final AttributeKey<String> PARENT_SPAN_ID =
+      AttributeKey.stringKey("narrative.parent_span_id");
+
   private final PerishableMap<SpanId, SpanFrame> activeSpans;
+
+  /**
+   * Parents a span may still name although they are not active: ended local frames (not-mirrored
+   * mode only) and remote parents adopted from a {@code traceparent}. Bounded like {@code
+   * activeSpans}; an entry ages out silently.
+   */
+  private final PerishableMap<SpanId, io.opentelemetry.api.trace.SpanContext> knownParents;
+
+  /** {@code null} until the first span starts; then whether the SDK mirrors NarrativeTrace ids. */
+  private volatile Boolean mirroredIds;
+
+  private final MonotonicToEpoch clock = new MonotonicToEpoch();
 
   /** Pairs an OTel span with the NarrativeTrace signature captured at enter time. */
   record SpanFrame(Span span, MethodSignature signature) {}
@@ -75,6 +110,7 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
     this.tracer = tracer;
     this.activeSpans =
         new PerishableMap<>(maxActiveSpans, ttl, frame -> endAsOrphaned(frame.span()));
+    this.knownParents = new PerishableMap<>(maxActiveSpans, ttl, forgotten -> {});
   }
 
   @Override
@@ -90,9 +126,13 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
     var sig = enter.signature();
     var sc = enter.spanContext();
     var builder = tracer.spanBuilder(sig.className() + "." + sig.methodName());
-    builder.setStartTimestamp(enter.timestampNanos(), TimeUnit.NANOSECONDS);
-    applyParent(builder, sc);
-    var span = builder.startSpan();
+    builder.setStartTimestamp(clock.epochNanos(enter.timestampNanos()), TimeUnit.NANOSECONDS);
+    boolean synthetic = applyParent(builder, enter);
+    var span = startMirrored(builder, sc);
+    if (synthetic && !Boolean.TRUE.equals(mirroredIds)) {
+      span.setAttribute(PARENT_SYNTHETIC, true);
+      span.setAttribute(PARENT_SPAN_ID, sc.parentSpanId().toString());
+    }
     SpanContextAttributeMapper.setSpanAttributes(sig, span);
     SpanContextAttributeMapper.setTraceIdentityAttributes(sc, span);
     SpanContextAttributeMapper.setNtSchemaAttributes(sc, span);
@@ -103,20 +143,59 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
   }
 
   /**
-   * Parents the started span on an active local frame when its parent is one of ours; when the
-   * parent id names no active frame but is present — a root under an adopted {@code traceparent} —
-   * builds the OTel remote parent the header named instead of leaving the span parentless.
+   * Parents the started span: on an active local frame; else on a remembered one (an ended local
+   * frame, or an adopted remote parent); else — the id is known to nobody here — on the remote
+   * context an adopted {@code traceparent} named, or, for a span opened by local hand-off, on a
+   * local context reconstructed from the NarrativeTrace parent id.
+   *
+   * @return whether the parent was reconstructed
    */
-  private void applyParent(SpanBuilder builder, SpanContext sc) {
+  private boolean applyParent(SpanBuilder builder, TraceEvent.EnterEvent enter) {
+    var sc = enter.spanContext();
     if (sc.parentSpanId() == null) {
-      return;
+      return false;
     }
     var parentFrame = activeSpans.get(sc.parentSpanId());
     if (parentFrame != null) {
       builder.setParent(Context.current().with(parentFrame.span()));
-      return;
+      return false;
     }
-    builder.setParent(Context.current().with(Span.wrap(remoteParentContext(sc))));
+    var known = knownParents.get(sc.parentSpanId());
+    if (known != null) {
+      builder.setParent(Context.current().with(Span.wrap(known)));
+      return false;
+    }
+    if (enter.concurrency() == null) {
+      var remote = remoteParentContext(sc);
+      knownParents.put(sc.parentSpanId(), remote);
+      builder.setParent(Context.current().with(Span.wrap(remote)));
+      return false;
+    }
+    builder.setParent(Context.current().with(Span.wrap(reconstructedLocalParent(sc))));
+    return true;
+  }
+
+  private static io.opentelemetry.api.trace.SpanContext reconstructedLocalParent(SpanContext sc) {
+    return io.opentelemetry.api.trace.SpanContext.create(
+        sc.traceId().toString(),
+        sc.parentSpanId().toString(),
+        TraceFlags.fromByte((byte) sc.traceFlags()),
+        TraceState.getDefault());
+  }
+
+  /** Starts the span with its NarrativeTrace ids on offer, and learns the mode from the first. */
+  private Span startMirrored(SpanBuilder builder, SpanContext sc) {
+    var offer = IdHandoff.offer(sc, IdHandoff.Source.LIVE);
+    Span span;
+    try {
+      span = builder.startSpan();
+    } finally {
+      IdHandoff.withdraw(offer);
+    }
+    if (mirroredIds == null) {
+      mirroredIds = sc.spanId().toString().equals(span.getSpanContext().getSpanId());
+    }
+    return span;
   }
 
   private static io.opentelemetry.api.trace.SpanContext remoteParentContext(SpanContext sc) {
@@ -139,7 +218,10 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
       return;
     }
     SpanContextAttributeMapper.setOutcomeAttributes(exit.outcome(), frame.span());
-    frame.span().end(exit.timestampNanos(), TimeUnit.NANOSECONDS);
+    frame.span().end(clock.epochNanos(exit.timestampNanos()), TimeUnit.NANOSECONDS);
+    if (!Boolean.TRUE.equals(mirroredIds)) {
+      knownParents.put(exit.spanContext().spanId(), frame.span().getSpanContext());
+    }
     emitEventOnParent(exit, frame.signature());
   }
 
@@ -154,7 +236,9 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
     }
     var attrs = SpanContextAttributeMapper.buildEventAttributes(sig, exit.outcome());
     var name = sig.className() + "." + sig.methodName();
-    parentFrame.span().addEvent(name, attrs, exit.timestampNanos(), TimeUnit.NANOSECONDS);
+    parentFrame
+        .span()
+        .addEvent(name, attrs, clock.epochNanos(exit.timestampNanos()), TimeUnit.NANOSECONDS);
   }
 
   private void handleExitWithoutEnter(TraceEvent.ExitEvent exit) {
@@ -162,12 +246,12 @@ public final class OtelTraceEventListener implements Consumer<TraceEvent> {
     var span =
         tracer
             .spanBuilder(sc.spanId().toString())
-            .setStartTimestamp(exit.timestampNanos(), TimeUnit.NANOSECONDS)
+            .setStartTimestamp(clock.epochNanos(exit.timestampNanos()), TimeUnit.NANOSECONDS)
             .startSpan();
     SpanContextAttributeMapper.setTraceIdentityAttributes(sc, span);
     SpanContextAttributeMapper.setTraceLevelAttributes(sc, span);
     SpanContextAttributeMapper.setOutcomeAttributes(exit.outcome(), span);
     span.setStatus(StatusCode.ERROR, "orphaned — enter event lost");
-    span.end(exit.timestampNanos(), TimeUnit.NANOSECONDS);
+    span.end(clock.epochNanos(exit.timestampNanos()), TimeUnit.NANOSECONDS);
   }
 }

@@ -11,8 +11,10 @@ import ai.narrativetrace.api.event.MethodSignature
 import ai.narrativetrace.api.event.SpanId
 import ai.narrativetrace.api.export.TraceExporter
 import ai.narrativetrace.api.tree.TraceTree
+import ai.narrativetrace.core.context.ContextScope
 import ai.narrativetrace.core.context.ContextSnapshot
 import ai.narrativetrace.core.context.NarrativeContext
+import ai.narrativetrace.core.context.RequestScope
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpStatus
@@ -87,6 +89,26 @@ class HttpFilterTotalityTest {
         override fun captureTrace(): TraceTree = throw AssertionError("captureTrace must not fail the request")
     }
 
+    /** A request scope whose every operation fails, in the way [failure] names. */
+    private class ScopeFailingContext(
+        private val failure: String,
+    ) : DelegatingContext() {
+        val ends = AtomicInteger()
+
+        override fun openRequestScope(): RequestScope =
+            object : RequestScope {
+                override fun activate(): ContextScope {
+                    if (failure == "activate") throw AssertionError("activate must not fail the request")
+                    return ContextScope { throw AssertionError("close must not fail the request") }
+                }
+
+                override fun end() {
+                    ends.incrementAndGet()
+                    throw AssertionError("end must not fail the request")
+                }
+            }
+    }
+
     private val explodingExporter = TraceExporter { _, _ -> throw AssertionError("exporter must not fail the request") }
 
     @Test
@@ -120,6 +142,52 @@ class HttpFilterTotalityTest {
     }
 
     @Test
+    fun aRequestScopeThatFailsToActivateOrEndLeavesTheResponseIntact() {
+        val context = ScopeFailingContext("activate")
+        val filter = NarrativeTraceHttpFilter(context, TraceExporter { _, _ -> })
+
+        val result = Mono.from(filter.doFilter(getRequest("/test"), tracingChain(context.delegate))).block()
+
+        assertThat(result).isNotNull()
+        assertThat(context.ends.get()).isEqualTo(1)
+        context.delegate.reset()
+    }
+
+    @Test
+    fun aRequestScopeWhoseHandleFailsToCloseKeepsTheApplicationsError() {
+        val filter = NarrativeTraceHttpFilter(ScopeFailingContext("close"), TraceExporter { _, _ -> })
+
+        assertThatThrownBy {
+            Mono.from(filter.doFilter(getRequest("/test"), errorChain(IllegalStateException("the application failed")))).block()
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessage("the application failed")
+    }
+
+    @Test
+    fun anMdcThatFailsToCopyOrRestoreLeavesTheResponseIntact() {
+        // The adapter's static field is named differently across slf4j-api 2.0.x releases
+        val field =
+            MDC::class.java.declaredFields
+                .single { it.type == org.slf4j.spi.MDCAdapter::class.java }
+                .apply { isAccessible = true }
+        val original = field.get(null)
+        val broken =
+            java.lang.reflect.Proxy.newProxyInstance(
+                org.slf4j.spi.MDCAdapter::class.java.classLoader,
+                arrayOf(org.slf4j.spi.MDCAdapter::class.java),
+            ) { _, _, _ -> throw AssertionError("MDC must not fail the request") }
+        val filter = NarrativeTraceHttpFilter(ThreadLocalNarrativeContext(), TraceExporter { _, _ -> })
+        field.set(null, broken)
+        try {
+            val result = Mono.from(filter.doFilter(getRequest("/test"), chain { okResponse() })).block()
+
+            assertThat(result).isNotNull()
+        } finally {
+            field.set(null, original)
+        }
+    }
+
+    @Test
     fun aFailingChainKeepsItsOwnErrorWhenExportAndCleanupAlsoFail() {
         val filter = NarrativeTraceHttpFilter(ResetFailingContext(), explodingExporter)
 
@@ -127,6 +195,18 @@ class HttpFilterTotalityTest {
             Mono.from(filter.doFilter(getRequest("/test"), errorChain(IllegalStateException("the application failed")))).block()
         }.isInstanceOf(IllegalStateException::class.java)
             .hasMessage("the application failed")
+    }
+
+    @Test
+    fun anMdcKeyFoundOnEntrySurvivesDoFinallyAndTheFiltersOwnKeysDoNot() {
+        MDC.put("correlationId", "outer-request")
+        val filter = NarrativeTraceHttpFilter(ThreadLocalNarrativeContext(), TraceExporter { _, _ -> })
+
+        Mono.from(filter.doFilter(getRequest("/test"), chain { okResponse() })).block()
+
+        assertThat(MDC.get("correlationId")).isEqualTo("outer-request")
+        assertThat(MDC.get("traceId")).isNull()
+        assertThat(MDC.get("httpRoute")).isNull()
     }
 
     private fun getRequest(path: String): HttpRequest<*> = HttpRequest.GET<Any>(path)

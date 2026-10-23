@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/keep-secrets-out-of-the-logs.md blob fb50d49099c8 | translated: 2026-10-17 | reviewed: - -->
+<!-- source: documentation/recipes/keep-secrets-out-of-the-logs.md blob 11e1423f2f0a | translated: 2026-10-22 | reviewed: - -->
 # Mantenha os segredos fora dos logs
 
 [English](../../recipes/keep-secrets-out-of-the-logs.md) | [Español](../../es/recetas/manten-los-secretos-fuera-de-los-logs.md) | **Português** | [简体中文](../../zh-CN/实用方案/别让密钥进日志.md)
@@ -185,6 +185,13 @@ trace_name: solid wand romps
 method_count: 5
 error_count: 0
 ---
+<!--
+NarrativeTrace trace file
+What this is: the recorded call tree of one test run: SecretsRecipeTest.a_checkout_with_a_password_and_a_card_writes_neither, passed, 2.281 ms.
+How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
+Failing call: none, no call threw in this run.
+Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
+-->
 
 ## Trace: solid wand romps — CustomerAccounts.signIn
 

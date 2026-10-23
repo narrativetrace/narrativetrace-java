@@ -76,20 +76,63 @@ public sealed interface TraceEvent {
     }
   }
 
-  record ForkCreatedEvent(String groupId, long timestampNanos) implements TraceEvent {}
+  /**
+   * A fork-join group was created. {@code ownerSpanId} is the span current on the launching thread
+   * when the group was created — the request the event belongs to — or {@code null} when the group
+   * was created outside every span (such an event belongs to no request and is never removed with
+   * one).
+   */
+  record ForkCreatedEvent(String groupId, long timestampNanos, SpanId ownerSpanId)
+      implements TraceEvent {
 
-  record MergeEvent(String groupId, int memberCount, long timestampNanos) implements TraceEvent {}
-
-  record FireAndForgetEvent(String groupId, long timestampNanos) implements TraceEvent {}
+    /** Compatibility constructor for emitters that carry no owning span. */
+    public ForkCreatedEvent(String groupId, long timestampNanos) {
+      this(groupId, timestampNanos, null);
+    }
+  }
 
   /**
-   * Returns the span id an event belongs to, or {@code null} for group lifecycle events and events
-   * whose span context is absent.
+   * A fork-join group's members were merged. {@code ownerSpanId} is the span current on the merging
+   * (launching) thread, or {@code null} outside every span.
+   */
+  record MergeEvent(String groupId, int memberCount, long timestampNanos, SpanId ownerSpanId)
+      implements TraceEvent {
+
+    /** Compatibility constructor for emitters that carry no owning span. */
+    public MergeEvent(String groupId, int memberCount, long timestampNanos) {
+      this(groupId, memberCount, timestampNanos, null);
+    }
+  }
+
+  /**
+   * Fire-and-forget work was launched. {@code ownerSpanId} is the span current on the launching
+   * thread, or {@code null} outside every span.
+   */
+  record FireAndForgetEvent(String groupId, long timestampNanos, SpanId ownerSpanId)
+      implements TraceEvent {
+
+    /** Compatibility constructor for emitters that carry no owning span. */
+    public FireAndForgetEvent(String groupId, long timestampNanos) {
+      this(groupId, timestampNanos, null);
+    }
+  }
+
+  /**
+   * Returns the span id an event belongs to: an enter or exit event's own span, a group lifecycle
+   * event's owning span. {@code null} when there is none — an event whose span context is absent, a
+   * group event created outside every span.
+   *
+   * <p>INTENT: Retention keys on this. A request's end removes every event whose span id is one of
+   * the request's spans, so a group event with an owner leaves with the request that launched it.
    */
   static SpanId spanIdOf(TraceEvent event) {
-    SpanContext spanContext = null;
-    if (event instanceof EnterEvent e) spanContext = e.spanContext();
-    if (event instanceof ExitEvent e) spanContext = e.spanContext();
-    return spanContext != null ? spanContext.spanId() : null;
+    if (event instanceof EnterEvent e)
+      return e.spanContext() != null ? e.spanContext().spanId() : null;
+    if (event instanceof ExitEvent e)
+      return e.spanContext() != null ? e.spanContext().spanId() : null;
+    if (event instanceof ForkCreatedEvent e) return e.ownerSpanId();
+    if (event instanceof MergeEvent e) return e.ownerSpanId();
+    if (event instanceof FireAndForgetEvent e) return e.ownerSpanId();
+    return null;
   }
 }

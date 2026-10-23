@@ -35,7 +35,7 @@ public final class ScenarioManifest {
   /** The manifest's name inside the output directory. */
   public static final String FILE_NAME = "manifest.json";
 
-  private static final String SCHEMA = "narrativetrace/scenario-manifest/1";
+  private static final String SCHEMA = "narrativetrace/scenario-manifest/2";
 
   /** One probe of the {@code traces} tree: the role a file plays, and the suffix that finds it. */
   private record TraceRole(String role, String suffix) {}
@@ -62,8 +62,33 @@ public final class ScenarioManifest {
    * @param scenario the humanized scenario name, as the artifacts' own headers spell it
    * @param identity which test invocation produced it
    * @param artifacts role → path relative to the output directory, in listing order
+   * @param outcome {@code passed} or {@code failed}, or {@code null} when the integration did not
+   *     record a verdict (the row then carries no {@code outcome} field)
+   * @param message the failing test's error message, already through {@link
+   *     ai.narrativetrace.core.render.ExceptionMessage}, or {@code null}
    */
-  public record Entry(String scenario, ArtifactIdentity identity, Map<String, String> artifacts) {
+  public record Entry(
+      String scenario,
+      ArtifactIdentity identity,
+      Map<String, String> artifacts,
+      String outcome,
+      String message) {
+
+    /** The outcome a failing test's row carries. */
+    public static final String FAILED = "failed";
+
+    /** The outcome a green test's row carries. */
+    public static final String PASSED = "passed";
+
+    /** A row that records no verdict — the shape every row had before the manifest named one. */
+    public Entry(String scenario, ArtifactIdentity identity, Map<String, String> artifacts) {
+      this(scenario, identity, artifacts, null, null);
+    }
+
+    /** Whether this row is a failing test's. */
+    public boolean failed() {
+      return FAILED.equals(outcome);
+    }
 
     /**
      * Copies the artifact map so a row cannot change after the run that recorded it — through a
@@ -81,6 +106,18 @@ public final class ScenarioManifest {
    * @param outputDir the run's output directory, which every listed path is relative to
    */
   public static Entry entryFor(Path outputDir, ArtifactIdentity identity, String scenario) {
+    return entryFor(outputDir, identity, scenario, null, null);
+  }
+
+  /**
+   * The same row, carrying the scenario's verdict so the run index and the failure pointers can
+   * list failing tests first.
+   *
+   * @param outcome {@link Entry#PASSED} or {@link Entry#FAILED}
+   * @param message the failure's message through the exception-message filter, or {@code null}
+   */
+  public static Entry entryFor(
+      Path outputDir, ArtifactIdentity identity, String scenario, String outcome, String message) {
     var resolver = new OutputDirectoryResolver(outputDir);
     var artifacts = new LinkedHashMap<String, String>();
     for (var role : TRACE_ROLES) {
@@ -89,7 +126,7 @@ public final class ScenarioManifest {
     }
     putIfPresent(artifacts, "diagram", outputDir, resolver.diagramFile(identity));
     putIfPresent(artifacts, "structural", outputDir, resolver.structuralFile(identity));
-    return new Entry(scenario, identity, artifacts);
+    return new Entry(scenario, identity, artifacts, outcome, message);
   }
 
   /** Records a file that exists under its role, keeping the first path a role resolves to. */
@@ -170,6 +207,12 @@ public final class ScenarioManifest {
         .append("\",\n");
     if (identity.isInvocation()) {
       sb.append("      \"invocation\": ").append(identity.invocationIndex()).append(",\n");
+    }
+    if (entry.outcome() != null) {
+      sb.append("      \"outcome\": \"").append(JsonEscape.escape(entry.outcome())).append("\",\n");
+    }
+    if (entry.message() != null) {
+      sb.append("      \"message\": \"").append(JsonEscape.escape(entry.message())).append("\",\n");
     }
     sb.append("      \"artifacts\": {\n").append(renderArtifacts(entry.artifacts()));
     return sb.append("      }\n    }").toString();

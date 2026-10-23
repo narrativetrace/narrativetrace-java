@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.4.3"
+    id("ai.narrativetrace") version "0.5.0"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -36,7 +36,7 @@ narrativeTrace { }
 narrativeTrace {
     enabled.set(true)                          // default: true
     mode.set("proxy")                          // "proxy" (default) | "agent" | "spring"
-    testFramework.set("junit5")               // "junit5" (default) | "junit4"
+    testFramework.set("junit5")               // "junit5" (default) | "junit4" | "testng"
     scope.set("test")                          // "test" (default) | "production"
     format.set("markdown")                     // "markdown" | "text" | "mermaid" | "plantuml"
     tracingLevel.set("DETAIL")                 // "OFF" | "ERRORS" | "SUMMARY" | "NARRATIVE" | "DETAIL"
@@ -160,8 +160,9 @@ so the level configured for a test governs the agent's calls exactly as it gover
 one.
 
 For JUnit 4, that `NarrativeTraceConfig` is the one instance the test JVM's `SuiteContext` builds —
-every linked class rule reuses it, so setting `narrativetrace.level` from one test's class changes
-the level for every test that runs after it in the JVM, not only the rest of its own class.
+every linked class rule reuses it. `narrativetrace.level` is read from the JVM-wide system property
+at every test start, so setting it anywhere changes every test that runs after it in the JVM; the
+shared pipeline does not change this.
 
 ### Context propagation strategies
 
@@ -393,7 +394,7 @@ After all tests in a class complete, the extension writes:
   and want the file:
   ```json
   {
-    "schema": "narrativetrace/scenario-manifest/1",
+    "schema": "narrativetrace/scenario-manifest/2",
     "run": {
       "id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
       "name": "bold elk soars"
@@ -404,6 +405,7 @@ After all tests in a class complete, the extension writes:
         "testClass": "traildepot.CatalogTest",
         "testMethod": "equipmentCanBeFound",
         "invocation": 2,
+        "outcome": "passed",
         "artifacts": {
           "trace": "traces/CatalogTest/equipment_can_be_found-002-find_tent.md",
           "structural": "structural/CatalogTest/equipment_can_be_found-002-find_tent.nt"
@@ -414,6 +416,11 @@ After all tests in a class complete, the extension writes:
   ```
   Only artifacts actually on disk are listed, so the row reflects the
   format and flags the run used.
+- Run index: `<outputDir>/INDEX.md` — written beside the manifest, from the same
+  rows. It opens with a paragraph saying what the directory is and where to
+  start, then a `## Failing` table (test, outcome, trace path, one-line error
+  message) listing failing tests first, then `## Passing`. Paths are relative
+  to the index. This is the one file to name in an agent's prompt.
 - Clarity report: `<outputDir>/clarity-report.md`
 - Console summary (printed to stdout), ending with the one-line
   structural delta against the last green run:
@@ -425,6 +432,18 @@ After all tests in a class complete, the extension writes:
     Reports: build/narrativetrace
     Since last green: 1 scenario unchanged · 1 changed: "Customer places order" (+1 call InventoryService.release)
   ```
+
+A failing test also says where its trace is, right under its failure: one line on
+**standard error**, `narrativetrace: trace of <Class.method> → <absolute path>`.
+The run footer repeats those lines for every failing test, failing tests first
+and one per line, then names `INDEX.md`, then prints the summary. Gradle hides
+test output unless `testLogging { showStandardStreams = true }` is set (the
+lines are still in the test report's `system-err`); Maven surefire prints them.
+Every written trace file opens with at most ten lines saying what it is, how to
+read it, which line holds the first call that threw, and where the index and
+manifest are — an HTML comment in Markdown (after the frontmatter) and `#` lines
+in text. The diagram formats and the JSON companion are left exactly as the
+renderers produce them.
 
 A failing test's console report prints the structural delta against the
 last green artifact — summary plus readable diff — instead of the full
@@ -792,7 +811,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.4.3")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.0")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.

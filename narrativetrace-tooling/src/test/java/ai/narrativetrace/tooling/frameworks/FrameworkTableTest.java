@@ -27,12 +27,12 @@ import org.junit.jupiter.api.Test;
 class FrameworkTableTest {
 
   /**
-   * The rows Java starts Phase 6 with, in their published order. The ids are stable — they name a
-   * row in the doctor's fix lines and in the ports' own tables — so a reorder or a rename is a
-   * contract change and has to edit this list.
+   * The rows Java starts Phase 6 with, in their published order, plus the rows appended since
+   * (TestNG, 2026-10-23). The ids are stable — they name a row in the doctor's fix lines and in the
+   * ports' own tables — so a reorder or a rename is a contract change and has to edit this list.
    */
   @Test
-  void listsTheNineRowsInTheirPublishedOrder() {
+  void listsTheTenRowsInTheirPublishedOrder() {
     assertThat(FrameworkTable.ROWS)
         .extracting(FrameworkRow::id)
         .containsExactly(
@@ -44,7 +44,8 @@ class FrameworkTableTest {
             "micrometer",
             "opentelemetry",
             "default-logger",
-            "agent");
+            "agent",
+            "testng");
   }
 
   /** A deferral names a row that exists; a typo would make the row silently never stand down. */

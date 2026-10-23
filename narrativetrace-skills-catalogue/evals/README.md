@@ -86,7 +86,11 @@ evals/
 │   │   ├── case.json
 │   │   ├── prompt.md
 │   │   └── graders/verify.sh
-│   └── deviation-junit4-class-rule/
+│   ├── deviation-junit4-class-rule/
+│   │   ├── case.json
+│   │   ├── prompt.md
+│   │   └── graders/verify.sh
+│   └── deviation-testng-listener/
 │       ├── case.json
 │       ├── prompt.md
 │       └── graders/verify.sh
@@ -690,6 +694,7 @@ NARRATIVETRACE_TEST_REPO="$PWD" java -cp narrativetrace-skills-catalogue/build/c
   --agent-command 'claude -p "{prompt}" --model claude-haiku-5-5 --allowed-tools "Bash,Read,Edit,Write,Glob,Grep,Skill" --append-system-prompt "Work only in the current project directory. Treat included builds as read-only dependencies." --no-session-persistence --strict-mcp-config'
 # Repeat with --case deviation-output-disabled to exercise test-output repair.
 # Repeat with --case deviation-junit4-class-rule for missing JUnit 4 aggregate reports.
+# Repeat with --case deviation-testng-listener for a TestNG suite (listener attaches itself).
 ```
 
 The happy case verifies agent-created scan reports, then reproduces them from clean. The

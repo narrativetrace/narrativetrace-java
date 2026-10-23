@@ -26,6 +26,8 @@ import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
 import ai.narrativetrace.core.output.ArtifactIdentity;
 import ai.narrativetrace.core.output.NarrativeApproval;
 import ai.narrativetrace.core.output.RunIdentity;
+import ai.narrativetrace.core.output.RunIndex;
+import ai.narrativetrace.core.output.RunPointers;
 import ai.narrativetrace.core.output.ScenarioDelta;
 import ai.narrativetrace.core.output.ScenarioFramer;
 import ai.narrativetrace.core.output.ScenarioManifest;
@@ -34,6 +36,7 @@ import ai.narrativetrace.core.output.TraceFileWriter;
 import ai.narrativetrace.core.output.TraceTestSupport;
 import ai.narrativetrace.core.pipeline.EventPipeline;
 import ai.narrativetrace.core.pipeline.PipelineBootstrap;
+import ai.narrativetrace.core.render.ExceptionMessage;
 import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.core.spi.ExtensionRegistry;
 import ai.narrativetrace.diagrams.SequenceDiagramRenderers;
@@ -72,6 +75,13 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *       run's {@code manifest.json}, the scenario → file index over every artifact written
  *   <li><strong>ParameterResolver:</strong> injects {@link NarrativeContext} into test methods
  * </ul>
+ *
+ * <p><b>@llmNote</b> A failing test says where its trace is: right under the failure report, one
+ * line on <em>standard error</em> — {@code narrativetrace: trace of <Class.method> → <absolute
+ * path>} — and the run footer repeats those lines for every failing test, failing tests first, one
+ * per line, before the summary. Gradle hides test output unless {@code testLogging {
+ * showStandardStreams = true }} is set (the lines are still in the test report's {@code
+ * system-err}); Maven surefire prints them.
  *
  * <p><b>@llmNote</b> Output is on by default: every test writes its artifacts to the ephemeral
  * {@code build/narrativetrace} directory with no configuration at all. Set {@code
@@ -319,10 +329,12 @@ public class NarrativeTraceExtension
       try {
         writeClarityFiles(extension, suiteIssues);
         ScenarioManifest.write(manifestRows, outputDir, runIdentity);
+        RunIndex.write(manifestRows, outputDir);
       } catch (IOException e) {
         System.err.println("Failed to write clarity report: " + e.getMessage());
       }
       runReportContributors();
+      RunPointers.printFailingFirst(manifestRows, outputDir, System.out);
       printConsoleSummary();
     }
 
@@ -536,13 +548,19 @@ public class NarrativeTraceExtension
 
     // Output before the report so the failure report can speak in terms of the structural delta the
     // write computed — and so the report is the last (most visible) block in the console.
-    Optional<ScenarioDelta> delta = Optional.empty();
-    if (outputEnabled(extensionContext)) {
-      delta =
-          writeOutputAndAccumulate(
-              extensionContext, displayName, trace, failed || rejection.isPresent());
-    }
-    handleAfterTest(displayName, failed, trace, delta, System.out);
+    var written =
+        outputEnabled(extensionContext)
+            ? writeOutputAndAccumulate(
+                extensionContext,
+                displayName,
+                trace,
+                failed || rejection.isPresent(),
+                extensionContext
+                    .getExecutionException()
+                    .or(() -> rejection.map(Throwable.class::cast)))
+            : Written.NOTHING;
+    handleAfterTest(displayName, failed, trace, written.delta(), System.out);
+    printTracePointer(written.row(), outputDirectory(extensionContext));
     if (rejection.isPresent()) {
       throw rejection.get();
     }
@@ -605,10 +623,34 @@ public class NarrativeTraceExtension
     }
   }
 
-  private Optional<ScenarioDelta> writeOutputAndAccumulate(
-      ExtensionContext extensionContext, String displayName, TraceTree trace, boolean failed) {
-    var outputDir =
-        Path.of(configParam(extensionContext, "narrativetrace.outputDir", "build/narrativetrace"));
+  /** What writing one test's artifacts produced: its structural delta and its manifest row. */
+  private record Written(Optional<ScenarioDelta> delta, Optional<ScenarioManifest.Entry> row) {
+    static final Written NOTHING = new Written(Optional.empty(), Optional.empty());
+  }
+
+  /**
+   * Under a failing test's report, on standard error: where its trace file is. Printed after the
+   * failure report so it is the last thing under the failure — the agent that ran the test reads
+   * the console, not the output directory.
+   */
+  private static void printTracePointer(Optional<ScenarioManifest.Entry> row, Path outputDir) {
+    row.filter(ScenarioManifest.Entry::failed)
+        .flatMap(entry -> RunPointers.pointerLine(entry, outputDir))
+        .ifPresent(System.err::println);
+  }
+
+  private static Path outputDirectory(ExtensionContext extensionContext) {
+    return Path.of(
+        configParam(extensionContext, "narrativetrace.outputDir", "build/narrativetrace"));
+  }
+
+  private Written writeOutputAndAccumulate(
+      ExtensionContext extensionContext,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Optional<Throwable> failure) {
+    var outputDir = outputDirectory(extensionContext);
     var format = configParam(extensionContext, "narrativetrace.format", "markdown");
     var identity = artifactIdentity(extensionContext);
     Optional<ScenarioDelta> delta = Optional.empty();
@@ -635,8 +677,10 @@ public class NarrativeTraceExtension
     } catch (IOException e) {
       System.err.println("Failed to write trace file: " + e.getMessage());
     }
-    accumulateScenario(extensionContext, identity, displayName, trace, outputDir);
-    return delta;
+    var row =
+        accumulateScenario(
+            extensionContext, identity, displayName, trace, outputDir, failed, failure);
+    return new Written(delta, row);
   }
 
   /**
@@ -676,14 +720,16 @@ public class NarrativeTraceExtension
   }
 
   /** Records the scenario's trace for the suite report and its files for the run manifest. */
-  private static void accumulateScenario(
+  private static Optional<ScenarioManifest.Entry> accumulateScenario(
       ExtensionContext extensionContext,
       ArtifactIdentity identity,
       String displayName,
       TraceTree trace,
-      Path outputDir) {
+      Path outputDir,
+      boolean failed,
+      Optional<Throwable> failure) {
     if (trace.isEmpty()) {
-      return;
+      return Optional.empty();
     }
     var scenario = ScenarioFramer.humanize(displayName);
     var classStore = classContext(extensionContext).getStore(NAMESPACE);
@@ -693,8 +739,15 @@ public class NarrativeTraceExtension
             classStore.getOrComputeIfAbsent(
                 TRACES_KEY, k -> new LinkedHashMap<String, TraceTree>(), Map.class);
     accumulated.put(scenario, trace);
-    accumulator(extensionContext)
-        .recordArtifacts(ScenarioManifest.entryFor(outputDir, identity, scenario));
+    var row =
+        ScenarioManifest.entryFor(
+            outputDir,
+            identity,
+            scenario,
+            failed ? ScenarioManifest.Entry.FAILED : ScenarioManifest.Entry.PASSED,
+            failed ? failure.map(ExceptionMessage::of).orElse(null) : null);
+    accumulator(extensionContext).recordArtifacts(row);
+    return Optional.of(row);
   }
 
   /**
