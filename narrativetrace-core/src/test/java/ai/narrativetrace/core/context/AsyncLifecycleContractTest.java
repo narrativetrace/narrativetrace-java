@@ -83,7 +83,7 @@ class AsyncLifecycleContractTest {
     assertThat(context.captureTrace().roots())
         .as("the worker calls were adopted, so the request reported them")
         .hasSize(1);
-    assertThat(context.retainedSpanCount()).isEqualTo(WORKERS + 1);
+    assertThat(retainedSpans()).isEqualTo(WORKERS + 1);
 
     context.reset();
     pipeline.flush();
@@ -140,7 +140,7 @@ class AsyncLifecycleContractTest {
     assertThat(context.traceLoss().refusedSpans())
         .as("one batch fits under the cap of one; the rest are refused")
         .isEqualTo(WORKERS - 1L);
-    assertThat(context.retainedSpanCount())
+    assertThat(retainedSpans())
         .as("a refused batch is missing from the narrative, so it is not kept in memory")
         .isEqualTo(2);
   }
@@ -165,7 +165,7 @@ class AsyncLifecycleContractTest {
     assertThat(context.captureTrace().roots().get(0).children())
         .as("the merged narrative is the deliverable, and it is unchanged")
         .hasSize(WORKERS);
-    assertThat(context.retainedSpanCount())
+    assertThat(retainedSpans())
         .as("the request's own spans: the root and one re-emitted node per worker, no raw ones")
         .isEqualTo(WORKERS + 1);
 
@@ -196,7 +196,7 @@ class AsyncLifecycleContractTest {
     assertThat(group.childRoots())
         .as("the copied child roots are the deliverable, and they are unchanged")
         .hasSize(WORKERS);
-    assertThat(context.retainedSpanCount())
+    assertThat(retainedSpans())
         .as("the request's own spans: the root and the launcher node, no raw worker ones")
         .isEqualTo(2);
 
@@ -232,6 +232,18 @@ class AsyncLifecycleContractTest {
     return pipeline.events().stream()
         .filter(event -> ai.narrativetrace.api.event.TraceEvent.spanIdOf(event) != null)
         .toList();
+  }
+
+  /**
+   * Spans the request still retains, counted in the store: since B-211 a span's context leaves the
+   * context's map when the span exits, so the finished work a request holds until its reset is the
+   * events it can still report.
+   */
+  private long retainedSpans() {
+    return spanCarryingEvents().stream()
+        .map(ai.narrativetrace.api.event.TraceEvent::spanIdOf)
+        .distinct()
+        .count();
   }
 
   private static MethodSignature signature(String type, String method) {

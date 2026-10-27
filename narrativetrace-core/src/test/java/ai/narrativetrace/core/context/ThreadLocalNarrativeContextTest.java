@@ -1678,6 +1678,9 @@ class ThreadLocalNarrativeContextTest {
     var context = new ThreadLocalNarrativeContext();
     var first = new MethodSignature("OrderService", "placeOrder", List.of());
     var second = new MethodSignature("PaymentService", "charge", List.of());
+    // A claimed thread is one story between resets. A thread nothing claims starts a new trace,
+    // and so a new story, at each root (B-211) — pinned in UnownedSpanReleaseTest.
+    context.reset();
 
     context.enterMethod(first);
     context.exitMethodWithReturn(null);

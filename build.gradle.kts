@@ -57,6 +57,7 @@ val publishedModules = subprojects.filter { sub ->
         "narrativetrace-agent-example",
         "narrativetrace-jcstress",
         "narrativetrace-security-tests",
+        "narrativetrace-concurrency-tests",
         // The typed catalogue, its renderers, lints and evals: the SOURCE the published
         // narrativetrace-skills carrier jar is rendered from, consumed by nothing outside this
         // repository. See narrativetrace-skills-catalogue/build.gradle.kts.
@@ -559,6 +560,9 @@ val mutationExemptModules: Map<String, String> = mapOf(
     "narrativetrace-security-tests" to
         "corpus-replay test suite (src/test only, zero src/main) — is itself a test suite; " +
             "mutating tests tests nothing",
+    "narrativetrace-concurrency-tests" to
+        "end-to-end multithreading matrix (src/test only, zero src/main) — is itself a test " +
+            "suite; mutating tests tests nothing",
     "narrativetrace-gradle-plugin" to
         "build-time plugin, proven by its own src/functionalTest GradleTestKit executions; " +
             "DEFERRED — candidate for a later increment",
@@ -1241,6 +1245,7 @@ val jdependExcludedModules = setOf(
     "narrativetrace-benchmarks",
     "narrativetrace-build-tests",
     "narrativetrace-security-tests",
+    "narrativetrace-concurrency-tests",
     "narrativetrace-skills",
     "narrativetrace-jcstress",
     "narrativetrace-micronaut",
@@ -1493,7 +1498,7 @@ subprojects {
     // proven by the compose-orchestrated k6 smoke/two-hour run against real HTTP/JDBC, not by a
     // 98% unit-line floor on controller/JDBC glue — see mutationExemptModules' narrativetrace-soak
     // entry for the same reasoning applied to mutation testing.
-    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds", "recipes-checkout", "shop", "notify")) {
+    if (name !in setOf("narrativetrace-benchmarks", "narrativetrace-build-tests", "narrativetrace-security-tests", "narrativetrace-concurrency-tests", "narrativetrace-gradle-plugin", "narrativetrace-jcstress", "sixty-seconds", "recipes-checkout", "shop", "notify")) {
         tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
             dependsOn(tasks.named("test"))
             val threshold = if (project.name == "narrativetrace-agent") "0.97" else "0.98"

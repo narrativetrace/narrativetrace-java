@@ -41,6 +41,8 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation(project(":narrativetrace-slf4j"))
+    testImplementation(project(":narrativetrace-micrometer"))
+    testImplementation("io.micrometer:context-propagation:1.1.2")
     testImplementation("org.slf4j:slf4j-api:2.0.16")
     testImplementation("ch.qos.logback:logback-classic:1.5.38")
     testImplementation(testFixtures(project(":narrativetrace-core")))

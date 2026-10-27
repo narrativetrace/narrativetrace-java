@@ -86,6 +86,15 @@ import java.util.function.Supplier;
  * concurrent requests. A thread that holds no stack has nothing to clear, and {@code reset()} does
  * nothing for it.
  *
+ * <p><b>@sideEffects</b> A thread whose stack nothing owns — no {@code reset()}, capture, request
+ * metadata or traceparent has ever claimed it, and it is not a snapshot or request scope's stack
+ * (an unwrapped pool worker, a raw thread, the agent on a batch job) — has its spans released in
+ * bounded batches (B-211): each root it finishes is queued, the next root starts a fresh trace, and
+ * once more than 10 000 such spans are queued process-wide the oldest are removed from the maps,
+ * the thread's own set and the event store, and counted as refused on that thread's stack. The
+ * latest root of a live thread is never released, so a thread that captures before it ever claimed
+ * still sees its last root whole.
+ *
  * <p><b>@llmNote</b> Snapshot activation creates a fresh child stack that inherits the trace id and
  * the <em>effective</em> parent span id (scoped parent &rarr; active top-of-stack &rarr; snapshot
  * parent). It does not share the active frame list with the originating thread. This ensures that a
@@ -170,6 +179,37 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   private final ThreadLocal<TraceStack> stackHolder = new ThreadLocal<>();
 
   /**
+   * How many spans of finished roots on unowned stacks may wait for a capture that will probably
+   * never come, process-wide, before the oldest are released (B-211).
+   *
+   * <p>The figure is the adoption cap's, for the same reason: it bounds the thread that never
+   * resets. A release pass brings the queue down to half of it, so the store scan that removes the
+   * released events is paid once per that many spans, not once per root.
+   */
+  static final int DEFAULT_UNOWNED_SPAN_LIMIT = 10_000;
+
+  private final int unownedSpanLimit;
+
+  /**
+   * Threads a capture-facing call has claimed, remembered across {@link #reset()} — which removes
+   * the stack, and is exactly the call the test integrations and the servlet filter make before a
+   * thread's stack exists. A stack created on a claimed thread is owned from birth.
+   */
+  private final ThreadLocal<Boolean> claimedThreads = new ThreadLocal<>();
+
+  /** Finished roots of unowned stacks, oldest first. Guarded by itself. */
+  private final ArrayDeque<UnownedSegment> unownedSegments = new ArrayDeque<>();
+
+  /** Spans in {@link #unownedSegments}. Guarded by {@code unownedSegments}. */
+  private long queuedUnownedSpans;
+
+  /**
+   * One finished root of an unowned stack: the spans it pushed, the stack that knows them and the
+   * thread that ran it — a live thread's latest root is never released, a dead one's is.
+   */
+  record UnownedSegment(TraceStack stack, Thread thread, List<SpanId> spanIds) {}
+
+  /**
    * Creates a context with the default configuration, {@link TracingLevel#DETAIL}.
    *
    * @deprecated builds a pipeline the caller never sees and therefore can never {@code close()} —
@@ -222,9 +262,21 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   public ThreadLocalNarrativeContext(
       NarrativeTraceConfig config, EventPipeline pipeline, ServiceIdentity serviceIdentity) {
+    this(config, pipeline, serviceIdentity, 0);
+  }
+
+  /**
+   * Test seam: the unowned-retention limit is a boundary, reachable in a unit test by lowering it.
+   */
+  ThreadLocalNarrativeContext(
+      NarrativeTraceConfig config,
+      EventPipeline pipeline,
+      ServiceIdentity serviceIdentity,
+      int unownedSpanLimit) {
     this.config = config;
     this.pipeline = pipeline;
     this.serviceIdentity = serviceIdentity;
+    this.unownedSpanLimit = unownedSpanLimit > 0 ? unownedSpanLimit : DEFAULT_UNOWNED_SPAN_LIMIT;
   }
 
   /**
@@ -250,9 +302,34 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     var stack = stackHolder.get();
     if (stack == null) {
       stack = new TraceStack();
+      if (claimedThreads.get() != null) {
+        stack.claim();
+      }
       stackHolder.set(stack);
     }
     return stack;
+  }
+
+  /**
+   * Records that the calling thread's trace has an owner — something that captures or resets it —
+   * so its spans are kept until that owner says otherwise, exactly as before B-211.
+   *
+   * <p><b>@edgeCase</b> Inside a snapshot or request scope the current stack is that scope's, which
+   * is owned already; the call is about the scope, not the thread, so the thread is not claimed. A
+   * pool worker that runs a {@link ForkGroup} task (whose collect step lands here) stays unowned
+   * for the unwrapped work it runs afterwards.
+   */
+  private void claimThread() {
+    var stack = stackHolder.get();
+    if (stack != null && !stack.isThreadBase()) {
+      return;
+    }
+    if (claimedThreads.get() == null) {
+      claimedThreads.set(Boolean.TRUE);
+    }
+    if (stack != null) {
+      stack.claim();
+    }
   }
 
   @Override
@@ -284,6 +361,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       signature = suppressParameterValues(signature);
     }
     var stack = stack();
+    stack.startFreshTraceIfPending();
     SpanId parentSpanId = resolveParentSpanId(stack);
     if (parentSpanId == null) {
       stack.deriveStoryIdIfAbsent(signature.className(), signature.methodName());
@@ -343,18 +421,26 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * call this on the recording thread (or after grafting) for cross-thread flows.
    */
   List<TraceEvent> events() {
+    claimThread();
     drainPublishedEvents();
     return reportableEvents();
   }
 
   /**
    * Package-private test seam: how many span contexts this context is still holding, across every
-   * thread. Retention is invisible from the public surface — {@link #captureTrace()} filters to the
-   * calling thread — so the async end-of-life contract has no other way to assert that a finished
-   * request left nothing behind.
+   * thread — since B-211 only spans that have not exited, because nothing reads a context after its
+   * exit is published. Retention is invisible from the public surface — {@link #captureTrace()}
+   * filters to the calling thread — so the end-of-life contracts have no other way to assert that
+   * finished work left nothing behind.
    */
   int retainedSpanCount() {
     return spanContextMap.size();
+  }
+
+  /** Package-private test seam: how many spans the calling thread's stack itself still knows. */
+  int knownSpanCount() {
+    var stack = stackHolder.get();
+    return stack == null ? 0 : stack.knownSpanIds.size();
   }
 
   /**
@@ -480,7 +566,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     var traceStack = stack();
     if (traceStack.isEmpty()) return;
     SpanId spanId = traceStack.popActive();
-    var spanContext = spanContextMap.get(spanId);
+    var spanContext = spanContextMap.remove(spanId);
     pipeline.publish(
         new TraceEvent.ExitEvent(
             spanContext,
@@ -488,6 +574,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
             new TraceOutcome.Returned(renderedReturnValue),
             null,
             spanSignatureMap.remove(spanId)));
+    releaseIfUnownedRootEnded(traceStack);
   }
 
   @Override
@@ -497,7 +584,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       return;
     }
     appendExitEvent(spanId, new TraceOutcome.Returned(renderedReturnValue), null);
-    stack().detach(spanId);
+    detachAndRelease(spanId);
   }
 
   @Override
@@ -507,7 +594,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       var traceStack = stack();
       if (traceStack.isEmpty()) return;
       SpanId popped = traceStack.popActive();
-      var spanContext = spanContextMap.get(popped);
+      var spanContext = spanContextMap.remove(popped);
       pipeline.publish(
           new TraceEvent.ExitEvent(
               spanContext,
@@ -515,11 +602,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
               new TraceOutcome.Returned(renderedReturnValue, structuredReturnValue),
               null,
               spanSignatureMap.remove(popped)));
+      releaseIfUnownedRootEnded(traceStack);
       return;
     }
     appendExitEvent(
         spanId, new TraceOutcome.Returned(renderedReturnValue, structuredReturnValue), null);
-    stack().detach(spanId);
+    detachAndRelease(spanId);
   }
 
   @Override
@@ -527,7 +615,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     var traceStack = stack();
     if (traceStack.isEmpty()) return;
     SpanId spanId = traceStack.popActive();
-    var spanContext = spanContextMap.get(spanId);
+    var spanContext = spanContextMap.remove(spanId);
     pipeline.publish(
         new TraceEvent.ExitEvent(
             spanContext,
@@ -535,6 +623,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
             new TraceOutcome.Threw(exception),
             errorContext,
             spanSignatureMap.remove(spanId)));
+    releaseIfUnownedRootEnded(traceStack);
   }
 
   @Override
@@ -544,11 +633,111 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       return;
     }
     appendExitEvent(spanId, new TraceOutcome.Threw(exception), errorContext);
-    stack().detach(spanId);
+    detachAndRelease(spanId);
+  }
+
+  /**
+   * Keeps the current trace going when an unowned stack had armed a fresh one: the caller is asking
+   * for the identity of the work at hand — an MDC value, a propagation header, a snapshot whose
+   * workers belong with the root that just ended — so it gets the trace it is in, and the next root
+   * continues that same trace instead of starting another. A thread that wants a fresh trace per
+   * unit of work claims its owner with {@link #reset()} between them, as the integrations do.
+   */
+  private static void continuePendingTrace(TraceStack stack) {
+    stack.cancelFreshTrace();
+  }
+
+  private void detachAndRelease(SpanId spanId) {
+    var traceStack = stack();
+    traceStack.detach(spanId);
+    releaseIfUnownedRootEnded(traceStack);
+  }
+
+  /**
+   * Queues the root that just ended on an unowned stack for release, and releases the oldest queued
+   * roots once the limit is crossed (B-211).
+   *
+   * <p>INTENT: Nothing will ever capture an unowned stack's spans unless its thread later calls
+   * {@link #captureTrace()} itself, and nothing ever resets it — so without this, every span such a
+   * thread traced stayed in its known set and, once anything flushed, in the event store, for the
+   * life of the process. Releasing at root exit would break the basic usage of calling traced code
+   * and capturing afterwards on a thread that has not claimed yet, so the release is bounded rather
+   * than immediate: roots wait in a process-wide queue and only the oldest leave.
+   *
+   * <p><b>@edgeCase</b> "Root ended" means the active stack is empty and no scoped parent is open:
+   * the agent restores the scope before it exits, and the proxy exits after its scoped call has
+   * returned, so both reach here with no scope; a detached async root keeps its span open and is
+   * queued with the next root that ends on this stack.
+   */
+  private void releaseIfUnownedRootEnded(TraceStack stack) {
+    if (stack.isOwned() || !stack.isEmpty() || stack.scopedParentSpanId() != null) {
+      return;
+    }
+    var spans = stack.sealSegment();
+    if (spans.isEmpty()) {
+      return;
+    }
+    var segment = new UnownedSegment(stack, Thread.currentThread(), spans);
+    stack.setLatestSegment(segment);
+    List<UnownedSegment> released = null;
+    synchronized (unownedSegments) {
+      unownedSegments.addLast(segment);
+      queuedUnownedSpans += spans.size();
+      if (queuedUnownedSpans > unownedSpanLimit) {
+        released = takeReleasableSegments();
+      }
+    }
+    if (released != null) {
+      release(released);
+    }
+  }
+
+  /**
+   * Takes the oldest queued roots off the queue until half the limit is left. Called under the
+   * queue's lock.
+   *
+   * <p>Skipped and dropped from the queue: a root whose stack has since been claimed (its owner now
+   * keeps it until its reset) or closed (its reset already discarded it). Skipped and kept: the
+   * latest root of a stack whose thread is alive.
+   */
+  @SuppressWarnings("PMD.CompareObjectsWithEquals") // identity is the point: the very segment
+  private List<UnownedSegment> takeReleasableSegments() {
+    var target = unownedSpanLimit / 2;
+    var released = new ArrayList<UnownedSegment>();
+    var it = unownedSegments.iterator();
+    while (queuedUnownedSpans > target && it.hasNext()) {
+      var segment = it.next();
+      var stack = segment.stack();
+      if (!stack.isOwned() && !stack.isClosed()) {
+        if (stack.latestSegment() == segment && segment.thread().isAlive()) {
+          continue;
+        }
+        released.add(segment);
+      }
+      it.remove();
+      queuedUnownedSpans -= segment.spanIds().size();
+    }
+    return released;
+  }
+
+  /**
+   * Removes the released roots' spans from their stacks, the maps and the store, in one discard so
+   * the store is scanned once per pass. Each stack counts what it can no longer report as refused,
+   * so a thread that does capture later is told what it is missing — and no other thread is.
+   */
+  private void release(List<UnownedSegment> released) {
+    var spanIds = new HashSet<SpanId>();
+    for (var segment : released) {
+      var evicted = segment.stack().evict(segment.spanIds());
+      if (evicted != null) {
+        spanIds.addAll(evicted);
+      }
+    }
+    discardSpans(spanIds);
   }
 
   private void appendExitEvent(SpanId spanId, TraceOutcome outcome, String errorContext) {
-    var spanContext = spanContextMap.get(spanId);
+    var spanContext = spanContextMap.remove(spanId);
     if (spanContext == null) {
       return;
     }
@@ -653,9 +842,13 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
   private void enterEmittedNode(TraceNode node, SpanId rootParentSpanId, Deque<SpanContext> chain) {
     var stack = stack();
+    if (chain.isEmpty()) {
+      stack.startFreshTraceIfPending();
+    }
     var parentSpanId = chain.isEmpty() ? rootParentSpanId : chain.peek().spanId();
+    // The context lives in the chain until its exit is published; the shared map would only hold
+    // it after that, where nothing reads it (B-211).
     var spanContext = createSpanContext(stack, parentSpanId);
-    spanContextMap.put(spanContext.spanId(), spanContext);
     // Grafted nodes were executed on their original thread; ConcurrencyInfo recorded it there.
     // Capturing the emitting thread here would misattribute the work.
     var enter =
@@ -721,6 +914,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   @Override
   public TraceTree captureTrace() {
+    claimThread();
     drainPublishedEvents();
     if (!isActive()) {
       return TraceTreeBuilder.build(List.of(), config.level(), assignedTraceId(), TraceLoss.none());
@@ -787,6 +981,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
   @Override
   public TraceLoss traceLoss() {
+    claimThread();
     var stack = stack();
     // Exhausted collects join the adoption cap's refusals: both are whole async subtrees absent
     // from the tree, and the reader asking "is my narrative complete?" needs their sum.
@@ -823,6 +1018,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   @Override
   public TraceTree collectLocalTrace() {
+    claimThread();
     drainPublishedEvents();
     var tree = collectableTree();
     discardLocalTrace();
@@ -878,6 +1074,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   @Override
   public void discardLocalTrace() {
+    claimThread();
     var stack = stackHolder.get();
     if (stack == null) {
       return;
@@ -887,12 +1084,14 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
   @Override
   public void setRequestContext(String httpMethod, HttpRoute httpRoute, ClientIp clientIp) {
+    claimThread();
     var stack = stack();
     stack.setMetadata(stack.metadata().withRequest(httpMethod, httpRoute, clientIp));
   }
 
   @Override
   public void setUserContext(EnduserId enduserId, SessionId sessionId, TenantId tenantId) {
+    claimThread();
     var stack = stack();
     stack.setMetadata(stack.metadata().withUser(enduserId, sessionId, tenantId));
   }
@@ -902,6 +1101,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     if (traceparent == null) {
       return;
     }
+    claimThread();
     var stack = stack();
     stack.setTraceId(traceparent.traceId());
     stack.setRemoteParentSpanId(traceparent.parentSpanId());
@@ -911,6 +1111,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public Traceparent outboundTraceparent() {
     var stack = stack();
+    continuePendingTrace(stack);
     TraceId traceId = stack.traceId();
     SpanId parentSpanId = resolveParentSpanId(stack);
     if (traceId == null || parentSpanId == null) {
@@ -922,6 +1123,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public TraceId traceId() {
     var stack = stack();
+    continuePendingTrace(stack);
     TraceId id = stack.traceId();
     if (id == null) {
       id = SpanIdGenerator.traceId();
@@ -963,6 +1165,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    */
   @Override
   public void reset() {
+    claimThread();
     var stack = stackHolder.get();
     if (stack == null) {
       return;
@@ -1012,6 +1215,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public ContextSnapshot snapshot() {
     var stack = stack();
+    continuePendingTrace(stack);
     return new ThreadLocalContextSnapshot(
         this, stack.traceId(), resolveParentSpanId(stack), stack.metadata(), stack);
   }
@@ -1028,6 +1232,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public RequestScope openRequestScope() {
     var requestStack = new TraceStack();
+    requestStack.markScopeOwned();
     return new RequestScope() {
       private final AtomicBoolean ended = new AtomicBoolean();
 
@@ -1105,6 +1310,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     private ContextScope activate(boolean adopt) {
       var childStack = new TraceStack();
       childStack.markFromSnapshot();
+      childStack.markScopeOwned();
       if (traceId != null) {
         childStack.setTraceId(traceId);
       }
@@ -1298,6 +1504,25 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      */
     private volatile boolean closed;
 
+    /**
+     * Whether something will capture or reset this stack: a snapshot or request scope's stack from
+     * birth, a thread's own stack once a capture-facing call has claimed the thread (B-211).
+     * Volatile because the release pass reads it from whichever thread ended a root.
+     */
+    private volatile boolean owned;
+
+    /** False for a snapshot or request scope's stack; true for the one a thread creates itself. */
+    private boolean threadBase = true;
+
+    /** Spans pushed since this unowned stack's last root ended. Owner thread only. */
+    private List<SpanId> openSegment = List.of();
+
+    /** Whether this unowned stack's next root starts a new trace. Owner thread only. */
+    private boolean freshTracePending;
+
+    /** The last root this stack queued for release, which a live thread keeps. */
+    private volatile UnownedSegment latestSegment;
+
     private TraceId traceId;
     private TraceAnchor traceAnchor;
     private int traceFlags = SAMPLED;
@@ -1435,6 +1660,95 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      */
     void close() {
       closed = true;
+    }
+
+    /** Owned from birth: the stack a snapshot or request scope creates and ends itself. */
+    void markScopeOwned() {
+      owned = true;
+      threadBase = false;
+    }
+
+    /** Owned from now on: the thread has a capturing owner; nothing queued here is released. */
+    void claim() {
+      owned = true;
+      openSegment = List.of();
+      freshTracePending = false;
+    }
+
+    boolean isOwned() {
+      return owned;
+    }
+
+    boolean isThreadBase() {
+      return threadBase;
+    }
+
+    /**
+     * Ends the current root's segment and arms a fresh trace for the next root.
+     *
+     * @return the spans pushed since the last root ended, empty when there were none
+     */
+    List<SpanId> sealSegment() {
+      var segment = openSegment;
+      if (segment.isEmpty()) {
+        return segment;
+      }
+      openSegment = List.of();
+      freshTracePending = true;
+      return segment;
+    }
+
+    /**
+     * Starts a new trace when the previous root on this unowned stack has ended: a fresh trace id,
+     * anchor and story, so a pooled thread never stamps one request's identity on the next.
+     */
+    @SuppressWarnings("PMD.NullAssignment") // absent is this state's meaning: a fresh stack's
+    boolean startFreshTraceIfPending() {
+      if (!freshTracePending) {
+        return false;
+      }
+      freshTracePending = false;
+      traceId = null;
+      traceAnchor = null;
+      storyId = null;
+      chapterId = null;
+      return true;
+    }
+
+    /** Disarms the fresh trace the last root ended with: the current trace continues. */
+    void cancelFreshTrace() {
+      freshTracePending = false;
+    }
+
+    UnownedSegment latestSegment() {
+      return latestSegment;
+    }
+
+    void setLatestSegment(UnownedSegment segment) {
+      latestSegment = segment;
+    }
+
+    /**
+     * Forgets a released root's spans, and the spans adopted so far, counting both as refused.
+     * Called from whichever thread ran the release pass.
+     *
+     * @return every span id forgotten, or {@code null} when the stack was claimed meanwhile — its
+     *     owner keeps it then
+     */
+    synchronized Set<SpanId> evict(List<SpanId> spanIds) {
+      if (owned) {
+        return null;
+      }
+      var forgotten = new HashSet<>(spanIds);
+      var adopted = adoptedSpanIds;
+      if (adopted != null) {
+        forgotten.addAll(adopted);
+        adopted.clear();
+      }
+      knownSpanIds.removeAll(spanIds);
+      refusedScopes.incrementAndGet();
+      refusedSpans.addAndGet(forgotten.size());
+      return forgotten;
     }
 
     /** Whether {@link #close()} has run, i.e. the owning request has ended. */
@@ -1618,6 +1932,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
       activeStack.add(spanId);
       knownSpanIds.add(spanId);
+      if (!owned) {
+        if (openSegment.isEmpty()) {
+          openSegment = new ArrayList<>();
+        }
+        openSegment.add(spanId);
+      }
 
       assert activeStack.size() == oldSize + 1
           : "Postcondition: activeStack size must increase by one after pushActive()";
