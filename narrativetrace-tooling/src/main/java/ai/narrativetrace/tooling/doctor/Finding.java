@@ -39,9 +39,14 @@ package ai.narrativetrace.tooling.doctor;
 public record Finding(
     String id, Status status, String message, String fix, String docUrl, String skill) {
 
-  /** Whether a check passed or failed. There is no third state: the doctor never guesses. */
+  /**
+   * Whether a check passed, failed, or found something that does not break the build but will not
+   * do what the project's settings say. A {@code WARN} carries a fix like a failure and leaves the
+   * exit code at zero; the doctor still never guesses.
+   */
   public enum Status {
     PASS,
+    WARN,
     FAIL
   }
 
@@ -58,8 +63,8 @@ public record Finding(
     if (docUrl == null || !docUrl.startsWith("https://")) {
       throw new IllegalArgumentException("a finding's docUrl must be an absolute https:// URL");
     }
-    if (status == Status.FAIL && (fix == null || fix.isBlank())) {
-      throw new IllegalArgumentException("a failing finding must carry a non-blank fix");
+    if (status != Status.PASS && (fix == null || fix.isBlank())) {
+      throw new IllegalArgumentException("a failing or warning finding must carry a non-blank fix");
     }
     if (status == Status.PASS && fix == null) {
       fix = "";
@@ -80,11 +85,21 @@ public record Finding(
     return status == Status.FAIL;
   }
 
+  /** True when {@link #status()} is {@link Status#WARN}. */
+  public boolean isWarning() {
+    return status == Status.WARN;
+  }
+
   public static Finding pass(String id, String message, String docUrl) {
     return new Finding(id, Status.PASS, message, "", docUrl);
   }
 
   public static Finding fail(String id, String message, String fix, String docUrl) {
     return new Finding(id, Status.FAIL, message, fix, docUrl);
+  }
+
+  /** A finding that leaves the exit code alone but names a setting that will not take effect. */
+  public static Finding warn(String id, String message, String fix, String docUrl) {
+    return new Finding(id, Status.WARN, message, fix, docUrl);
   }
 }

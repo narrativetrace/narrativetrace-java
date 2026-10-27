@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -76,6 +75,9 @@ public final class DoctorSnapshot {
   private static final Pattern NARRATIVETRACE_PLUGIN_VERSION =
       Pattern.compile(
           "[\"']ai\\.narrativetrace[\"']\\s*\\)?\\s*version\\s*\\(?\\s*[\"']([\\w.+\\-]+)[\"']");
+
+  /** How {@link #buildScripts()} labels the root build file. */
+  public static final String ROOT_BUILD_FILE_LABEL = "build.gradle(.kts)";
 
   private final String runningJavaVersion;
   private final Map<String, String> env;
@@ -195,13 +197,22 @@ public final class DoctorSnapshot {
    * inside a block comment, or after one on the same line, is not thrown.
    */
   public String buildScriptCode() {
-    return Stream.concat(
-            Stream.of(buildFileContent),
-            manifestFiles.entrySet().stream()
-                .filter(e -> e.getKey().endsWith(".gradle.kts") || e.getKey().endsWith(".gradle"))
-                .map(Map.Entry::getValue))
-        .map(JavaComments::strip)
-        .collect(Collectors.joining("\n"));
+    return String.join("\n", buildScripts().values());
+  }
+
+  /**
+   * {@link #buildScriptCode()} kept apart, by the file it came from: the root build file under the
+   * label {@code build.gradle(.kts)} (the snapshot does not record which of the two it read) and
+   * each Gradle module script under its project-relative path. For a check whose message must name
+   * the file.
+   */
+  public Map<String, String> buildScripts() {
+    Map<String, String> scripts = new java.util.LinkedHashMap<>();
+    scripts.put(ROOT_BUILD_FILE_LABEL, JavaComments.strip(buildFileContent));
+    manifestFiles.entrySet().stream()
+        .filter(e -> e.getKey().endsWith(".gradle.kts") || e.getKey().endsWith(".gradle"))
+        .forEach(e -> scripts.put(e.getKey(), JavaComments.strip(e.getValue())));
+    return scripts;
   }
 
   private static boolean isCommentOnly(String line) {

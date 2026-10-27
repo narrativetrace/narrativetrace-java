@@ -265,6 +265,11 @@ public class NarrativeTraceClassRule implements TestRule {
     };
   }
 
+  /** The agent bridge of the running class, for the per-test rule's deep scope. */
+  AgentContextBridge agentBridge() {
+    return agentBridge;
+  }
+
   /** Adopts the suite's context, and routes the agent into it if one is attached. */
   private void startContext() {
     var suite = SuiteContext.shared();

@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
 class DoctorChecksTest {
 
   @Test
-  void registersTwentyOneChecksWithStableUniqueIds() {
-    assertThat(DoctorChecks.ALL).hasSize(21);
+  void registersTwentyTwoChecksWithStableUniqueIds() {
+    assertThat(DoctorChecks.ALL).hasSize(22);
     Set<String> ids = new HashSet<>();
     for (var check : DoctorChecks.ALL) {
       Finding f = check.run(DoctorSnapshot.healthy());
@@ -44,7 +44,7 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.healthy());
     assertThat(report.exitCode()).isZero();
     assertThat(report.allPassed()).isTrue();
-    assertThat(report.findings()).hasSize(21).allMatch(f -> !f.isFailing());
+    assertThat(report.findings()).hasSize(22).allMatch(f -> !f.isFailing());
   }
 
   /**
@@ -58,7 +58,7 @@ class DoctorChecksTest {
     DoctorReport report = DoctorChecks.run(DoctorSnapshot.builder().build());
     assertThat(report.exitCode()).isZero();
     assertThat(report.failureCount()).isZero();
-    assertThat(report.findings()).hasSize(21);
+    assertThat(report.findings()).hasSize(22);
   }
 
   /**

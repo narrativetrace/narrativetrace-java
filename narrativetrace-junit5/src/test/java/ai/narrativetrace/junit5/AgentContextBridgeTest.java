@@ -63,4 +63,56 @@ class AgentContextBridgeTest {
 
     assertThat(captured.toString()).contains("could not route the agent's context");
   }
+
+  @Test
+  void anAgentThatPredatesTheDeepModeIsNotArmedAndDepthCallsAreHarmless() {
+    var bridge =
+        AgentContextBridge.attach(
+            new ThreadLocalNarrativeContext(), "ai.narrativetrace.junit5.LegacyAgentRuntime");
+
+    assertThat(bridge.deepArmed()).isFalse();
+    assertThat(bridge.endDeepScope()).isZero();
+  }
+
+  @Test
+  void aBridgeToNoAgentIsNeverArmed() {
+    var bridge = AgentContextBridge.attach(new ThreadLocalNarrativeContext(), "does.not.Exist");
+
+    assertThat(bridge.deepArmed()).isFalse();
+    assertThat(bridge.endDeepScope()).isZero();
+  }
+
+  @Test
+  void anArmedAgentAnswersAndItsScopeCountsComeBack() {
+    FakeAgentRuntime.armed = true;
+    FakeAgentRuntime.dropped = 3;
+    var bridge =
+        AgentContextBridge.attach(
+            new ThreadLocalNarrativeContext(), "ai.narrativetrace.junit5.FakeAgentRuntime");
+
+    assertThat(bridge.deepArmed()).isTrue();
+    bridge.beginDeepScope();
+    assertThat(FakeAgentRuntime.open).isTrue();
+    assertThat(bridge.endDeepScope()).isEqualTo(3);
+  }
+
+  @Test
+  void deepModeMethodsThatFailDegradeQuietlyInsteadOfFailingTheRun() {
+    var oldErr = System.err;
+    var captured = new ByteArrayOutputStream();
+    System.setErr(new PrintStream(captured));
+    try {
+      var bridge =
+          AgentContextBridge.attach(
+              new ThreadLocalNarrativeContext(), "ai.narrativetrace.junit5.BrokenDeepAgentRuntime");
+
+      assertThat(bridge.deepArmed()).isFalse();
+      bridge.beginDeepScope();
+      assertThat(bridge.endDeepScope()).isZero();
+    } finally {
+      System.setErr(oldErr);
+    }
+
+    assertThat(captured.toString()).contains("could not open the agent's deep scope");
+  }
 }

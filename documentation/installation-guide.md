@@ -90,7 +90,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -137,24 +137,24 @@ Start with the minimum stack and then add only the integrations you need.
 ```kotlin
 dependencies {
     // Minimum
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.2")
 
     // Optional integrations
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.1")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.1")  // for JUnit 4
-    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.1")  // for TestNG
-    implementation("ai.narrativetrace:narrativetrace-spring:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.2")  // for JUnit 4
+    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.2")  // for TestNG
+    implementation("ai.narrativetrace:narrativetrace-spring:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
 }
 ```
 
@@ -431,6 +431,76 @@ class:
 ```text
 narrativetrace-agent: cannot instrument org/mockito/internal/Foo (excluded package org/mockito/); classes under that package load uninstrumented
 ```
+
+#### Deep traces (opt-in)
+
+Deep traces require the Java agent (`mode = "agent"` in the plugin, or the `-javaagent` option): the proxy route cannot see private methods or self-calls, so with `mode = "proxy"` the setting has no effect.
+
+By default the agent records each class's observable boundary. It does **not**
+instrument private methods, constructors, class initializers, abstract methods,
+or bridge/synthetic methods (which includes every lambda body); package-private,
+protected, public and static methods are all instrumented, and a call from one
+instrumented method to another on `this` is already recorded, because the
+weaving is in the method bodies. What a default trace therefore cannot show is
+a private helper, and the wrong value it returns.
+
+Deep traces record those private methods too, for the classes `packages=` already
+matches (never a JDK or library class, and `exclude=` still wins). It is a
+verbose, test-time setting and **never a production setting**: it is off by
+default in every integration, and reachable only through two explicit opt-ins that
+must both be given.
+
+1. Start the test JVM's agent with `depth=internal` (default `public`; the property
+   fallback, used when the agent is given no arguments, is
+   `narrativetrace.agent.depth`). This weaves the private methods when their class
+   loads; it records nothing by itself. `maxInternalSpans=` bounds the deep spans of
+   one test (default 5000); beyond it deep spans are dropped, counted, and named in
+   the trace file's header, and the public calls are all kept.
+2. Ask for it per test with `@DeepTrace` (on a test, a class or an enclosing class),
+   or for a whole run with `narrativetrace.depth=internal`. The JUnit 5, JUnit 4 and TestNG
+   integrations open the agent's deep scope for exactly that test. A request without
+   the agent option runs at the default depth and says so once on standard error.
+
+```bash
+java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.*,depth=internal -jar your-app-tests.jar
+```
+
+```java
+@Test
+@DeepTrace
+void pricesAreCalculated() { ... }
+```
+
+With the Gradle plugin in `agent` mode, the agent option is one line in the DSL
+(`maxInternalSpans.set(...)` is optional):
+
+```kotlin
+narrativeTrace {
+    mode.set("agent")
+    agent {
+        depth.set("internal")   // appends depth=internal to the -javaagent argument
+    }
+}
+```
+
+An internal call nests under the public call that made it, like any other, and is
+marked with a leading `·` in the text, Markdown and structural (`.nt`) renderings;
+the canonical and wire form do not carry the mark.
+
+```text
+#1 - Pricing.total() → value
+  #1.1 - · Pricing.withTax(net) → value
+```
+
+Approval baselines follow the same opt-in. A `*.approved.nt` cut with deep traces on
+declares `depth: internal` under its `scenario:` line (no line means `public`, so
+every earlier baseline stays valid). A baseline and a run of different depths are
+never compared line by line, and never pass silently: the run fails with `Depth
+mismatch`, naming both depths, and writes its own `*.received.nt` for review.
+Approving that file re-baselines at the new depth.
+
+Limits: private methods are recorded on the test's own thread; a private method that
+runs on a worker thread the test did not start is not. Lambda bodies stay out.
 
 
 ## 4. Configure Trace Output

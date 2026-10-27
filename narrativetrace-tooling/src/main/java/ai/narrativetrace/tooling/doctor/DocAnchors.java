@@ -44,6 +44,8 @@ public final class DocAnchors {
   public static final String SIXTY_SECONDS_BEFORE_YOU_START =
       BASE + "sixty-seconds#before-you-start";
 
+  public static final String DEEP_TRACES = BASE + "installation-guide#deep-traces-opt-in";
+
   /** The integration lookup table — every framework row's module, one page. */
   public static final String CHOOSING_AN_INTEGRATION = BASE + "choosing-an-integration";
 

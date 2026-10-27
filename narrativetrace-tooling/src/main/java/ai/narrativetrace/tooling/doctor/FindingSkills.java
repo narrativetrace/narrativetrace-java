@@ -69,6 +69,7 @@ public final class FindingSkills {
           Map.entry("config.extension-registered", ADD_NARRATIVE_TRACING),
           Map.entry("config.output-property", NARRATIVETRACE_DOCTOR),
           Map.entry("config.approval-mode", NARRATIVETRACE_VERIFY),
+          Map.entry("config.agent-depth-mode", ADD_NARRATIVE_TRACING),
           Map.entry("trap.silent-sink", NARRATIVETRACE_DOCTOR),
           Map.entry("trap.parameter-arg0", ADD_NARRATIVE_TRACING),
           Map.entry("trap.unused-not-traced-import", NARRATIVETRACE_DOCTOR),

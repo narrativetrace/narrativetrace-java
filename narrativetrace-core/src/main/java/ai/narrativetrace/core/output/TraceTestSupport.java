@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
 import ai.narrativetrace.api.tree.TraceTree;
@@ -251,7 +252,46 @@ public final class TraceTestSupport {
       NarrativeRenderer mermaidRenderer,
       NarrativeRenderer plantumlRenderer,
       boolean foldLoops,
-      String runName)
+      String runName,
+      TraceDepth depth,
+      long deepSpansDropped)
+      throws IOException {
+    return writeTraceFileAtDepth(
+        identity,
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer,
+        foldLoops,
+        runName,
+        depth,
+        deepSpansDropped);
+  }
+
+  /**
+   * The write for the final overload, which carries the opt-in deep mode's facts: the depth the
+   * trace was recorded at (declared in the structural artifact and the file header) and how many
+   * deep spans the cap dropped. {@link TraceDepth#PUBLIC} produces exactly what every other
+   * overload does.
+   */
+  private static Optional<ScenarioDelta> writeTraceFileAtDepth(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName,
+      TraceDepth depth,
+      long deepSpansDropped)
       throws IOException {
     if (trace.isEmpty()) {
       return Optional.empty();
@@ -269,7 +309,7 @@ public final class TraceTestSupport {
             foldLoops,
             runName);
     var writer = new TraceFileWriter();
-    var facts = headerFacts(identity, trace, failed, outputDir, file);
+    var facts = headerFacts(identity, trace, failed, outputDir, file, depth, deepSpansDropped);
     writer.write(TraceFileHeader.apply(format, content, facts), file);
     out.println(
         "\n"
@@ -284,12 +324,55 @@ public final class TraceTestSupport {
     }
     return Optional.of(
         writeMarkdownExtras(
-            writer, resolver, identity, displayName, trace, failed, mermaidRenderer, runName));
+            writer,
+            resolver,
+            identity,
+            displayName,
+            trace,
+            failed,
+            mermaidRenderer,
+            runName,
+            depth));
+  }
+
+  public static Optional<ScenarioDelta> writeTraceFile(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName)
+      throws IOException {
+    return writeTraceFileAtDepth(
+        identity,
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer,
+        foldLoops,
+        runName,
+        TraceDepth.PUBLIC,
+        0);
   }
 
   /** What a written trace file's header says about it, with paths relative to that file. */
   private static TraceFileHeader.Facts headerFacts(
-      ArtifactIdentity identity, TraceTree trace, boolean failed, Path outputDir, Path file) {
+      ArtifactIdentity identity,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      Path file,
+      TraceDepth depth,
+      long deepSpansDropped) {
     var directory = file.toAbsolutePath().normalize().getParent();
     var base = outputDir.toAbsolutePath().normalize();
     return new TraceFileHeader.Facts(
@@ -300,7 +383,9 @@ public final class TraceTestSupport {
         directory
             .relativize(base.resolve(ScenarioManifest.FILE_NAME))
             .toString()
-            .replace('\\', '/'));
+            .replace('\\', '/'),
+        depth == TraceDepth.INTERNAL,
+        deepSpansDropped);
   }
 
   /**
@@ -373,7 +458,8 @@ public final class TraceTestSupport {
       TraceTree trace,
       boolean failed,
       NarrativeRenderer mermaidRenderer,
-      String runName)
+      String runName,
+      TraceDepth depth)
       throws IOException {
     writer.write(mermaidRenderer.render(trace), resolver.diagramFile(identity));
 
@@ -390,7 +476,8 @@ public final class TraceTestSupport {
         trace,
         failed,
         resolver.structuralFile(identity),
-        identity.structuralScenario(displayName));
+        identity.structuralScenario(displayName),
+        depth);
   }
 
   /**
@@ -408,9 +495,14 @@ public final class TraceTestSupport {
    * happened (2026-09-08 agent evaluation).
    */
   private static ScenarioDelta writeStructuralArtifact(
-      TraceFileWriter writer, TraceTree trace, boolean failed, Path ntFile, String scenario)
+      TraceFileWriter writer,
+      TraceTree trace,
+      boolean failed,
+      Path ntFile,
+      String scenario,
+      TraceDepth depth)
       throws IOException {
-    var current = new StructuralTraceRenderer().renderDocument(trace, scenario);
+    var current = new StructuralTraceRenderer().renderDocument(trace, scenario, depth);
     var baseline = Files.exists(ntFile) ? Files.readString(ntFile) : null;
     var delta = ScenarioDelta.of(scenario, baseline, current);
     if (!failed) {

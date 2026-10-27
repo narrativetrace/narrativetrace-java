@@ -7,6 +7,8 @@
  */
 package ai.narrativetrace.junit5;
 
+import ai.narrativetrace.api.annotation.DeepTrace;
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
@@ -57,6 +59,7 @@ import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
+import org.junit.platform.commons.support.AnnotationSupport;
 
 /**
  * JUnit 5 extension that manages trace capture during test execution.
@@ -105,6 +108,13 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  *       so it is opt-in
  *   <li>{@code narrativetrace.glossaryDir} — directory holding those files (default: the working
  *       directory; the Gradle plugin sets it to the repository root)
+ *   <li>{@code narrativetrace.depth} — {@code internal} records the private methods of the classes
+ *       under test too, for every test of the run (default: {@code public}, always). The same
+ *       opt-in per test is {@code @DeepTrace}. Both need the Java agent started with {@code
+ *       depth=internal}, because private methods are woven at class load; without it the run stays
+ *       public and says so once on standard error. Applies to the trace files <em>and</em> to
+ *       approval baselines, which then declare {@code depth: internal} and are never compared with
+ *       a public run. Never a production setting
  *   <li>{@code narrativetrace.canonicalJson} — additionally write a {@code <test>.canonical.json}
  *       schema-1.1 entry array beside each trace file (default: {@code false}); a machine artifact
  *       for canonical-schema consumers such as the other runtimes and conformance fixtures
@@ -158,6 +168,8 @@ public class NarrativeTraceExtension
       ExtensionContext.Namespace.create(NarrativeTraceExtension.class);
   private static final String CONTEXT_KEY = "narrativeContext";
   private static final String LOSS_BASELINE_KEY = "traceLossBaseline";
+  private static final String DEPTH_KEY = "traceDepth";
+  private static final String DEEP_REFUSAL_KEY = "deepRefusalReported";
   private static final String TRACES_KEY = "accumulatedTraces";
   private static final String DELTAS_KEY = "accumulatedDeltas";
   private static final String GLOBAL_KEY = "globalTraceAccumulator";
@@ -185,6 +197,10 @@ public class NarrativeTraceExtension
     private final EventPipeline pipeline;
     private final ThreadLocalNarrativeContext context;
     private final AgentContextBridge agentBridge;
+
+    AgentContextBridge agentBridge() {
+      return agentBridge;
+    }
 
     SuiteContextResource(TracingLevel level, int bufferCapacity) {
       this.config = new NarrativeTraceConfig(level);
@@ -457,10 +473,72 @@ public class NarrativeTraceExtension
     // Loss counters on a shared context only grow (TraceLoss#since); this test's own share of the
     // suite total is this reading bracketed against the one afterTestExecution takes.
     extensionContext.getStore(NAMESPACE).put(LOSS_BASELINE_KEY, resource.context().traceLoss());
+    extensionContext.getStore(NAMESPACE).put(DEPTH_KEY, openDepthScope(extensionContext, resource));
     // On the thread about to run the test — sequential or parallel, this always is that thread —
     // so any discovered RunListener (SLF4J's MDC, when narrativetrace-slf4j is on the classpath)
     // can attach the run's identity there before the test body runs (2026-09-13 ruling, item 2).
     accumulator(extensionContext).notifyRunStarted();
+  }
+
+  /**
+   * Decides this test's depth and, when it is {@link TraceDepth#INTERNAL}, opens the agent's deep
+   * scope on the test thread.
+   *
+   * <p>INTENT: Deep is requested by {@code @DeepTrace} (test, class or enclosing class) or by the
+   * run-wide {@code narrativetrace.depth=internal}, and granted only when the agent in this JVM was
+   * started with {@code depth=internal} — otherwise there is nothing woven to record, and
+   * pretending to be deep would stamp a baseline {@code depth: internal} that holds no private
+   * calls. A refused request runs public and says so once.
+   *
+   * <p><b>@llmNote</b> A scope left open by an earlier test whose own after-callback never ran is
+   * closed first, so a stale scope can never deepen a test that did not ask for it.
+   */
+  private static TraceDepth openDepthScope(
+      ExtensionContext extensionContext, SuiteContextResource resource) {
+    var bridge = resource.agentBridge();
+    var armed = bridge.deepArmed();
+    if (armed) {
+      bridge.endDeepScope();
+    }
+    if (!requestsDepth(extensionContext)) {
+      return TraceDepth.PUBLIC;
+    }
+    if (!armed) {
+      var reported =
+          extensionContext
+              .getRoot()
+              .getStore(NAMESPACE)
+              .getOrComputeIfAbsent(
+                  DEEP_REFUSAL_KEY, k -> new java.util.concurrent.atomic.AtomicBoolean());
+      if (((java.util.concurrent.atomic.AtomicBoolean) reported).compareAndSet(false, true)) {
+        System.err.println(
+            "narrative-trace: depth=internal was requested (@DeepTrace or narrativetrace.depth)"
+                + " but the Java agent was not started with depth=internal, so private methods"
+                + " were never woven; tests run at depth PUBLIC.");
+      }
+      return TraceDepth.PUBLIC;
+    }
+    bridge.beginDeepScope();
+    return TraceDepth.INTERNAL;
+  }
+
+  private static boolean requestsDepth(ExtensionContext extensionContext) {
+    if (TraceDepth.INTERNAL
+        == TraceDepth.fromName(
+            configParam(extensionContext, "narrativetrace.depth", ""), TraceDepth.PUBLIC)) {
+      return true;
+    }
+    if (AnnotationSupport.isAnnotated(extensionContext.getElement(), DeepTrace.class)) {
+      return true;
+    }
+    for (Class<?> type = extensionContext.getTestClass().orElse(null);
+        type != null;
+        type = type.getEnclosingClass()) {
+      if (AnnotationSupport.isAnnotated(type, DeepTrace.class)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Ring size for a test's context, from {@code narrativetrace.bufferCapacity}. */
@@ -531,6 +609,14 @@ public class NarrativeTraceExtension
       return;
     }
     var trace = context.captureTrace();
+    var depth =
+        extensionContext
+            .getStore(NAMESPACE)
+            .getOrDefault(DEPTH_KEY, TraceDepth.class, TraceDepth.PUBLIC);
+    var deepSpansDropped =
+        depth == TraceDepth.INTERNAL
+            ? suiteContext(extensionContext).agentBridge().endDeepScope()
+            : 0;
     // The context is now shared for the whole suite (SuiteContextResource), so its loss counters
     // only grow (TraceLoss#since) — bracket against the reading beforeEach took to attribute
     // exactly this test's share, the same number a per-test context always reported on its own.
@@ -544,7 +630,7 @@ public class NarrativeTraceExtension
     var rejection =
         failed
             ? Optional.<AssertionError>empty()
-            : approvalRejection(extensionContext, displayName, trace, loss);
+            : approvalRejection(extensionContext, displayName, trace, loss, depth);
 
     // Output before the report so the failure report can speak in terms of the structural delta the
     // write computed — and so the report is the last (most visible) block in the console.
@@ -557,7 +643,9 @@ public class NarrativeTraceExtension
                 failed || rejection.isPresent(),
                 extensionContext
                     .getExecutionException()
-                    .or(() -> rejection.map(Throwable.class::cast)))
+                    .or(() -> rejection.map(Throwable.class::cast)),
+                depth,
+                deepSpansDropped)
             : Written.NOTHING;
     handleAfterTest(displayName, failed, trace, written.delta(), System.out);
     printTracePointer(written.row(), outputDirectory(extensionContext));
@@ -580,9 +668,13 @@ public class NarrativeTraceExtension
    * prints the lossy-pass note. Deleting a stale received file on a clean pass happens here too.
    */
   private static Optional<AssertionError> approvalRejection(
-      ExtensionContext extensionContext, String displayName, TraceTree trace, TraceLoss loss) {
+      ExtensionContext extensionContext,
+      String displayName,
+      TraceTree trace,
+      TraceLoss loss,
+      TraceDepth depth) {
     try {
-      verifyApprovalIfEnabled(extensionContext, displayName, trace, loss);
+      verifyApprovalIfEnabled(extensionContext, displayName, trace, loss, depth);
       return Optional.empty();
     } catch (AssertionError e) {
       return Optional.of(e);
@@ -598,7 +690,11 @@ public class NarrativeTraceExtension
    * directory).
    */
   private static void verifyApprovalIfEnabled(
-      ExtensionContext extensionContext, String displayName, TraceTree trace, TraceLoss loss) {
+      ExtensionContext extensionContext,
+      String displayName,
+      TraceTree trace,
+      TraceLoss loss,
+      TraceDepth depth) {
     if (trace.isEmpty()
         || !"true"
             .equalsIgnoreCase(configParam(extensionContext, "narrativetrace.approval", "false"))) {
@@ -613,7 +709,7 @@ public class NarrativeTraceExtension
       // one is — an argument interpolated into a display name reaches neither.
       var note =
           NarrativeApproval.verify(
-              trace, identity.structuralScenario(displayName), approvedFile, loss);
+              trace, identity.structuralScenario(displayName), approvedFile, loss, depth);
       if (!note.isEmpty()) {
         System.out.println("  Approval: " + note);
       }
@@ -649,7 +745,9 @@ public class NarrativeTraceExtension
       String displayName,
       TraceTree trace,
       boolean failed,
-      Optional<Throwable> failure) {
+      Optional<Throwable> failure,
+      TraceDepth depth,
+      long deepSpansDropped) {
     var outputDir = outputDirectory(extensionContext);
     var format = configParam(extensionContext, "narrativetrace.format", "markdown");
     var identity = artifactIdentity(extensionContext);
@@ -671,7 +769,9 @@ public class NarrativeTraceExtension
               !"true"
                   .equalsIgnoreCase(
                       configParam(extensionContext, "narrativetrace.unfolded", "false")),
-              accumulator(extensionContext).runIdentity().name());
+              accumulator(extensionContext).runIdentity().name(),
+              depth,
+              deepSpansDropped);
       delta.ifPresent(d -> accumulatedDeltas(extensionContext).add(d));
       writeOptionalEntryArtifacts(extensionContext, identity, trace, outputDir);
     } catch (IOException e) {

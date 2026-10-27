@@ -63,6 +63,10 @@ public final class AgentRuntime {
    */
   private static volatile NarrativeContext context = NoopNarrativeContext.INSTANCE;
 
+  private static final ThreadLocal<DeepScope> DEEP_SCOPE = new ThreadLocal<>();
+  private static volatile boolean deepArmed;
+  private static volatile int maxInternalSpans = AgentConfig.DEFAULT_MAX_INTERNAL_SPANS;
+
   private AgentRuntime() {}
 
   /**
@@ -83,10 +87,80 @@ public final class AgentRuntime {
   }
 
   public static void initialize(AgentConfig config) {
+    deepArmed = config.depth() == ai.narrativetrace.api.config.TraceDepth.INTERNAL;
+    maxInternalSpans = config.maxInternalSpans();
     var traceConfig = new NarrativeTraceConfig(config.level());
     context =
         new ThreadLocalNarrativeContext(
             traceConfig, PipelineBootstrap.createDefault(config.loggerName()));
+  }
+
+  /**
+   * Opens a deep scope on the calling thread: until {@link #endDeepScope()}, woven private methods
+   * on this thread are recorded, up to the configured cap.
+   *
+   * <p>INTENT: Weaving a private method is a class-load decision, but recording it is a per-test
+   * one. The test integration opens a scope in its before-each and closes it in its after-each, so
+   * a class woven deep stays exactly as quiet as before for every test that did not ask for depth.
+   *
+   * <p><b>@llmNote</b> Thread-scoped on purpose: parallel tests with different depths cannot leak
+   * into each other. The cost is that a private method running on a worker thread the test did not
+   * start is not recorded — documented in the agent guide.
+   */
+  public static void beginDeepScope() {
+    beginDeepScope(maxInternalSpans);
+  }
+
+  static void beginDeepScope(int cap) {
+    DEEP_SCOPE.set(new DeepScope(cap));
+  }
+
+  /**
+   * Closes the calling thread's deep scope.
+   *
+   * @return how many deep spans the cap dropped in it, {@code 0} when there was none or no scope
+   */
+  public static long endDeepScope() {
+    var scope = DEEP_SCOPE.get();
+    DEEP_SCOPE.remove();
+    return scope == null ? 0 : scope.dropped;
+  }
+
+  /** Whether this agent was started with {@code depth=internal}, i.e. woven private methods. */
+  public static boolean isDeepArmed() {
+    return deepArmed;
+  }
+
+  /**
+   * The gate of a woven private method: tracing is on <em>and</em> this thread is inside a deep
+   * scope with budget left. Total, for the same reason {@link #isActive()} is.
+   */
+  public static boolean isDeepActive() {
+    if (!isActive()) {
+      return false;
+    }
+    var scope = DEEP_SCOPE.get();
+    return scope != null && scope.admit();
+  }
+
+  /** One test's deep budget: spans admitted so far, and how many the cap turned away. */
+  private static final class DeepScope {
+    private final int cap;
+    private int admitted;
+    private long dropped;
+
+    DeepScope(int cap) {
+      this.cap = cap;
+    }
+
+    boolean admit() {
+      if (admitted < cap) {
+        admitted++;
+        return true;
+      }
+      dropped++;
+      return false;
+    }
   }
 
   public static void setContext(NarrativeContext ctx) {
@@ -179,7 +253,8 @@ public final class AgentRuntime {
                 metadata.packageName(),
                 metadata.returnType(),
                 instanceIdOf(instance),
-                bakedSourceLocation(metadata.sourceLocation())));
+                bakedSourceLocation(metadata.sourceLocation()),
+                metadata.internal()));
     SpanId prev = context.beginScope(spanId);
     return prev != null ? prev.value() : null;
   }

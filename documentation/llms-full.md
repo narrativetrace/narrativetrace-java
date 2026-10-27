@@ -151,7 +151,7 @@ per-mechanism detail.
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -205,9 +205,9 @@ tasks.withType<JavaCompile> {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.2")
 }
 ```
 
@@ -709,7 +709,7 @@ test classpath, not only NarrativeTrace's; `@ExtendWith` remains the explicit pe
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 
 narrativeTrace {
@@ -827,16 +827,16 @@ Rendered from the doctor's own framework table. For every row it can observe, `n
 
 | Framework | Detected by | Add (Gradle plugin) | Add (plain Gradle) | Wiring | Doctor check |
 |---|---|---|---|---|---|
-| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.5.1")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
-| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.1")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
-| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.1")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
-| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.5.1")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
-| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.1")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
-| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.1")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
-| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.1")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
-| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.1")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
-| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.5.1` | a -javaagent JVM flag the owner adds | none — runtime-only |
-| TestNG | an org.testng:testng dependency | `narrativeTrace { testFramework.set("testng") }` | `testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.1")` | the testImplementation dependency — its listener registers itself through TestNG's service loader | `config.testng-listener` |
+| Spring | the org.springframework.boot plugin, a spring-boot-starter* dependency or spring-context | `narrativeTrace { scope.set("production"); mode.set("spring") }` | `implementation("ai.narrativetrace:narrativetrace-spring:0.5.2")` | @EnableNarrativeTrace(basePackages = …) on a @Configuration class | `config.spring-enabled` |
+| Spring Web | a spring-boot-starter-web dependency | `narrativeTrace { scope.set("production"); modules { springWeb.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.2")` | @Import(NarrativeTraceWebConfiguration.class) next to @EnableNarrativeTrace | `config.spring-web-filter` |
+| Micronaut | the io.micronaut.application plugin or a micronaut-inject dependency | `narrativeTrace { scope.set("production"); modules { micronaut.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.2")` | narrativetrace.base-packages in application.properties or application.yml | `config.micronaut-base-packages` |
+| Jakarta Servlet | a jakarta.servlet-api dependency without Spring or Micronaut | `narrativeTrace { scope.set("production"); modules { servlet.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-servlet:0.5.2")` | NarrativeTraceFilter registered with the servlet container | `config.servlet-filter` |
+| JUnit 4 | a junit:junit dependency | `narrativeTrace { testFramework.set("junit4") }` | `testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.2")` | NarrativeTraceClassRule and the NarrativeTraceRule it creates, on the test class | `config.junit4-rule` |
+| Micrometer context propagation | an io.micrometer:context-propagation dependency | `narrativeTrace { scope.set("production"); modules { micrometer.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.2")` | NarrativeTraceThreadLocalAccessor registered with the ContextRegistry | `config.micrometer-accessor` |
+| OpenTelemetry | an io.opentelemetry:opentelemetry-api or -sdk dependency | `narrativeTrace { scope.set("production"); modules { opentelemetry.set(true) } }` | `implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.2")` | OtelTraceEventListener attached to the context's pipeline | `config.otel-listener` |
+| SLF4J / Logback | the default logger: no SLF4J binding on the runtime classpath | `narrativeTrace { modules { slf4j.set(true) } }` | `runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.2")`<br>`runtimeOnly("ch.qos.logback:logback-classic:1.5.38")` | the two runtimeOnly dependencies — narrativetrace-slf4j attaches itself | `trap.silent-sink` (existing) |
+| Java agent | -javaagent wanted (the owner's opt-in, never automatic) | `narrativeTrace { mode.set("agent") }` | `ai.narrativetrace:narrativetrace-agent:0.5.2` | a -javaagent JVM flag the owner adds | none — runtime-only |
+| TestNG | an org.testng:testng dependency | `narrativeTrace { testFramework.set("testng") }` | `testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.2")` | the testImplementation dependency — its listener registers itself through TestNG's service loader | `config.testng-listener` |
 
 #### Spring — wiring
 

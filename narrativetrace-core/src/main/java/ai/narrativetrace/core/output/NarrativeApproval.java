@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.render.StructuralTraceRenderer;
@@ -66,7 +67,35 @@ public final class NarrativeApproval {
    */
   public static String verify(TraceTree trace, String scenario, Path approvedFile, TraceLoss loss)
       throws IOException {
-    var current = new StructuralTraceRenderer().renderDocument(trace, scenario);
+    return verify(trace, scenario, approvedFile, loss, TraceDepth.PUBLIC);
+  }
+
+  /** A complete run recorded at {@code depth}; see the lossy overload for the full contract. */
+  public static String verify(TraceTree trace, String scenario, Path approvedFile, TraceDepth depth)
+      throws IOException {
+    return verify(trace, scenario, approvedFile, TraceLoss.none(), depth);
+  }
+
+  /**
+   * Verifies a scenario recorded at {@code depth}.
+   *
+   * <p>INTENT: The depth is part of the contract. A baseline cut with the opt-in deep mode records
+   * the private calls of the classes under test, and a shallow run can never reproduce them —
+   * judged line by line it would report a pile of "removed calls" that are not a change in
+   * behaviour, and judged on the lines it shares it could pass a baseline it has not actually been
+   * compared to. So the two depths are never compared: a baseline declares its depth in its header
+   * ({@code depth: internal}; no line means public, which keeps every earlier baseline valid), and
+   * a run of the other depth fails with a message that names both depths and writes its own
+   * artifact for review.
+   *
+   * @param depth the depth this run was recorded at
+   * @throws AssertionError when the baseline is missing, was cut at the other depth, or the
+   *     structure changed
+   */
+  public static String verify(
+      TraceTree trace, String scenario, Path approvedFile, TraceLoss loss, TraceDepth depth)
+      throws IOException {
+    var current = new StructuralTraceRenderer().renderDocument(trace, scenario, depth);
     var receivedFile = loss.any() ? incompleteSibling(approvedFile) : receivedSibling(approvedFile);
     if (!Files.exists(approvedFile)) {
       new TraceFileWriter().write(current, receivedFile);
@@ -89,6 +118,22 @@ public final class NarrativeApproval {
                       + " approval-traces check catches → narrativetrace-doctor skill"));
     }
     var baseline = Files.readString(approvedFile);
+    var baselineDepth = declaredDepth(baseline);
+    if (baselineDepth != depth) {
+      new TraceFileWriter().write(current, receivedFile);
+      throw new AssertionError(
+          "Depth mismatch for scenario \""
+              + scenario
+              + "\": the approved baseline was recorded at depth "
+              + name(baselineDepth)
+              + " but this run at depth "
+              + name(depth)
+              + ". The two are not comparable, so no structural diff is shown.\n"
+              + "Run again at the baseline's depth (the agent option depth=internal and the"
+              + " @DeepTrace annotation, or neither), or approve the received file to re-baseline"
+              + " at this depth.\nReceived: "
+              + receivedFile);
+    }
     if (loss.any()) {
       return verifyLossy(baseline, current, receivedFile, loss);
     }
@@ -129,6 +174,20 @@ public final class NarrativeApproval {
             + "), so its structure was written to "
             + incompleteFile
             + " and is not promotable — fix or rerun, then approve a complete run.");
+  }
+
+  /** The depth a baseline declares: {@code internal} by its header line, else {@code public}. */
+  static TraceDepth declaredDepth(String baseline) {
+    return baseline
+            .lines()
+            .takeWhile(line -> !line.isBlank())
+            .anyMatch(line -> line.strip().equals(StructuralTraceRenderer.DEPTH_LINE))
+        ? TraceDepth.INTERNAL
+        : TraceDepth.PUBLIC;
+  }
+
+  private static String name(TraceDepth depth) {
+    return depth.name().toLowerCase(java.util.Locale.ROOT);
   }
 
   /** Human phrasing of what a run lost, for messages that must not read as behaviour change. */

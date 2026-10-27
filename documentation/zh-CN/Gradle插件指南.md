@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 7940cea3b60e | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob e9ea0ae9e16d | translated: 2026-10-24 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -196,6 +196,19 @@ narrativeTrace {
 
 当 packages 为空(默认值)时,Agent 会插桩所有类。各个包在 `-javaagent` 参数中以 `;` 连接。
 
+深度追踪需要 Java Agent（插件中的 `mode = "agent"`，或 `-javaagent` 选项）：代理（proxy）路径看不到私有方法和自调用，因此在 `mode = "proxy"` 下该设置不会产生任何效果。 `depth` 用于开启 Agent 的可选[深度追踪](安装指南.md#深度追踪可选开启)：`depth.set("internal")` 会在 `-javaagent` 参数中追加 `depth=internal`，使 Agent 同时织入其所插桩类的私有方法。`maxInternalSpans` 限制单个测试的深度 span 数量（未设置时使用 Agent 的默认值）。两者都是测试期设置，默认均未设置——未设置 `depth` 时参数与以前完全一致——且本身不会记录任何内容：测试仍需通过 `@DeepTrace` 或 `narrativetrace.depth=internal` 请求深度。
+
+```kotlin
+narrativeTrace {
+    mode.set("agent")
+    agent {
+        packages.set(listOf("com.example.app"))
+        depth.set("internal")              // 向 -javaagent 参数追加 depth=internal
+        maxInternalSpans.set(5000)         // 可选：追加 maxInternalSpans=5000
+    }
+}
+```
+
 Agent JAR 在测试执行时才从专用的 `narrativeTraceAgent` Gradle 配置中延迟解析。
 
 ## Clarity 块
@@ -306,7 +319,7 @@ narrativeTrace {
 
 ### `narrativetraceDoctor`
 
-在同一个进程内针对本项目运行 doctor 的二十一项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
+在同一个进程内针对本项目运行 doctor 的二十二项只读检查——和独立启动器的 `doctor` 动词运行的是同一批
 检查。它会写出 `build/narrativetrace/doctor-report.json`,并打印人类可读的报告。
 
 ```bash
@@ -413,7 +426,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -548,7 +561,7 @@ plugins {
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.1'
+    id 'ai.narrativetrace' version '0.5.2'
 }
 
 narrativeTrace {
@@ -605,6 +618,8 @@ narrativeTrace {
 
     agent {                                    // 仅在 mode = "agent" 时相关
         packages.set(listOf("com.example.app"))
+        depth.set("internal")                  // 默认: 未设置 (仅公共方法)
+        maxInternalSpans.set(5000)             // 默认: 未设置 (使用 Agent 自身的上限)
     }
 
     clarity {

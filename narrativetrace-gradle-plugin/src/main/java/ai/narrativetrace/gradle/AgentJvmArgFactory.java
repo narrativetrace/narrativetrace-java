@@ -24,12 +24,34 @@ final class AgentJvmArgFactory {
   private AgentJvmArgFactory() {}
 
   static String javaagentArg(String agentJarPath, List<String> packages, List<String> exclude) {
+    return javaagentArg(agentJarPath, packages, exclude, null, null);
+  }
+
+  /**
+   * As above, plus the opt-in deep mode: {@code depth=internal} and {@code maxInternalSpans=<n>}
+   * are appended only when set, so a build that sets neither emits the argument it always did.
+   *
+   * @param depth the agent's {@code depth} option, or {@code null}/blank for none
+   * @param maxInternalSpans the agent's per-scope cap on deep spans, or {@code null} for none
+   */
+  static String javaagentArg(
+      String agentJarPath,
+      List<String> packages,
+      List<String> exclude,
+      String depth,
+      Integer maxInternalSpans) {
     var segments = new ArrayList<String>();
     if (!packages.isEmpty()) {
       segments.add("packages=" + String.join(";", packages));
     }
     if (!exclude.isEmpty()) {
       segments.add("exclude=" + String.join(";", exclude));
+    }
+    if (depth != null && !depth.isBlank()) {
+      segments.add("depth=" + depth.trim());
+    }
+    if (maxInternalSpans != null) {
+      segments.add("maxInternalSpans=" + maxInternalSpans);
     }
     var suffix = segments.isEmpty() ? "" : "=" + String.join(",", segments);
     return "-javaagent:" + agentJarPath + suffix;

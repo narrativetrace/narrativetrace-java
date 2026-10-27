@@ -49,9 +49,24 @@ public final class TraceFileHeader {
    * @param durationMillis the scenario's duration, already formatted
    * @param indexPath the run index, relative to this file
    * @param manifestPath the run manifest, relative to this file
+   * @param deep whether the run was recorded at depth internal (private methods included)
+   * @param deepSpansDropped how many deep spans the cap turned away; meaningful when {@code deep}
    */
   public record Facts(
-      String test, String outcome, String durationMillis, String indexPath, String manifestPath) {}
+      String test,
+      String outcome,
+      String durationMillis,
+      String indexPath,
+      String manifestPath,
+      boolean deep,
+      long deepSpansDropped) {
+
+    /** The shape of every run that is not a deep one. */
+    public Facts(
+        String test, String outcome, String durationMillis, String indexPath, String manifestPath) {
+      this(test, outcome, durationMillis, indexPath, manifestPath, false, 0);
+    }
+  }
 
   /**
    * The trace file for {@code format}: text and Markdown (anything that is not a diagram format)
@@ -104,7 +119,27 @@ public final class TraceFileHeader {
         + facts.indexPath()
         + ". Artifact list: "
         + facts.manifestPath()
-        + " (both are written when the run ends).\n";
+        + " (both are written when the run ends).\n"
+        + depthLine(facts, prefix);
+  }
+
+  /**
+   * The one extra line a deep run carries — absent from every default run, so the default header is
+   * byte-for-byte what it was. It names the depth, the mark, and the cap's toll when there was one.
+   */
+  private static String depthLine(Facts facts, String prefix) {
+    if (!facts.deep()) {
+      return "";
+    }
+    return prefix
+        + "Depth: internal. Private methods of the classes under test are included, each marked"
+        + " with a leading ·."
+        + (facts.deepSpansDropped() > 0
+            ? " "
+                + facts.deepSpansDropped()
+                + " deep spans were dropped at the cap; the public calls are all present."
+            : "")
+        + "\n";
   }
 
   /**

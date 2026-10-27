@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/send-traces-to-the-observability-stack-you-already-run.md blob 5eec04c16569 | translated: 2026-10-18 | reviewed: - -->
+<!-- source: documentation/recipes/send-traces-to-the-observability-stack-you-already-run.md blob b82a9ec29633 | translated: 2026-10-18 | reviewed: - -->
 # Envie os traces para o stack de observabilidade que você já tem
 
 [English](../../recipes/send-traces-to-the-observability-stack-you-already-run.md) | [Español](../../es/recetas/envia-las-trazas-al-stack-de-observabilidad-que-ya-tienes.md) | **Português** | [简体中文](../../zh-CN/实用方案/把追踪发到你已有的可观测性栈.md)
@@ -20,7 +20,7 @@ conta (`compileOnly`, então a versão do seu SDK é que vale):
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.2")
     implementation("io.opentelemetry:opentelemetry-api:1.62.0")
 }
 ```

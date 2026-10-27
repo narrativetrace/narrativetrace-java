@@ -21,8 +21,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.2")
 }
 
 tasks.withType<JavaCompile> {
@@ -93,7 +93,7 @@ public class Main {
 
 ```kotlin
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.1")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.2")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
 }
 ```
@@ -108,7 +108,7 @@ dependencies {
 ./gradlew narrativetraceDoctor
 ```
 
-**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twenty-one findings
+**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twenty-two findings
 
 **failure:** the task fails with "Task 'narrativetraceDoctor' not found" → the ai.narrativetrace Gradle plugin isn't applied to this project → add id("ai.narrativetrace") to the plugins block, or run the standalone narrativetrace-cli launcher instead
 

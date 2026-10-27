@@ -7,6 +7,8 @@
  */
 package ai.narrativetrace.testng;
 
+import ai.narrativetrace.api.annotation.DeepTrace;
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.tree.TraceTree;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.testng.IExecutionListener;
 import org.testng.IInvokedMethod;
 import org.testng.IInvokedMethodListener;
@@ -66,6 +69,12 @@ import org.testng.internal.TestResult;
  * .structuralJson}, {@code .glossaryDir} and {@code .bufferCapacity} mean what they mean for the
  * JUnit 5 extension.
  *
+ * <p><b>@llmNote</b> {@code narrativetrace.depth=internal} — or {@code @DeepTrace} on a test method
+ * or class — records the private methods of the classes under test too, for that test only
+ * (default: public, always). It needs the Java agent started with {@code depth=internal}; without
+ * it the run stays public and says so once on standard error. The trace files and approval
+ * baselines then declare {@code depth: internal}.
+ *
  * <pre>{@code
  * public class OrderServiceTest {
  *     private final OrderService service =
@@ -95,6 +104,17 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
     return SharedPipeline.shared().context();
   }
 
+  /** The depth the calling thread's current test scope runs at. */
+  private static final ThreadLocal<TraceDepth> OPEN_DEPTH = new ThreadLocal<>();
+
+  /** Reported once per JVM: depth was requested but the agent never wove private methods. */
+  private static final AtomicBoolean DEEP_REFUSAL_REPORTED = new AtomicBoolean();
+
+  /** Test seam: lets the next refused depth request say so on stderr again. */
+  static void forgetDeepRefusalNote() {
+    DEEP_REFUSAL_REPORTED.set(false);
+  }
+
   @Override
   public void onExecutionStart() {
     TestNgRun.begin();
@@ -113,7 +133,10 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
   @Override
   public void beforeInvocation(IInvokedMethod method, ITestResult testResult) {
     if (method.isTestMethod() || method.getTestMethod().isBeforeMethodConfiguration()) {
-      openScope();
+      openScope(method);
+    }
+    if (method.isTestMethod()) {
+      deepenForMethod(method);
     }
   }
 
@@ -135,10 +158,11 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
   }
 
   /** Opens the calling thread's test scope: a clean stack, this test's level, a loss baseline. */
-  private static void openScope() {
+  private static void openScope(IInvokedMethod method) {
     if (OPEN_SCOPE.get() == null) {
       var shared = SharedPipeline.shared();
       shared.context().reset();
+      OPEN_DEPTH.set(openDepthScope(requestsDepth(method.getTestMethod().getRealClass())));
       shared
           .config()
           .setLevel(
@@ -152,6 +176,74 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
     }
   }
 
+  /**
+   * Decides the scope's depth from the class and the run, and — when it is {@link
+   * TraceDepth#INTERNAL} — opens the agent's deep scope on the test thread.
+   *
+   * <p>INTENT: Deep is requested by {@code @DeepTrace} (test method, class or enclosing class) or
+   * by the run-wide {@code narrativetrace.depth=internal}, and granted only when the agent in this
+   * JVM was started with {@code depth=internal} — otherwise there is nothing woven to record, and
+   * pretending to be deep would stamp a baseline {@code depth: internal} that holds no private
+   * calls. A refused request runs public and says so once.
+   *
+   * <p><b>@llmNote</b> A scope left open by an earlier test whose own after-callback never ran is
+   * closed first, so a stale scope can never deepen a test that did not ask for it. TestNG opens
+   * the scope at the first {@code @BeforeMethod}, which does not know the test method it prepares:
+   * a request made only on the test method deepens the scope when the method starts ({@link
+   * #deepenForMethod}), so what its set-up traced stays public.
+   */
+  private static TraceDepth openDepthScope(boolean requested) {
+    var bridge = SharedPipeline.shared().agentBridge();
+    var armed = bridge.deepArmed();
+    if (armed) {
+      bridge.endDeepScope();
+    }
+    if (!requested) {
+      return TraceDepth.PUBLIC;
+    }
+    if (!armed) {
+      if (DEEP_REFUSAL_REPORTED.compareAndSet(false, true)) {
+        System.err.println(
+            "narrative-trace: depth=internal was requested (@DeepTrace or narrativetrace.depth)"
+                + " but the Java agent was not started with depth=internal, so private methods"
+                + " were never woven; tests run at depth PUBLIC.");
+      }
+      return TraceDepth.PUBLIC;
+    }
+    bridge.beginDeepScope();
+    return TraceDepth.INTERNAL;
+  }
+
+  /** At the test method itself: a method-level request deepens a scope the class did not. */
+  private static void deepenForMethod(IInvokedMethod method) {
+    if (OPEN_DEPTH.get() == TraceDepth.INTERNAL) {
+      return;
+    }
+    var testMethod = method.getTestMethod().getConstructorOrMethod().getMethod();
+    if (testMethod != null && testMethod.isAnnotationPresent(DeepTrace.class)) {
+      var bridge = SharedPipeline.shared().agentBridge();
+      if (bridge.deepArmed()) {
+        bridge.beginDeepScope();
+        OPEN_DEPTH.set(TraceDepth.INTERNAL);
+      } else {
+        openDepthScope(true); // refused: says so once, stays public
+      }
+    }
+  }
+
+  private static boolean requestsDepth(Class<?> testClass) {
+    if (TraceDepth.INTERNAL
+        == TraceDepth.fromName(System.getProperty("narrativetrace.depth"), TraceDepth.PUBLIC)) {
+      return true;
+    }
+    for (Class<?> type = testClass; type != null; type = type.getEnclosingClass()) {
+      if (type.isAnnotationPresent(DeepTrace.class)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** The loss reading the calling thread's scope opened with; none when no scope is open. */
   private static TraceLoss scopeBaseline() {
     return Optional.ofNullable(OPEN_SCOPE.get()).orElse(TraceLoss.none());
@@ -160,6 +252,10 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
   /** Removes the calling thread's spans and stored events, and closes its scope. */
   private static void closeScope() {
     SharedPipeline.shared().context().reset();
+    if (OPEN_DEPTH.get() == TraceDepth.INTERNAL) {
+      SharedPipeline.shared().agentBridge().endDeepScope();
+    }
+    OPEN_DEPTH.remove();
     OPEN_SCOPE.remove();
   }
 
@@ -171,6 +267,9 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
     }
     var context = SharedPipeline.shared().context();
     var trace = context.captureTrace();
+    var depth = Optional.ofNullable(OPEN_DEPTH.get()).orElse(TraceDepth.PUBLIC);
+    var deepSpansDropped =
+        depth == TraceDepth.INTERNAL ? SharedPipeline.shared().agentBridge().endDeepScope() : 0;
     var run = TestNgRun.current();
     var loss = context.traceLoss().since(scopeBaseline());
     run.recordLoss(loss);
@@ -184,12 +283,19 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
     var failed = testResult.getStatus() == ITestResult.FAILURE;
     // The approval verdict is known BEFORE anything is written: a rejection fails the test too,
     // and a run that ends red must not advance the last-green artifact.
-    var verdictFailed = failed || rejected(testResult, identity, displayName, trace, loss);
+    var verdictFailed = failed || rejected(testResult, identity, displayName, trace, loss, depth);
     printTemplateWarnings(trace);
     var written =
         outputEnabled() && !trace.isEmpty()
             ? writeAndRecord(
-                run, identity, displayName, trace, verdictFailed, testResult.getThrowable())
+                run,
+                identity,
+                displayName,
+                trace,
+                verdictFailed,
+                testResult.getThrowable(),
+                depth,
+                deepSpansDropped)
             : Written.NOTHING;
     printFailureReport(displayName, failed, trace, written.delta());
     // Last, so it is the line directly under the failure: where this test's trace is.
@@ -244,7 +350,8 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       ArtifactIdentity identity,
       String displayName,
       TraceTree trace,
-      TraceLoss loss) {
+      TraceLoss loss,
+      TraceDepth depth) {
     if (trace.isEmpty() || !flag("narrativetrace.approval")) {
       return false;
     }
@@ -256,7 +363,7 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       // The baseline is a structural artifact, titled the value-free way the generated one is.
       var note =
           NarrativeApproval.verify(
-              trace, identity.structuralScenario(displayName), approvedFile, loss);
+              trace, identity.structuralScenario(displayName), approvedFile, loss, depth);
       if (!note.isEmpty()) {
         System.out.println("  Approval: " + note);
       }
@@ -283,9 +390,11 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       String displayName,
       TraceTree trace,
       boolean failed,
-      Throwable failure) {
+      Throwable failure,
+      TraceDepth depth,
+      long deepSpansDropped) {
     var outputDir = outputDirectory();
-    var delta = write(identity, displayName, trace, failed, outputDir);
+    var delta = write(identity, displayName, trace, failed, outputDir, depth, deepSpansDropped);
     delta.ifPresent(run::recordDelta);
     var scenario = ScenarioFramer.humanize(displayName);
     var row =
@@ -330,7 +439,9 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       String displayName,
       TraceTree trace,
       boolean failed,
-      Path outputDir) {
+      Path outputDir,
+      TraceDepth depth,
+      long deepSpansDropped) {
     try {
       var delta =
           TraceTestSupport.writeTraceFile(
@@ -344,7 +455,9 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
               SequenceDiagramRenderers.mermaid(),
               SequenceDiagramRenderers.plantUml(),
               !flag("narrativetrace.unfolded"),
-              TestNgRun.current().runIdentity().name());
+              TestNgRun.current().runIdentity().name(),
+              depth,
+              deepSpansDropped);
       if (flag("narrativetrace.canonicalJson")) {
         TraceTestSupport.writeCanonicalTraceFile(identity, trace, outputDir);
       }

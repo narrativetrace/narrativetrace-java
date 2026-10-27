@@ -40,7 +40,7 @@ public final class DoctorCommands {
 
   /**
    * Runs the {@code ai.narrativetrace} Gradle plugin's {@code narrativetraceDoctor} task: the
-   * doctor's twenty-one checks, in-process, against this project.
+   * doctor's twenty-two checks, in-process, against this project.
    */
   public static final String RUN_DOCTOR_GRADLE = "./gradlew narrativetraceDoctor";
 
@@ -50,7 +50,7 @@ public final class DoctorCommands {
   public static final String VERIFY_EVERY_FINDING =
       "the JSON report at "
           + DOCTOR_REPORT_PATH
-          + " is well-formed, naming all twenty-one findings";
+          + " is well-formed, naming all twenty-two findings";
 
   /**
    * The framework step's definition of done. Names no framework on purpose: which frameworks exist

@@ -83,6 +83,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
           }
           EnvironmentCheck.verify(p.getGradle().getGradleVersion(), javaMajorOf(p));
           validateExtension(p, extension);
+          warnWhenDeepTracesCannotTakeEffect(p, extension);
           p.getPlugins()
               .withId(
                   "java",
@@ -112,6 +113,23 @@ public class NarrativeTracePlugin implements Plugin<Project> {
       return Integer.parseInt(JavaVersion.current().getMajorVersion());
     } catch (NumberFormatException e) {
       return EnvironmentCheck.UNKNOWN_JAVA;
+    }
+  }
+
+  /**
+   * Deep traces need the Java agent: a proxy intercepts calls through the wrapped reference, so
+   * private methods and {@code this} self-calls never pass it. {@code proxy} is the default mode,
+   * so an adopter who sets {@code agent { depth }} and nothing else would get no deep spans and no
+   * explanation; this logs the explanation once, at configuration time, and adds nothing to the
+   * test JVM.
+   */
+  private static void warnWhenDeepTracesCannotTakeEffect(
+      Project project, NarrativeTraceExtension extension) {
+    var mode = extension.getMode().get();
+    var agent = extension.getAgent();
+    if (!"agent".equals(mode)
+        && (agent.getDepth().isPresent() || agent.getMaxInternalSpans().isPresent())) {
+      project.getLogger().warn(DeepTracesModeWarning.message(mode));
     }
   }
 
@@ -334,12 +352,12 @@ public class NarrativeTracePlugin implements Plugin<Project> {
   /**
    * Registers {@code narrativetraceDoctor}: the read-only diagnosis skill's own command
    * (`.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`) — runs the free
-   * tooling library's twenty-one doctor checks against this project, in-process, and writes the
+   * tooling library's twenty-two doctor checks against this project, in-process, and writes the
    * JSON report to the extension's own output directory. Not gated on {@code enabled}: diagnosing a
    * misconfigured install is exactly the case where the plugin's own tracing behaviour should not
    * stand in the way.
    *
-   * <p>It takes the same carrier the installer tasks take, because one of the twenty-one checks
+   * <p>It takes the same carrier the installer tasks take, because one of the twenty-two checks
    * reports on the agent skills this project has installed — and reads it leniently, so a build
    * with no repository for it still gets a diagnosis.
    */
@@ -608,6 +626,8 @@ public class NarrativeTracePlugin implements Plugin<Project> {
 
     var packages = extension.getAgent().getPackages().get();
     var exclude = extension.getAgent().getExclude().get();
+    var depth = extension.getAgent().getDepth().getOrNull();
+    var maxInternalSpans = extension.getAgent().getMaxInternalSpans().getOrNull();
 
     project
         .getTasks()
@@ -621,7 +641,11 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                       ((Test) t)
                           .jvmArgs(
                               AgentJvmArgFactory.javaagentArg(
-                                  agentJar.getAbsolutePath(), packages, exclude));
+                                  agentJar.getAbsolutePath(),
+                                  packages,
+                                  exclude,
+                                  depth,
+                                  maxInternalSpans));
                     }));
   }
 }

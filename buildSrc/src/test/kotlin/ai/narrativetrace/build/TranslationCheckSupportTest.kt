@@ -277,6 +277,31 @@ class TranslationCheckSupportTest {
     }
 
     @Test
+    fun translatedFilesRelativiseCleanlyWhenTheRootIsReachedThroughASymlink() {
+        // B-189: macOS temp dirs live under /var -> /private/var, and a CI workspace can be a
+        // link too. The root handed in is the link; every discovered file must relativise
+        // against it as plain `documentation/es/guide.md`, not `../../private/...`.
+        writeSource("documentation/guide.md", "# Guide\n")
+        writeTranslation("documentation/es/guide.md", "documentation/guide.md", "aaaaaaaaaaaa")
+        writeSource("README.md", "# NarrativeTrace\n")
+        writeTranslation("LEAME.md", "README.md", "bbbbbbbbbbbb")
+        val linkedRoot = java.nio.file.Files.createSymbolicLink(
+            repo.parentFile.toPath().resolve(repo.name + "-link"), repo.toPath()
+        ).toFile()
+
+        try {
+            val relativePaths =
+                TranslationCheckSupport.translatedFiles(linkedRoot)
+                    .map { linkedRoot.toPath().relativize(it.toPath()).toString() }
+                    .toSet()
+
+            assertEquals(setOf("documentation/es/guide.md", "LEAME.md"), relativePaths)
+        } finally {
+            linkedRoot.delete()
+        }
+    }
+
+    @Test
     fun gitBlobHashMatchesGitHashObject() {
         // Known git blob hashes: `git hash-object` of an empty file and of "hello\n".
         assertEquals(

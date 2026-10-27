@@ -38,15 +38,21 @@ public final class DoctorRender {
   public static String renderHuman(DoctorReport report) {
     StringBuilder out = new StringBuilder();
     long failures = report.failureCount();
+    long warnings = report.findings().stream().filter(Finding::isWarning).count();
     out.append("narrativetrace doctor — ")
         .append(report.findings().size())
         .append(" check(s), ")
         .append(failures)
         .append(" finding(s)\n\n");
     report.findings().stream().filter(Finding::isFailing).forEach(f -> appendFinding(out, f));
-    report.findings().stream().filter(f -> !f.isFailing()).forEach(f -> appendFinding(out, f));
-    if (failures == 0) {
+    report.findings().stream().filter(Finding::isWarning).forEach(f -> appendFinding(out, f));
+    report.findings().stream()
+        .filter(f -> !f.isFailing() && !f.isWarning())
+        .forEach(f -> appendFinding(out, f));
+    if (failures == 0 && warnings == 0) {
       out.append("All checks passed.\n");
+    } else if (failures == 0) {
+      out.append("No failures; ").append(warnings).append(" warning(s). Exit code 0.\n");
     } else {
       out.append(failures)
           .append(" finding(s). Exit code ")
@@ -64,7 +70,7 @@ public final class DoctorRender {
         .append(" — ")
         .append(f.message())
         .append('\n');
-    if (f.isFailing()) {
+    if (f.isFailing() || f.isWarning()) {
       out.append("  fix:  ").append(indentContinuation(f.fix())).append('\n');
       if (f.skill() != null) {
         out.append("  skill: ").append(f.skill()).append('\n');
@@ -92,7 +98,7 @@ public final class DoctorRender {
           .append(quote(f.id()))
           .append(",\n")
           .append("      \"status\": ")
-          .append(quote(f.status() == Finding.Status.PASS ? "pass" : "fail"))
+          .append(quote(f.status().name().toLowerCase(java.util.Locale.ROOT)))
           .append(",\n")
           .append("      \"message\": ")
           .append(quote(f.message()))

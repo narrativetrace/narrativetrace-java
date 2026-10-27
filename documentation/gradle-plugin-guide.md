@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -193,6 +193,19 @@ narrativeTrace {
 
 When packages is empty (the default), the agent instruments all classes. Packages are joined with `;` in the `-javaagent` argument.
 
+Deep traces require the Java agent (`mode = "agent"` in the plugin, or the `-javaagent` option): the proxy route cannot see private methods or self-calls, so with `mode = "proxy"` the setting has no effect. `depth` turns on the agent's opt-in [deep traces](installation-guide.md#deep-traces-opt-in): `depth.set("internal")` appends `depth=internal` to the `-javaagent` argument, so the agent also weaves the private methods of the classes it instruments. `maxInternalSpans` bounds the deep spans of one test (the agent's default applies when unset). Both are test-time settings, unset by default — an unset `depth` leaves the argument exactly as it was — and they record nothing by themselves: a test still asks for depth with `@DeepTrace` or `narrativetrace.depth=internal`.
+
+```kotlin
+narrativeTrace {
+    mode.set("agent")
+    agent {
+        packages.set(listOf("com.example.app"))
+        depth.set("internal")              // appends depth=internal to the -javaagent argument
+        maxInternalSpans.set(5000)         // optional: appends maxInternalSpans=5000
+    }
+}
+```
+
 The agent JAR is resolved lazily at test execution time from a dedicated `narrativeTraceAgent` Gradle configuration.
 
 ## Clarity Block
@@ -307,7 +320,7 @@ Accepts intended structural changes in [approval mode](#approval): promotes ever
 
 ### `narrativetraceDoctor`
 
-Runs the doctor's twenty-one read-only checks against this project, in process — the same checks the
+Runs the doctor's twenty-two read-only checks against this project, in process — the same checks the
 standalone launcher's `doctor` verb runs. Writes `build/narrativetrace/doctor-report.json` and
 prints the human report.
 
@@ -421,7 +434,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -557,7 +570,7 @@ All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.1'
+    id 'ai.narrativetrace' version '0.5.2'
 }
 
 narrativeTrace {
@@ -614,6 +627,8 @@ narrativeTrace {
 
     agent {                                    // only relevant when mode = "agent"
         packages.set(listOf("com.example.app"))
+        depth.set("internal")                  // default: unset (public methods only)
+        maxInternalSpans.set(5000)             // default: unset (the agent's own cap)
     }
 
     clarity {

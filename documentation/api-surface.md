@@ -41,12 +41,14 @@ admitted with their enclosing type and are not listed separately.
 
 | Type | Admitted | Reason |
 |---|---|---|
+| `ai.narrativetrace.api.annotation.DeepTrace` | 2026-10-23 | Authored in user test code: the per-test opt-in to the deep (private-method) trace. Read by the test integrations only. |
 | `ai.narrativetrace.api.annotation.Narrated` | 2026-08-30 | Users write it on their own methods; it is the primary authoring surface. |
 | `ai.narrativetrace.api.annotation.NarrativeElements` | 2026-09-17 | Same: authored in user code, on a type whose iteration the author declares pure — the third sanctioned rendering hook. |
 | `ai.narrativetrace.api.annotation.NarrativeSummary` | 2026-08-30 | Same: authored in user code, read by the proxy and the agent. |
 | `ai.narrativetrace.api.annotation.NotTraced` | 2026-08-30 | Same, and the redaction contract depends on it being namable everywhere. |
 | `ai.narrativetrace.api.annotation.OnError` | 2026-08-30 | Same: authored in user code. |
 | `ai.narrativetrace.api.annotation.OnErrors` | 2026-08-30 | The repeatable container for OnError; inseparable from it. |
+| `ai.narrativetrace.api.config.TraceDepth` | 2026-10-23 | The vocabulary for the opt-in trace depth (public / internal) that an agent option, a test integration and an approval baseline all name. |
 | `ai.narrativetrace.api.config.TracingLevel` | 2026-08-30 | The vocabulary a caller names when it sets a level. Resolution stays in core. |
 | `ai.narrativetrace.api.event.AttributeTier` | 2026-08-30 | Names the resource/trace/span tiers an exporter must respect. |
 | `ai.narrativetrace.api.event.ClientIp` | 2026-08-30 | Micro-typed span field; an exporter reads it. |

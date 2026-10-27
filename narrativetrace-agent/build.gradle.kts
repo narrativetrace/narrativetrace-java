@@ -28,6 +28,12 @@ val standalone: Configuration by configurations.creating
 // published artifact, mirroring how a real legacy host provides its own provider jar.
 val standaloneTestProvider: Configuration by configurations.creating
 
+// The forked JVM of DeepAgentEndToEndTest runs a real JUnit 5 test through the real
+// narrativetrace-junit5 extension, with the standalone jar attached by -javaagent. This is that
+// JVM's application classpath: the test integration and the JUnit Platform, and nothing from this
+// module — the agent classes arrive only through the jar, as in an adopter's build.
+val forkedJunit5Classpath: Configuration by configurations.creating
+
 configurations.named("compileOnly") { extendsFrom(shade) }
 configurations.named("testImplementation") { extendsFrom(shade) }
 
@@ -38,6 +44,9 @@ dependencies {
     compileOnly(project(":narrativetrace-slf4j"))
     standalone(project(":narrativetrace-slf4j")) // brings core + slf4j-api transitively
     standaloneTestProvider("org.slf4j:slf4j-simple:2.0.16") { isTransitive = false }
+    forkedJunit5Classpath(project(":narrativetrace-junit5"))
+    forkedJunit5Classpath("org.junit.jupiter:junit-jupiter:5.11.4")
+    forkedJunit5Classpath("org.junit.platform:junit-platform-launcher:1.11.4")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.7")
@@ -112,7 +121,12 @@ tasks.test {
     // green unrun (the same gotcha narrativetrace-tooling's build script documents).
     systemProperty("projectDir", rootProject.projectDir.absolutePath)
     inputs.file(rootProject.file("documentation/installation-guide.md"))
+    inputs.files(forkedJunit5Classpath)
     doFirst {
+        systemProperty(
+            "narrativetrace.test.forkedJunit5Classpath",
+            forkedJunit5Classpath.files.joinToString(File.pathSeparator) { it.absolutePath }
+        )
         systemProperty(
             "narrativetrace.test.agentJar",
             tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar")
@@ -141,7 +155,7 @@ tasks.test {
 // minion that lacks it falls back to the module directory, where the guide is not ("3 tests did
 // not pass without mutation", nightly java-pitest-agent 2026-10-20, Pro B-127).
 tasks.named("pitest") {
-    dependsOn(tasks.named("shadowJar"), tasks.named("standaloneJar"))
+    dependsOn(tasks.named("shadowJar"), tasks.named("standaloneJar"), forkedJunit5Classpath)
 }
 configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
     jvmArgs.set(
@@ -154,6 +168,8 @@ configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
                     tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("standaloneJar")
                         .get().archiveFile.get().asFile.absolutePath,
                 "-Dnarrativetrace.test.slf4jProviderJar=" + standaloneTestProvider.singleFile.absolutePath,
+                "-Dnarrativetrace.test.forkedJunit5Classpath=" +
+                    forkedJunit5Classpath.files.joinToString(File.pathSeparator) { it.absolutePath },
                 "-DprojectDir=" + rootProject.projectDir.absolutePath
             )
         }

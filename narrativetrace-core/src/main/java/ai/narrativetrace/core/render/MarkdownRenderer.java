@@ -665,7 +665,7 @@ public final class MarkdownRenderer implements NarrativeRenderer {
         sig.parameters().stream()
             .map(param -> renderParam(param, refs))
             .collect(Collectors.joining(", "));
-    return "**" + signatureText(sig) + "**(" + params + ")";
+    return InternalMarker.of(sig) + "**" + signatureText(sig) + "**(" + params + ")";
   }
 
   private String renderParam(ParameterCapture param, ValueReferenceIndex refs) {

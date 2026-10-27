@@ -256,7 +256,11 @@ resolve_version() {
 # ---------------------------------------------------------------------------------------
 
 load_coordinates() {
-    "$REPO_ROOT/gradlew" -q printPublishedCoordinates
+    # -Pnarrativetrace.skipBuildSrcTests: buildSrc's own tests run as a finalizer of its jar on
+    # every build (buildSrc/build.gradle.kts), so merely LISTING coordinates would otherwise
+    # run the whole buildSrc suite first — and a buildSrc test failing on this host (B-189)
+    # aborted a post-publish verification that had nothing to do with it.
+    "$REPO_ROOT/gradlew" -q -Pnarrativetrace.skipBuildSrcTests printPublishedCoordinates
 }
 
 # ---------------------------------------------------------------------------------------

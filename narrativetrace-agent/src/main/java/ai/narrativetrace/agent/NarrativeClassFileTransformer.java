@@ -61,7 +61,7 @@ public final class NarrativeClassFileTransformer implements ClassFileTransformer
     }
 
     try {
-      return ClassTransformer.transform(classfileBuffer, className, loader);
+      return ClassTransformer.transform(classfileBuffer, className, loader, config.depth());
     } catch (Throwable failure) {
       // The JVM silently discards exceptions thrown by a ClassFileTransformer; without this
       // line the class loads uninstrumented and its narration is just absent, with no clue why.

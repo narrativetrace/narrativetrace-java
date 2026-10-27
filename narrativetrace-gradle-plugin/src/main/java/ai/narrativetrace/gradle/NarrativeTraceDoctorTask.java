@@ -26,7 +26,7 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 /**
- * {@code narrativetraceDoctor}: runs the free {@code narrativetrace-tooling} doctor's twenty-one
+ * {@code narrativetraceDoctor}: runs the free {@code narrativetrace-tooling} doctor's twenty-two
  * checks against this project and writes its JSON report. Calls {@code SnapshotBuilder}, {@code
  * DoctorChecks} and {@code DoctorRender} in-process — {@code narrativetrace-tooling} is a project
  * dependency baked into this plugin's own jar (see {@code build.gradle.kts}), not an external
@@ -47,7 +47,7 @@ import org.gradle.api.tasks.TaskAction;
  * failure"), and on 2026-10-10 two consumers read that as green while the report said FAIL: a
  * benchmark harness's "setup done" step, and an agent scripting its own next step.
  *
- * <p><b>@llmNote</b> One of the twenty-one checks needs the agent-skills carrier this project
+ * <p><b>@llmNote</b> One of the twenty-two checks needs the agent-skills carrier this project
  * resolves, so this task reads the same {@code narrativeTraceSkills} configuration {@code
  * narrativetraceInit} does — through the same LENIENT artifact view, and with the opposite policy
  * on failure: {@code init} fails the build with the coordinate named, because a person asked it to

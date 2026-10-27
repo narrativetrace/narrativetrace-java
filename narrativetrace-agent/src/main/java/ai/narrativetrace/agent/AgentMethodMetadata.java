@@ -38,6 +38,7 @@ import ai.narrativetrace.core.render.RedactionPolicy;
  * @param sourceLocation the baked source location, or {@code null} when the class carries none;
  *     recorded only when the context asks for it
  * @param onErrors the {@code @OnError} entries the catch handler resolves against, or {@code null}
+ * @param internal whether this is a private method woven only by the opt-in deep mode
  */
 record AgentMethodMetadata(
     String simpleClassName,
@@ -49,7 +50,34 @@ record AgentMethodMetadata(
     String returnType,
     String narratedTemplate,
     SourceLocation sourceLocation,
-    MethodMetadata.OnErrorEntry[] onErrors) {
+    MethodMetadata.OnErrorEntry[] onErrors,
+    boolean internal) {
+
+  /** The ten-component shape predates {@code internal} and must keep meaning what it meant. */
+  AgentMethodMetadata(
+      String simpleClassName,
+      String packageName,
+      String methodName,
+      String[] parameterNames,
+      String[] parameterTypes,
+      boolean[] redacted,
+      String returnType,
+      String narratedTemplate,
+      SourceLocation sourceLocation,
+      MethodMetadata.OnErrorEntry[] onErrors) {
+    this(
+        simpleClassName,
+        packageName,
+        methodName,
+        parameterNames,
+        parameterTypes,
+        redacted,
+        returnType,
+        narratedTemplate,
+        sourceLocation,
+        onErrors,
+        false);
+  }
 
   private static final String[] NO_NAMES = new String[0];
   private static final boolean[] NO_FLAGS = new boolean[0];
@@ -57,6 +85,15 @@ record AgentMethodMetadata(
   /** The record for a method whose parameters the class file can name. */
   static AgentMethodMetadata of(
       String qualifiedClassName, String methodName, String descriptor, MethodMetadata collected) {
+    return of(qualifiedClassName, methodName, descriptor, collected, false);
+  }
+
+  static AgentMethodMetadata of(
+      String qualifiedClassName,
+      String methodName,
+      String descriptor,
+      MethodMetadata collected,
+      boolean internal) {
     var names = captureNames(collected.parameterNames());
     return new AgentMethodMetadata(
         simpleName(qualifiedClassName),
@@ -68,7 +105,8 @@ record AgentMethodMetadata(
         MethodDescriptorTypes.returnType(descriptor),
         collected.narratedTemplate(),
         sourceLocation(collected),
-        collected.onErrors());
+        collected.onErrors(),
+        internal);
   }
 
   /**
@@ -113,6 +151,11 @@ record AgentMethodMetadata(
    * unresolved placeholders where there used to be none.
    */
   static AgentMethodMetadata bare(String qualifiedClassName, String methodName, String descriptor) {
+    return bare(qualifiedClassName, methodName, descriptor, false);
+  }
+
+  static AgentMethodMetadata bare(
+      String qualifiedClassName, String methodName, String descriptor, boolean internal) {
     return new AgentMethodMetadata(
         simpleName(qualifiedClassName),
         packageName(qualifiedClassName),
@@ -123,7 +166,8 @@ record AgentMethodMetadata(
         MethodDescriptorTypes.returnType(descriptor),
         null,
         null,
-        null);
+        null,
+        internal);
   }
 
   /** Names to capture under, with {@code argN} standing in wherever the class file named none. */

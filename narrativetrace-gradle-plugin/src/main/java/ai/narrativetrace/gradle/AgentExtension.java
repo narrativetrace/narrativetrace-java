@@ -8,6 +8,7 @@
 package ai.narrativetrace.gradle;
 
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 
 /**
  * Gradle DSL block for Java-agent mode settings.
@@ -23,4 +24,14 @@ public abstract class AgentExtension {
   public abstract ListProperty<String> getPackages();
 
   public abstract ListProperty<String> getExclude();
+
+  /**
+   * The agent's opt-in deep mode: {@code "internal"} also weaves the private methods of the classes
+   * under test, so a test that asks for it ({@code @DeepTrace}, or {@code narrativetrace.depth})
+   * records them. Unset means the agent's default, public methods only.
+   */
+  public abstract Property<String> getDepth();
+
+  /** The agent's cap on deep spans per scope; unset means the agent's default. */
+  public abstract Property<Integer> getMaxInternalSpans();
 }

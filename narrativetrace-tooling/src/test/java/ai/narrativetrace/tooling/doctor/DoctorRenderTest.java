@@ -71,6 +71,25 @@ class DoctorRenderTest {
   }
 
   @Test
+  void aWarningShowsItsFixAndLeavesTheExitCodeAlone() {
+    Finding warning =
+        Finding.warn(
+            "config.agent-depth-mode",
+            "depth has no effect under the proxy route",
+            "mode.set(\"agent\")",
+            "https://narrativetrace.ai/docs/w");
+    DoctorReport report = new DoctorReport(List.of(PASSING, warning), 0);
+
+    String text = DoctorRender.renderHuman(report);
+
+    assertThat(text)
+        .contains("[WARN] config.agent-depth-mode")
+        .contains("fix:  mode.set(\"agent\")");
+    assertThat(text).contains("1 warning(s)").doesNotContain("All checks passed.");
+    assertThat(DoctorRender.renderJson(report)).contains("\"status\": \"warn\"");
+  }
+
+  @Test
   void humanRenderReportsACleanRun() {
     DoctorReport report = new DoctorReport(List.of(PASSING), 0);
     String text = DoctorRender.renderHuman(report);

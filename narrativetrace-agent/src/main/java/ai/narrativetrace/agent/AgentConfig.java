@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.agent;
 
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.core.config.ConfigResolver;
 import java.io.IOException;
@@ -40,17 +41,38 @@ import java.util.stream.Stream;
  * default (an empty value disables list 2 entirely). There is deliberately no second key to
  * "extend" the default: the nine prefixes are short and published verbatim, so extending is one
  * `exclude=` value with the default's entries plus the caller's own.
+ *
+ * <p>{@code depth} is the opt-in deep mode: {@code depth=internal} (agent argument) or {@code
+ * narrativetrace.agent.depth=internal} (the fallback path) makes the transformer also weave the
+ * <em>private</em> methods of the classes it already instruments — {@code packages=} include,
+ * {@code exclude=} and the generated-class rule all still apply, so a JDK or library class is never
+ * deepened. The default, and the value of anything unrecognised, is {@link TraceDepth#PUBLIC}: a
+ * test-time verbosity switch must never be reached by a typo or a profile. Weaving alone records
+ * nothing — private spans are recorded only inside a deep scope the test integration opens for one
+ * test ({@link AgentRuntime#beginDeepScope()}). {@code maxInternalSpans} bounds the deep spans of
+ * one scope (default {@value #DEFAULT_MAX_INTERNAL_SPANS}); beyond it deep spans are dropped, never
+ * the public ones.
  */
 public record AgentConfig(
     List<String> packages,
     String loggerName,
     TracingLevel level,
     List<Path> loggingJars,
-    List<String> exclude) {
+    List<String> exclude,
+    TraceDepth depth,
+    int maxInternalSpans) {
 
   private static final int KEY_VALUE_PAIR = 2;
   private static final String DEFAULT_LOGGER_NAME = "narrativetrace";
   private static final TracingLevel DEFAULT_LEVEL = TracingLevel.DETAIL;
+
+  /** The documented property naming the depth on the fallback path. */
+  private static final String DEPTH_KEY = "narrativetrace.agent.depth";
+
+  private static final String MAX_INTERNAL_SPANS_KEY = "narrativetrace.agent.maxInternalSpans";
+
+  /** Deep spans one scope may record before the rest are dropped. */
+  static final int DEFAULT_MAX_INTERNAL_SPANS = 5000;
 
   /** The agent argument naming list 2's explicit package list. */
   private static final String EXCLUDE_ARG = "exclude";
@@ -73,6 +95,23 @@ public record AgentConfig(
           "org.aspectj",
           "datadog",
           "io.opentelemetry.javaagent");
+
+  /** The five-component shape predates {@code depth} and must keep meaning what it meant. */
+  public AgentConfig(
+      List<String> packages,
+      String loggerName,
+      TracingLevel level,
+      List<Path> loggingJars,
+      List<String> exclude) {
+    this(
+        packages,
+        loggerName,
+        level,
+        loggingJars,
+        exclude,
+        TraceDepth.PUBLIC,
+        DEFAULT_MAX_INTERNAL_SPANS);
+  }
 
   /** Convenience for callers without logging jars (most tests and programmatic use). */
   public AgentConfig(List<String> packages, String loggerName, TracingLevel level) {
@@ -97,7 +136,9 @@ public record AgentConfig(
       var level = TracingLevel.fromName(config.get("level"), DEFAULT_LEVEL);
       var loggingJars = parseLoggingJars(config.getOrDefault("loggingJars", ""));
       var exclude = resolveExclude(config.get(EXCLUDE_ARG));
-      return new AgentConfig(packages, loggerName, level, loggingJars, exclude);
+      var depth = TraceDepth.fromName(config.get("depth"), TraceDepth.PUBLIC);
+      var maxInternal = positiveOrDefault(config.get("maxInternalSpans"));
+      return new AgentConfig(packages, loggerName, level, loggingJars, exclude, depth, maxInternal);
     }
     var resolver = new ConfigResolver(classLoader);
     var packagesValue = resolver.resolve("narrativetrace.packages", "");
@@ -106,7 +147,23 @@ public record AgentConfig(
         TracingLevel.fromName(resolver.resolve("narrativetrace.level", null), DEFAULT_LEVEL);
     var loggingJars = parseLoggingJars(resolver.resolve("narrativetrace.loggingJars", ""));
     var exclude = resolveExclude(resolver.resolve(EXCLUDE_KEY, null));
-    return new AgentConfig(parsePackages(packagesValue), loggerName, level, loggingJars, exclude);
+    var depth = TraceDepth.fromName(resolver.resolve(DEPTH_KEY, null), TraceDepth.PUBLIC);
+    var maxInternal = positiveOrDefault(resolver.resolve(MAX_INTERNAL_SPANS_KEY, null));
+    return new AgentConfig(
+        parsePackages(packagesValue), loggerName, level, loggingJars, exclude, depth, maxInternal);
+  }
+
+  /** A positive integer, else the default — a typo in a verbosity cap must not fail the premain. */
+  private static int positiveOrDefault(String value) {
+    if (value == null || value.isBlank()) {
+      return DEFAULT_MAX_INTERNAL_SPANS;
+    }
+    try {
+      var parsed = Integer.parseInt(value.trim());
+      return parsed >= 1 ? parsed : DEFAULT_MAX_INTERNAL_SPANS;
+    } catch (NumberFormatException e) {
+      return DEFAULT_MAX_INTERNAL_SPANS;
+    }
   }
 
   /**

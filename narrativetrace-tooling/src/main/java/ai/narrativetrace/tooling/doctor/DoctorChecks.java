@@ -17,6 +17,7 @@
  */
 package ai.narrativetrace.tooling.doctor;
 
+import ai.narrativetrace.tooling.doctor.checks.AgentDepthModeCheck;
 import ai.narrativetrace.tooling.doctor.checks.ApprovalModeCheck;
 import ai.narrativetrace.tooling.doctor.checks.ApprovalTracesCheck;
 import ai.narrativetrace.tooling.doctor.checks.ExtensionRegisteredCheck;
@@ -37,7 +38,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * The doctor's registry: twenty checks, in a fixed, deliberate order (toolchain, then
+ * The doctor's registry: twenty-two checks, in a fixed, deliberate order (toolchain, then
  * configuration, then one wiring check per framework-table row, then traps — worst-surprise-last),
  * run against one {@link DoctorSnapshot}. Adding a check means appending a new entry here — the id
  * is what stays stable across releases, never the position in this list.
@@ -56,6 +57,7 @@ public final class DoctorChecks {
                   new LauncherCheck(),
                   new OutputPropertyCheck(),
                   new ExtensionRegisteredCheck(),
+                  new AgentDepthModeCheck(),
                   new ApprovalModeCheck(),
                   new SkillsInstalledCheck()),
               frameworkChecks(),

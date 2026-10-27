@@ -71,6 +71,13 @@ tasks.test {
 // needs the jar, so a dependency edge is circular) makes every build that
 // produces the buildSrc jar also run its tests; both stay up-to-date when
 // buildSrc is unchanged, so the steady-state cost is zero.
-tasks.named("jar") {
-    finalizedBy(tasks.test)
+//
+// Opt-out for tooling that only needs the build's configuration, never its verdict:
+// `-Pnarrativetrace.skipBuildSrcTests` (scripts/verify-publication.sh sets it to list the
+// published coordinates). buildSrc's tasks cannot be named with `-x` from the root command line,
+// so the property is the only handle; the default build, CI and every gate never set it.
+if (!providers.gradleProperty("narrativetrace.skipBuildSrcTests").isPresent) {
+    tasks.named("jar") {
+        finalizedBy(tasks.test)
+    }
 }

@@ -30,8 +30,36 @@ public final class FakeAgentRuntime {
     context = newContext;
   }
 
+  static volatile boolean armed;
+  static volatile long dropped;
+  static volatile boolean open;
+  static final java.util.concurrent.atomic.AtomicInteger begun =
+      new java.util.concurrent.atomic.AtomicInteger();
+  static final java.util.concurrent.atomic.AtomicInteger ended =
+      new java.util.concurrent.atomic.AtomicInteger();
+
+  public static boolean isDeepArmed() {
+    return armed;
+  }
+
+  public static void beginDeepScope() {
+    begun.incrementAndGet();
+    open = true;
+  }
+
+  public static long endDeepScope() {
+    ended.incrementAndGet();
+    open = false;
+    return dropped;
+  }
+
   /** Resets the shared state between tests, since this stands in for a JVM-static singleton. */
   static void reset() {
     context = NoopNarrativeContext.INSTANCE;
+    armed = false;
+    open = false;
+    dropped = 0;
+    begun.set(0);
+    ended.set(0);
   }
 }

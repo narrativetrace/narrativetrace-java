@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 7940cea3b60e | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob e9ea0ae9e16d | translated: 2026-10-24 | reviewed: - -->
 # Guía del plugin de Gradle de NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | **Español** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ El plugin de Gradle `ai.narrativetrace` es la forma recomendada de usar Narrativ
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -196,6 +196,19 @@ narrativeTrace {
 
 Cuando packages está vacío (el valor por defecto), el agente instrumenta todas las clases. Los paquetes se unen con `;` en el argumento `-javaagent`.
 
+Las trazas profundas requieren el agente de Java (`mode = "agent"` en el plugin, o la opción `-javaagent`): la ruta de proxy no puede ver los métodos privados ni las llamadas de un objeto a sí mismo, así que con `mode = "proxy"` el ajuste no tiene efecto. `depth` activa las [trazas profundas](guia-de-instalacion.md#trazas-profundas-opt-in) opt-in del agente: `depth.set("internal")` añade `depth=internal` al argumento `-javaagent`, de modo que el agente también teje los métodos privados de las clases que instrumenta. `maxInternalSpans` acota los spans profundos de una prueba (si no se establece, rige el valor por defecto del agente). Ambos son ajustes de tiempo de prueba, sin establecer por defecto —un `depth` sin establecer deja el argumento exactamente como estaba— y por sí solos no registran nada: una prueba sigue pidiendo profundidad con `@DeepTrace` o `narrativetrace.depth=internal`.
+
+```kotlin
+narrativeTrace {
+    mode.set("agent")
+    agent {
+        packages.set(listOf("com.example.app"))
+        depth.set("internal")              // añade depth=internal al argumento -javaagent
+        maxInternalSpans.set(5000)         // opcional: añade maxInternalSpans=5000
+    }
+}
+```
+
 El JAR del agente se resuelve de forma diferida en el momento de ejecutar las pruebas, a partir de una configuración de Gradle dedicada `narrativeTraceAgent`.
 
 ## Bloque de claridad
@@ -310,7 +323,7 @@ Acepta los cambios estructurales intencionados en el [modo de aprobación](#appr
 
 ### `narrativetraceDoctor`
 
-Ejecuta las veintiuna comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
+Ejecuta las veintidós comprobaciones de solo lectura del doctor contra este proyecto, en el mismo proceso
 — las mismas que ejecuta el verbo `doctor` del lanzador independiente. Escribe
 `build/narrativetrace/doctor-report.json` e imprime el informe legible.
 
@@ -426,7 +439,7 @@ Cuando se define, todas las dependencias de NarrativeTrace gestionadas se resuel
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -562,7 +575,7 @@ Todos los ejemplos anteriores usan el DSL de Kotlin. El equivalente en Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.1'
+    id 'ai.narrativetrace' version '0.5.2'
 }
 
 narrativeTrace {
@@ -619,6 +632,8 @@ narrativeTrace {
 
     agent {                                    // solo relevante cuando mode = "agent"
         packages.set(listOf("com.example.app"))
+        depth.set("internal")                  // por defecto: sin establecer (solo métodos públicos)
+        maxInternalSpans.set(5000)             // por defecto: sin establecer (el límite del agente)
     }
 
     clarity {

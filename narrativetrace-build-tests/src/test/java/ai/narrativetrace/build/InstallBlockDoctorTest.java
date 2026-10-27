@@ -81,7 +81,7 @@ class InstallBlockDoctorTest {
   }
 
   /**
-   * The whole faithful path: paste the block, run {@code init}, run the doctor — twenty-one green.
+   * The whole faithful path: paste the block, run {@code init}, run the doctor — twenty-two green.
    */
   @Test
   void theFaithfulPathEndsAtAFullyGreenDoctorReport(@TempDir Path project)
@@ -94,7 +94,7 @@ class InstallBlockDoctorTest {
     assertThat(install.exitCode()).as(install.output()).isZero();
     assertThat(failingFindings(doctor.output())).as(doctor.output()).isEmpty();
     assertThat(doctor.output())
-        .contains("21 check(s), 0 finding(s)")
+        .contains("22 check(s), 0 finding(s)")
         .contains("All checks passed.");
     assertThat(doctor.exitCode()).isZero();
   }

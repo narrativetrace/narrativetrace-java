@@ -7,16 +7,20 @@
  */
 package ai.narrativetrace.security.corpus;
 
+import ai.narrativetrace.api.annotation.NarrativeElements;
 import ai.narrativetrace.api.annotation.NarrativeSummary;
 import ai.narrativetrace.api.annotation.NotTraced;
+import ai.narrativetrace.core.render.RenderingGuard;
 import java.net.URI;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -717,6 +721,126 @@ public final class HostileMembers {
     @Override
     public String toString() {
       return "ApplicationDate{password=" + password + "}";
+    }
+  }
+
+  /**
+   * The third sanctioned hook on an {@code Iterable}: seven elements, the first the
+   * sentinel-bearing record, past the collection cap of five. Counts its iterations and records
+   * whether the rendering guard was active while the hook ran.
+   */
+  @NarrativeElements
+  public static final class DeclaredElementsIterable implements Iterable<Object> {
+    public final AtomicInteger iteratorCalls = new AtomicInteger();
+    public volatile boolean guardActiveDuringIteration;
+    private final List<Object> items = new ArrayList<>();
+
+    DeclaredElementsIterable(HostileGraphs.Secret held) {
+      items.add(held);
+      for (var i = 1; i < 7; i++) {
+        items.add("elem-" + i);
+      }
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+      iteratorCalls.incrementAndGet();
+      guardActiveDuringIteration = RenderingGuard.isActive();
+      return items.iterator();
+    }
+  }
+
+  /** The same hook on a {@code Map}: seven entries, the first value the sentinel-bearing record. */
+  @NarrativeElements
+  public static final class DeclaredElementsMap extends AbstractMap<String, Object> {
+    public final AtomicInteger entrySetCalls = new AtomicInteger();
+    public volatile boolean guardActiveDuringEntrySet;
+    private final HostileGraphs.Secret held;
+
+    DeclaredElementsMap(HostileGraphs.Secret held) {
+      this.held = held;
+    }
+
+    @Override
+    public Set<Map.Entry<String, Object>> entrySet() {
+      entrySetCalls.incrementAndGet();
+      guardActiveDuringEntrySet = RenderingGuard.isActive();
+      var entries = new LinkedHashSet<Map.Entry<String, Object>>();
+      entries.add(new AbstractMap.SimpleImmutableEntry<>("entry-key-0", held));
+      for (var i = 1; i < 7; i++) {
+        entries.add(new AbstractMap.SimpleImmutableEntry<>("entry-key-" + i, "entry-value-" + i));
+      }
+      return entries;
+    }
+
+    @Override
+    public int size() {
+      return 7;
+    }
+  }
+
+  /** A declared {@code Iterable} whose hook raises: the typed error marker on both paths. */
+  @NarrativeElements
+  public static final class DeclaredElementsRaising implements Iterable<Object> {
+    @Override
+    public Iterator<Object> iterator() {
+      throw new IllegalStateException("the hook refuses");
+    }
+  }
+
+  /**
+   * A user subclass of the platform {@link ArrayList} whose overridden iterators count their calls
+   * and refuse: the ancestor's own array is the only honest read.
+   */
+  public static final class AncestorStateList extends ArrayList<Object> {
+    public final AtomicInteger overrideCalls = new AtomicInteger();
+
+    AncestorStateList(HostileGraphs.Secret held) {
+      add("ancestor-list-element");
+      add(held);
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+      overrideCalls.incrementAndGet();
+      throw new UnsupportedOperationException("iterator() must never be called by rendering");
+    }
+
+    @Override
+    public java.util.ListIterator<Object> listIterator() {
+      overrideCalls.incrementAndGet();
+      throw new UnsupportedOperationException("listIterator() must never be called by rendering");
+    }
+  }
+
+  /**
+   * A user subclass of the platform {@link HashMap} whose overridden views count their calls and
+   * refuse: the ancestor's own table is the only honest read.
+   */
+  public static final class AncestorStateMap extends HashMap<String, Object> {
+    public final AtomicInteger overrideCalls = new AtomicInteger();
+
+    AncestorStateMap(HostileGraphs.Secret held) {
+      put("visible", "ancestor-map-value");
+      put("held", held);
+    }
+
+    @Override
+    public Set<Map.Entry<String, Object>> entrySet() {
+      overrideCalls.incrementAndGet();
+      throw new UnsupportedOperationException("entrySet() must never be called by rendering");
+    }
+
+    @Override
+    public Set<String> keySet() {
+      overrideCalls.incrementAndGet();
+      throw new UnsupportedOperationException("keySet() must never be called by rendering");
+    }
+
+    @Override
+    public java.util.Collection<Object> values() {
+      overrideCalls.incrementAndGet();
+      throw new UnsupportedOperationException("values() must never be called by rendering");
     }
   }
 

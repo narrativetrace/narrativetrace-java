@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob e9e409df46a0 | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob bc0745d67907 | translated: 2026-10-24 | reviewed: - -->
 # Guía de instalación de NarrativeTrace Java
 
 [English](../installation-guide.md) | **Español** | [简体中文](../zh-CN/安装指南.md)
@@ -96,7 +96,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 ```
 
@@ -143,24 +143,24 @@ Empieza con el stack mínimo y luego añade solo las integraciones que necesites
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.1")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.2")
 
     // Integraciones opcionales
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.1")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.1")  // para JUnit 4
-    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.1")  // para TestNG
-    implementation("ai.narrativetrace:narrativetrace-spring:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.1")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.1")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.2")  // para JUnit 4
+    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.2")  // para TestNG
+    implementation("ai.narrativetrace:narrativetrace-spring:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
 }
 ```
 
@@ -444,6 +444,79 @@ nunca una vez por clase:
 ```text
 narrativetrace-agent: cannot instrument org/mockito/internal/Foo (excluded package org/mockito/); classes under that package load uninstrumented
 ```
+
+#### Trazas profundas (opt-in)
+
+Las trazas profundas requieren el agente de Java (`mode = "agent"` en el plugin, o la opción `-javaagent`): la ruta de proxy no puede ver los métodos privados ni las llamadas de un objeto a sí mismo, así que con `mode = "proxy"` el ajuste no tiene efecto.
+
+Por defecto el agente registra la frontera observable de cada clase. **No**
+instrumenta métodos privados, constructores, inicializadores de clase, métodos
+abstractos ni métodos puente/sintéticos (lo que incluye el cuerpo de cada lambda);
+los métodos de paquete, protegidos, públicos y estáticos sí se instrumentan, y la
+llamada de un método instrumentado a otro sobre `this` ya queda registrada, porque
+el tejido está en el cuerpo de los métodos. Lo que una traza por defecto no puede
+mostrar es un helper privado y el valor equivocado que devuelve.
+
+Las trazas profundas registran también esos métodos privados, para las clases que
+`packages=` ya selecciona (nunca una clase del JDK o de una biblioteca, y `exclude=`
+sigue ganando). Es un ajuste verboso, solo para pruebas, y **nunca un ajuste de
+producción**: está apagado por defecto en toda integración, y solo se alcanza con dos
+opt-ins explícitos que deben darse ambos.
+
+1. Arranca el agente de la JVM de pruebas con `depth=internal` (por defecto `public`;
+   la alternativa por propiedad, que se usa cuando el agente no recibe argumentos, es
+   `narrativetrace.agent.depth`). Esto teje los métodos privados cuando se carga su
+   clase; por sí solo no registra nada. `maxInternalSpans=` acota los spans profundos
+   de una prueba (por defecto 5000); más allá se descartan, se cuentan y se nombran en
+   la cabecera del archivo de traza, y todas las llamadas públicas se conservan.
+2. Pídelo por prueba con `@DeepTrace` (en una prueba, una clase o una clase envolvente),
+   o para toda una ejecución con `narrativetrace.depth=internal`. Las integraciones de
+   JUnit 5, JUnit 4 y TestNG abren el alcance profundo del agente exactamente para esa prueba.
+   Una petición sin la opción del agente se ejecuta con la profundidad por defecto y lo
+   dice una sola vez por la salida de error estándar.
+
+```bash
+java -javaagent:narrativetrace-agent.jar=packages=com.example.myapp.*,depth=internal -jar your-app-tests.jar
+```
+
+```java
+@Test
+@DeepTrace
+void pricesAreCalculated() { ... }
+```
+
+Con el plugin de Gradle en modo `agent`, la opción del agente es una línea del DSL
+(`maxInternalSpans.set(...)` es opcional):
+
+```kotlin
+narrativeTrace {
+    mode.set("agent")
+    agent {
+        depth.set("internal")   // añade depth=internal al argumento -javaagent
+    }
+}
+```
+
+Una llamada interna se anida bajo la llamada pública que la hizo, como cualquier otra,
+y se marca con un `·` inicial en los renderizados de texto, Markdown y estructural
+(`.nt`); la forma canónica y la de transporte no llevan la marca.
+
+```text
+#1 - Pricing.total() → value
+  #1.1 - · Pricing.withTax(net) → value
+```
+
+Las líneas base de aprobación siguen el mismo opt-in. Un `*.approved.nt` cortado con
+las trazas profundas activas declara `depth: internal` bajo su línea `scenario:` (sin
+línea significa `public`, así que toda línea base anterior sigue siendo válida). Una
+línea base y una ejecución de profundidades distintas nunca se comparan línea a línea
+ni pasan en silencio: la ejecución falla con `Depth mismatch`, nombrando ambas
+profundidades, y escribe su propio `*.received.nt` para revisión. Aprobar ese archivo
+vuelve a fijar la línea base en la nueva profundidad.
+
+Límites: los métodos privados se registran en el hilo propio de la prueba; un método
+privado que corre en un hilo de trabajo que la prueba no inició no se registra. Los
+cuerpos de lambda siguen fuera.
 
 
 ## 4. Configura la salida de trazas

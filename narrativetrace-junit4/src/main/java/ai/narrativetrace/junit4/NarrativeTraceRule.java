@@ -7,6 +7,8 @@
  */
 package ai.narrativetrace.junit4;
 
+import ai.narrativetrace.api.annotation.DeepTrace;
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
@@ -92,6 +94,13 @@ public class NarrativeTraceRule extends TestWatcher {
 
   private AgentContextBridge ownAgentBridge;
 
+  /** Reported once per JVM: depth was requested but the agent never wove private methods. */
+  private static final java.util.concurrent.atomic.AtomicBoolean DEEP_REFUSAL_REPORTED =
+      new java.util.concurrent.atomic.AtomicBoolean();
+
+  private TraceDepth depth = TraceDepth.PUBLIC;
+  private long deepSpansDropped;
+
   /**
    * Returns the current test's {@link NarrativeContext}.
    *
@@ -143,11 +152,54 @@ public class NarrativeTraceRule extends TestWatcher {
     testFailed = false;
     failure = Optional.empty();
     lossBaseline = context.traceLoss();
+    depth = openDepthScope(description);
+    deepSpansDropped = 0;
     // Only when linked to a class rule: a lone @Rule with no aggregator names no run, the same
     // way it produces no console footer or manifest today (2026-09-13 ruling, item 2).
     if (classRule != null) {
       NarrativeTraceClassRule.notifyRunStarted();
     }
+  }
+
+  private AgentContextBridge bridge() {
+    return classRule != null ? classRule.agentBridge() : ownAgentBridge;
+  }
+
+  /**
+   * Decides this test's depth and, when it is {@link TraceDepth#INTERNAL}, opens the agent's deep
+   * scope on the test thread. Requested by {@code @DeepTrace} (test or class) or the run-wide
+   * {@code narrativetrace.depth=internal}; granted only when the agent was started with {@code
+   * depth=internal}. A refused request runs public and says so once on standard error. A scope a
+   * previous test left open is closed first.
+   */
+  private TraceDepth openDepthScope(Description description) {
+    var bridge = bridge();
+    var armed = bridge.deepArmed();
+    if (armed) {
+      bridge.endDeepScope();
+    }
+    if (!requestsDepth(description)) {
+      return TraceDepth.PUBLIC;
+    }
+    if (!armed) {
+      if (DEEP_REFUSAL_REPORTED.compareAndSet(false, true)) {
+        err.println(
+            "narrative-trace: depth=internal was requested (@DeepTrace or narrativetrace.depth)"
+                + " but the Java agent was not started with depth=internal, so private methods"
+                + " were never woven; tests run at depth PUBLIC.");
+      }
+      return TraceDepth.PUBLIC;
+    }
+    bridge.beginDeepScope();
+    return TraceDepth.INTERNAL;
+  }
+
+  private static boolean requestsDepth(Description description) {
+    return TraceDepth.INTERNAL
+            == TraceDepth.fromName(System.getProperty("narrativetrace.depth"), TraceDepth.PUBLIC)
+        || description.getAnnotation(DeepTrace.class) != null
+        || (description.getTestClass() != null
+            && description.getTestClass().isAnnotationPresent(DeepTrace.class));
   }
 
   /**
@@ -186,6 +238,9 @@ public class NarrativeTraceRule extends TestWatcher {
       return;
     }
     try {
+      if (depth == TraceDepth.INTERNAL) {
+        deepSpansDropped = bridge().endDeepScope();
+      }
       printTemplateWarnings();
       // The verdict has to be known BEFORE anything is written: an approval rejection fails the
       // test too, and a run that ends red must not advance the last-green artifact.
@@ -286,7 +341,8 @@ public class NarrativeTraceRule extends TestWatcher {
               trace,
               identity.structuralScenario(description.getMethodName()),
               approvedFile,
-              currentLoss());
+              currentLoss(),
+              depth);
       if (!note.isEmpty()) {
         System.out.println("  Approval: " + note);
       }
@@ -359,7 +415,9 @@ public class NarrativeTraceRule extends TestWatcher {
               mermaidRenderer,
               plantumlRenderer,
               true,
-              classRule == null ? null : classRule.runIdentity().name());
+              classRule == null ? null : classRule.runIdentity().name(),
+              depth,
+              deepSpansDropped);
       if (classRule != null) {
         delta.ifPresent(classRule::accumulateDelta);
       }

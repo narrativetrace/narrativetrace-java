@@ -203,7 +203,7 @@ its own):
 
 ```kotlin
 dependencies {
-    compileOnly("ai.narrativetrace:narrativetrace-api:0.5.1")
+    compileOnly("ai.narrativetrace:narrativetrace-api:0.5.2")
 }
 ```
 

@@ -60,7 +60,7 @@ final class SharedPipeline {
   private final NarrativeTraceConfig config;
   private final EventPipeline pipeline;
   private final ThreadLocalNarrativeContext context;
-  private final AgentContextBridge agentBridge;
+  private volatile AgentContextBridge agentBridge;
 
   /** Package-private rather than private: a test needs an instance it may close on its own. */
   SharedPipeline(int bufferCapacity) {
@@ -126,6 +126,22 @@ final class SharedPipeline {
   /** The pipeline behind {@link #context()} — its store is what each test's reset empties. */
   EventPipeline pipeline() {
     return pipeline;
+  }
+
+  /** The bridge to the Java agent's runtime, when one is attached to this JVM. */
+  AgentContextBridge agentBridge() {
+    return agentBridge;
+  }
+
+  /**
+   * Test seam: swaps the bridge, so a test can stand a fake agent runtime in for the real one.
+   *
+   * @return the bridge that was replaced
+   */
+  AgentContextBridge useAgentBridge(AgentContextBridge replacement) {
+    var previous = agentBridge;
+    agentBridge = replacement;
+    return previous;
   }
 
   /** Restores the agent's previous context and closes the pipeline. Idempotent. */

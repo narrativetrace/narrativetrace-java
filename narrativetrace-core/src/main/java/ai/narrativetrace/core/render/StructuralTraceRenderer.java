@@ -10,6 +10,7 @@ package ai.narrativetrace.core.render;
 import static ai.narrativetrace.core.render.SiblingCarry.flush;
 import static ai.narrativetrace.core.render.SiblingCarry.flushToLast;
 
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.render.NarrativeRenderer;
@@ -68,6 +69,27 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
   public String renderDocument(TraceTree tree, String scenario) {
     return "scenario: " + ControlEscape.sanitize(scenario) + "\n\n" + render(tree);
   }
+
+  /**
+   * The artifact declaring the depth it was recorded at. {@link TraceDepth#PUBLIC} renders exactly
+   * the two-argument form; {@link TraceDepth#INTERNAL} adds a {@code depth: internal} line under
+   * the scenario, which is what lets an approval baseline refuse to be compared with a run of the
+   * other depth.
+   */
+  public String renderDocument(TraceTree tree, String scenario, TraceDepth depth) {
+    if (depth != TraceDepth.INTERNAL) {
+      return renderDocument(tree, scenario);
+    }
+    return "scenario: "
+        + ControlEscape.sanitize(scenario)
+        + "\n"
+        + DEPTH_LINE
+        + "\n\n"
+        + render(tree);
+  }
+
+  /** The header line a deep artifact carries; its absence means {@link TraceDepth#PUBLIC}. */
+  public static final String DEPTH_LINE = "depth: internal";
 
   @Override
   public String render(TraceTree tree) {
@@ -149,6 +171,7 @@ public final class StructuralTraceRenderer implements NarrativeRenderer {
       sb.append(id).append(' ');
     }
     sb.append("- ")
+        .append(InternalMarker.of(sig))
         .append(ControlEscape.sanitize(sig.className()))
         .append(".")
         .append(ControlEscape.sanitize(sig.methodName()))

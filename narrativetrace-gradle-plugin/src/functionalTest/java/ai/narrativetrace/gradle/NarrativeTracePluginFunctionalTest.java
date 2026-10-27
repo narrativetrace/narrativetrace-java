@@ -549,6 +549,100 @@ class NarrativeTracePluginFunctionalTest {
   }
 
   @Test
+  void agentModeReadsTheDeepModeOptionsFromTheDsl(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n"
+            + "    mode.set(\"agent\")\n"
+            + "    agent {\n"
+            + "        packages.set(listOf(\"com.example.app\"))\n"
+            + "        depth.set(\"internal\")\n"
+            + "        maxInternalSpans.set(500)\n"
+            + "    }\n"
+            + "}\n"
+            + "tasks.register(\"checkAgentDepth\") {\n"
+            + "    doLast {\n"
+            + "        val ext ="
+            + " project.extensions.getByType(ai.narrativetrace.gradle.NarrativeTraceExtension::class.java)\n"
+            + "        println(\"DEPTH: \" + ext.agent.depth.get() + \" \" +"
+            + " ext.agent.maxInternalSpans.get())\n"
+            + "    }\n"
+            + "}\n");
+
+    var result = runGradle(projectDir, "checkAgentDepth");
+
+    assertThat(result.getOutput()).contains("DEPTH: internal 500");
+  }
+
+  private static final String DEEP_TRACES_NEED_THE_AGENT =
+      "Deep traces require the Java agent (mode = \"agent\" in the plugin, or the -javaagent"
+          + " option): the proxy route cannot see private methods or self-calls, so with mode ="
+          + " \"proxy\" the setting has no effect.";
+
+  private static final String SHOW_TEST_JVM_ARGS =
+      "tasks.register(\"showTestJvmArgs\") {\n"
+          + "    doLast {\n"
+          + "        println(\"TEST_JVM_ARGS: \" + tasks.named<Test>(\"test\").get().allJvmArgs)\n"
+          + "    }\n"
+          + "}\n";
+
+  @Test
+  void depthUnderTheDefaultProxyModeWarnsOnceAndAddsNothingToTheTestJvm(@TempDir Path projectDir)
+      throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n    agent {\n        depth.set(\"internal\")\n    }\n}\n"
+            + SHOW_TEST_JVM_ARGS);
+
+    var result = runGradle(projectDir, "showTestJvmArgs");
+
+    assertThat(result.getOutput()).containsOnlyOnce(DEEP_TRACES_NEED_THE_AGENT);
+    var argsLine =
+        result
+            .getOutput()
+            .lines()
+            .filter(line -> line.startsWith("TEST_JVM_ARGS:"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(argsLine).doesNotContain("-javaagent");
+  }
+
+  @Test
+  void maxInternalSpansUnderTheProxyModeWarnsToo(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n    mode.set(\"proxy\")\n    agent {\n"
+            + "        maxInternalSpans.set(500)\n    }\n}\n");
+
+    var result = runGradle(projectDir, "tasks");
+
+    assertThat(result.getOutput()).containsOnlyOnce(DEEP_TRACES_NEED_THE_AGENT);
+  }
+
+  @Test
+  void depthUnderAgentModeDoesNotWarn(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n    mode.set(\"agent\")\n    agent {\n"
+            + "        depth.set(\"internal\")\n    }\n}\n");
+
+    var result = runGradle(projectDir, "tasks");
+
+    assertThat(result.getOutput()).doesNotContain("Deep traces require the Java agent");
+  }
+
+  @Test
+  void noDepthSettingMeansNoWarning(@TempDir Path projectDir) throws IOException {
+    writeBuildFile(
+        projectDir,
+        "narrativeTrace {\n    agent {\n        packages.set(listOf(\"a\"))\n    }\n}\n");
+
+    var result = runGradle(projectDir, "tasks");
+
+    assertThat(result.getOutput()).doesNotContain("Deep traces require the Java agent");
+  }
+
+  @Test
   void agentModeWithNoExcludeDefaultsToAnEmptyDslList(@TempDir Path projectDir) throws IOException {
     writeBuildFile(
         projectDir,

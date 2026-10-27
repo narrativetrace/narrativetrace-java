@@ -51,6 +51,9 @@ import java.util.List;
  * @param source Source location, or {@code null} when disabled ({@code
  *     narrativetrace.capture.sourceLocation}, default off) or unknown. Never rendered into
  *     narrative message text.
+ * @param internal {@code true} when the call is a private method recorded only because the agent's
+ *     opt-in {@code depth=internal} mode is on; {@code false} everywhere else. A rendering hint:
+ *     text and Markdown mark such a call, and the canonical entry does not carry it.
  */
 public record MethodSignature(
     String className,
@@ -62,7 +65,34 @@ public record MethodSignature(
     String packageName,
     String returnType,
     String instanceId,
-    SourceLocation source) {
+    SourceLocation source,
+    boolean internal) {
+
+  /** The ten-component shape predates {@code internal} and must keep meaning what it meant. */
+  public MethodSignature(
+      String className,
+      String methodName,
+      List<ParameterCapture> parameters,
+      String narration,
+      String errorContext,
+      String narrationTemplate,
+      String packageName,
+      String returnType,
+      String instanceId,
+      SourceLocation source) {
+    this(
+        className,
+        methodName,
+        parameters,
+        narration,
+        errorContext,
+        narrationTemplate,
+        packageName,
+        returnType,
+        instanceId,
+        source,
+        false);
+  }
 
   public MethodSignature(String className, String methodName, List<ParameterCapture> parameters) {
     this(className, methodName, parameters, null, null, null, null, null, null, null);
@@ -162,7 +192,8 @@ public record MethodSignature(
         packageName,
         returnType,
         instanceId,
-        source);
+        source,
+        internal);
   }
 
   /** Copy with different parameter captures; every other field is preserved. */
@@ -177,6 +208,23 @@ public record MethodSignature(
         packageName,
         returnType,
         instanceId,
-        source);
+        source,
+        internal);
+  }
+
+  /** Copy marked as an internal (private) call; every other field is preserved. */
+  public MethodSignature asInternal() {
+    return new MethodSignature(
+        className,
+        methodName,
+        parameters,
+        narration,
+        errorContext,
+        narrationTemplate,
+        packageName,
+        returnType,
+        instanceId,
+        source,
+        true);
   }
 }

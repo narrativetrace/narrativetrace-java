@@ -66,4 +66,36 @@ class AgentJvmArgFactoryTest {
 
     assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=exclude=org.mockito;net.bytebuddy");
   }
+
+  @Test
+  void depthAloneIsEmittedUnderTheDepthKey() {
+    var arg =
+        AgentJvmArgFactory.javaagentArg("/libs/agent.jar", List.of(), List.of(), "internal", null);
+
+    assertThat(arg).isEqualTo("-javaagent:/libs/agent.jar=depth=internal");
+  }
+
+  @Test
+  void depthAndTheSpanCapFollowPackagesAndExclude() {
+    var arg =
+        AgentJvmArgFactory.javaagentArg(
+            "/libs/agent.jar", List.of("com.shop"), List.of("org.mockito"), "internal", 500);
+
+    assertThat(arg)
+        .isEqualTo(
+            "-javaagent:/libs/agent.jar=packages=com.shop,exclude=org.mockito,"
+                + "depth=internal,maxInternalSpans=500");
+  }
+
+  @Test
+  void anUnsetOrBlankDepthLeavesTheArgumentExactlyAsItWas() {
+    assertThat(
+            AgentJvmArgFactory.javaagentArg(
+                "/libs/agent.jar", List.of("com.shop"), List.of(), null, null))
+        .isEqualTo("-javaagent:/libs/agent.jar=packages=com.shop");
+    assertThat(
+            AgentJvmArgFactory.javaagentArg(
+                "/libs/agent.jar", List.of("com.shop"), List.of(), " ", null))
+        .isEqualTo("-javaagent:/libs/agent.jar=packages=com.shop");
+  }
 }

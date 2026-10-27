@@ -87,4 +87,26 @@ class MethodSignatureTest {
     assertThat(fiveArg.packageName()).isNull();
     assertThat(sixArg.packageName()).isNull();
   }
+
+  @Test
+  void isNotInternalFromEveryConstructorButTheDeepOne() {
+    assertThat(new MethodSignature("A", "b", List.of()).internal()).isFalse();
+    assertThat(
+            new MethodSignature("A", "b", List.of(), null, null, null, null, null, null, null)
+                .internal())
+        .isFalse();
+  }
+
+  @Test
+  void asInternalMarksTheCallAndEveryCopyKeepsTheMark() {
+    var internal =
+        new MethodSignature("A", "b", List.of(), "n", null, "t", "p", "int", "1f", null)
+            .asInternal();
+
+    assertThat(internal.internal()).isTrue();
+    assertThat(internal.withErrorContext("boom").internal()).isTrue();
+    assertThat(internal.withParameters(List.of()).internal()).isTrue();
+    assertThat(internal.narration()).isEqualTo("n");
+    assertThat(internal.returnType()).isEqualTo("int");
+  }
 }

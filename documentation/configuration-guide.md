@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.1"
+    id("ai.narrativetrace") version "0.5.2"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -811,7 +811,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.1")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.

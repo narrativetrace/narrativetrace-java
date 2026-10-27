@@ -97,8 +97,31 @@ public final class HostileGraphs {
       case "platformNameRedacted" -> new HostileMembers.NamedPlatformValue(taintedUri(sentinel));
       case "platformLookalike" -> new HostileMembers.Date(sentinel);
       case "platformSubclass" -> new HostileMembers.ApplicationDate(sentinel);
+      case "declaredElements" -> declaredElements(sentinel);
+      case "userSubclassAncestorState" -> userSubclassAncestorState(sentinel);
       default -> throw new IllegalArgumentException("unknown graph kind: " + graphCase.kind());
     };
+  }
+
+  /**
+   * The {@code declared-elements} row: a platform list holding a declared {@code Iterable}, a
+   * declared {@code Map} and a declared {@code Iterable} whose hook raises, in that order.
+   */
+  public static List<Object> declaredElements(String sentinel) {
+    return List.of(
+        new HostileMembers.DeclaredElementsIterable(secret(sentinel)),
+        new HostileMembers.DeclaredElementsMap(secret(sentinel)),
+        new HostileMembers.DeclaredElementsRaising());
+  }
+
+  /**
+   * The {@code structured-path-user-subclass-ancestor-state} row: a platform list holding a user
+   * subclass of a platform list and a user subclass of a platform map, in that order.
+   */
+  public static List<Object> userSubclassAncestorState(String sentinel) {
+    return List.of(
+        new HostileMembers.AncestorStateList(secret(sentinel)),
+        new HostileMembers.AncestorStateMap(secret(sentinel)));
   }
 
   private static List<String> repeated(String layer, int count) {

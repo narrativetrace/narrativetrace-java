@@ -259,7 +259,10 @@ public final class IndentedTextRenderer implements NarrativeRenderer {
    * sanitized here; the names beside them were not.
    */
   private String signatureText(MethodSignature sig) {
-    return ControlEscape.sanitize(sig.className()) + "." + ControlEscape.sanitize(sig.methodName());
+    return InternalMarker.of(sig)
+        + ControlEscape.sanitize(sig.className())
+        + "."
+        + ControlEscape.sanitize(sig.methodName());
   }
 
   private void renderConcurrentGroup(

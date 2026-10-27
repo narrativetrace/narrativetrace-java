@@ -39,10 +39,25 @@ final class AgentContextBridge {
 
   private final NarrativeContext previousContext;
   private final Method setContextMethod;
+  private final Method isDeepArmedMethod;
+  private final Method beginDeepScopeMethod;
+  private final Method endDeepScopeMethod;
 
   private AgentContextBridge(NarrativeContext previousContext, Method setContextMethod) {
+    this(previousContext, setContextMethod, null, null, null);
+  }
+
+  private AgentContextBridge(
+      NarrativeContext previousContext,
+      Method setContextMethod,
+      Method isDeepArmedMethod,
+      Method beginDeepScopeMethod,
+      Method endDeepScopeMethod) {
     this.previousContext = previousContext;
     this.setContextMethod = setContextMethod;
+    this.isDeepArmedMethod = isDeepArmedMethod;
+    this.beginDeepScopeMethod = beginDeepScopeMethod;
+    this.endDeepScopeMethod = endDeepScopeMethod;
   }
 
   /**
@@ -53,7 +68,15 @@ final class AgentContextBridge {
    *     instance when the agent class cannot be resolved
    */
   static AgentContextBridge attach(NarrativeContext context) {
-    return attach(context, AGENT_RUNTIME_CLASS);
+    return attach(context, runtimeClassName);
+  }
+
+  /** Test seam for the whole extension: which class the suite-wide attach resolves. */
+  private static volatile String runtimeClassName = AGENT_RUNTIME_CLASS;
+
+  /** Points the suite-wide attach at another class, or back at the agent's when {@code null}. */
+  static void useRuntimeClass(String name) {
+    runtimeClassName = name == null ? AGENT_RUNTIME_CLASS : name;
   }
 
   /**
@@ -69,13 +92,73 @@ final class AgentContextBridge {
       var setContext = runtimeClass.getMethod("setContext", NarrativeContext.class);
       var previous = (NarrativeContext) getContext.invoke(null);
       setContext.invoke(null, context);
-      return new AgentContextBridge(previous, setContext);
+      return new AgentContextBridge(
+          previous,
+          setContext,
+          optional(runtimeClass, "isDeepArmed"),
+          optional(runtimeClass, "beginDeepScope"),
+          optional(runtimeClass, "endDeepScope"));
     } catch (ClassNotFoundException absent) {
       return NONE; // the agent module is not on this JVM's classpath — nothing to route
     } catch (Throwable t) { // NOPMD - a bad agent classpath must not fail the test run
       System.err.println(
           "narrative-trace: could not route the agent's context to this extension (" + t + ")");
       return NONE;
+    }
+  }
+
+  /** An agent older than the deep mode has no such method; that is "not armed", not an error. */
+  private static Method optional(Class<?> runtimeClass, String name) {
+    try {
+      return runtimeClass.getMethod(name);
+    } catch (NoSuchMethodException absent) {
+      return null;
+    }
+  }
+
+  /**
+   * Whether the agent in this JVM was started with {@code depth=internal} — i.e. whether private
+   * methods were woven at all. {@code false} without an agent, and for an agent that predates the
+   * deep mode.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable")
+  boolean deepArmed() {
+    if (isDeepArmedMethod == null || beginDeepScopeMethod == null || endDeepScopeMethod == null) {
+      return false;
+    }
+    try {
+      return Boolean.TRUE.equals(isDeepArmedMethod.invoke(null));
+    } catch (Throwable t) { // NOPMD - an optional capability that cannot answer is simply off
+      return false;
+    }
+  }
+
+  /**
+   * Opens the agent's deep scope on the calling thread. Only meaningful when {@link #deepArmed}.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable")
+  void beginDeepScope() {
+    try {
+      beginDeepScopeMethod.invoke(null);
+    } catch (Throwable t) { // NOPMD - depth is a verbosity aid; it must not fail a test run
+      System.err.println("narrative-trace: could not open the agent's deep scope (" + t + ")");
+    }
+  }
+
+  /**
+   * Closes the calling thread's deep scope.
+   *
+   * @return how many deep spans the agent's cap dropped in it; {@code 0} when none or no scope
+   */
+  @SuppressWarnings("PMD.AvoidCatchingThrowable")
+  long endDeepScope() {
+    if (endDeepScopeMethod == null) {
+      return 0;
+    }
+    try {
+      return ((Number) endDeepScopeMethod.invoke(null)).longValue();
+    } catch (Throwable t) { // NOPMD - closing best-effort scope state must not fail the test run
+      return 0;
     }
   }
 

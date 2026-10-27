@@ -24,7 +24,24 @@ public final class ClassTransformer {
     return transform(classfileBuffer, className, null);
   }
 
+  public static byte[] transform(
+      byte[] classfileBuffer,
+      String className,
+      ClassLoader loader,
+      ai.narrativetrace.api.config.TraceDepth depth) {
+    return transform(
+        classfileBuffer,
+        className,
+        loader,
+        depth == ai.narrativetrace.api.config.TraceDepth.INTERNAL);
+  }
+
   public static byte[] transform(byte[] classfileBuffer, String className, ClassLoader loader) {
+    return transform(classfileBuffer, className, loader, false);
+  }
+
+  private static byte[] transform(
+      byte[] classfileBuffer, String className, ClassLoader loader, boolean deep) {
     var reader = new ClassReader(classfileBuffer);
 
     // Pass 1: collect metadata (parameter names, annotations)
@@ -35,7 +52,7 @@ public final class ClassTransformer {
     var writer =
         new DefiningLoaderClassWriter(
             reader, ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, loader);
-    var visitor = new NarrativeClassVisitor(writer, className, collector.getMetadata());
+    var visitor = new NarrativeClassVisitor(writer, className, collector.getMetadata(), deep);
     reader.accept(visitor, ClassReader.EXPAND_FRAMES);
     return writer.toByteArray();
   }

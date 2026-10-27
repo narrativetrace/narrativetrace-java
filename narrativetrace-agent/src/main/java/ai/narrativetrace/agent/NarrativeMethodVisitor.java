@@ -53,6 +53,7 @@ public final class NarrativeMethodVisitor extends AdviceAdapter {
   private final String methodName;
   private final String className;
   private final MethodMetadata metadata;
+  private final boolean internal;
   private final Label tryStart = new Label();
   private final Label tryEnd = new Label();
   private final Label catchHandler = new Label();
@@ -64,14 +65,21 @@ public final class NarrativeMethodVisitor extends AdviceAdapter {
   private int prevScopeLocal;
   private int tracedLocal;
 
+  /**
+   * @param internal a private method woven by the opt-in deep mode: its gate asks {@link
+   *     AgentRuntime#isDeepActive()} instead of {@link AgentRuntime#isActive()}, and its span is
+   *     marked internal. Everything else about the emitted code is identical.
+   */
   protected NarrativeMethodVisitor(
       MethodVisitor mv,
       int access,
       String name,
       String descriptor,
       String className,
-      MethodMetadata metadata) {
+      MethodMetadata metadata,
+      boolean internal) {
     super(Opcodes.ASM9, mv, access, name, descriptor);
+    this.internal = internal;
     this.methodName = name;
     this.className = className.replace('/', '.');
     this.metadata = metadata;
@@ -87,7 +95,7 @@ public final class NarrativeMethodVisitor extends AdviceAdapter {
     metadataId = AgentRuntime.registerMethod(describeMethod());
     initialiseLocals();
 
-    paramCaptureBuilder.callAgentRuntime("isActive", "()Z");
+    paramCaptureBuilder.callAgentRuntime(internal ? "isDeepActive" : "isActive", "()Z");
     mv.visitJumpInsn(Opcodes.IFEQ, inactive);
     emitEnter();
     mv.visitVarInsn(ASTORE, prevScopeLocal);
@@ -101,8 +109,8 @@ public final class NarrativeMethodVisitor extends AdviceAdapter {
   /** The constants of this method, as the runtime will read them back through the baked id. */
   private AgentMethodMetadata describeMethod() {
     return capturesParameters()
-        ? AgentMethodMetadata.of(className, methodName, methodDesc, metadata)
-        : AgentMethodMetadata.bare(className, methodName, methodDesc);
+        ? AgentMethodMetadata.of(className, methodName, methodDesc, metadata, internal)
+        : AgentMethodMetadata.bare(className, methodName, methodDesc, internal);
   }
 
   /** Leaves the previous scoped parent (a {@code String}, possibly null) on the stack. */

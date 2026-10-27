@@ -11,7 +11,7 @@ description: "Diagnoses a NarrativeTrace Java install and configuration. Use whe
 ./gradlew narrativetraceDoctor
 ```
 
-**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twenty-one findings
+**verify:** the JSON report at build/narrativetrace/doctor-report.json is well-formed, naming all twenty-two findings
 
 **failure:** the task fails with "Task 'narrativetraceDoctor' not found" → the ai.narrativetrace Gradle plugin isn't applied to this project → add id("ai.narrativetrace") to the plugins block, or run the standalone narrativetrace-cli launcher instead
 

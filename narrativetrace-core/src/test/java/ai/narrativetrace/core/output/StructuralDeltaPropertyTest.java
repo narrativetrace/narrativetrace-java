@@ -61,6 +61,17 @@ class StructuralDeltaPropertyTest {
     assertThat(StructuralDelta.between(document, String.join("\n", lines)).unchanged()).isTrue();
   }
 
+  /**
+   * The generator's grammar: the structural writer opens a line with indent, then {@code - },
+   * {@code ~ } or {@code scenario:} — or an id, which the line then follows. Text that itself opens
+   * with an id-shaped token ({@code #0 }) is not a line the writer can emit, so a document
+   * containing one is outside the property's domain (B-188).
+   */
+  @Property(tries = 200000, seed = "-7423064193608188551")
+  void generatedDocumentsHoldOnlyLinesTheWriterCanEmit(@ForAll @From("documents") String document) {
+    assertThat(document.lines().filter(line -> SpanId.of(line) != null)).isEmpty();
+  }
+
   @Provide
   Arbitrary<List<String>> ids() {
     return Arbitraries.integers()
@@ -116,7 +127,14 @@ class StructuralDeltaPropertyTest {
             .ofMaxLength(8)
             .tuple2()
             .map(t -> "- " + t.get1() + "." + t.get2() + "(arg)");
-    var anyLine = Arbitraries.strings().ascii().excludeChars('\n', '\r').ofMaxLength(20);
+    // The writer never opens a line's text with an id-shaped token (see the grammar property
+    // above), so the domain excludes it; the stripper removes exactly one leading id.
+    var anyLine =
+        Arbitraries.strings()
+            .ascii()
+            .excludeChars('\n', '\r')
+            .ofMaxLength(20)
+            .filter(text -> SpanId.of(text) == null);
     var line = Arbitraries.oneOf(callLine, anyLine);
     return line.list()
         .ofMaxSize(10)
