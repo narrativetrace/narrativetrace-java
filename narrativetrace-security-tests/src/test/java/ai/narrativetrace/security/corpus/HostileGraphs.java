@@ -94,6 +94,7 @@ public final class HostileGraphs {
       case "mapKey" -> sensitiveMapKey(sentinel);
       case "throwingSummary" -> new HostileMembers.ThrowingSummary(secret(sentinel));
       case "platformValue" -> platformValues();
+      case "nativeTextSecretLeaf" -> nativeTextSecretLeaves();
       case "platformNameRedacted" -> new HostileMembers.NamedPlatformValue(taintedUri(sentinel));
       case "platformLookalike" -> new HostileMembers.Date(sentinel);
       case "platformSubclass" -> new HostileMembers.ApplicationDate(sentinel);
@@ -339,6 +340,28 @@ public final class HostileGraphs {
     map.put("amount", new BigDecimal("19.99"));
     map.put("scratch", Path.of("tmp", "narrativetrace"));
     return map;
+  }
+
+  /** A bearer token in the shape of a signed JWT; obviously not a real credential. */
+  public static final String JWT_SHAPE = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2lnbmF0dXJl";
+
+  /** A card number that passes the Luhn checksum; the well-known test number. */
+  public static final String CARD_SHAPE = "4111111111111111";
+
+  /**
+   * The {@code native-text-secret-leaf} row: five leaves whose OWN text is a credential shape, in
+   * this order — a platform leaf whose native text is a JWT, one whose native text is a card
+   * number, an enum constant whose text is a JWT, a type whose summary hook returns a JWT, and a
+   * 64-bit integer holding the card number. No field name or annotation can match any of them, so
+   * the value-shape scan is the only defence; each must render as the marker on both paths.
+   */
+  public static List<Object> nativeTextSecretLeaves() {
+    return List.of(
+        URI.create(JWT_SHAPE),
+        URI.create(CARD_SHAPE),
+        HostileMembers.SecretTextConstant.SIGNED,
+        new HostileMembers.SecretSummary(),
+        Long.parseLong(CARD_SHAPE));
   }
 
   /** A URI carrying the sentinel in its path, for the field-name-redaction row. */

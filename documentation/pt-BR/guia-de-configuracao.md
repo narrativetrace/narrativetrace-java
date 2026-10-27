@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 0c78b9872ec8 | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob d7b33da52406 | translated: 2026-10-27 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.2"
+    id("ai.narrativetrace") version "0.5.3"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -834,7 +834,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.3")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.
@@ -1297,6 +1297,24 @@ new ValueRenderer(RedactionPolicy.DISABLED);
 respeitado — é uma instrução explícita, não um padrão. Valores ocultos são
 renderizados como o literal `[REDACTED]`, nunca como silêncio, para que
 quem lê consiga distinguir "oculto" de "nunca capturado".
+
+## 13. Limites do renderizador
+
+Um `ValueRenderer` limita quanto um valor pode custar com cinco limites. Três
+são argumentos do construtor; dois são fixos.
+
+| Limite | Padrão | Contrato |
+|---|---|---|
+| Limite de string (`maxStringLength`) | 200 | Uma string mais longa é cortada no limite e termina com reticências; um limite negativo é ajustado para 0. |
+| Limite de elementos (`maxCollectionItems`) | 5 | Uma coleção, array ou mapa mais longo mostra os primeiros elementos e reticências; um limite negativo é ajustado para 0. |
+| Limite de campos (`maxObjectFields`) | 5 | Um objeto ou record mostra os primeiros campos e reticências; um limite negativo é ajustado para 0. |
+| Profundidade | 32 (fixa) | O aninhamento além disso é renderizado como `<max-depth>`; não é configurável, então não pode ser negativa. |
+| Orçamento de nós | 1024 (fixo) | Os valores além do orçamento em uma travessia são renderizados como `<max-nodes>`; não é configurável, então não pode ser negativo. |
+
+Um limite negativo nunca é aceito como está: o renderizador se comporta
+exatamente como se fosse 0 e, ao ser construído, escreve uma linha na saída de
+erro padrão nomeando cada limite ajustado.
+
 
 ## Ver também
 

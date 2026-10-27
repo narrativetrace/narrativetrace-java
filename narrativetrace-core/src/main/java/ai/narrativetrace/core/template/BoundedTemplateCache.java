@@ -44,12 +44,12 @@ import java.util.function.Function;
  *
  * <p><b>@edgeCase</b> Unlike {@code computeIfAbsent}, two threads missing on the same template
  * concurrently may both parse it. That is deliberate: parsing is pure and its results are equal, so
- * the loser wastes work but cannot produce a wrong answer, and dropping {@code computeIfAbsent}
- * removes its per-bin lock from the resolution path.
+ * the loser wastes work but cannot produce a wrong answer, and the parse runs outside every lock.
+ * Only the write that admits the result is serialised (see {@code admit}).
  *
  * @llmNote Thread-safe. {@code live} and {@code previous} are {@code volatile} references that are
- *     replaced, never structurally mutated as a pair; rotation is serialised so exactly one thread
- *     retires a given generation.
+ *     replaced, never structurally mutated as a pair; every admission and rotation is serialised,
+ *     so exactly one thread retires a given generation and nothing writes to it afterwards.
  */
 final class BoundedTemplateCache {
 
@@ -60,15 +60,28 @@ final class BoundedTemplateCache {
   private volatile Map<String, List<TemplateParser.Segment>> previous;
 
   /**
+   * Test seam: runs once per admission, after the generation to write is chosen and before the
+   * write. A no-op in production; a test pauses a thread here to make one interleaving
+   * deterministic instead of hoping the scheduler produces it.
+   */
+  private final Runnable beforeAdmit;
+
+  /**
    * @param generationSize entries admitted before a generation is retired; total retention is at
    *     most twice this
    * @throws IllegalArgumentException if {@code generationSize} is not positive
    */
   BoundedTemplateCache(int generationSize) {
+    this(generationSize, () -> {});
+  }
+
+  /** Test seam: as {@link #BoundedTemplateCache(int)}, with a hook run before every admission. */
+  BoundedTemplateCache(int generationSize, Runnable beforeAdmit) {
     if (generationSize < 1) {
       throw new IllegalArgumentException("generationSize must be positive, was " + generationSize);
     }
     this.generationSize = generationSize;
+    this.beforeAdmit = beforeAdmit;
     this.live = new ConcurrentHashMap<>();
     this.previous = Map.of();
     assert invariant() : "BoundedTemplateCache constructed in an inconsistent state";
@@ -91,14 +104,13 @@ final class BoundedTemplateCache {
     if (parser == null) {
       throw new IllegalArgumentException("parser must not be null");
     }
-    var generation = live;
-    var hit = generation.get(template);
+    var hit = live.get(template);
     if (hit != null) {
       return hit;
     }
     var carried = previous.get(template);
     if (carried != null) {
-      generation.put(template, carried);
+      admit(template, carried);
       return carried;
     }
     var parsed = parser.apply(template);
@@ -107,32 +119,31 @@ final class BoundedTemplateCache {
     return parsed;
   }
 
-  /** Admits a freshly parsed template, retiring the live generation once it is full. */
-  private void admit(String template, List<TemplateParser.Segment> parsed) {
-    var generation = live;
-    generation.put(template, parsed);
-    if (generation.size() >= generationSize) {
-      retire(generation);
-    }
-  }
-
   /**
-   * Demotes a full generation and starts an empty one.
+   * Admits a template — freshly parsed, or promoted from {@code previous} — into the live
+   * generation, retiring that generation once it is full.
    *
-   * <p><b>@edgeCase</b> Synchronised and re-checked: without the identity test, two threads that
-   * both observe the same full generation would retire it twice, and the second would overwrite
-   * {@code previous} with it and discard the generation the first had just started — silently
-   * halving the cache. Contention here is negligible because this runs only on the parse path.
+   * <p><b>@edgeCase</b> Every write to a generation happens here, under the lock, against the
+   * generation that is live <em>at the write</em>. The earlier shape chose the generation before
+   * writing and serialised only the retirement, so a thread that chose a generation could write
+   * into it after another thread had retired it, and a promotion wrote without checking the bound
+   * at all: the retired generation grew past the bound that retired it, by up to one entry per
+   * concurrent admitter (B-204, seen on one nightly in a few hundred). Under the lock, a generation
+   * is retired at exactly {@code generationSize} entries and never written again, so "at most twice
+   * {@code generationSize}" is exact, not approximate.
+   *
+   * <p><b>@llmNote</b> The lock is off the hot path: a hit in {@code live} is still one lock-free
+   * {@link ConcurrentHashMap#get}. Only a miss takes it, after paying for a regex parse or a second
+   * lookup, and holds it for one put and a size read.
    */
-  private synchronized void retire(ConcurrentHashMap<String, List<TemplateParser.Segment>> full) {
-    // NOPMD CompareObjectsWithEquals - reference identity is the point: two generations
-    // with equal contents are still different objects, and only the one currently live may
-    // be retired.
-    if (live != full) { // NOPMD
-      return;
+  private synchronized void admit(String template, List<TemplateParser.Segment> segments) {
+    var generation = live;
+    beforeAdmit.run();
+    generation.put(template, segments);
+    if (generation.size() >= generationSize) {
+      previous = generation;
+      live = new ConcurrentHashMap<>();
     }
-    previous = full;
-    live = new ConcurrentHashMap<>();
   }
 
   /** How many parsed templates are currently retained across both generations. */
@@ -157,10 +168,10 @@ final class BoundedTemplateCache {
     // Category 2 — the configured bound is meaningful
     if (generationSize < 1) return false;
 
-    // Category 4 — a retired generation is never larger than the bound that retired it;
-    // the live one may overshoot by the number of threads admitting concurrently, so it is
-    // bounded by the bound rather than pinned to it.
+    // Category 4 — a retired generation is never larger than the bound that retired it, and
+    // the live one is retired the moment it reaches it: admission is serialised (B-204).
     if (previous.size() > generationSize) return false;
+    if (live.size() >= generationSize) return false;
 
     // Category 6 — no null keys or values can be present; ConcurrentHashMap forbids both,
     // so this is structural rather than checked, and Map.of() is immutable and empty.

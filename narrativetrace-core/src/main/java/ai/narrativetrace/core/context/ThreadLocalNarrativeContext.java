@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -572,19 +573,82 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * core}/{@code clarity}/ {@code diagrams} already has is required here too. A node beyond {@link
    * TreeWalk#MAX_DEPTH} or already on the current path still gets its own enter/exit event pair,
    * exactly as a leaf would; the walk simply never descends into its children.
+   *
+   * <p><b>@edgeCase</b> The same undefended record can also arrive <em>malformed</em>: a {@code
+   * null} node in a child list, a {@code null} {@code signature}, or a {@code null} {@code
+   * children} list anywhere in the reachable tree (B-199). The whole graft is validated and planned
+   * by one bounded walk <em>before</em> anything is published or pushed; a malformed graft is
+   * dropped whole with one {@code narrative-trace:} line on standard error and never throws. A
+   * partial graft is not an option — it would publish enters whose exits never run, and every enter
+   * here is pushed onto the caller's own active stack, so the caller's next exit would pop a
+   * grafted span and narrate the caller's own method as never having finished.
+   *
+   * <p><b>@llmNote</b> Emission replays the validated plan, never the record a second time: the
+   * child lists are read once, so a list that changes between validation and emission cannot
+   * reintroduce the null the validation ruled out. A {@code null} {@code outcome} is legitimate
+   * (synthetic launcher nodes, per {@link TraceNode}) and is not a reason to drop.
    */
   @Override
   public void emitTraceNode(TraceNode node, SpanId parentSpanId) {
+    var plan = planGraft(node);
+    if (plan == null) {
+      return;
+    }
     Deque<SpanContext> chain = new ArrayDeque<>();
+    for (var step : plan) {
+      if (step.enter()) {
+        enterEmittedNode(step.node(), parentSpanId, chain);
+      } else {
+        exitEmittedNode(step.node(), chain);
+      }
+    }
+  }
+
+  /** One enter or exit of a validated graft, in the order {@link TreeWalk} visits them. */
+  private record GraftStep(TraceNode node, boolean enter) {}
+
+  /**
+   * Validates {@code root} and returns its enter/exit plan, or {@code null} (after one diagnostic)
+   * when any reachable node is malformed. Bounded and cycle-safe exactly like the emission it
+   * plans: a node at the depth or cycle limit becomes a leaf's enter/exit pair.
+   */
+  private static List<GraftStep> planGraft(TraceNode root) {
+    List<GraftStep> plan = new ArrayList<>();
+    String[] defect = {null};
     TreeWalk.walk(
-        node,
-        TraceNode::children,
-        (n, depth) -> enterEmittedNode(n, parentSpanId, chain),
-        (n, depth) -> exitEmittedNode(n, chain),
+        root,
+        ThreadLocalNarrativeContext::plannedChildren,
+        (n, depth) -> plan(n, plan, defect),
+        (n, depth) -> plan.add(new GraftStep(n, false)),
         (n, depth, reason) -> {
-          enterEmittedNode(n, parentSpanId, chain);
-          exitEmittedNode(n, chain);
+          plan(n, plan, defect);
+          plan.add(new GraftStep(n, false));
         });
+    if (defect[0] != null) {
+      System.err.println( // NOPMD - the library's diagnostic channel; a graft never throws
+          "narrative-trace: emitTraceNode dropped a malformed grafted trace node ("
+              + defect[0]
+              + "); nothing of it was recorded");
+      return null;
+    }
+    return plan;
+  }
+
+  private static void plan(TraceNode node, List<GraftStep> plan, String[] defect) {
+    if (defect[0] == null) {
+      if (node == null) {
+        defect[0] = "a null node";
+      } else if (node.signature() == null) {
+        defect[0] = "a node with a null signature";
+      } else if (node.children() == null) {
+        defect[0] = "a node with a null child list";
+      }
+    }
+    plan.add(new GraftStep(node, true));
+  }
+
+  private static List<TraceNode> plannedChildren(TraceNode node) {
+    return node == null || node.children() == null ? List.of() : node.children();
   }
 
   private void enterEmittedNode(TraceNode node, SpanId rootParentSpanId, Deque<SpanContext> chain) {
@@ -965,8 +1029,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   public RequestScope openRequestScope() {
     var requestStack = new TraceStack();
     return new RequestScope() {
-      private final java.util.concurrent.atomic.AtomicBoolean ended =
-          new java.util.concurrent.atomic.AtomicBoolean();
+      private final AtomicBoolean ended = new AtomicBoolean();
 
       @Override
       public ContextScope activate() {
@@ -1166,6 +1229,22 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      */
     private static final int MAX_ADOPTED_SPANS = 10_000;
 
+    /**
+     * Ceiling on the length of a live-child chain — how many simultaneously open async scopes, each
+     * activated from a snapshot of the one before, are visible to a capture while open (B-198).
+     *
+     * <p>{@link #reportableSpanIds()} and {@link #liveChildSpanIds()} recurse once per link, so the
+     * chain length is a stack-depth budget on whichever thread reads it: the origin at capture, the
+     * worker at scope close, the request at reset. One thread can hold any number of scopes open (a
+     * registry of {@link ContextScope} handles closed out of order), so without this the chain is
+     * as long as the host likes and the read overflows the host's own thread. Real nested async
+     * hops are a handful deep; 64 leaves the read a few hundred frames at most.
+     */
+    static final int MAX_LIVE_CHILD_DEPTH = 64;
+
+    /** Whether the one-per-JVM depth-cap diagnostic has been written. */
+    private static final AtomicBoolean DEPTH_CAP_REPORTED = new AtomicBoolean();
+
     /** W3C trace-flags with bit 0 set — a trace this process is recording. */
     private static final int SAMPLED = 1;
 
@@ -1200,6 +1279,14 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      * concurrent, hence lazy: most stacks never spawn one.
      */
     private volatile Set<WeakReference<TraceStack>> liveChildren;
+
+    /**
+     * How many live-registration links lie above this stack: 0 for a stack nobody registered, its
+     * origin's depth + 1 for one {@link #registerLiveChild} was asked to take — refused or not, so
+     * everything below a refused link is refused too. Volatile because the snapshot that registers
+     * this stack's own children may be activated on another thread.
+     */
+    private volatile int liveDepth;
 
     /**
      * Whether the request that owns this stack has ended.
@@ -1363,6 +1450,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      * resets. A refused registration loses nothing: the worker's spans still arrive through {@link
      * #adopt}, just at scope close, so it is not counted as a refusal.
      *
+     * <p>Bounded in depth too, by {@link #MAX_LIVE_CHILD_DEPTH} (B-198): a child that would sit
+     * deeper than that is refused on the same terms — visible at its scope's close instead of while
+     * open — and so is everything activated below it, because it keeps the depth it was refused at.
+     * The first such refusal in the JVM writes one {@code narrative-trace:} line to standard error;
+     * nothing is thrown.
+     *
      * @param child the freshly activated child stack, never this stack
      * @return the handle to hand back to {@link #unregisterLiveChild}, or {@code null} if refused
      */
@@ -1375,6 +1468,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       if (child == this) {
         throw new IllegalArgumentException("A stack cannot be its own live child");
       }
+      var childDepth = liveDepth + 1;
+      child.liveDepth = childDepth;
+      if (childDepth > MAX_LIVE_CHILD_DEPTH) {
+        reportDepthCapOnce();
+        return null;
+      }
       if (liveChildren == null) {
         liveChildren = ConcurrentHashMap.newKeySet();
       }
@@ -1384,6 +1483,21 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
       var registration = new WeakReference<>(child);
       liveChildren.add(registration);
       return registration;
+    }
+
+    private static void reportDepthCapOnce() {
+      if (DEPTH_CAP_REPORTED.compareAndSet(false, true)) {
+        System.err.println( // NOPMD - the library's diagnostic channel; a registration never throws
+            "narrative-trace: async scopes nested more than "
+                + MAX_LIVE_CHILD_DEPTH
+                + " deep are shown in a capture only once they close (live-child depth cap);"
+                + " further occurrences are not reported");
+      }
+    }
+
+    /** Test seam: this stack's live-registration depth. */
+    int liveDepth() {
+      return liveDepth;
     }
 
     /** Ends a live registration. A {@code null} handle is a registration the cap refused. */
@@ -1427,8 +1541,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
      *
      * <p><b>@llmNote</b> The mutual recursion with {@link #reportableSpanIds} cannot cycle: a live
      * child is always a stack freshly created by {@code activate()} and registered with exactly one
-     * origin, so the registry is a forest of new nodes and never contains a back edge. Depth is the
-     * nesting depth of *simultaneously open* async scopes, which is bounded by live threads.
+     * origin, so the registry is a forest of new nodes and never contains a back edge. Its depth is
+     * NOT bounded by live threads — one thread can hold any number of scopes open, each activated
+     * from the one before, and an earlier version of this note said otherwise until a 100 000-link
+     * chain overflowed {@code captureTrace()} (B-198). The bound is {@link #registerLiveChild}'s:
+     * no registered chain is longer than {@link #MAX_LIVE_CHILD_DEPTH}, so this recursion is at
+     * most that many levels deep from any stack, on every reader.
      */
     Set<SpanId> liveChildSpanIds() {
       var children = liveChildren;
@@ -1547,6 +1665,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
       // Live children carry no state of this stack's own: registrations are non-null and never
       // this stack (registerLiveChild guards both), and cleared ones are pruned when read.
+      // A registered chain is never longer than MAX_LIVE_CHILD_DEPTH (registerLiveChild).
 
       // Category 5 — storyId and chapterId are set together or both null
       if (storyId == null && chapterId != null) return false;

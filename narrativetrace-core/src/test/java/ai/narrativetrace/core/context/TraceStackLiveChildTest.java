@@ -298,4 +298,54 @@ class TraceStackLiveChildTest {
           }
         });
   }
+
+  /** Builds a registered chain {@code links} long under {@code origin}; returns every stack. */
+  private static java.util.List<TraceStack> chainOf(TraceStack origin, int links) {
+    var chain = new java.util.ArrayList<TraceStack>();
+    chain.add(origin);
+    for (var i = 0; i < links; i++) {
+      var child = new TraceStack(5);
+      chain.get(chain.size() - 1).registerLiveChild(child);
+      chain.add(child);
+    }
+    return chain;
+  }
+
+  @Test
+  void aChainExactlyAtTheDepthCapIsVisibleWhole() {
+    var chain = chainOf(new TraceStack(5), TraceStack.MAX_LIVE_CHILD_DEPTH);
+    var deepest = chain.get(chain.size() - 1);
+    var spanId = SpanId.generate();
+    deepest.pushActive(spanId);
+
+    assertThat(deepest.liveDepth()).isEqualTo(TraceStack.MAX_LIVE_CHILD_DEPTH);
+    assertThat(chain.get(0).liveChildSpanIds()).containsExactly(spanId);
+  }
+
+  @Test
+  void theLinkOnePastTheDepthCapIsRefusedAndSoIsEverythingBelowIt() {
+    var chain = chainOf(new TraceStack(5), TraceStack.MAX_LIVE_CHILD_DEPTH);
+    var atCap = chain.get(chain.size() - 1);
+    var pastCap = new TraceStack(5);
+    var belowPastCap = new TraceStack(5);
+
+    assertThat(atCap.registerLiveChild(pastCap)).as("refused, like the breadth cap").isNull();
+    assertThat(pastCap.registerLiveChild(belowPastCap))
+        .as("a refused link keeps its depth, so nothing below it can register either")
+        .isNull();
+    pastCap.pushActive(SpanId.generate());
+    belowPastCap.pushActive(SpanId.generate());
+
+    assertThat(chain.get(0).liveChildSpanIds()).isEmpty();
+    assertThat(pastCap.liveDepth()).isEqualTo(TraceStack.MAX_LIVE_CHILD_DEPTH + 1);
+  }
+
+  @Test
+  void aStackOneBelowTheCapStillRegistersItsChild() {
+    var chain = chainOf(new TraceStack(5), TraceStack.MAX_LIVE_CHILD_DEPTH - 1);
+    var child = new TraceStack(5);
+
+    assertThat(chain.get(chain.size() - 1).registerLiveChild(child)).isNotNull();
+    assertThat(child.liveDepth()).isEqualTo(TraceStack.MAX_LIVE_CHILD_DEPTH);
+  }
 }

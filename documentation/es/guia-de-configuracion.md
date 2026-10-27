@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 0c78b9872ec8 | translated: 2026-10-23 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob d7b33da52406 | translated: 2026-10-27 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.2"
+    id("ai.narrativetrace") version "0.5.3"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -850,7 +850,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.3")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.
@@ -1313,6 +1313,24 @@ respetando: es una instrucción explícita, no un valor predeterminado. Los
 valores ocultos se renderizan como el literal `[REDACTED]`, nunca como
 silencio, de modo que quien lee puede distinguir «oculto» de «nunca
 capturado».
+
+## 13. Límites del renderizador
+
+Un `ValueRenderer` acota lo que puede costar un valor con cinco límites. Tres
+son argumentos del constructor; dos son fijos.
+
+| Límite | Valor por defecto | Contrato |
+|---|---|---|
+| Tope de cadena (`maxStringLength`) | 200 | Una cadena más larga se corta en el tope y termina con puntos suspensivos; un tope negativo se ajusta a 0. |
+| Tope de elementos (`maxCollectionItems`) | 5 | Una colección, arreglo o mapa más largo muestra los primeros elementos y puntos suspensivos; un tope negativo se ajusta a 0. |
+| Tope de campos (`maxObjectFields`) | 5 | Un objeto o registro muestra los primeros campos y puntos suspensivos; un tope negativo se ajusta a 0. |
+| Profundidad | 32 (fija) | El anidamiento más allá se renderiza como `<max-depth>`; no es configurable, así que no puede ser negativa. |
+| Presupuesto de nodos | 1024 (fijo) | Los valores que superan el presupuesto en un recorrido se renderizan como `<max-nodes>`; no es configurable, así que no puede ser negativo. |
+
+Un límite negativo nunca se acepta tal cual: el renderizador se comporta
+exactamente como si fuera 0 y, al construirse, escribe una línea en la salida
+de error estándar que nombra cada límite ajustado.
+
 
 ## Ver también
 

@@ -121,6 +121,8 @@ public final class ValueRenderer {
    * reader who sees it has learned that the graph continued, which is exactly what a truncated
    * narrative should say.
    */
+  private static final int NUMERIC_SCAN_MIN_LENGTH = 12;
+
   private static final String TOO_DEEP = "<max-depth>";
 
   /**
@@ -180,10 +182,40 @@ public final class ValueRenderer {
       int maxCollectionItems,
       int maxObjectFields,
       RedactionPolicy redactionPolicy) {
-    this.maxStringLength = maxStringLength;
-    this.maxCollectionItems = maxCollectionItems;
-    this.maxObjectFields = maxObjectFields;
+    this.maxStringLength = Math.max(0, maxStringLength);
+    this.maxCollectionItems = Math.max(0, maxCollectionItems);
+    this.maxObjectFields = Math.max(0, maxObjectFields);
     this.redactionPolicy = redactionPolicy;
+    reportClampedLimits(maxStringLength, maxCollectionItems, maxObjectFields);
+  }
+
+  /**
+   * Says once, on the library's diagnostic channel, which limits were below zero and so behave as
+   * zero.
+   *
+   * <p><b>@llmNote</b> The limits contract (B-207): a limit is a size, so a negative one is clamped
+   * to {@code 0} rather than trusted — unclamped, a negative string cap threw inside {@code
+   * substring} and the other two silently changed which branch ran. One line per renderer, naming
+   * every limit it clamped; a renderer with valid limits says nothing. The depth cap and the node
+   * budget are constants of {@link RenderWalk} and cannot be set, so they are never named here.
+   */
+  private static void reportClampedLimits(int stringLength, int collectionItems, int objectFields) {
+    if (stringLength >= 0 && collectionItems >= 0 && objectFields >= 0) {
+      return;
+    }
+    var clamped = new ArrayList<String>(3);
+    if (stringLength < 0) {
+      clamped.add("maxStringLength=" + stringLength);
+    }
+    if (collectionItems < 0) {
+      clamped.add("maxCollectionItems=" + collectionItems);
+    }
+    if (objectFields < 0) {
+      clamped.add("maxObjectFields=" + objectFields);
+    }
+    System.err.println( // NOPMD - the library's diagnostic channel; a constructor never throws
+        "narrative-trace: renderer limits below zero are clamped to 0: "
+            + String.join(", ", clamped));
   }
 
   /**
@@ -392,8 +424,12 @@ public final class ValueRenderer {
     }
     if (value instanceof Enum<?>) {
       // Enum.toString() is a per-constant overridable method (a constant body can supply one), not
-      // a platform-fixed format — so its text is sanitized, as the flat path sanitizes it.
-      return new RenderedValue.StringVal(ControlEscape.sanitize(scalarText(value)));
+      // a platform-fixed format — so its text is scanned and sanitized, as the flat path does.
+      var text = scalarText(value);
+      return new RenderedValue.StringVal(
+          redactionPolicy.shouldRedactValue(text)
+              ? RedactionPolicy.MARKER
+              : ControlEscape.sanitize(text));
     }
     return null;
   }
@@ -439,17 +475,35 @@ public final class ValueRenderer {
     return null;
   }
 
-  private static RenderedValue renderStructuredNumeric(Object value) {
+  private RenderedValue renderStructuredNumeric(Object value) {
     if (value instanceof Integer
         || value instanceof Long
         || value instanceof Short
         || value instanceof Byte) {
-      return new RenderedValue.LongVal(((Number) value).longValue());
+      return numericTextIsSecret(value.toString())
+          ? new RenderedValue.StringVal(RedactionPolicy.MARKER)
+          : new RenderedValue.LongVal(((Number) value).longValue());
+    }
+    if (value instanceof BigDecimal && numericTextIsSecret(scalarText(value))) {
+      return new RenderedValue.StringVal(RedactionPolicy.MARKER);
     }
     if (value instanceof Float || value instanceof Double || value instanceof BigDecimal) {
       return new RenderedValue.DoubleVal(((Number) value).doubleValue());
     }
     return null;
+  }
+
+  /**
+   * Whether a number's own text is a secret by shape: twelve or more characters (no card number is
+   * shorter, so the common small number never pays for the scan) that the value-shape axis
+   * recognises, which for digits means a Luhn-valid card number.
+   *
+   * <p><b>@llmNote</b> A 16-digit PAN held as a {@code long} is the same secret as the same digits
+   * in a {@code String}; the shape axis asks what the bytes say, not which Java type holds them.
+   * The flat and structured numeric branches both ask this one method.
+   */
+  private boolean numericTextIsSecret(String text) {
+    return text.length() >= NUMERIC_SCAN_MIN_LENGTH && redactionPolicy.shouldRedactValue(text);
   }
 
   private RenderedValue renderStructuredComplex(Object value, RenderWalk walk) {
@@ -930,12 +984,16 @@ public final class ValueRenderer {
       // Extending Number says nothing about what a value holds: a subclass is an ordinary composite
       // with a numeric base, so only a platform numeric leaf's own text is read here. Answering
       // "not a scalar" hands every other one to the walk, where a composite belongs.
-      return ScalarTrust.isTrustedNumeric(number) ? scalarText(number) : null;
+      if (!ScalarTrust.isTrustedNumeric(number)) {
+        return null;
+      }
+      var text = scalarText(number);
+      return numericTextIsSecret(text) ? RedactionPolicy.MARKER : text;
     }
     if (value instanceof Enum<?>) {
       // Enum.toString() is a per-constant overridable method, not a platform-fixed format; but a
       // constant holds no member a walk could reach, so its text is read and sanitized.
-      return sanitizeAndCap(scalarText(value));
+      return scanned(scalarText(value));
     }
     return null;
   }

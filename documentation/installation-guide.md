@@ -90,7 +90,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.2"
+    id("ai.narrativetrace") version "0.5.3"
 }
 ```
 
@@ -137,24 +137,24 @@ Start with the minimum stack and then add only the integrations you need.
 ```kotlin
 dependencies {
     // Minimum
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.2")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.3")
 
     // Optional integrations
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.2")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.2")  // for JUnit 4
-    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.2")  // for TestNG
-    implementation("ai.narrativetrace:narrativetrace-spring:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.2")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.3")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.3")  // for JUnit 4
+    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.3")  // for TestNG
+    implementation("ai.narrativetrace:narrativetrace-spring:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.3")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.3")
 }
 ```
 

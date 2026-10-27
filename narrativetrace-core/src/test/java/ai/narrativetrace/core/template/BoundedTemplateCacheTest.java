@@ -168,8 +168,8 @@ class BoundedTemplateCacheTest implements ContractVerifiable<BoundedTemplateCach
     assertThat(wrong).as("every answer must equal a fresh parse").isEmpty();
     assertThat(bounded.invariant()).isTrue();
     assertThat(bounded.size())
-        .as("bounded by two generations plus threads racing to admit")
-        .isLessThanOrEqualTo(GENERATION * 2 + FLOOD_THREADS);
+        .as("bounded by two generations, exactly: admission is serialised (B-204)")
+        .isLessThanOrEqualTo(GENERATION * 2);
   }
 
   private void floodConcurrently(
@@ -206,5 +206,89 @@ class BoundedTemplateCacheTest implements ContractVerifiable<BoundedTemplateCach
     } finally {
       done.countDown();
     }
+  }
+
+  /**
+   * B-204, made deterministic: the flood test above failed on one nightly in a few hundred because
+   * a thread that chose the live generation could write into it after another thread had retired
+   * it, so the retired generation grew past the bound that retired it. Here the interleaving is
+   * forced, not hoped for: thread A chooses its generation and stops in the admission seam; a
+   * filler admits a whole generation; only then is A released. The filler is waited for by state —
+   * finished, or blocked on a lock A holds — never by time.
+   */
+  @Test
+  @DisplayName("a write racing a retirement never lands in the retired generation")
+  void aWriteRacingARetirementNeverLandsInTheRetiredGeneration() throws Exception {
+    var pause = new PauseFirstAdmissionOn("b204-paused-writer");
+    var racing = new BoundedTemplateCache(GENERATION, pause);
+    var writer = new Thread(() -> racing.get("{late}", PARSER), "b204-paused-writer");
+    writer.start();
+    assertThat(pause.paused.await(30, TimeUnit.SECONDS)).isTrue();
+
+    var filler = new Thread(() -> admitOneGeneration(racing), "b204-filler");
+    filler.start();
+    awaitFinishedOrBlockedBy(filler, writer);
+    pause.go.countDown();
+    writer.join(30_000);
+    filler.join(30_000);
+
+    assertThat(racing.invariant())
+        .as("a retired generation is never larger than the bound that retired it")
+        .isTrue();
+    assertThat(racing.contains("{late}")).as("the late write is still cached").isTrue();
+  }
+
+  private static void admitOneGeneration(BoundedTemplateCache target) {
+    for (int i = 0; i < GENERATION; i++) {
+      target.get("{fill" + i + "}", PARSER);
+    }
+  }
+
+  /** The admission seam's hook: stops the first admission made on one named thread. */
+  private static final class PauseFirstAdmissionOn implements Runnable {
+    private final String threadName;
+    private final java.util.concurrent.atomic.AtomicBoolean fired =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    final CountDownLatch paused = new CountDownLatch(1);
+    final CountDownLatch go = new CountDownLatch(1);
+
+    PauseFirstAdmissionOn(String threadName) {
+      this.threadName = threadName;
+    }
+
+    @Override
+    public void run() {
+      if (threadName.equals(Thread.currentThread().getName()) && fired.compareAndSet(false, true)) {
+        paused.countDown();
+        awaitQuietly(go);
+      }
+    }
+  }
+
+  private static void awaitQuietly(CountDownLatch latch) {
+    try {
+      latch.await(30, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  /** Waits by thread state, with an explicit timeout as the only clock. */
+  private static void awaitFinishedOrBlockedBy(Thread waiter, Thread owner) {
+    var threads = java.lang.management.ManagementFactory.getThreadMXBean();
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+    while (System.nanoTime() < deadline) {
+      if (waiter.getState() == Thread.State.TERMINATED) {
+        return;
+      }
+      var info = threads.getThreadInfo(waiter.getId());
+      if (waiter.getState() == Thread.State.BLOCKED
+          && info != null
+          && info.getLockOwnerId() == owner.getId()) {
+        return;
+      }
+      Thread.onSpinWait();
+    }
+    throw new AssertionError("filler neither finished nor blocked on the paused writer");
   }
 }

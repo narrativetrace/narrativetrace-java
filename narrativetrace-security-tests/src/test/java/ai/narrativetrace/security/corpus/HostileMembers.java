@@ -860,4 +860,28 @@ public final class HostileMembers {
       this.next = node;
     }
   }
+
+  /**
+   * An enum constant whose own text is a bearer-token shape: the constant's name cannot be one (an
+   * identifier has no dots), so the text comes from the per-constant {@code toString()} an enum
+   * body may supply.
+   */
+  public enum SecretTextConstant {
+    SIGNED {
+      @Override
+      public String toString() {
+        return HostileGraphs.JWT_SHAPE;
+      }
+    }
+  }
+
+  /** A type whose {@code @NarrativeSummary} hook returns a bearer-token shape. */
+  public static final class SecretSummary {
+
+    /** The author's curated text, which interpolates a credential by mistake. */
+    @NarrativeSummary
+    public String describe() {
+      return HostileGraphs.JWT_SHAPE;
+    }
+  }
 }

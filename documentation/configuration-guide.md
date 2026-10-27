@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.2"
+    id("ai.narrativetrace") version "0.5.3"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -811,7 +811,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.2")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.3")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.
@@ -1258,6 +1258,24 @@ new ValueRenderer(RedactionPolicy.DISABLED);
 honoured — it is an explicit instruction, not a default. Redacted values render
 as the literal `[REDACTED]`, never as silence, so a reader can tell "hidden"
 from "never captured".
+
+## 13. Renderer limits
+
+A `ValueRenderer` bounds what one value may cost with five limits. Three are
+constructor arguments; two are fixed.
+
+| Limit | Default | Contract |
+|---|---|---|
+| String cap (`maxStringLength`) | 200 | A longer string is cut at the cap and ends with an ellipsis; a negative cap is clamped to 0. |
+| Element cap (`maxCollectionItems`) | 5 | A longer collection, array or map shows the first elements and an ellipsis; a negative cap is clamped to 0. |
+| Field cap (`maxObjectFields`) | 5 | An object or record shows the first fields and an ellipsis; a negative cap is clamped to 0. |
+| Depth | 32 (fixed) | Nesting past it renders `<max-depth>`; it cannot be configured, so it cannot be negative. |
+| Node budget | 1024 (fixed) | Values past it in one walk render `<max-nodes>`; it cannot be configured, so it cannot be negative. |
+
+A negative limit is never trusted: the renderer behaves exactly as if it were 0
+and writes one line to standard error, naming each limit it clamped, when it is
+constructed.
+
 
 ## See also
 
