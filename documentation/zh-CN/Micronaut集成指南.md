@@ -1,4 +1,4 @@
-<!-- source: documentation/micronaut-integration-guide.md blob 762a62c08bd5 | translated: 2026-08-31 | reviewed: 2026-09-03 -->
+<!-- source: documentation/micronaut-integration-guide.md blob 748470b1bf1a | translated: 2026-08-31 | reviewed: 2026-09-03 -->
 # Micronaut 集成指南
 
 [English](../micronaut-integration-guide.md) | [Español](../es/guia-de-integracion-con-micronaut.md) | **简体中文**
@@ -17,7 +17,7 @@
 添加依赖：
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.4")
+implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.5")
 ```
 
 在 `application.yml` 中配置基础包：
@@ -76,7 +76,7 @@ class MyConfig {
 添加 HTTP 过滤器模块：
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.4")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.5")
 ```
 
 响应式 HTTP 过滤器（`HttpServerFilter`）位于类路径上即会自动注册——无需额外配置。

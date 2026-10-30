@@ -88,4 +88,62 @@ class RunIndexTest {
       assertThat(files).hasSize(1);
     }
   }
+
+  /** A pipe in a name would start a new column; the cell escape is what keeps the row intact. */
+  @Test
+  void aPipeInATestNameIsEscapedSoTheRowKeepsItsColumns() {
+    var index = RunIndex.render(List.of(failing("f|1", "boom")));
+
+    assertThat(index).contains("| OrderTest.f\\|1 | failed |");
+  }
+
+  /**
+   * A code span cannot carry a backslash escape, so a pipe in a path is percent-encoded instead.
+   */
+  @Test
+  void aPipeInATracePathIsPercentEncodedInsideItsCodeSpan() {
+    var index =
+        RunIndex.render(
+            List.of(row("f1", "failed", "boom", Map.of("trace", "traces/OrderTest/f|1.md"))));
+
+    assertThat(index).contains("`traces/OrderTest/f%7C1.md`");
+  }
+
+  /** The failure message is the one cell that can carry prose; its line breaks are collapsed. */
+  @Test
+  void aNewlineInAFailureMessageIsCollapsedIntoTheOneRow() {
+    var index = RunIndex.render(List.of(failing("f1", "expected: 2\nbut was: 3")));
+
+    assertThat(index).contains("| expected: 2 but was: 3 |");
+    assertThat(index.lines().filter(line -> line.startsWith("| OrderTest.f1")).count())
+        .isEqualTo(1);
+  }
+
+  /** The cap is on the message, not under it: a message of exactly the limit is left whole. */
+  @Test
+  void aMessageOfExactlyTheLimitIsNotCutAndOneCharacterMoreIs() {
+    var atLimit = RunIndex.render(List.of(failing("f1", "x".repeat(200))));
+    var pastLimit = RunIndex.render(List.of(failing("f1", "x".repeat(201))));
+
+    assertThat(atLimit).contains("| " + "x".repeat(200) + " |").doesNotContain("…");
+    assertThat(pastLimit).contains("| " + "x".repeat(200) + "… |");
+  }
+
+  /** A failing row the integration recorded no message for renders the cell empty, not "null". */
+  @Test
+  void aFailingRowWithNoMessageRendersAnEmptyErrorCell() {
+    var index =
+        RunIndex.render(
+            List.of(row("f1", "failed", null, Map.of("trace", "traces/OrderTest/f1.md"))));
+
+    assertThat(index).contains("| `traces/OrderTest/f1.md` |  |").doesNotContain("null");
+  }
+
+  /** The listing is what is on disk: a row whose format wrote no trace file says so. */
+  @Test
+  void aRowWithNoTraceFileSaysSoInsteadOfLinkingOne() {
+    var index = RunIndex.render(List.of(row("p1", "passed", null, Map.of())));
+
+    assertThat(index).contains("| OrderTest.p1 | passed | (no trace file) |");
+  }
 }

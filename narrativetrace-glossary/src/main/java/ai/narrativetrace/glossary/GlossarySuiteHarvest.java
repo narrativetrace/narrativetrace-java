@@ -9,6 +9,7 @@ package ai.narrativetrace.glossary;
 
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.clarity.ClarityIssue;
+import ai.narrativetrace.core.output.TraceFileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -133,14 +134,14 @@ public final class GlossarySuiteHarvest {
   }
 
   private void writeGlossaryFiles(Glossary glossary) throws IOException {
+    // Render both before writing either, and write the derived glossary.md before the
+    // committed glossary.json: a render or write failure must never leave the committed file
+    // rewritten while its twin is stale.
+    var markdown = new GlossaryMarkdownRenderer().render(glossary);
+    var json = new GlossaryJsonWriter().write(glossary);
     Files.createDirectories(glossaryDir);
-    Files.writeString(
-        glossaryDir.resolve("glossary.json"),
-        new GlossaryJsonWriter().write(glossary),
-        StandardCharsets.UTF_8);
-    Files.writeString(
-        glossaryDir.resolve("glossary.md"),
-        new GlossaryMarkdownRenderer().render(glossary),
-        StandardCharsets.UTF_8);
+    var writer = new TraceFileWriter();
+    writer.writeAtomically(markdown, glossaryDir.resolve("glossary.md"));
+    writer.writeAtomically(json, glossaryDir.resolve("glossary.json"));
   }
 }

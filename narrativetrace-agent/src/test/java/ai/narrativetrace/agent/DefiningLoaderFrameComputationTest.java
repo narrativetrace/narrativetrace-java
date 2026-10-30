@@ -15,8 +15,12 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.tools.ToolProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,13 +32,19 @@ import org.junit.jupiter.api.io.TempDir;
  * types then fails to instrument; the JVM swallows the failure and the class silently loads
  * uninstrumented. This test rebuilds that shape in miniature: classes compiled at test runtime into
  * a temp dir exist only in a child URLClassLoader, never on the test classpath.
+ *
+ * <p>"Resolve through the defining loader" means read its class FILES, never ask it to load a class
+ * (B-213). The transform runs inside the JVM's own {@code defineClass} for the woven class, so a
+ * load request there re-enters the loader for a name whose definition is in flight and the host's
+ * define fails as a duplicate. {@link #aTransformNeverAsksTheDefiningLoaderToLoadAClass} is that
+ * invariant; {@code AgentAttachDuplicateDefinitionTest} is the same defect under a real attach.
  */
 class DefiningLoaderFrameComputationTest {
 
   @TempDir static Path classesDir;
 
   private static byte[] pickerBytes;
-  private static URLClassLoader definingLoader;
+  private RecordingClassLoader definingLoader;
 
   @BeforeAll
   static void compileHierarchyVisibleOnlyToChildLoader() throws IOException {
@@ -61,10 +71,19 @@ class DefiningLoaderFrameComputationTest {
         "  }",
         "}");
     pickerBytes = Files.readAllBytes(classesDir.resolve("hidden/Picker.class"));
+  }
+
+  /** A loader per test: the recorded load attempts of one test must not reach another. */
+  @BeforeEach
+  void freshDefiningLoader() throws IOException {
     definingLoader =
-        new URLClassLoader(
-            new URL[] {classesDir.toUri().toURL()},
-            DefiningLoaderFrameComputationTest.class.getClassLoader());
+        new RecordingClassLoader(
+            classesDir.toUri().toURL(), DefiningLoaderFrameComputationTest.class.getClassLoader());
+  }
+
+  @AfterEach
+  void closeDefiningLoader() throws IOException {
+    definingLoader.close();
   }
 
   @Test
@@ -80,6 +99,35 @@ class DefiningLoaderFrameComputationTest {
     // defining-loader plumbing has become untestable this way — find a new probe.
     assertThatThrownBy(() -> ClassTransformer.transform(pickerBytes, "hidden/Picker"))
         .isInstanceOf(TypeNotPresentException.class);
+  }
+
+  @Test
+  void aTransformNeverAsksTheDefiningLoaderToLoadAClass() {
+    ClassTransformer.transform(pickerBytes, "hidden/Picker", definingLoader);
+
+    assertThat(definingLoader.loadAttempts())
+        .as("a transform runs inside the host's defineClass — loading from there defines twice")
+        .isEmpty();
+  }
+
+  /** A {@link URLClassLoader} that records every class it is asked to load, and still loads it. */
+  private static final class RecordingClassLoader extends URLClassLoader {
+
+    private final List<String> attempts = new CopyOnWriteArrayList<>();
+
+    RecordingClassLoader(URL classes, ClassLoader parent) {
+      super(new URL[] {classes}, parent);
+    }
+
+    List<String> loadAttempts() {
+      return List.copyOf(attempts);
+    }
+
+    @Override
+    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+      attempts.add(name);
+      return super.loadClass(name, resolve);
+    }
   }
 
   private static void compile(String className, String... sourceLines) throws IOException {

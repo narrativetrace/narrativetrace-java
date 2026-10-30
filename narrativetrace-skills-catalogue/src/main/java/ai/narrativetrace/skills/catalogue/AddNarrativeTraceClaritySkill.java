@@ -57,7 +57,7 @@ Choose the path that matches the request:
                     """
                     plugins {
                         java
-                        id("ai.narrativetrace") version "0.5.4"
+                        id("ai.narrativetrace") version "0.5.5"
                     }
 
                     repositories {

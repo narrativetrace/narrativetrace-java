@@ -97,6 +97,12 @@ final class LoopFold {
    * first iteration's — as a diff when the document already defines that entity, otherwise through
    * the identity ladder; {@code null} when the iteration is value-identical to the first (nothing
    * to distinguish), its span id when only a deeper value differs.
+   *
+   * <p><b>@edgeCase</b> The identity ladder's label is minted from a captured value's field (e.g.
+   * {@code description}), so it is Markdown-escaped here exactly as the main path escapes the same
+   * label once it reaches a code span ({@code MarkdownRenderer}'s own call sites) — this line never
+   * wraps it in a code span of its own, so {@link MarkdownEscape#text} is the right half of that
+   * escape, not {@link MarkdownEscape#code}.
    */
   private static String label(
       TraceNode first, TraceNode node, String spanId, ValueReferenceIndex refs) {
@@ -106,7 +112,7 @@ final class LoopFold {
       var p = params.get(i);
       if (!p.redacted() && !p.renderedValue().equals(firstParams.get(i).renderedValue())) {
         var label = refs.foldDisplay(p.renderedValue(), p.structuredValue());
-        return label != null ? label : namedValue(spanId, p);
+        return label != null ? MarkdownEscape.text(label) : namedValue(spanId, p);
       }
     }
     return valueKey(first).equals(valueKey(node)) ? null : spanId;
@@ -149,6 +155,11 @@ final class LoopFold {
     return rendered.substring(0, end) + "…";
   }
 
+  /**
+   * A method name is not always a Java identifier — a JVM constructor is {@code <init>} and a
+   * replayed or hand-built tree carries whatever {@code MethodSignature} was given — so each name
+   * is escaped exactly as {@code MarkdownRenderer#signatureText} escapes the same call's own line.
+   */
   private static void appendFlow(TraceNode first, StringBuilder sb) {
     if (first.children().isEmpty()) {
       return;
@@ -159,7 +170,7 @@ final class LoopFold {
         parts.add("…");
         break;
       }
-      parts.add(child.signature().methodName() + outcomeMark(child.outcome()));
+      parts.add(MarkdownEscape.text(child.signature().methodName()) + outcomeMark(child.outcome()));
     }
     sb.append(" — same flow (").append(String.join(" → ", parts)).append(")");
   }

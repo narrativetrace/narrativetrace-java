@@ -558,7 +558,9 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
 
   @Override
   public void detachFrame(SpanId spanId) {
-    stack().detach(spanId);
+    var stack = stack();
+    stack.detach(spanId);
+    releaseIfUnownedRootEnded(stack);
   }
 
   @Override
@@ -665,9 +667,15 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * than immediate: roots wait in a process-wide queue and only the oldest leave.
    *
    * <p><b>@edgeCase</b> "Root ended" means the active stack is empty and no scoped parent is open:
-   * the agent restores the scope before it exits, and the proxy exits after its scoped call has
-   * returned, so both reach here with no scope; a detached async root keeps its span open and is
-   * queued with the next root that ends on this stack.
+   * the agent restores the scope before it exits, the proxy exits after its scoped call has
+   * returned, and {@link #emitTraceNode} reaches here once its whole graft's chain is back to empty
+   * — all three reach here with no scope. {@link #detachFrame} reaches here too, the moment the
+   * detaching thread's own stack goes empty: a detached async frame is sealed into its thread's
+   * segment right there, not deferred to that thread's next root — which, for a thread whose roots
+   * are all async, might never come (B-238). The thread that later completes the detached frame
+   * appends its exit by span id with no segment of its own to seal; if this thread's segment is
+   * evicted first, that late exit publishes nothing and the loss is counted here, on this stack —
+   * the designed, counted loss of an unowned stack.
    */
   private void releaseIfUnownedRootEnded(TraceStack stack) {
     if (stack.isOwned() || !stack.isEmpty() || stack.scopedParentSpanId() != null) {
@@ -791,6 +799,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
         exitEmittedNode(step.node(), chain);
       }
     }
+    releaseIfUnownedRootEnded(stack());
   }
 
   /** One enter or exit of a validated graft, in the order {@link TreeWalk} visits them. */
@@ -1111,12 +1120,12 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
   @Override
   public Traceparent outboundTraceparent() {
     var stack = stack();
-    continuePendingTrace(stack);
     TraceId traceId = stack.traceId();
     SpanId parentSpanId = resolveParentSpanId(stack);
     if (traceId == null || parentSpanId == null) {
       return null;
     }
+    continuePendingTrace(stack);
     return new Traceparent(traceId, parentSpanId, stack.traceFlags());
   }
 
@@ -1162,6 +1171,16 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
    * <p>The stack is <em>closed</em> before it is swept, and closing comes first for a reason: a
    * worker still holding a snapshot of it can then tell that its request has ended and discard its
    * own spans, and no adoption can slip in between the sweep and the removal.
+   *
+   * <p><b>@edgeCase</b> The closed stack's own {@link TraceStack#forgetAll()} runs too, after
+   * {@code reportableSpanIds} is read and before the shared maps are swept: a stack born unowned
+   * and only claimed here, for the first time, may still have roots sitting in the unowned-release
+   * queue (B-211) that have not reached the front of it yet, and until they do, the queue keeps
+   * this very stack object reachable. Without forgetting its own known/adopted sets, this stack
+   * held every span id from any of its still-queued roots for as long as the queue took to sweep
+   * past them — one-off per thread, but unbounded until that sweep (B-238). The queue entries
+   * themselves are left alone; they are already bounded by the release limit and drop at the next
+   * sweep as designed.
    */
   @Override
   public void reset() {
@@ -1172,6 +1191,7 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     }
     stack.close();
     var reportableSpanIds = stack.reportableSpanIds();
+    stack.forgetAll();
     stackHolder.remove();
     discardSpans(reportableSpanIds);
   }
@@ -1754,6 +1774,33 @@ public final class ThreadLocalNarrativeContext implements NarrativeContext {
     /** Whether {@link #close()} has run, i.e. the owning request has ended. */
     boolean isClosed() {
       return closed;
+    }
+
+    /**
+     * Forgets this stack's own known and adopted span sets, and its latest-segment pointer, once
+     * {@code reset()} has read everything they could report (B-238).
+     *
+     * <p>INTENT: {@code reset()} closes the stack and drops it from the thread-local holder, but a
+     * root this stack queued for the unowned-release queue (B-211) may not have reached the front
+     * of that queue yet — and until it does, the queued {@code UnownedSegment} keeps this very
+     * stack object reachable. Left alone, {@code knownSpanIds}/{@code adoptedSpanIds} kept every
+     * span id from any of its still-queued roots for as long as the queue took to sweep past them:
+     * one-off per thread, but unbounded until that sweep. The queue entries themselves are left
+     * alone here — they are already bounded by the release limit and drop at the next sweep as
+     * designed.
+     *
+     * <p>Synchronized like {@link #evict}: both mutate {@code knownSpanIds}/{@code adoptedSpanIds},
+     * and a release pass may be evicting one of this stack's queued segments on another thread
+     * while {@code reset()} runs on this one.
+     */
+    @SuppressWarnings("PMD.NullAssignment") // absent is this state's meaning: a closed stack has
+    synchronized void forgetAll() { // no latest root left for the live-thread guard to protect
+      knownSpanIds.clear();
+      var adopted = adoptedSpanIds;
+      if (adopted != null) {
+        adopted.clear();
+      }
+      latestSegment = null;
     }
 
     /**

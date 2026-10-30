@@ -89,8 +89,9 @@ public final class ClarityScanner {
                     relative.replace('/', '.').replace('\\', '.').replaceAll("\\.class$", "");
                 try {
                   classes.add(loader.loadClass(className));
-                } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                  // Skip classes that can't be loaded (missing dependencies)
+                } catch (ClassNotFoundException | LinkageError e) {
+                  // Skip classes that can't be defined (missing dependency, corrupt or
+                  // newer-release file)
                 }
               });
     }

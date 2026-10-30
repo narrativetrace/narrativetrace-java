@@ -1,4 +1,4 @@
-<!-- source: README.md blob 76c7935f3a8f | translated: 2026-10-23 | reviewed: - -->
+<!-- source: README.md blob 614fc6abb811 | translated: 2026-10-23 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -277,7 +277,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.5.4"
+    id("ai.narrativetrace") version "0.5.5"
 }
 ```
 
@@ -350,7 +350,7 @@ las renderiza todas en Markdown.
 ### ¿Gradle o Maven?
 
 Los jars del runtime son artefactos Maven corrientes.
-`ai.narrativetrace:narrativetrace-core:0.5.4` y todos los módulos que lo
+`ai.narrativetrace:narrativetrace-core:0.5.5` y todos los módulos que lo
 acompañan se resuelven y funcionan exactamente igual desde un build de Maven;
 nada de la librería en sí es específico de Gradle. Lo que *sí* es específico de
 Gradle es el plugin de arriba — una comodidad que cablea por ti el flag del

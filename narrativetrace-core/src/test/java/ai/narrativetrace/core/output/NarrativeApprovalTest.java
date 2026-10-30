@@ -10,6 +10,7 @@ package ai.narrativetrace.core.output;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
@@ -168,5 +169,19 @@ class NarrativeApprovalTest {
             List.of(),
             new TraceOutcome.Returned("\"ok\""));
     return new DefaultTraceTree(List.of(node));
+  }
+
+  /**
+   * The depth is declared in the baseline's header and nowhere else: the scan stops at the header's
+   * blank line, so a line further down the structure cannot promote a public baseline to a deep one
+   * and send every shallow run into a depth mismatch it cannot fix.
+   */
+  @Test
+  void onlyTheHeaderBlockDeclaresTheDepthOfABaseline() {
+    var body = "scenario: trip settles\n\n- Service.doWork() → value\ndepth: internal\n";
+
+    assertThat(NarrativeApproval.declaredDepth(body)).isEqualTo(TraceDepth.PUBLIC);
+    assertThat(NarrativeApproval.declaredDepth("scenario: x\ndepth: internal\n\n- A.b()\n"))
+        .isEqualTo(TraceDepth.INTERNAL);
   }
 }

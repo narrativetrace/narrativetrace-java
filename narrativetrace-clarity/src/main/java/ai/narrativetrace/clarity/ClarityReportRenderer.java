@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.clarity;
 
+import ai.narrativetrace.core.render.MarkdownTableEscape;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,7 @@ public final class ClarityReportRenderer {
   public String render(String scenarioName, ClarityResult result) {
     var sb = new StringBuilder();
 
-    sb.append("# Clarity Report: ").append(scenarioName).append("\n\n");
+    sb.append("# Clarity Report: ").append(cell(scenarioName)).append("\n\n");
 
     appendScoresTable(sb, result);
     appendElementsSection(sb, result.elementNotes());
@@ -89,7 +90,8 @@ public final class ClarityReportRenderer {
     sb.append("| Scenario | Score |\n");
     sb.append("|----------|-------|\n");
     for (var entry : sorted) {
-      sb.append(String.format("| %s | %.2f |%n", entry.getKey(), entry.getValue().overallScore()));
+      sb.append(
+          String.format("| %s | %.2f |%n", cell(entry.getKey()), entry.getValue().overallScore()));
     }
   }
 
@@ -112,7 +114,7 @@ public final class ClarityReportRenderer {
     if (!lowWithIssues && !hasElements) {
       return;
     }
-    sb.append(String.format("%n### %s%n", name));
+    sb.append(String.format("%n### %s%n", cell(name)));
     if (lowWithIssues) {
       sb.append("\n");
       appendScoresTable(sb, result);
@@ -130,7 +132,10 @@ public final class ClarityReportRenderer {
     sb.append("| Element | Score | Note |\n");
     sb.append("|---------|-------|------|\n");
     for (var note : notes) {
-      sb.append(String.format("| `%s` | %.2f | %s |%n", note.element(), note.score(), note.note()));
+      sb.append(
+          String.format(
+              "| `%s` | %.2f | %s |%n",
+              codeSpanCell(note.element()), note.score(), cell(note.note())));
     }
   }
 
@@ -176,14 +181,25 @@ public final class ClarityReportRenderer {
     sb.append("| Severity | Category | Element | Suggestion |\n");
     sb.append("|----------|----------|---------|------------|\n");
     for (var issue : sorted) {
+      var element = codeSpanCell(issue.element());
       String elementDisplay =
           issue.occurrences() > 1
-              ? String.format("`%s` (x%d)", issue.element(), issue.occurrences())
-              : String.format("`%s`", issue.element());
+              ? String.format("`%s` (x%d)", element, issue.occurrences())
+              : String.format("`%s`", element);
       sb.append(
           String.format(
               "| %s | %s | %s | %s |%n",
-              issue.severity(), issue.category(), elementDisplay, issue.suggestion()));
+              issue.severity(), issue.category(), elementDisplay, cell(issue.suggestion())));
     }
+  }
+
+  /** Text safe inside an ordinary table cell: a pipe would start a new column. */
+  private static String cell(String text) {
+    return MarkdownTableEscape.cell(text);
+  }
+
+  /** Text safe inside a table cell that is about to be wrapped in a code span. */
+  private static String codeSpanCell(String text) {
+    return MarkdownTableEscape.codeSpanCell(text);
   }
 }

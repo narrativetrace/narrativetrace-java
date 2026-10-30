@@ -63,20 +63,30 @@ public final class ClassTransformer {
    * references types the agent's loader cannot see — its own deployment neighbours, container APIs
    * like {@code jakarta.servlet} — so any method needing a frame merge over such types failed to
    * instrument. The class's defining loader, handed to every {@code transform} call, sees them all.
+   *
+   * <p><b>@llmNote</b> That loader supplies class FILES, and {@link ClassWriter#getClassLoader()}
+   * is deliberately left alone: ASM consults it only from the default {@code getCommonSuperClass},
+   * which is overridden here precisely so no part of a transform can ask a loader to LOAD a class.
+   * A transform runs inside the host's own {@code defineClass}, where one load request defines the
+   * woven class a second time and the host's define then fails as a duplicate (B-213) — see {@link
+   * ClassFileTypeHierarchy} for the mechanism and the invariant.
    */
   private static final class DefiningLoaderClassWriter extends ClassWriter {
 
-    private final ClassLoader definingLoader;
+    private final ClassFileTypeHierarchy hierarchy;
 
     DefiningLoaderClassWriter(ClassReader reader, int flags, ClassLoader definingLoader) {
       super(reader, flags);
-      this.definingLoader = definingLoader;
+      // null = bootstrap-defined class; the agent's own loader is the best remaining guess.
+      // LoaderVisibility refuses to weave those, so only direct callers reach this arm.
+      var classFiles =
+          definingLoader != null ? definingLoader : ClassTransformer.class.getClassLoader();
+      this.hierarchy = new ClassFileTypeHierarchy(classFiles, reader);
     }
 
     @Override
-    protected ClassLoader getClassLoader() {
-      // null = bootstrap-defined class; the agent's own loader is the best remaining guess.
-      return definingLoader != null ? definingLoader : ClassTransformer.class.getClassLoader();
+    protected String getCommonSuperClass(String type1, String type2) {
+      return hierarchy.commonSuperClass(type1, type2);
     }
   }
 }

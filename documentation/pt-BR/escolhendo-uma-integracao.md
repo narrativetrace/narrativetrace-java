@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob a6eb3cd5e6c4 | translated: 2026-10-23 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob acba5f2c0e37 | translated: 2026-10-28 | reviewed: 2026-09-03 -->
 # Escolhendo uma integração
 
 [English](../choosing-an-integration.md) | Español | **Português** | [简体中文](../zh-CN/选择集成方式.md)
@@ -108,7 +108,20 @@ assim se mantêm em paridade por construção, não por convenção.
 - **Trabalho entre threads** — nenhum dos cinco caminhos acima mescla
   automaticamente as chamadas de uma thread assíncrona/executor ao trace
   pai. Use `ContextSnapshot.wrap(...)` manualmente, ou registre
-  `NarrativeTraceThreadLocalAccessor` no Micrometer.
+  `NarrativeTraceThreadLocalAccessor` no Micrometer. Em uma thread de pool
+  que ninguém entrega, a próxima tarefa não relacionada ainda recebe um
+  trace novo — a menos que seu primeiro ato seja `traceId()` ou
+  `snapshot()` antes de qualquer chamada rastreada, caso em que ela carrega
+  o trace que a tarefa anterior deixou: não existe nenhum sinal que
+  distinga uma entrega deliberada (o trabalho em questão pedindo sua
+  própria identidade) de uma tarefa não relacionada que simplesmente
+  perguntou primeiro. `outboundTraceparent()` antes de qualquer chamada
+  rastreada não retorna nada e não carrega o trace da tarefa anterior: sem
+  nenhuma identidade devolvida, não há nada com que se manter consistente.
+  Entregue o trabalho por meio de `ContextSnapshot.wrap(...)` (ou um
+  executor decorado) para que ele carregue seu próprio trace desde o
+  início, ou chame `reset()` no início de cada unidade de trabalho antes
+  de ler qualquer coisa.
 
 ## Empilhar com outros wrappers
 

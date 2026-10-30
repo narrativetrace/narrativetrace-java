@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.core.render.MarkdownTableEscape;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
@@ -36,12 +37,20 @@ public final class RunPointers {
 
   /**
    * {@code Class.method}, with the invocation number appended for a repeated or parameterized one.
+   *
+   * <p>A method name is not always a Java identifier: JUnit 4's {@code Parameterized} spells one
+   * invocation {@code equipmentCanBeFound[KAYAK]}, where the bracketed half is a parameter's {@code
+   * toString()}. This label feeds both {@link RunIndex}'s table row and the console pointer line,
+   * so a line break in that value is collapsed here, once, rather than in each consumer — the pipe
+   * half of table safety stays {@link RunIndex}'s own, since a label already escaped here would be
+   * double-escaped once {@code RunIndex.cell} escapes it again.
    */
   public static String label(ArtifactIdentity identity) {
     var className = identity.testClassName();
     var simple = className.substring(className.lastIndexOf('.') + 1);
     var label = simple + "." + identity.methodName();
-    return identity.isInvocation() ? label + "[#" + identity.invocationIndex() + "]" : label;
+    var full = identity.isInvocation() ? label + "[#" + identity.invocationIndex() + "]" : label;
+    return MarkdownTableEscape.collapseLineBreaks(full);
   }
 
   /** The absolute path of a row's trace file, when it has one. */

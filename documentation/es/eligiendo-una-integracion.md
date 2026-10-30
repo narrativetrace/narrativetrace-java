@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob a6eb3cd5e6c4 | translated: 2026-10-23 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob acba5f2c0e37 | translated: 2026-10-28 | reviewed: 2026-09-03 -->
 # Eligiendo una integración
 
 [English](../choosing-an-integration.md) | **Español** | [Português](../pt-BR/escolhendo-uma-integracao.md) | [简体中文](../zh-CN/选择集成方式.md)
@@ -109,7 +109,19 @@ construcción y no por convención.
 - **Trabajo entre hilos** — ninguna de las cinco vías anteriores fusiona
   automáticamente las llamadas de un hilo asíncrono/executor con la traza
   padre. Usa `ContextSnapshot.wrap(...)` a mano, o registra
-  `NarrativeTraceThreadLocalAccessor` con Micrometer.
+  `NarrativeTraceThreadLocalAccessor` con Micrometer. En un hilo de pool que
+  nadie entrega, la siguiente tarea no relacionada sigue obteniendo una
+  traza nueva — a menos que su primer acto sea `traceId()` o `snapshot()`
+  antes de cualquier llamada trazada, en cuyo caso arrastra la traza que
+  dejó la tarea anterior: no existe ninguna señal que distinga una entrega
+  deliberada (el trabajo en curso pidiendo su propia identidad) de una tarea
+  no relacionada que simplemente preguntó primero. `outboundTraceparent()`
+  antes de cualquier llamada trazada no devuelve nada y no arrastra la
+  traza de la tarea anterior: al no devolver ninguna identidad, no hay nada
+  con lo que mantenerse consistente. Entrega el trabajo mediante
+  `ContextSnapshot.wrap(...)` (o un executor decorado) para que lleve su
+  propia traza desde el principio, o llama a `reset()` al comenzar cada
+  unidad de trabajo antes de leer nada.
 
 ## Apilarse con otros envoltorios
 

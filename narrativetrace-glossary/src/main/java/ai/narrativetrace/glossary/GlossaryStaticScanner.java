@@ -80,8 +80,9 @@ public final class GlossaryStaticScanner {
     var className = relative.replace('/', '.').replace('\\', '.').replaceAll("\\.class$", "");
     try {
       classes.add(loader.loadClass(className));
-    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-      // Best-effort: a class whose dependencies are absent contributes no vocabulary.
+    } catch (ClassNotFoundException | LinkageError e) {
+      // Best-effort: a class that cannot be defined (missing dependency, corrupt or
+      // newer-release file) contributes no vocabulary.
     }
   }
 

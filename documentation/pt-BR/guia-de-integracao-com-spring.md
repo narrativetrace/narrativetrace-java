@@ -1,4 +1,4 @@
-<!-- source: documentation/spring-integration-guide.md blob c3958953e876 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/spring-integration-guide.md blob 7c9a59a6f26b | translated: 2026-09-03 | reviewed: 2026-09-03 -->
 # Guia de integração com Spring
 
 [English](../spring-integration-guide.md) | [Español](../es/guia-de-integracion-con-spring.md) | **Português** | [简体中文](../zh-CN/Spring集成指南.md)
@@ -19,7 +19,7 @@ Este guia cobre a integração do NarrativeTrace em uma aplicação Spring Boot,
 Adicione a dependência:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.5.4")
+implementation("ai.narrativetrace:narrativetrace-spring:0.5.5")
 ```
 
 Habilite o tracing na sua classe de configuração:
@@ -88,7 +88,7 @@ Isso garante que o tracing seja executado na thread assíncrona real, não na th
 Para tracing de requisições HTTP em uma aplicação implantada, adicione o módulo do filtro de servlet:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.4")
+implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.5")
 ```
 
 Isso registra automaticamente o `NarrativeTraceFilter` como um bean do Spring. O filtro segue um ciclo de vida de reinício-cadeia-captura-exportação-reinício em cada requisição:
@@ -173,8 +173,8 @@ O NarrativeTrace usa o [context-propagation do Micrometer](https://github.com/mi
 ### Dependências
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-spring:0.5.4")
-implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.4")
+implementation("ai.narrativetrace:narrativetrace-spring:0.5.5")
+implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.5")
 ```
 
 ### Configuração

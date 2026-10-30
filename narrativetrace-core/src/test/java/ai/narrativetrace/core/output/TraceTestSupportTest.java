@@ -578,4 +578,31 @@ class TraceTestSupportTest {
   private static ai.narrativetrace.api.render.NarrativeRenderer stubRenderer(String output) {
     return tree -> output;
   }
+
+  /**
+   * The non-Markdown formats return before the Markdown extras, so a text run owns exactly one
+   * artifact: no diagram, no JSON companion, no structural {@code .nt}, and no structural delta to
+   * report. The manifest's role probe depends on this being the whole write set.
+   */
+  @Test
+  void aTextFormatRunWritesOneArtifactAndNoMarkdownCompanions(@TempDir Path tempDir)
+      throws Exception {
+    var delta =
+        TraceTestSupport.writeTraceFile(
+            ArtifactIdentity.ofMethod("com.example.FooTest", "testSomething"),
+            "test something",
+            traceWithOneCall(),
+            false,
+            tempDir,
+            new PrintStream(new ByteArrayOutputStream()),
+            "text",
+            stubRenderer("sequenceDiagram"),
+            stubRenderer("@startuml"));
+
+    assertThat(delta).isEmpty();
+    try (var files = Files.walk(tempDir)) {
+      assertThat(files.filter(Files::isRegularFile).map(tempDir::relativize).map(Path::toString))
+          .containsExactly("traces/FooTest/test_something.txt");
+    }
+  }
 }

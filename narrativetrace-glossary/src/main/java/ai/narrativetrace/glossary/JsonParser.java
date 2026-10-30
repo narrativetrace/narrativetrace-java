@@ -240,13 +240,14 @@ final class JsonParser {
       throw error("unterminated unicode escape");
     }
     var hex = text.substring(pos, pos + 4);
-    try {
-      char value = (char) Integer.parseInt(hex, 16);
-      pos += 4;
-      return value;
-    } catch (NumberFormatException e) {
-      throw error("invalid unicode escape '\\u" + hex + "'", e);
+    for (int i = 0; i < hex.length(); i++) {
+      if (Character.digit(hex.charAt(i), 16) < 0) {
+        throw error("invalid unicode escape '\\u" + hex + "'");
+      }
     }
+    char value = (char) Integer.parseInt(hex, 16);
+    pos += 4;
+    return value;
   }
 
   private Long parseNumber() {

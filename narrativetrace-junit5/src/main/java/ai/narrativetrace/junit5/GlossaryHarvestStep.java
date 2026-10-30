@@ -28,8 +28,12 @@ final class GlossaryHarvestStep {
   /** The configured harvest, or {@code null} when glossary harvesting is switched off. */
   private final GlossarySuiteHarvest harvest;
 
-  private GlossaryHarvestStep(GlossarySuiteHarvest harvest) {
+  /** The directory holding the committed glossary, for the malformed-glossary message. */
+  private final Path glossaryDir;
+
+  private GlossaryHarvestStep(GlossarySuiteHarvest harvest, Path glossaryDir) {
     this.harvest = harvest;
+    this.glossaryDir = glossaryDir;
   }
 
   /**
@@ -37,7 +41,7 @@ final class GlossaryHarvestStep {
    * the build directory and must be opted into explicitly.
    */
   static GlossaryHarvestStep disabled() {
-    return new GlossaryHarvestStep(null);
+    return new GlossaryHarvestStep(null, null);
   }
 
   /**
@@ -51,7 +55,7 @@ final class GlossaryHarvestStep {
   static GlossaryHarvestStep into(
       Path glossaryDir, Path usageReportFile, UnaryOperator<String> packageOf, Clock clock) {
     return new GlossaryHarvestStep(
-        new GlossarySuiteHarvest(glossaryDir, usageReportFile, packageOf, clock));
+        new GlossarySuiteHarvest(glossaryDir, usageReportFile, packageOf, clock), glossaryDir);
   }
 
   /**
@@ -60,7 +64,8 @@ final class GlossaryHarvestStep {
    * @param trees trace trees accumulated over the suite
    * @param out console stream receiving the vocabulary summary
    * @return {@code non-canonical-term} issues to fold into the clarity report; empty when
-   *     harvesting is switched off or the glossary could not be written
+   *     harvesting is switched off, the glossary could not be written, or the committed glossary
+   *     could not be read
    */
   List<ClarityIssue> run(List<TraceTree> trees, PrintStream out) {
     if (harvest == null) {
@@ -72,6 +77,14 @@ final class GlossaryHarvestStep {
       return result.issues();
     } catch (IOException e) {
       System.err.println("Failed to write glossary: " + e.getMessage());
+      return List.of();
+    } catch (IllegalArgumentException e) {
+      System.err.println(
+          "narrative-trace: committed glossary at "
+              + glossaryDir.resolve("glossary.json")
+              + " could not be read, skipping the harvest ("
+              + e.getMessage()
+              + ")");
       return List.of();
     }
   }

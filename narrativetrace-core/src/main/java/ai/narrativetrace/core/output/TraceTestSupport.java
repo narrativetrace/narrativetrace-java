@@ -39,6 +39,9 @@ import java.util.function.Function;
  */
 public final class TraceTestSupport {
 
+  /** Every suffix a main trace artifact can be written with, across the four formats. */
+  private static final List<String> TRACE_SUFFIXES = List.of(".md", ".txt", ".mmd", ".puml");
+
   private TraceTestSupport() {}
 
   public static String extensionForFormat(String format) {
@@ -273,6 +276,43 @@ public final class TraceTestSupport {
   }
 
   /**
+   * Removes the identity's artifacts that this write is about to make stale: the main trace of
+   * every OTHER format, the opt-in canonical and structural entry arrays, and — when this write is
+   * not Markdown — the diagram, per-scenario JSON and structural {@code .nt} companions that only a
+   * Markdown write produces.
+   *
+   * <p>INTENT: {@code ScenarioManifest.entryFor} lists a role the first time it finds a file for it
+   * on disk; it is never told which run wrote that file. Nothing else cleans the {@code
+   * traces}/{@code diagrams}/{@code structural} trees between runs — the output directory is not a
+   * declared Gradle task output — so switching format in the same directory left the previous run's
+   * trace, and its Markdown-only companions, on disk for the probe to claim as this run's. Removing
+   * them here, before this write, is what keeps a row describing only the run that wrote it.
+   *
+   * <p>The entry arrays are the one case with no "this run's format" to keep: {@code
+   * narrativetrace.canonicalJson} / {@code narrativetrace.structuralJson} are flags an integration
+   * consults on its own, after this write returns, so removing them unconditionally here and
+   * letting that later, flag-gated call rewrite whichever one this run turned on is what keeps an
+   * entry array from outliving a flag that went from on to off (B-227).
+   */
+  private static void removeStaleArtifacts(
+      OutputDirectoryResolver resolver, ArtifactIdentity identity, String format)
+      throws IOException {
+    var keep = extensionForFormat(format);
+    for (var suffix : TRACE_SUFFIXES) {
+      if (!suffix.equals(keep)) {
+        Files.deleteIfExists(resolver.traceArtifact(identity, suffix));
+      }
+    }
+    Files.deleteIfExists(resolver.traceArtifact(identity, ".canonical.json"));
+    Files.deleteIfExists(resolver.traceArtifact(identity, ".structural.json"));
+    if (!"markdown".equalsIgnoreCase(format)) {
+      Files.deleteIfExists(resolver.traceArtifact(identity, ".json"));
+      Files.deleteIfExists(resolver.diagramFile(identity));
+      Files.deleteIfExists(resolver.structuralFile(identity));
+    }
+  }
+
+  /**
    * The write for the final overload, which carries the opt-in deep mode's facts: the depth the
    * trace was recorded at (declared in the structural artifact and the file header) and how many
    * deep spans the cap dropped. {@link TraceDepth#PUBLIC} produces exactly what every other
@@ -297,6 +337,7 @@ public final class TraceTestSupport {
       return Optional.empty();
     }
     var resolver = new OutputDirectoryResolver(outputDir);
+    removeStaleArtifacts(resolver, identity, format);
     var file = resolver.traceArtifact(identity, extensionForFormat(format));
     var content =
         renderForFormat(

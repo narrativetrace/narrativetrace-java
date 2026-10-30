@@ -28,6 +28,12 @@ import java.util.function.Function;
  * diagram tool expects its own first line), and neither is the per-test {@code .json} companion: it
  * is validated on disk against the cross-runtime {@code chapter-tree.schema.json}, whose root
  * allows no extra property, and that schema is a contract every runtime mirrors byte for byte.
+ *
+ * <p><b>@edgeCase</b> {@link Facts#test()} carries a test name verbatim, and a method name is not
+ * always a Java identifier — JUnit 4's {@code Parameterized} spells one invocation {@code
+ * equipmentCanBeFound[KAYAK]}, where the bracketed half is a parameter's own {@code toString()}.
+ * Every fact is therefore sanitized before it reaches either comment form: see {@link
+ * #sanitize(String, boolean)}.
  */
 public final class TraceFileHeader {
 
@@ -88,23 +94,29 @@ public final class TraceFileHeader {
         content.substring(0, split),
         content.substring(split),
         MARKDOWN_THREW,
-        where -> "<!--\n" + body(facts, where, "") + "-->\n");
+        where -> "<!--\n" + body(facts, where, "", true) + "-->\n");
   }
 
   private static String commented(String content, Facts facts, String prefix, String marker) {
-    return assemble("", content, marker, where -> body(facts, where, prefix));
+    return assemble("", content, marker, where -> body(facts, where, prefix, false));
   }
 
-  private static String body(Facts facts, String where, String prefix) {
+  /**
+   * @param markdown whether this body sits inside an HTML comment, where a value carrying {@code
+   *     -->} would close it early — the one hole {@link #sanitize} closes beyond collapsing line
+   *     breaks, which every format needs: a raw newline in a fact leaves the rest of that fact's
+   *     line without {@code prefix}, outside whatever comments-out the header in that format.
+   */
+  private static String body(Facts facts, String where, String prefix, boolean markdown) {
     return prefix
         + "NarrativeTrace trace file\n"
         + prefix
         + "What this is: the recorded call tree of one test run: "
-        + facts.test()
+        + sanitize(facts.test(), markdown)
         + ", "
-        + facts.outcome()
+        + sanitize(facts.outcome(), markdown)
         + ", "
-        + facts.durationMillis()
+        + sanitize(facts.durationMillis(), markdown)
         + " ms.\n"
         + prefix
         + "How to read it: indentation is call nesting; each line is one call with its"
@@ -116,11 +128,22 @@ public final class TraceFileHeader {
         + ".\n"
         + prefix
         + "Run index: "
-        + facts.indexPath()
+        + sanitize(facts.indexPath(), markdown)
         + ". Artifact list: "
-        + facts.manifestPath()
+        + sanitize(facts.manifestPath(), markdown)
         + " (both are written when the run ends).\n"
         + depthLine(facts, prefix);
+  }
+
+  /**
+   * Neutralizes a header fact's value: every format collapses a line break (otherwise the part of
+   * the value after it falls outside the comment, since the format's own comment-out mechanism is
+   * per-line), and Markdown additionally breaks up its one closing delimiter, {@code -->}, so a
+   * fact carrying it cannot end the header's comment early.
+   */
+  private static String sanitize(String value, boolean markdown) {
+    var collapsed = value.replace("\r\n", " ").replace('\n', ' ').replace('\r', ' ');
+    return markdown ? collapsed.replace("-->", "--​>") : collapsed;
   }
 
   /**

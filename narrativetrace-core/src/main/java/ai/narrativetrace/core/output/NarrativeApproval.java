@@ -31,6 +31,9 @@ import java.util.List;
  */
 public final class NarrativeApproval {
 
+  /** The committed baseline's own suffix; every sibling artifact is named by replacing it. */
+  private static final String APPROVED_SUFFIX = ".approved.nt";
+
   private NarrativeApproval() {}
 
   /**
@@ -89,12 +92,17 @@ public final class NarrativeApproval {
    * artifact for review.
    *
    * @param depth the depth this run was recorded at
+   * @throws IllegalArgumentException if {@code approvedFile}'s name does not end in {@code
+   *     .approved.nt} — the received/incomplete sibling is derived from that suffix, and refusing
+   *     an off-scheme name here, before anything is read or written, is what keeps a mismatching
+   *     run from silently overwriting it and a matching run from deleting it
    * @throws AssertionError when the baseline is missing, was cut at the other depth, or the
    *     structure changed
    */
   public static String verify(
       TraceTree trace, String scenario, Path approvedFile, TraceLoss loss, TraceDepth depth)
       throws IOException {
+    requireApprovedScheme(approvedFile);
     var current = new StructuralTraceRenderer().renderDocument(trace, scenario, depth);
     var receivedFile = loss.any() ? incompleteSibling(approvedFile) : receivedSibling(approvedFile);
     if (!Files.exists(approvedFile)) {
@@ -221,17 +229,41 @@ public final class NarrativeApproval {
    */
   public static Path approvedFile(Path approvedDir, ArtifactIdentity identity) {
     return OutputDirectoryResolver.classDirectory(approvedDir, identity.testClassName())
-        .resolve(identity.fileSlug() + ".approved.nt");
+        .resolve(identity.fileSlug() + APPROVED_SUFFIX);
   }
 
-  /** Where a lossy run's structure goes: readable, comparable by hand, and never promotable. */
+  /**
+   * Guard clause: {@code verify} is public API taking the baseline as a bare {@code Path}, and
+   * nothing requires it to have come from {@link #approvedFile}. The received/incomplete sibling is
+   * derived from the {@code .approved.nt} suffix by {@link String#replace}, which is a no-op on a
+   * name lacking that suffix — so an off-scheme name would make the derived sibling THE BASELINE
+   * ITSELF, and the comparison that follows would overwrite or delete the very contract it is
+   * judged against.
+   */
+  private static void requireApprovedScheme(Path approvedFile) {
+    if (!approvedFile.getFileName().toString().endsWith(APPROVED_SUFFIX)) {
+      throw new IllegalArgumentException(
+          "approvedFile must end in \""
+              + APPROVED_SUFFIX
+              + "\": "
+              + approvedFile
+              + " — build it with NarrativeApproval.approvedFile(...)");
+    }
+  }
+
+  /**
+   * Where a lossy run's structure goes: readable, comparable by hand, and never promotable. Safe to
+   * derive by {@link String#replace} because {@link #requireApprovedScheme} already refused any
+   * {@code approvedFile} not carrying {@link #APPROVED_SUFFIX}.
+   */
   private static Path incompleteSibling(Path approvedFile) {
-    var name = approvedFile.getFileName().toString().replace(".approved.nt", ".incomplete.nt");
+    var name = approvedFile.getFileName().toString().replace(APPROVED_SUFFIX, ".incomplete.nt");
     return approvedFile.resolveSibling(name);
   }
 
+  /** Safe by the same guard {@link #incompleteSibling} relies on. */
   private static Path receivedSibling(Path approvedFile) {
-    var name = approvedFile.getFileName().toString().replace(".approved.nt", ".received.nt");
+    var name = approvedFile.getFileName().toString().replace(APPROVED_SUFFIX, ".received.nt");
     return approvedFile.resolveSibling(name);
   }
 
@@ -255,7 +287,7 @@ public final class NarrativeApproval {
     for (var file : received) {
       var approved =
           file.resolveSibling(
-              file.getFileName().toString().replace(".received.nt", ".approved.nt"));
+              file.getFileName().toString().replace(".received.nt", APPROVED_SUFFIX));
       Files.move(file, approved, StandardCopyOption.REPLACE_EXISTING);
       promoted.add(approved);
     }

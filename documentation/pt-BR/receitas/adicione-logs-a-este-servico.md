@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/add-logging-to-this-service.md blob bc74b01f58bb | translated: 2026-10-11 | reviewed: - -->
+<!-- source: documentation/recipes/add-logging-to-this-service.md blob 46475e9a43a2 | translated: 2026-10-11 | reviewed: - -->
 # Adicione logs a este serviço
 
 [English](../../recipes/add-logging-to-this-service.md) | [Español](../../es/recetas/anade-registro-a-este-servicio.md) | **Português** | [简体中文](../../zh-CN/实用方案/给这个服务加日志.md)
@@ -61,7 +61,7 @@ configuração:
 ```kotlin
 // build.gradle.kts
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.4")   // se liga ao pipeline
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.5")   // se liga ao pipeline
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")          // o backend SLF4J que ele precisa
 }
 ```

@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.core.render.MarkdownTableEscape;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -101,7 +102,7 @@ public final class RunIndex {
 
   private static String path(ScenarioManifest.Entry entry) {
     var trace = entry.artifacts().get("trace");
-    return trace == null ? "(no trace file)" : "`" + trace.replace("|", "%7C") + "`";
+    return trace == null ? "(no trace file)" : "`" + MarkdownTableEscape.codeSpanCell(trace) + "`";
   }
 
   /** The message as one short line: whitespace collapsed, capped. */
@@ -115,6 +116,6 @@ public final class RunIndex {
 
   /** Text safe inside a table cell: a pipe would start a new column. */
   private static String cell(String text) {
-    return text == null ? "" : text.replace("|", "\\|");
+    return text == null ? "" : MarkdownTableEscape.cell(text);
   }
 }

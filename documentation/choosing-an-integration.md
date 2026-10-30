@@ -98,7 +98,18 @@ convention.
 - **Cross-thread work** — none of the five paths above merges an
   async/executor thread's calls into the parent trace automatically. Use
   `ContextSnapshot.wrap(...)` by hand, or register
-  `NarrativeTraceThreadLocalAccessor` with Micrometer.
+  `NarrativeTraceThreadLocalAccessor` with Micrometer. On a pooled thread
+  nobody hands over, the next unrelated task still gets a fresh trace —
+  unless its first act is `traceId()` or `snapshot()` before any traced
+  call, in which case it carries the trace the previous task left behind:
+  there is no signal that tells a deliberate handover (the work at hand
+  asking for its own identity) apart from an unrelated task that simply
+  asked first. `outboundTraceparent()` before any traced call returns
+  nothing and does not carry the previous task's trace over — with nothing
+  handed back, there is no identity to stay consistent with. Hand the work
+  over through `ContextSnapshot.wrap(...)` (or a decorated executor) so it
+  carries its own trace from the start, or call `reset()` at the start of
+  each unit of work before reading anything.
 
 ## Stacking with other wrappers
 

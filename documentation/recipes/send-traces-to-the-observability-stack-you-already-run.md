@@ -19,7 +19,7 @@ you (`compileOnly`, so your SDK version wins):
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.4")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.5")
     implementation("io.opentelemetry:opentelemetry-api:1.62.0")
 }
 ```

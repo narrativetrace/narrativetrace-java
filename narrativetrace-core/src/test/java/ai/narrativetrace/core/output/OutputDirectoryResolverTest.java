@@ -340,4 +340,57 @@ class OutputDirectoryResolverTest {
   private static int byteLengthOf(Path component) {
     return component.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
   }
+
+  /**
+   * The surrogate-pair lookahead at its own boundary: a high surrogate as the LAST character of a
+   * name has no next character to read, and the existing lone-surrogate case sits mid-name where
+   * one always exists. A name ending in one is ordinary — a truncating caller cuts a pair in half.
+   */
+  @Test
+  void aClassNameEndingInALoneHighSurrogateResolvesInsteadOfThrowing() {
+    var base = Path.of("/tmp/base");
+
+    var file = new OutputDirectoryResolver(base).traceFile("com.example.A" + (char) 0xd800, "runs");
+
+    assertThat(file.toString()).isEqualTo("/tmp/base/traces/A_/runs.md");
+  }
+
+  /**
+   * The same lookahead at the other end: a pair that starts the name has no character before it.
+   */
+  @Test
+  void aClassNameThatIsNothingButASurrogatePairKeepsIt() {
+    var base = Path.of("/tmp/base");
+    var monkey = "" + (char) 0xd83d + (char) 0xde48;
+
+    var file = new OutputDirectoryResolver(base).traceFile("com.example." + monkey, "runs");
+
+    assertThat(file.toString()).isEqualTo("/tmp/base/traces/" + monkey + "/runs.md");
+  }
+
+  /**
+   * The directory rule keeps dots — a simple name has none, since everything up to the last one is
+   * the package — so the all-dots guard is reachable only by a caller that slugs a name it did not
+   * take the simple name of. It answers {@code unnamed} rather than a relative path element.
+   */
+  @Test
+  void aNameOfNothingButDotsIsNamedRatherThanLeftAsAPathElement() {
+    assertThat(OutputDirectoryResolver.toDirectorySlug("..")).isEqualTo("unnamed");
+    assertThat(OutputDirectoryResolver.toDirectorySlug(".")).isEqualTo("unnamed");
+  }
+
+  /**
+   * The suffix reserve, measured against the longest suffix the writers actually append: {@code
+   * .structural.json} is 16 bytes, which is the whole reserve, so a maximal method slug plus that
+   * suffix has to land exactly on the limit rather than one byte past it.
+   */
+  @Test
+  void theLongestArtifactSuffixStillFitsTheElementLimit() {
+    var resolver = new OutputDirectoryResolver(Path.of("/tmp/base"));
+    var identity = ArtifactIdentity.ofMethod("OrderTest", "m".repeat(400));
+
+    var file = resolver.traceArtifact(identity, ".structural.json");
+
+    assertThat(byteLengthOf(file.getFileName())).isEqualTo(MAX_COMPONENT_BYTES);
+  }
 }

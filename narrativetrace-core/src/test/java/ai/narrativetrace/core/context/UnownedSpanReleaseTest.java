@@ -13,9 +13,12 @@ import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.SpanId;
 import ai.narrativetrace.api.event.TraceEvent;
+import ai.narrativetrace.api.event.TraceId;
 import ai.narrativetrace.api.event.TraceNode;
+import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
+import ai.narrativetrace.core.context.ThreadLocalNarrativeContext.TraceStack;
 import ai.narrativetrace.core.pipeline.BufferedEventConsumer;
 import ai.narrativetrace.core.pipeline.DualPathPipeline;
 import java.util.ArrayList;
@@ -28,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,6 +160,131 @@ class UnownedSpanReleaseTest {
         .isEqualTo(roots.get(1).spanContext().traceId());
   }
 
+  /**
+   * B-217 (pinning, not a fix): a pooled thread's next UNRELATED task gets the previous task's
+   * trace id when its first act is {@code traceId()} rather than a traced call. This is {@link
+   * #askingForTheTraceIdBetweenRootsContinuesThatTrace()} read from the next task's side rather
+   * than the same task's: the core cannot tell "the work at hand asking for its own identity" (the
+   * supported handover/outbound case) from "the next unrelated task happened to ask first" — both
+   * look identical from a stack that nobody claimed. No fix; see the two tests below for the
+   * supported ways to avoid it.
+   */
+  @Test
+  void aPooledTaskThatReadsItsTraceIdBeforeAnyCallContinuesTheTaskBeforeIt() throws Exception {
+    pool.submit(() -> call("Pool", "first")).get(10, TimeUnit.SECONDS);
+    pipeline.flush();
+    var firstRootId = rootEntersOn("app-pool").get(0).spanContext().traceId();
+
+    var secondTraceId = pool.submit(context::traceId).get(10, TimeUnit.SECONDS);
+
+    assertThat(secondTraceId)
+        .as(
+            "an unrelated task that only reads its id before tracing anything inherits the task"
+                + " before it")
+        .isEqualTo(firstRootId);
+  }
+
+  /**
+   * B-217: unlike {@link #aPooledTaskThatReadsItsTraceIdBeforeAnyCallContinuesTheTaskBeforeIt},
+   * {@code outboundTraceparent()} hands back nothing when no span is open — and when it hands back
+   * nothing, there is no identity to stay consistent with, so the next root starts its own trace
+   * instead of continuing the one before it.
+   */
+  @Test
+  void anOutboundHeaderThatReturnsNothingDoesNotContinueTheTaskBeforeIt() throws Exception {
+    pool.submit(() -> call("Pool", "first")).get(10, TimeUnit.SECONDS);
+    var outbound = pool.submit(context::outboundTraceparent).get(10, TimeUnit.SECONDS);
+    pool.submit(() -> call("Pool", "second")).get(10, TimeUnit.SECONDS);
+    pipeline.flush();
+
+    var roots = rootEntersOn("app-pool");
+    assertThat(outbound).as("no span was open between roots, nothing to hand over").isNull();
+    assertThat(roots.get(1).spanContext().traceId())
+        .as("an outbound header that returned nothing must not continue the task before it")
+        .isNotEqualTo(roots.get(0).spanContext().traceId());
+  }
+
+  /**
+   * B-217, supported case: a span open on an unowned pooled thread still has an identity to hand
+   * over, and {@code outboundTraceparent()} returns the current trace rather than starting a fresh
+   * one underneath it.
+   */
+  @Test
+  void outboundHeaderOnAnUnownedPooledThreadReturnsTheOpenSpansTrace() throws Exception {
+    pool.submit(() -> call("Pool", "first")).get(10, TimeUnit.SECONDS);
+    pipeline.flush();
+    var firstRootId = rootEntersOn("app-pool").get(0).spanContext().traceId();
+
+    var outbound =
+        pool.submit(
+                () -> {
+                  context.enterMethod(signature("Pool", "second"));
+                  try {
+                    return context.outboundTraceparent();
+                  } finally {
+                    context.exitMethodWithReturn("\"done\"");
+                  }
+                })
+            .get(10, TimeUnit.SECONDS);
+
+    assertThat(outbound)
+        .as("a span open on the unowned pooled thread still has an identity to hand over")
+        .isNotNull();
+    assertThat(outbound.traceId())
+        .as("the new root started its own trace, independent of the task before it")
+        .isNotEqualTo(firstRootId);
+  }
+
+  /**
+   * B-217, supported answer (i): work handed over through a snapshot runs on a scope the pool
+   * thread's own unowned base stack never contributes to, so the stale trace armed by the task
+   * before it is irrelevant — the handed-over work carries whichever trace the snapshot was taken
+   * from, never the pool's leftover one.
+   */
+  @Test
+  void handedOverThroughASnapshotGivesThePooledTaskAFreshIdentity() throws Exception {
+    pool.submit(() -> call("Pool", "first")).get(10, TimeUnit.SECONDS);
+    pipeline.flush();
+    var firstRootId = rootEntersOn("app-pool").get(0).spanContext().traceId();
+
+    context.reset();
+    var requestId = context.traceId();
+    var handedOver = context.snapshot();
+    var handedOverId = new AtomicReference<TraceId>();
+    pool.submit(handedOver.wrap(() -> handedOverId.set(context.traceId())))
+        .get(10, TimeUnit.SECONDS);
+
+    assertThat(handedOverId.get())
+        .as("handed-over work carries the handing-over thread's trace, not the pool's stale one")
+        .isEqualTo(requestId)
+        .isNotEqualTo(firstRootId);
+  }
+
+  /**
+   * B-217, supported answer (ii): a task that resets its thread's state before reading its identity
+   * claims the thread ({@link NarrativeContext#reset()}'s doc, and the integrations' own pattern)
+   * and so starts over with no trace, instead of inheriting the one the last unowned root left
+   * armed.
+   */
+  @Test
+  void resettingAtTaskStartGivesThePooledTaskAFreshIdentity() throws Exception {
+    pool.submit(() -> call("Pool", "first")).get(10, TimeUnit.SECONDS);
+    pipeline.flush();
+    var firstRootId = rootEntersOn("app-pool").get(0).spanContext().traceId();
+
+    var secondTraceId =
+        pool.submit(
+                () -> {
+                  context.reset();
+                  return context.traceId();
+                })
+            .get(10, TimeUnit.SECONDS);
+
+    assertThat(secondTraceId)
+        .as("a task that resets before reading its id never inherits the task before it")
+        .isNotEqualTo(firstRootId);
+  }
+
   @Test
   void evictedSpansAreCountedOnTheirOwnStackAndNowhereElse() throws Exception {
     var roots = 10 * LIMIT;
@@ -181,6 +310,103 @@ class UnownedSpanReleaseTest {
     assertThat(bystander.loss().refusedSpans() + bystander.loss().discardedSpans())
         .as("another thread's narrative lost nothing and is told nothing")
         .isZero();
+  }
+
+  // --------------------------------------------------- three paths B-211 missed (B-238)
+
+  /**
+   * B-238 defect 1: a proxy-style detach on thread A, completed by thread B, must still seal A's
+   * root — not wait for a next root on A that, on an all-async thread, never comes.
+   */
+  @Test
+  void asyncCompletionOnAnotherThreadStillSealsTheDetachingThreadsRoot() throws Exception {
+    var asyncA = Executors.newSingleThreadExecutor(r -> new Thread(r, "async-a"));
+    try {
+      for (int i = 0; i < ITERATIONS; i++) {
+        SpanId spanId =
+            asyncA
+                .submit(
+                    () -> {
+                      var id = context.enterMethod(signature("Async", "work"));
+                      context.enterMethod(signature("Async", "inner"));
+                      context.exitMethodWithReturn("\"done\"");
+                      context.detachFrame(id);
+                      return id;
+                    })
+                .get(10, TimeUnit.SECONDS);
+        // Completes on a different thread than the one that detached, as a future's completion
+        // callback would.
+        context.exitMethodWithReturn("\"done\"", spanId);
+      }
+      pipeline.flush();
+
+      assertThat(asyncA.submit(context::knownSpanCount).get(10, TimeUnit.SECONDS))
+          .as(
+              "the detaching thread's own known-span set stays bounded once completion runs"
+                  + " elsewhere")
+          .isLessThanOrEqualTo(BOUND);
+      assertThat(distinctStoredSpans())
+          .as("the store stays bounded for a thread whose roots are all async")
+          .isLessThanOrEqualTo(BOUND);
+      assertThat(context.retainedSpanCount()).isLessThanOrEqualTo(BOUND);
+
+      var roots = rootEntersOn("async-a");
+      assertThat(roots.size())
+          .as("the oldest roots were released; the most recent ones are still in the store")
+          .isGreaterThanOrEqualTo(2);
+      assertThat(roots.get(1).spanContext().traceId())
+          .as("the detaching thread's next root gets a fresh trace once the previous one completed")
+          .isNotEqualTo(roots.get(0).spanContext().traceId());
+    } finally {
+      asyncA.shutdownNow();
+    }
+  }
+
+  /**
+   * B-238 defect 2: a childless {@code emitTraceNode} root on an unowned thread must seal like any
+   * other root — {@code exitEmittedNode} used to only detach, never queue for release.
+   */
+  @Test
+  void emittedChildlessRootsOnAnUnownedThreadStayBounded() {
+    for (int i = 0; i < ITERATIONS; i++) {
+      var node =
+          new TraceNode(
+              signature("Emitted", "work"), List.of(), new TraceOutcome.Returned("\"done\""));
+      context.emitTraceNode(node, null);
+    }
+    pipeline.flush();
+
+    assertThat(context.knownSpanCount())
+        .as("an emitted root must seal, not just detach, on an unowned thread")
+        .isLessThanOrEqualTo(BOUND);
+    assertThat(distinctStoredSpans())
+        .as("the store stays bounded for emitted roots too")
+        .isLessThanOrEqualTo(BOUND);
+  }
+
+  /**
+   * B-238 defect 3: {@code reset()} must forget the closed stack's own known/adopted sets, not
+   * merely the shared maps — otherwise the stack stays reachable (and its sets populated) through
+   * the unowned-release queue until a later sweep happens to iterate past its segments.
+   */
+  @Test
+  void resetForgetsTheClosedStacksKnownAndAdoptedSpans() {
+    for (int i = 0; i < 3; i++) {
+      call("Svc", "work");
+    }
+    var closedStack = currentStackOf(context);
+
+    context.reset();
+
+    assertThat(closedStack.knownSpanIds())
+        .as("reset must forget the closed stack's own known set, the one the queue keeps reachable")
+        .isEmpty();
+  }
+
+  private static TraceStack currentStackOf(ThreadLocalNarrativeContext context) {
+    var stack = context.swapStack(new TraceStack());
+    context.swapStack(stack);
+    return stack;
   }
 
   // --------------------------------------------------------------- owned work, unchanged

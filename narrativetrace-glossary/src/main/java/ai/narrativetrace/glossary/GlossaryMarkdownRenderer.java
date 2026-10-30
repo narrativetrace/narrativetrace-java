@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.glossary;
 
+import ai.narrativetrace.core.render.MarkdownTableEscape;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,7 +21,8 @@ import java.util.stream.Collectors;
 public final class GlossaryMarkdownRenderer {
 
   private static final String TABLE_HEADER =
-      "| Term | Status | Definition | Deprecated synonyms | Translations |\n|---|---|---|---|---|\n";
+      "| Term | Status | Definition | Deprecated synonyms | Translations |\n"
+          + "|---|---|---|---|---|\n";
 
   private static final String ABBREVIATION_TABLE_HEADER =
       "| Abbreviation | Stands for |\n|---|---|\n";
@@ -76,13 +78,13 @@ public final class GlossaryMarkdownRenderer {
   private void renderContext(StringBuilder out, Glossary glossary, BoundedContext context) {
     out.append("\n## ").append(cell(context.name())).append("\n");
     if (context.description() != null) {
-      out.append("\n").append(context.description()).append("\n");
+      out.append("\n").append(MarkdownTableEscape.prose(context.description())).append("\n");
     }
     if (!context.packages().isEmpty()) {
       out.append("\nPackages: ")
           .append(
               context.packages().stream()
-                  .map(pkg -> "`" + pkg + "`")
+                  .map(MarkdownTableEscape::inlineCode)
                   .collect(Collectors.joining(", ")))
           .append("\n");
     }
@@ -141,6 +143,6 @@ public final class GlossaryMarkdownRenderer {
 
   /** Escapes table-breaking characters: pipes are escaped, newlines collapse to spaces. */
   private static String cell(String text) {
-    return text.replace("|", "\\|").replace("\r\n", " ").replace('\n', ' ').replace('\r', ' ');
+    return MarkdownTableEscape.cell(text);
   }
 }

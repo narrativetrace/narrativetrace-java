@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 
 /**
  * Renders canonical trace entries as a translated, human-readable view for one locale.
@@ -38,6 +39,8 @@ import java.util.function.UnaryOperator;
  * the same per-entry implementation plus the {@link #renderGapsFooter(RenderState)}.
  */
 public final class TraceTranslationView {
+
+  private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^}]+)}");
 
   private final Glossary glossary;
   private final UnaryOperator<String> packageOf;
@@ -216,15 +219,38 @@ public final class TraceTranslationView {
       sb.append(fillPlaceholders(variant.get(), entry)).append('\n');
     }
 
-    /** Fills {@code {name}} placeholders from the untouched parameter values. */
+    /**
+     * Fills {@code {name}} placeholders from the untouched parameter values.
+     *
+     * <p><b>@edgeCase</b> The template is scanned exactly once, left to right, and each placeholder
+     * is resolved against the parameter map rather than against the accumulating output: a value
+     * that itself looks like a placeholder (or like a different parameter's name) is substituted in
+     * and never re-scanned, so the result cannot depend on capture order. A placeholder naming a
+     * parameter the event did not capture stays as the literal {@code {name}}.
+     */
     private String fillPlaceholders(String template, CanonicalEntry entry) {
-      var filled = template;
-      if (entry.ntParameters() != null) {
-        for (var p : entry.ntParameters()) {
-          filled = filled.replace("{" + p.name() + "}", p.value());
-        }
+      var values = parameterValues(entry);
+      var matcher = PLACEHOLDER.matcher(template);
+      var filled = new StringBuilder();
+      int lastEnd = 0;
+      while (matcher.find()) {
+        filled.append(template, lastEnd, matcher.start());
+        var name = matcher.group(1);
+        filled.append(values.getOrDefault(name, "{" + name + "}"));
+        lastEnd = matcher.end();
       }
-      return filled;
+      return filled.append(template, lastEnd, template.length()).toString();
+    }
+
+    private Map<String, String> parameterValues(CanonicalEntry entry) {
+      if (entry.ntParameters() == null) {
+        return Map.of();
+      }
+      var values = new HashMap<String, String>();
+      for (var p : entry.ntParameters()) {
+        values.put(p.name(), p.value());
+      }
+      return values;
     }
 
     private void renderExit(CanonicalEntry entry, int depth) {
