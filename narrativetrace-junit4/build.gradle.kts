@@ -18,6 +18,7 @@ tasks.test {
     exclude("**/Junit4EmptyTraceFixture.class")
     exclude("**/Junit4FailingClassRuleFixture.class")
     exclude("**/Junit4MixedOutcomeFailingTestFixture.class")
+    exclude("**/Junit4SheddingNeighbourFixture.class")
 
 }
 

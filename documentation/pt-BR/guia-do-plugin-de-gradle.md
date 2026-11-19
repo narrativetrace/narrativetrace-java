@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 7e82c77fe87e | translated: 2026-10-24 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 92bb1a139ec1 | translated: 2026-10-24 | reviewed: - -->
 # Guia do Plugin de Gradle do NarrativeTrace
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **Português** | [简体中文](../zh-CN/Gradle插件指南.md)
@@ -25,7 +25,7 @@ O plugin `ai.narrativetrace` para Gradle é a forma recomendada de usar o Narrat
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -45,7 +45,7 @@ Você não precisa adicionar nenhuma dependência do JUnit. Com o valor padrão 
 | Registra a task `clarityScan` | Análise de clareza independente a partir das classes compiladas (não requer testes) |
 | Registra a task `glossaryScan` | Coleta independente do glossário a partir das classes compiladas, incluindo templates de anotações |
 | Registra a task `approveNarratives` | Promove narrativas `*.received.nt` revisadas para baselines `*.approved.nt` |
-| Registra o grupo de tasks `narrativetrace` | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — o diagnóstico e o instalador das habilidades de agente; nenhuma delas roda por conta própria |
+| Registra o grupo de tasks `narrativetrace` | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — o diagnóstico e o instalador das habilidades de agente (que instala na raiz do repositório); nenhuma delas roda por conta própria; registrada com ou sem o plugin Java aplicado |
 | Registra a task `narrativetraceRefreshSkills` | Roda antes de `classes`; reescreve as habilidades de agente instaladas que sejam mais antigas que o portador resolvido, e não faz absolutamente nada em um projeto que nunca executou `narrativetraceInit` |
 | Configura o argumento de JVM do agente | Quando `mode = "agent"`: resolve o JAR do agente, adiciona `-javaagent` às tasks Test |
 
@@ -340,7 +340,7 @@ mesmas que o verbo `doctor` do launcher independente executa. Escreve
 
 ### `narrativetraceInit`
 
-Instala as [habilidades de agente](habilidades-de-agente.md) neste projeto e escreve a seção marcada
+Instala as [habilidades de agente](habilidades-de-agente.md) na raiz do repositório e escreve a seção marcada
 de `AGENTS.md`. Ele as lê de `ai.narrativetrace:narrativetrace-skills`, resolvido em tempo de task a
 partir dos repositórios que o projeto já declara — na mesma versão em que qualquer outro artefato do
 NarrativeTrace é resolvido.
@@ -439,7 +439,7 @@ Quando definida, toda dependência gerenciada do NarrativeTrace é resolvida nes
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -569,13 +569,26 @@ plugins {
 
 Cada subprojeto ganha suas próprias tasks `clarityCheck` e `clarityScan`.
 
+As habilidades de agente são diferentes: elas são instaladas **uma única vez, na raiz do repositório**, onde quer que o plugin seja aplicado, porque é ali que uma sessão de agente começa. `./gradlew narrativetraceInit` escreve `AGENTS.md`, `.agents/skills/` e `.claude/skills/` no diretório do projeto raiz, nunca em um módulo. `narrativetraceInit`, `narrativetraceUninstall`, `narrativetraceDoctor` e `narrativetraceFeedback` são registradas em todo projeto que aplica o plugin, com ou sem o plugin Java, de modo que o plugin também pode ser aplicado a um projeto raiz que não tem código próprio:
+
+```kotlin
+// build.gradle.kts na raiz: um agregador sem código-fonte
+plugins {
+    id("ai.narrativetrace")
+}
+```
+
+Quando vários projetos aplicam o plugin, `./gradlew narrativetraceInit` a partir da raiz executa a instância de cada projeto, mas somente a primeira faz o trabalho: cada uma das outras registra uma linha INFO (visível com `--info`) que nomeia o caminho da task que o fez. O mesmo vale para `narrativetraceUninstall` e `narrativetraceRefreshSkills`. `narrativetraceDoctor` e `narrativetraceFeedback` continuam rodando por projeto, porque gravam relatórios por projeto; cada uma lê as habilidades instaladas a partir da raiz.
+
+O carrier das habilidades é resolvido pelos repositórios que o projeto raiz enxerga, incluindo os declarados em `dependencyResolutionManagement` no `settings.gradle.kts`. Se nenhum deles o fornecer, `narrativetraceInit` falha e nomeia a coordenada.
+
 ## DSL do Groovy
 
 Todos os exemplos acima usam o DSL do Kotlin. O equivalente em Groovy:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.5'
+    id 'ai.narrativetrace' version '0.5.6'
 }
 
 narrativeTrace {

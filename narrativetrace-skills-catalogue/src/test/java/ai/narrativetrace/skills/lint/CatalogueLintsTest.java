@@ -45,6 +45,16 @@ class CatalogueLintsTest {
     assertThat(Lints.vocabularyViolations(SKILLS)).isEmpty();
   }
 
+  /**
+   * The skills never pin the NarrativeTrace version: the agent reads the newest release from Maven
+   * Central's metadata and writes that exact number (owner ruling 2026-11-19), so a release that
+   * does not change the skills leaves their pages byte-identical.
+   */
+  @Test
+  void noSkillPinsANarrativeTraceVersion() {
+    assertThat(Lints.pinnedNarrativeTraceVersions(SKILLS)).isEmpty();
+  }
+
   @Test
   void everyDeclaredAllowedToolIsABareVocabularyCommand() {
     assertThat(Lints.allowedToolsViolations(SKILLS)).isEmpty();

@@ -44,6 +44,32 @@ public final class RenderPaths {
   }
 
   /**
+   * {@code .claude/.claude-plugin/plugin.json} — the plugin's own manifest, INSIDE the plugin
+   * folder the marketplace entry points at (the marketplace file is at the repository root; a
+   * manifest is read from the plugin root). Without it the directory names the plugin after its
+   * folder, {@code .claude}, which is a reserved name.
+   */
+  public static Path claudePluginJson(Path repoRoot) {
+    return repoRoot.resolve(".claude/.claude-plugin/plugin.json");
+  }
+
+  /**
+   * {@code .claude/.claude-plugin/icon.png} — the directory's listing icon. A copy of the OpenAI
+   * package's logo ({@link #openAiPluginAssets}), made by the render step.
+   */
+  public static Path claudePluginIcon(Path repoRoot) {
+    return repoRoot.resolve(".claude/.claude-plugin/icon.png");
+  }
+
+  /**
+   * {@code .claude/README.md} — the plugin folder's README. The directory shows it as the listing
+   * description and its security scan reads it for undisclosed behaviour.
+   */
+  public static Path claudePluginReadme(Path repoRoot) {
+    return repoRoot.resolve(".claude/README.md");
+  }
+
+  /**
    * {@code .cursor-plugin/plugin.json} — the Cursor plugin manifest. At the repository ROOT: the
    * repository is itself the one plugin, carrying the open-standard skills directory and the one
    * rule.

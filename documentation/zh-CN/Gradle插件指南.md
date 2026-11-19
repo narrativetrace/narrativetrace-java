@@ -1,4 +1,4 @@
-<!-- source: documentation/gradle-plugin-guide.md blob 7e82c77fe87e | translated: 2026-10-24 | reviewed: - -->
+<!-- source: documentation/gradle-plugin-guide.md blob 92bb1a139ec1 | translated: 2026-10-24 | reviewed: - -->
 # NarrativeTrace Gradle 插件指南
 
 [English](../gradle-plugin-guide.md) | [Español](../es/guia-del-plugin-de-gradle.md) | **简体中文**
@@ -25,7 +25,7 @@
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -45,7 +45,7 @@ plugins {
 | 注册 `clarityScan` 任务 | 基于编译后的类进行独立的清晰度分析(无需运行测试) |
 | 注册 `glossaryScan` 任务 | 基于编译后的类独立采集术语表,包括注解模板 |
 | 注册 `approveNarratives` 任务 | 将已审阅的 `*.received.nt` 叙事提升为 `*.approved.nt` 基线 |
-| 注册 `narrativetrace` 任务组 | `narrativetraceDoctor`、`narrativetraceInit`、`narrativetraceUninstall` ——诊断与智能体技能安装器,它们都不会自行运行 |
+| 注册 `narrativetrace` 任务组 | `narrativetraceDoctor`、`narrativetraceInit`、`narrativetraceUninstall` ——诊断与智能体技能安装器(安装在仓库根目录),它们都不会自行运行;无论是否应用了 Java 插件都会注册 |
 | 注册 `narrativetraceRefreshSkills` 任务 | 在 `classes` 之前运行;重写那些比已解析载体更旧的已安装智能体技能,而在从未执行过 `narrativetraceInit` 的项目里什么都不做 |
 | 配置 Agent 的 JVM 参数 | 当 `mode = "agent"` 时:解析 Agent JAR,并向 Test 任务添加 `-javaagent` |
 
@@ -334,7 +334,7 @@ narrativeTrace {
 
 ### `narrativetraceInit`
 
-把[智能体技能](智能体技能.md)安装进本项目,并写入 `AGENTS.md` 中带标记的小节。它从
+把[智能体技能](智能体技能.md)安装进仓库根目录,并写入 `AGENTS.md` 中带标记的小节。它从
 `ai.narrativetrace:narrativetrace-skills` 读取这些技能,在任务执行时从项目已声明的仓库中解析——版本
 与其他所有 NarrativeTrace 构件解析到的版本相同。
 
@@ -426,7 +426,7 @@ narrativeTrace {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -555,13 +555,26 @@ plugins {
 
 每个子项目都会获得自己的 `clarityCheck` 和 `clarityScan` 任务。
 
+智能体技能则不同:无论在哪里应用该插件,它们都**只在仓库根目录安装一次**,因为智能体会话正是从那里开始的。`./gradlew narrativetraceInit` 会把 `AGENTS.md`、`.agents/skills/` 和 `.claude/skills/` 写入根项目的目录,绝不会写入某个模块。`narrativetraceInit`、`narrativetraceUninstall`、`narrativetraceDoctor` 和 `narrativetraceFeedback` 会注册到每一个应用该插件的项目中,无论是否应用了 Java 插件,因此也可以把该插件应用到自身没有源码的根项目:
+
+```kotlin
+// 根目录的 build.gradle.kts:没有源码的聚合项目
+plugins {
+    id("ai.narrativetrace")
+}
+```
+
+当多个项目都应用了该插件时,在根目录运行 `./gradlew narrativetraceInit` 会执行每个项目的实例,但只有第一个真正干活:其余每个实例会记录一行 INFO 日志(用 `--info` 可见),指明完成该工作的任务路径。`narrativetraceUninstall` 和 `narrativetraceRefreshSkills` 同理。`narrativetraceDoctor` 和 `narrativetraceFeedback` 仍按项目分别运行,因为它们写入的是各项目自己的报告;每个任务都从根目录读取已安装的技能。
+
+技能载体通过根项目所能看到的仓库来解析,包括在 `settings.gradle.kts` 的 `dependencyResolutionManagement` 中声明的仓库。如果没有任何仓库提供它,`narrativetraceInit` 会失败并指明其坐标。
+
 ## Groovy DSL
 
 上面的示例全部使用 Kotlin DSL。等价的 Groovy 写法:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.5'
+    id 'ai.narrativetrace' version '0.5.6'
 }
 
 narrativeTrace {

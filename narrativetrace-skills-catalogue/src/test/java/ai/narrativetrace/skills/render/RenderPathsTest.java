@@ -87,4 +87,15 @@ class RenderPathsTest {
     assertThat(RenderPaths.CARRIER_JAR_ROOT + RenderPaths.carrierAgentsResource(skill))
         .isEqualTo("META-INF/narrativetrace/skills/agents/" + skill.canonicalName() + "/SKILL.md");
   }
+
+  @Test
+  void claudePluginFilesSitInsideThePluginRoot() {
+    Path root = Path.of("/repo");
+
+    assertThat(RenderPaths.claudePluginJson(root))
+        .isEqualTo(root.resolve(".claude/.claude-plugin/plugin.json"));
+    assertThat(RenderPaths.claudePluginIcon(root))
+        .isEqualTo(root.resolve(".claude/.claude-plugin/icon.png"));
+    assertThat(RenderPaths.claudePluginReadme(root)).isEqualTo(root.resolve(".claude/README.md"));
+  }
 }

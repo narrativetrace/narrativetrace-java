@@ -33,19 +33,50 @@ public final class MarkdownTableEscape {
   /** A line beginning an unordered or ordered list item. */
   private static final Pattern LIST_MARKER = Pattern.compile("^(?:[-*+]|\\d+[.)])(?:\\s|$)");
 
+  /** A line that is nothing but three or more of the same {@code *} or {@code _} marker. */
+  private static final Pattern THEMATIC_BREAK =
+      Pattern.compile("^(?:\\*\\s*){3,}$|^(?:_\\s*){3,}$");
+
+  /**
+   * A line that is nothing but one or more {@code -} or one or more {@code =}, with only trailing
+   * whitespace allowed.
+   *
+   * <p><b>@edgeCase</b> Dash and equals are not treated like {@code *}/{@code _} above: a run of
+   * {@code -} is escaped at any length, not just three or more, because CommonMark reads it as a
+   * setext H2 underline whenever a paragraph line precedes it — tracking "did the previous line end
+   * a paragraph" would make the escape depend on neighboring lines, so every standalone dash line
+   * is escaped unconditionally instead. A run of {@code =} is always a setext H1 underline, never a
+   * thematic break, so the same unconditional rule applies to it too.
+   */
+  private static final Pattern SETEXT_OR_DASH_BREAK = Pattern.compile("^(?:-+|=+)\\s*$");
+
+  /**
+   * CommonMark allows up to this many leading spaces before a block marker still opens structure.
+   */
+  private static final int MAX_BLOCK_INDENT = 3;
+
   private MarkdownTableEscape() {}
 
-  /** Text safe inside an ordinary table cell: a pipe would start a new column. */
+  /**
+   * Text safe inside an ordinary table cell: a pipe would start a new column.
+   *
+   * <p><b>@llmNote</b> The backslash is escaped before the pipe, as in every two-stage escaper —
+   * escaping the pipe first would leave a backslash already in the text sitting next to the newly
+   * inserted one, read back as one escaped backslash followed by a live pipe.
+   */
   public static String cell(String text) {
-    return collapseLineBreaks(text).replace("|", "\\|");
+    return collapseLineBreaks(text).replace("\\", "\\\\").replace("|", "\\|");
   }
 
   /**
    * Text safe inside a table cell that is about to be wrapped in a code span, where a backslash has
-   * no escaping power: the pipe is percent-encoded instead of backslash-escaped.
+   * no escaping power: the pipe and the backtick are percent-encoded instead of backslash-escaped —
+   * the backtick because the cell is headed into a code span of its own, the same span {@link
+   * #inlineCode(String)} wraps around it, so both sinks share {@link #codeSpanEncode(String)}
+   * rather than risk drifting apart on which delimiter each one remembers to neutralize.
    */
   public static String codeSpanCell(String text) {
-    return collapseLineBreaks(text).replace("|", "%7C");
+    return codeSpanEncode(text);
   }
 
   /** Collapses every line break to a space: a row's text is read back as exactly one line. */
@@ -55,13 +86,20 @@ public final class MarkdownTableEscape {
 
   /**
    * Free-form prose safe to interpolate into the body of a generated document: a line that would
-   * reopen the document's structure — a heading, a fence, a list item or a table row — is escaped,
-   * line by line, so the text can only ever read as a paragraph.
+   * reopen the document's structure — a heading, a fence, a list item, a table row, a thematic
+   * break or a blockquote — is escaped, line by line, so the text can only ever read as a
+   * paragraph.
    *
    * <p><b>@edgeCase</b> Each leading marker character is escaped individually (<code>\#\#</code>,
    * not a single backslash before the run): a single leading backslash still leaves the unescaped
    * marker one character later in the string, which is indistinguishable from the real thing to
    * anything matching on the marker's text rather than its column.
+   *
+   * <p><b>@edgeCase</b> CommonMark still opens a block marker indented by up to three spaces, so
+   * the indent is measured first, the marker check runs on the remainder, and the indent is
+   * re-emitted ahead of the escape (<code>" ## h"</code> &rarr; <code>" \#\# h"</code>). Four or
+   * more leading spaces makes the line an indented code block, which cannot open structure, so it
+   * is left untouched.
    */
   public static String prose(String text) {
     return text.lines()
@@ -71,28 +109,59 @@ public final class MarkdownTableEscape {
 
   /**
    * Wraps text in a single-backtick inline code span, after neutralizing any backtick already in
-   * the text — the same reasoning as {@link #codeSpanCell(String)}, extended to the delimiter
-   * itself: a backslash does not survive inside a code span, so an embedded backtick is
-   * percent-encoded rather than closing the span early.
+   * the text — the same reasoning as {@link #codeSpanCell(String)}: a backslash does not survive
+   * inside a code span, so an embedded backtick is percent-encoded rather than closing the span
+   * early.
    */
   public static String inlineCode(String text) {
-    return "`" + codeSpanCell(text).replace("`", "%60") + "`";
+    return "`" + codeSpanEncode(text) + "`";
+  }
+
+  /**
+   * The one encoding both code-span sinks share: a pipe or a backtick inside text headed into a
+   * backtick-delimited span, percent-encoded because a backslash escape does not survive inside
+   * one. A backslash already in the text is left alone — {@link #codeSpanCell(String)}'s B-249 pin
+   * depends on it staying untouched.
+   */
+  private static String codeSpanEncode(String text) {
+    return collapseLineBreaks(text).replace("|", "%7C").replace("`", "%60");
   }
 
   private static String escapeStructuralLine(String line) {
-    if (line.startsWith("#")) {
-      return escapeLeadingRun(line, '#');
+    var indent = leadingSpaceCount(line);
+    if (indent > MAX_BLOCK_INDENT) {
+      return line;
     }
-    if (line.startsWith("```")) {
-      return escapeLeadingRun(line, '`');
+    var indentPrefix = line.substring(0, indent);
+    var rest = line.substring(indent);
+    if (rest.startsWith("#")) {
+      return indentPrefix + escapeLeadingRun(rest, '#');
     }
-    if (line.startsWith("~~~")) {
-      return escapeLeadingRun(line, '~');
+    if (rest.startsWith("```")) {
+      return indentPrefix + escapeLeadingRun(rest, '`');
     }
-    if (line.startsWith("|") || LIST_MARKER.matcher(line).find()) {
-      return "\\" + line;
+    if (rest.startsWith("~~~")) {
+      return indentPrefix + escapeLeadingRun(rest, '~');
+    }
+    if (rest.startsWith("|")
+        || rest.startsWith(">")
+        || LIST_MARKER.matcher(rest).find()
+        || THEMATIC_BREAK.matcher(rest).find()
+        || SETEXT_OR_DASH_BREAK.matcher(rest).matches()) {
+      return indentPrefix + "\\" + rest;
     }
     return line;
+  }
+
+  /**
+   * The line's run of leading ASCII spaces, uncapped — the caller decides what to do past three.
+   */
+  private static int leadingSpaceCount(String line) {
+    var count = 0;
+    while (count < line.length() && line.charAt(count) == ' ') {
+      count++;
+    }
+    return count;
   }
 
   /** Escapes a line's leading run of {@code marker}, one backslash per character. */

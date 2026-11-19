@@ -63,6 +63,10 @@ public abstract class NarrativeTraceFeedbackTask extends DefaultTask {
   @Internal
   public abstract DirectoryProperty getTargetDir();
 
+  /** Where the installed agent skills are read from — the repository root. */
+  @Internal
+  public abstract DirectoryProperty getSkillsDir();
+
   /** Where the two files land: the extension's output directory, {@code feedback/} inside it. */
   @Internal
   public abstract DirectoryProperty getOutputDir();
@@ -148,7 +152,8 @@ public abstract class NarrativeTraceFeedbackTask extends DefaultTask {
   private DoctorSnapshot snapshot() {
     SkillsCarrier.Resolution resolution =
         SkillsCarrier.resolve(getCarrier()::getFiles, getCarrierCoordinate().get());
-    return SnapshotBuilder.build(targetPath(), resolution.carrier());
+    return SnapshotBuilder.build(
+        targetPath(), getSkillsDir().getAsFile().get().toPath(), resolution.carrier());
   }
 
   private Attachments attachments(DoctorSnapshot snapshot) {

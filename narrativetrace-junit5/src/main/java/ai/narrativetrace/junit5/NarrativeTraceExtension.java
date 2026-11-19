@@ -608,7 +608,7 @@ public class NarrativeTraceExtension
     if (context == null) {
       return;
     }
-    var trace = context.captureTrace();
+    var captured = context.captureTrace();
     var depth =
         extensionContext
             .getStore(NAMESPACE)
@@ -623,6 +623,10 @@ public class NarrativeTraceExtension
     var baseline = extensionContext.getStore(NAMESPACE).get(LOSS_BASELINE_KEY, TraceLoss.class);
     var loss = baseline == null ? context.traceLoss() : context.traceLoss().since(baseline);
     accumulator(extensionContext).recordLoss(loss);
+    // Every artifact is written from the tree, so the tree carries this test's share too — the
+    // capture's own reading is the suite's running total (B-342). See TraceTestSupport#withTestLoss
+    // for which test a ring overwrite is charged to.
+    var trace = TraceTestSupport.withTestLoss(captured, loss);
     var failed = extensionContext.getExecutionException().isPresent();
     var displayName = extensionContext.getDisplayName();
     // The verdict has to be known BEFORE anything is written: an approval rejection fails the test
@@ -771,7 +775,8 @@ public class NarrativeTraceExtension
                       configParam(extensionContext, "narrativetrace.unfolded", "false")),
               accumulator(extensionContext).runIdentity().name(),
               depth,
-              deepSpansDropped);
+              deepSpansDropped,
+              failed ? failure.map(ExceptionMessage::of).orElse(null) : null);
       delta.ifPresent(d -> accumulatedDeltas(extensionContext).add(d));
       writeOptionalEntryArtifacts(extensionContext, identity, trace, outputDir);
     } catch (IOException e) {

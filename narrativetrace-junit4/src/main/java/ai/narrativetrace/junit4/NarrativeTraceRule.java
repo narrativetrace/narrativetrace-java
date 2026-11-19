@@ -12,6 +12,7 @@ import ai.narrativetrace.api.config.TraceDepth;
 import ai.narrativetrace.api.config.TracingLevel;
 import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.render.NarrativeRenderer;
+import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.config.NarrativeTraceConfig;
 import ai.narrativetrace.core.context.NarrativeContext;
 import ai.narrativetrace.core.context.ThreadLocalNarrativeContext;
@@ -245,13 +246,13 @@ public class NarrativeTraceRule extends TestWatcher {
       // The verdict has to be known BEFORE anything is written: an approval rejection fails the
       // test too, and a run that ends red must not advance the last-green artifact.
       var rejection = testFailed ? null : approvalRejection(description);
+      if (rejection != null) {
+        failure = Optional.of(rejection);
+      }
       // Output before the report so the failure report can speak in terms of the structural delta
       // the write computed — TestWatcher guarantees finished() runs after failed().
       var delta = writeTraceIfEnabled(description, testFailed || rejection != null);
       printFailureReport(description, delta);
-      if (rejection != null) {
-        failure = Optional.of(rejection);
-      }
       var row = accumulateIfLinked(description, testFailed || rejection != null);
       // After the failure report, so it is the last thing under the failing test.
       row.filter(ScenarioManifest.Entry::failed)
@@ -294,6 +295,20 @@ public class NarrativeTraceRule extends TestWatcher {
   }
 
   /**
+   * This test's capture, stamped with {@link #currentLoss()} rather than the context's running
+   * reading — the tree every artifact, console block and suite row of this test is made from.
+   *
+   * <p>INTENT: Linked to a class rule, the context is the suite's (§176) and its loss only grows,
+   * so the raw capture told every test after a shedding one that it was incomplete too (B-342). The
+   * loss is read after the capture, so whatever that capture's drain found overwritten is in it;
+   * see {@link TraceTestSupport#withTestLoss} for which test a ring overwrite is charged to.
+   */
+  private TraceTree captureOwnTrace() {
+    var captured = context.captureTrace();
+    return TraceTestSupport.withTestLoss(captured, currentLoss());
+  }
+
+  /**
    * Runs approval verification and hands back the failure it would raise, instead of raising it.
    *
    * <p>INTENT: The last-green artifact advances only on a run that is green <em>in full</em>, and
@@ -321,7 +336,7 @@ public class NarrativeTraceRule extends TestWatcher {
     if (!"true".equalsIgnoreCase(System.getProperty("narrativetrace.approval", "false"))) {
       return;
     }
-    var trace = context.captureTrace();
+    var trace = captureOwnTrace();
     if (trace.isEmpty()) {
       return;
     }
@@ -360,7 +375,7 @@ public class NarrativeTraceRule extends TestWatcher {
     if (!testFailed) {
       return;
     }
-    var trace = context.captureTrace();
+    var trace = captureOwnTrace();
     if (trace.isEmpty()) {
       return;
     }
@@ -373,7 +388,7 @@ public class NarrativeTraceRule extends TestWatcher {
   }
 
   private void printTemplateWarnings() {
-    var trace = context.captureTrace();
+    var trace = captureOwnTrace();
     if (trace.isEmpty()) {
       return;
     }
@@ -393,7 +408,7 @@ public class NarrativeTraceRule extends TestWatcher {
     if (!isOutputEnabled()) {
       return Optional.empty();
     }
-    var trace = context.captureTrace();
+    var trace = captureOwnTrace();
     var outputDir = Path.of(System.getProperty("narrativetrace.outputDir", "build/narrativetrace"));
     var format = System.getProperty("narrativetrace.format", "markdown");
     var testClassName =
@@ -417,7 +432,8 @@ public class NarrativeTraceRule extends TestWatcher {
               true,
               classRule == null ? null : classRule.runIdentity().name(),
               depth,
-              deepSpansDropped);
+              deepSpansDropped,
+              verdictFailed ? failure.map(ExceptionMessage::of).orElse(null) : null);
       if (classRule != null) {
         delta.ifPresent(classRule::accumulateDelta);
       }
@@ -434,7 +450,7 @@ public class NarrativeTraceRule extends TestWatcher {
       return Optional.empty();
     }
     classRule.accumulateLoss(currentLoss());
-    var trace = context.captureTrace();
+    var trace = captureOwnTrace();
     if (trace.isEmpty()) {
       return Optional.empty();
     }

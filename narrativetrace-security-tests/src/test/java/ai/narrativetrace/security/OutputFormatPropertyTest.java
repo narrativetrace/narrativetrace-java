@@ -50,6 +50,16 @@ class OutputFormatPropertyTest {
   private static final Set<String> FRONTMATTER_KEYS =
       Set.of("type", "scenario", "entry_point", "duration_ms", "method_count", "error_count");
 
+  /**
+   * The frontmatter keys {@code FrontmatterBuilder} emits as a bare YAML number on purpose — {@code
+   * duration_ms}, {@code method_count} and {@code error_count} are a duration and two counts,
+   * appended directly rather than through {@code yamlSafe}. Every other key is caller-supplied or
+   * constant text and must read back as a {@link String}; one that does not has escaped quoting or
+   * been retyped by the reader's own resolver (B-266).
+   */
+  private static final Set<String> NUMERIC_FRONTMATTER_KEYS =
+      Set.of("duration_ms", "method_count", "error_count");
+
   /** How much of a hostile value has to be absent before absence means anything. */
   private static final int DISTINCTIVE_PROBE_LENGTH = 8;
 
@@ -187,12 +197,23 @@ class OutputFormatPropertyTest {
   }
 
   private void assertFrontmatterIsWellFormed(Map<String, String> outputs) {
-    assertThat(Formats.frontmatterOf("renderer:frontmatter", outputs.get("renderer:frontmatter")))
-        .containsOnlyKeys(FRONTMATTER_KEYS.toArray(String[]::new));
-    assertThat(
-            Formats.frontmatterOf(
-                "renderer:markdown-document", outputs.get("renderer:markdown-document")))
-        .containsOnlyKeys(FRONTMATTER_KEYS.toArray(String[]::new));
+    assertFrontmatterKeysAndTypes("renderer:frontmatter", outputs.get("renderer:frontmatter"));
+    assertFrontmatterKeysAndTypes(
+        "renderer:markdown-document", outputs.get("renderer:markdown-document"));
+  }
+
+  /** Every key is one of the clean set, and every non-numeric key parses as a string (B-266). */
+  private void assertFrontmatterKeysAndTypes(String emitter, String markdown) {
+    var frontmatter = Formats.frontmatterOf(emitter, markdown);
+    assertThat(frontmatter).containsOnlyKeys(FRONTMATTER_KEYS.toArray(String[]::new));
+    frontmatter.forEach(
+        (key, value) -> {
+          if (!NUMERIC_FRONTMATTER_KEYS.contains(key)) {
+            assertThat(value)
+                .as("%s frontmatter key %s must read back as a string", emitter, key)
+                .isInstanceOf(String.class);
+          }
+        });
   }
 
   /** The corpus alphabet, recombined — the part that finds what nobody listed. */

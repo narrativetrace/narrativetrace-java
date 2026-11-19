@@ -20,7 +20,8 @@ import java.util.List;
  * commit does not.
  *
  * @param name the marketplace identifier AND the plugin's — what a user types after {@code @} when
- *     installing, and (with no {@code plugin.json} in the tree) the plugin's manifest name too
+ *     installing, and the {@code name} of the plugin's own {@code plugin.json}, which must be the
+ *     same string (the directory names a plugin after its manifest, never after its folder)
  * @param owner who maintains it, shown in the listing
  * @param description the marketplace's own line, shown when browsing it
  * @param pluginDescription the plugin entry's line, shown in the plugin list and details
@@ -30,6 +31,7 @@ import java.util.List;
  * @param license SPDX identifier of the pages the plugin ships, which may differ from the
  *     repository root's own licence
  * @param homepage where a reader goes to learn what this is
+ * @param repository the public source repository's URL, shown in the plugin manifest
  * @param keywords free-form search terms for the listing
  */
 public record MarketplaceListing(
@@ -40,6 +42,7 @@ public record MarketplaceListing(
     String pluginSource,
     String license,
     String homepage,
+    String repository,
     List<String> keywords) {
 
   /** The maintainer behind the listing: a name, and where to read about them. */

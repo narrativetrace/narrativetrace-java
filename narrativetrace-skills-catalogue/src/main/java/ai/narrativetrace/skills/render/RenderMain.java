@@ -12,18 +12,21 @@ import ai.narrativetrace.skills.catalogue.ProListings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Regenerates every rendered artifact from the typed catalogue: the Claude and Codex {@code
  * SKILL.md} pages this repository discovers its own skills through, the {@code AGENTS.md} managed
- * section, {@code .claude-plugin/marketplace.json} (what makes the repository itself a plugin
- * marketplace), the Cursor pair {@code .cursor-plugin/plugin.json} and {@code
- * .cursor-plugin/marketplace.json} (the same listing, Cursor's field names), the OpenAI plugin
- * directory's versionless {@code narrativetrace-skills-catalogue/openai-plugin/plugin.json}, and
- * the CARRIER — the same two flavours plus {@code catalogue.json} under {@code
- * narrativetrace-skills}' resources, which is what the published jar hands an installer. Run via
- * {@code ./gradlew :narrativetrace-skills-catalogue:renderSkills}; {@code RenderDriftTest} is the
- * drift gate all of it is checked against on every {@code ./gradlew check}.
+ * section, the plugin's own {@code .claude/.claude-plugin/plugin.json}, its {@code README.md} and
+ * its {@code icon.png} (the OpenAI package's logo, copied), {@code .claude-plugin/marketplace.json}
+ * (what makes the repository itself a plugin marketplace), the Cursor pair {@code
+ * .cursor-plugin/plugin.json} and {@code .cursor-plugin/marketplace.json} (the same listing,
+ * Cursor's field names), the OpenAI plugin directory's versionless {@code
+ * narrativetrace-skills-catalogue/openai-plugin/plugin.json}, and the CARRIER — the same two
+ * flavours plus {@code catalogue.json} under {@code narrativetrace-skills}' resources, which is
+ * what the published jar hands an installer. Run via {@code ./gradlew
+ * :narrativetrace-skills-catalogue:renderSkills}; {@code RenderDriftTest} is the drift gate all of
+ * it is checked against on every {@code ./gradlew check}.
  *
  * @llmNote The carrier's pages are byte-identical to the repository's own rendered pages on purpose
  *     — one renderer per flavour, two destinations. A second renderer for the carrier would be a
@@ -58,6 +61,15 @@ public final class RenderMain {
         RenderPaths.marketplaceJson(repoRoot),
         MarketplaceJsonRenderer.render(CatalogueIndex.MARKETPLACE));
     writePage(
+        RenderPaths.claudePluginJson(repoRoot),
+        ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+    writePage(
+        RenderPaths.claudePluginReadme(repoRoot),
+        ClaudePluginReadmeRenderer.render(CatalogueIndex.MARKETPLACE, CatalogueIndex.ALL));
+    copyFile(
+        RenderPaths.openAiPluginAssets(repoRoot).resolve("logo.png"),
+        RenderPaths.claudePluginIcon(repoRoot));
+    writePage(
         RenderPaths.cursorPluginJson(repoRoot),
         CursorPluginJsonRenderer.renderPlugin(CatalogueIndex.MARKETPLACE));
     writePage(
@@ -72,6 +84,11 @@ public final class RenderMain {
         AgentsMdRenderer.splice(
             onDisk, AgentsMdRenderer.renderSection(CatalogueIndex.ALL, ProListings.ALL));
     Files.writeString(agentsMd, spliced);
+  }
+
+  private static void copyFile(Path source, Path target) throws IOException {
+    Files.createDirectories(target.getParent());
+    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
   }
 
   private static void writePage(Path target, String content) throws IOException {

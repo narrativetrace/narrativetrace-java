@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 731dc1288649 | translated: 2026-10-22 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob e99032ec75ff | translated: 2026-10-22 | reviewed: - -->
 # Habilidades de agente
 
 NarrativeTrace incluye **habilidades** (*skills*): procedimientos cargables por un agente que
@@ -114,7 +114,7 @@ como un envoltorio sobre el que un script puede decidir:
 
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.5",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.6",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
@@ -289,8 +289,10 @@ fuentes de la verdad; sus pasos tipados renderizan siete páginas de Claude, sie
 que el portador guarda de ambos sabores más su índice `catalogue.json` — lo que el jar publicado
 entrega a `narrativetraceInit` — la sección de `AGENTS.md` de este repositorio, y el listado
 `.claude-plugin/marketplace.json` que convierte este repositorio en un marketplace de plugins de
-Claude Code: una prueba de deriva (`RenderDriftTest`, conectada a `./gradlew check`) hace fallar la
-compilación si cualquiera de esas treinta y una salidas se desvía de la fuente tipada, y una segunda la
+Claude Code, y los propios `.claude/.claude-plugin/plugin.json`, `icon.png` y `.claude/README.md` del
+plugin, que lee el directorio de plugins de Claude: una prueba de deriva (`RenderDriftTest`, conectada
+a `./gradlew check`) hace fallar la
+compilación si cualquiera de esas treinta y cuatro salidas se desvía de la fuente tipada, y una segunda la
 hace fallar si aparece cualquier otra cosa dentro del portador. El `name:`
 renderizado de una habilidad es siempre su nombre canónico, nunca un "segmento de claude"
 abreviado — un directorio `.claude/skills/` o `.agents/skills/` incluido en el propio repositorio
@@ -302,13 +304,16 @@ hoy mismo, de forma determinista, sin LLM — que esté en verde
 significa que las instrucciones son literalmente ejecutables ahora mismo, no solo prosa plausible.
 Un lint de Nivel A mantiene fuera de las páginas renderizadas las citas a notas de planificación privadas, al
 hermano Pro de este repositorio, a nombres de ficheros de CI y a hashes de git: las frases de
-razonamiento se publican, la cita que nombra la fuente no. Un segundo lint vigila el único campo
-del frontmatter cuya ausencia es una característica: una habilidad cuyos pasos pueden hacer algo
-público — hoy, `narrativetrace-feedback` — no debe declarar ningún `allowed-tools`, porque ese
-campo preaprueba las herramientas que enumera durante el turno que carga la habilidad, y una
-habilidad de informes que preaprobara su propio comando de informe dejaría de hacer preguntar al
-entorno justo donde preguntar es el objetivo. Un tercer lint limita una habilidad que promueve una
-línea base de aprobación — hoy, `narrativetrace-verify` y `narrativetrace-debug` — a ninguna herramienta permitida más allá
+razonamiento se publican, la cita que nombra la fuente no. Las páginas de Claude renderizadas no
+llevan ninguna línea `allowed-tools`, porque el directorio de plugins solo acepta esa clave más allá de
+las herramientas de solo lectura a editores verificados: el usuario recibe el aviso de permisos normal
+de Claude Code la primera vez que una habilidad ejecuta `./gradlew`, `git` o `find`. Un segundo lint
+sigue vigilando el conjunto de comandos que declara cada habilidad: una habilidad cuyos pasos pueden
+hacer algo público — hoy, `narrativetrace-feedback` — no debe declarar ninguna herramienta que
+preapruebe su propio comando de informe, de modo que un sabor que algún día vuelva a emitir la clave
+no pueda dejar de hacer preguntar al entorno justo donde preguntar es el objetivo. Un tercer lint
+limita una habilidad que promueve una
+línea base de aprobación — hoy, `narrativetrace-verify` y `narrativetrace-debug` — a ninguna herramienta declarada más allá
 de `find`, de solo lectura, por la misma razón: la promoción pasa por `./gradlew`, y el sí que
 espera es el tuyo.
 

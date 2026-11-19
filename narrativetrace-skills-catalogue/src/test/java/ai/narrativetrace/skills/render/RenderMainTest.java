@@ -56,6 +56,25 @@ class RenderMainTest {
   }
 
   @Test
+  void rendersTheClaudePluginManifestAndCopiesTheIcon(@TempDir Path repoRoot) throws IOException {
+    Files.writeString(repoRoot.resolve("AGENTS.md"), "# A repo\n");
+    seedSnippetSources(repoRoot);
+
+    RenderMain.render(repoRoot);
+
+    assertThat(Files.readString(RenderPaths.claudePluginJson(repoRoot)))
+        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+    assertThat(Files.readString(RenderPaths.claudePluginReadme(repoRoot)))
+        .isEqualTo(
+            ClaudePluginReadmeRenderer.render(CatalogueIndex.MARKETPLACE, CatalogueIndex.ALL));
+    assertThat(Files.readAllBytes(RenderPaths.claudePluginIcon(repoRoot)))
+        .isEqualTo(
+            Files.readAllBytes(
+                RenderPaths.openAiPluginAssets(Path.of(System.getProperty("projectDir")))
+                    .resolve("logo.png")));
+  }
+
+  @Test
   void writesBothCarrierFlavoursByteIdenticalToTheRenderedPages(@TempDir Path repoRoot)
       throws IOException {
     Files.writeString(repoRoot.resolve("AGENTS.md"), "# A repo\n");
@@ -102,6 +121,12 @@ class RenderMainTest {
    */
   private static void seedSnippetSources(Path repoRoot) throws IOException {
     Path realRepoRoot = Path.of(System.getProperty("projectDir"));
+    Path logo = RenderPaths.openAiPluginAssets(repoRoot).resolve("logo.png");
+    Files.createDirectories(logo.getParent());
+    Files.copy(
+        RenderPaths.openAiPluginAssets(realRepoRoot).resolve("logo.png"),
+        logo,
+        StandardCopyOption.REPLACE_EXISTING);
     for (var skill : CatalogueIndex.ALL) {
       for (var step : skill.steps()) {
         if (step.body() instanceof StepBody.SnippetStep snippet) {

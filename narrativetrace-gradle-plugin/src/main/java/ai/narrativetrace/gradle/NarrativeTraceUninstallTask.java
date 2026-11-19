@@ -39,7 +39,7 @@ import org.gradle.api.tasks.options.Option;
             + " task's outputs")
 public abstract class NarrativeTraceUninstallTask extends DefaultTask {
 
-  /** The project to clean up — this project's own directory in real use. */
+  /** Where to clean up — the repository root's directory in real use, whichever project ran. */
   @Internal
   public abstract DirectoryProperty getTargetDir();
 
@@ -59,11 +59,18 @@ public abstract class NarrativeTraceUninstallTask extends DefaultTask {
   @Option(option = "json", description = "Machine-readable output instead of human text.")
   public abstract Property<Boolean> getJson();
 
+  /** The build-wide claim that makes this task run once per build; see {@link InstallerClaims}. */
+  @Internal
+  public abstract Property<InstallerClaims> getClaims();
+
   @TaskAction
   public void uninstall() {
     InitOptions options =
         InstallerTaskOptions.from(getDiff().get(), false, false, getOnly().get(), "");
     Path project = getTargetDir().get().getAsFile().toPath();
+    if (!getClaims().get().claimOrSkip(this, project)) {
+      return;
+    }
     InitPlan plan = UninstallPlanner.plan(ProjectStateReader.read(project), options);
     InstallerTasks.announce(
         this, InstallerTaskOutput.run(plan, project, getName(), getJson().get()));

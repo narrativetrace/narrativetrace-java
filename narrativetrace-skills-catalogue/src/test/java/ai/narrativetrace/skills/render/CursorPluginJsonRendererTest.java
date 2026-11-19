@@ -24,6 +24,7 @@ class CursorPluginJsonRendererTest {
         "./.claude",
         "Apache-2.0",
         "https://narrativetrace.ai",
+        "https://github.com/narrativetrace/narrativetrace-x",
         List.of("tracing", "agent-skills"));
   }
 
@@ -99,6 +100,7 @@ class CursorPluginJsonRendererTest {
             "./.claude",
             "Apache-2.0",
             "https://narrativetrace.ai",
+            "https://github.com/narrativetrace/narrativetrace-x",
             List.of("a\"b"));
 
     String plugin = CursorPluginJsonRenderer.renderPlugin(hostile);

@@ -72,9 +72,9 @@ class AddNarrativeTracingSkillTest {
   @Test
   void wiresTheFrameworksTheDoctorReportsRightAfterTheInstall() {
     Skill skill = AddNarrativeTracingSkill.build();
-    SkillStep step = skill.steps().get(1);
+    SkillStep step = skill.steps().get(2);
 
-    assertThat(skill.steps().get(0).title()).isEqualTo("Install with the real toolchain");
+    assertThat(skill.steps().get(1).title()).isEqualTo("Install with the real toolchain");
     assertThat(step.title()).isEqualTo("Wire the frameworks this project already uses");
     assertThat(step.body())
         .isEqualTo(new StepBody.CommandStep(java.util.List.of(DoctorCommands.RUN_DOCTOR_GRADLE)));
@@ -109,7 +109,7 @@ class AddNarrativeTracingSkillTest {
   @Test
   void firstTraceBranchesOnWhetherTheProjectAlreadyHasTests() {
     Skill skill = AddNarrativeTracingSkill.build();
-    SkillStep step = skill.steps().get(2);
+    SkillStep step = skill.steps().get(3);
 
     assertThat(step.title()).isEqualTo("First trace: wrap, call, render, run");
     assertThat(step.condition())
@@ -139,12 +139,32 @@ class AddNarrativeTracingSkillTest {
   @Test
   void conditionNamesTheRunnerWithoutIntegrationPremise() {
     Skill skill = AddNarrativeTracingSkill.build();
-    SkillStep step = skill.steps().get(2);
+    SkillStep step = skill.steps().get(3);
 
     assertThat(step.condition())
         .contains("the doctor reports a test integration for that runner")
         .contains("a runner the doctor reports no integration for")
         .contains("keeps that runner")
         .contains("takes the console path below");
+  }
+
+  /**
+   * The install resolves the newest release BEFORE it writes a coordinate, and the coordinates it
+   * writes carry the {@code <version>} placeholder, never a number: the skill pins nothing.
+   */
+  @Test
+  void resolvesTheNewestReleaseBeforeInstallingAndPinsNoVersion() {
+    Skill skill = AddNarrativeTracingSkill.build();
+    String page = ClaudeSkillRenderer.render(skill, Path.of(System.getProperty("projectDir", ".")));
+
+    assertThat(skill.steps().get(0)).isEqualTo(ReleaseLookup.step());
+    assertThat(page)
+        .contains("narrativetrace-core:<version>")
+        .contains("narrativetrace-proxy:<version>")
+        .contains("narrativetrace-slf4j:<version>")
+        .doesNotContainPattern("ai\\.narrativetrace:[\\w.-]+:\\d");
+    assertThat(page.indexOf(ReleaseLookup.METADATA_URL))
+        .isPositive()
+        .isLessThan(page.indexOf("narrativetrace-core:<version>"));
   }
 }

@@ -47,10 +47,35 @@ class ClaudeSkillRendererTest {
     assertThat(rendered)
         .contains("description: \"A description with a \\\"quote\\\" and a \\\\backslash.\"\n");
     assertThat(rendered).contains("when_to_use: \"When to use it.\"\n");
-    assertThat(rendered).contains("allowed-tools: Bash(./gradlew *), Bash(git *), Bash(find *)\n");
+    assertThat(rendered).doesNotContain("allowed-tools");
     assertThat(rendered).contains("# narrativetrace-x");
     assertThat(rendered).contains("## 1. Step one");
     assertThat(rendered).contains("```bash\ngit status\n```");
+  }
+
+  /**
+   * Anthropic's plugin directory accepts {@code allowed-tools} beyond read-only tools only from
+   * verified organizations (owner ruling 2026-11-19), so a declared command set renders no line at
+   * all, whatever the skill declares and however it is spelled.
+   */
+  @Test
+  void aSkillThatDeclaresAllowedToolsStillRendersNoAllowedToolsLine() {
+    Skill skill =
+        new Skill(
+            "narrativetrace-x",
+            SkillClass.MECHANICAL,
+            "d",
+            null,
+            "sixty-seconds",
+            List.of(
+                new SkillStep("Step one", new StepBody.CommandStep(List.of("git status")), null)),
+            List.of(),
+            List.of(),
+            CommandVocabulary.JAVA);
+
+    assertThat(ClaudeSkillRenderer.render(skill))
+        .doesNotContain("allowed-tools")
+        .doesNotContain("Bash(");
   }
 
   @Test

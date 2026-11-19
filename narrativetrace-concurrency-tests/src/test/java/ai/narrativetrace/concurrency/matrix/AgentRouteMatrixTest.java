@@ -126,7 +126,9 @@ class AgentRouteMatrixTest {
                 java,
                 "-javaagent:"
                     + required("narrativetrace.test.standaloneJar")
-                    + "=packages=ai.narrativetrace.concurrency.shop",
+                    // The shop is the application under trace, and it lives in this module's test
+                    // source set: without tests=trace the agent leaves test code uninstrumented.
+                    + "=packages=ai.narrativetrace.concurrency.shop,tests=trace",
                 "-cp",
                 required("narrativetrace.test.forkedClasspath"),
                 AgentFixtureMain.class.getName(),

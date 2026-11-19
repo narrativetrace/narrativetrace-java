@@ -19,7 +19,8 @@ package ai.narrativetrace.core.render;
  *     Markdown frontmatter's {@code run:} field, never into anything the structural {@code .nt}
  *     artifact or a delta computation reads
  */
-public record TraceMetadata(String scenario, ScenarioResult result, String runName) {
+public record TraceMetadata(
+    String scenario, ScenarioResult result, String runName, String testFailure) {
 
   public TraceMetadata {
     if (scenario == null) {
@@ -28,6 +29,11 @@ public record TraceMetadata(String scenario, ScenarioResult result, String runNa
     if (result == null) {
       throw new IllegalArgumentException("result must not be null");
     }
+  }
+
+  /** A document that carries no test-failure message: every caller that predates the field. */
+  public TraceMetadata(String scenario, ScenarioResult result, String runName) {
+    this(scenario, result, runName, null);
   }
 
   /** No enclosing run — a caller rendering a document outside a tracked test-suite execution. */

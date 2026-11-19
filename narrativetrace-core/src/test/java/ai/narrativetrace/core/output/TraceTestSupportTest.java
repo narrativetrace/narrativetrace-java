@@ -8,9 +8,12 @@
 package ai.narrativetrace.core.output;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
+import ai.narrativetrace.api.event.TraceId;
+import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.tree.TraceTree;
@@ -94,6 +97,38 @@ class TraceTestSupportTest {
                 + "Structure unchanged since last green — the flow held; check values and"
                 + " assertions.\n\n"
                 + "Execution trace:\nService.doWork() → ok");
+  }
+
+  @Test
+  void aTreeStampedWithItsTestsLossKeepsItsCallsAndTraceIdAndCarriesOnlyThatLoss() {
+    var captured =
+        new DefaultTraceTree(
+            traceWithOneCall().roots(),
+            TraceId.of("0123456789abcdef0123456789abcdef"),
+            new TraceLoss(64, 0, 0));
+
+    var stamped = TraceTestSupport.withTestLoss(captured, TraceLoss.none());
+
+    assertThat(stamped.roots()).isEqualTo(captured.roots());
+    assertThat(stamped.traceId()).isEqualTo(captured.traceId());
+    assertThat(stamped.loss()).isEqualTo(TraceLoss.none());
+  }
+
+  @Test
+  void anEmptyTreeStampedWithItsTestsLossStaysEmpty() {
+    var stamped = TraceTestSupport.withTestLoss(emptyTrace(), new TraceLoss(3, 1, 2));
+
+    assertThat(stamped.isEmpty()).isTrue();
+    assertThat(stamped.traceId()).isNull();
+    assertThat(stamped.loss()).isEqualTo(new TraceLoss(3, 1, 2));
+  }
+
+  @Test
+  void stampingRequiresBothTheTreeAndTheLoss() {
+    assertThatThrownBy(() -> TraceTestSupport.withTestLoss(null, TraceLoss.none()))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> TraceTestSupport.withTestLoss(emptyTrace(), null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

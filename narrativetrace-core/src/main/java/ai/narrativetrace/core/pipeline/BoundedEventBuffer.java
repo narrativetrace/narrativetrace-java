@@ -48,7 +48,8 @@ abstract class BoundedEventBufferPad1 extends BoundedEventBufferProducerField {
  *   <li>Cache-line padding via inheritance — producer and consumer indices on separate cache lines
  *   <li>Power-of-two capacity with bitmask — branchless index wrapping
  *   <li>VarHandle atomic increment — lock-free producer coordination
- *   <li>Per-slot sequence numbers — safe publication protocol via release/acquire
+ *   <li>Per-slot sequence numbers — safe publication protocol: volatile stores on the producer,
+ *       acquire loads on the consumer
  * </ul>
  *
  * <p>Key difference from JCTools: overwrites oldest events on overflow instead of rejecting newest.
@@ -74,9 +75,16 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
     }
   }
 
+  /**
+   * One ring position: the generation it holds and that generation's event.
+   *
+   * <p><b>@llmNote</b> Both fields are {@code volatile} so that {@link #put} can order its three
+   * stores with plain field writes — no {@code VarHandle} call, no fence call — see there for why
+   * that matters. Do not demote either to a plain field.
+   */
   static final class Slot {
     volatile long sequence;
-    TraceEvent event;
+    volatile TraceEvent event;
   }
 
   /**
@@ -87,7 +95,13 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
 
   private final Slot[] slots;
   private final int mask;
+
+  /**
+   * The producer seam: run after a claim, before its publication — {@code null} in production, so
+   * that {@link #put} makes no call in that window (a null check of a final field is not a call).
+   */
   private final Runnable afterClaim;
+
   private final Runnable afterSequenceCheck;
   private long consumerIndex;
 
@@ -104,10 +118,14 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
   private volatile long overwritten;
 
   BoundedEventBuffer(int capacity) {
-    this(capacity, () -> {});
+    this(capacity, null);
   }
 
-  /** Package-private constructor with the producer seam: fires after claim, before publish. */
+  /**
+   * Package-private constructor with the producer seam: fires after claim, before publish.
+   *
+   * @param afterClaim the seam, or {@code null} for none — what every production buffer passes
+   */
   BoundedEventBuffer(int capacity, Runnable afterClaim) {
     this(capacity, afterClaim, () -> {});
   }
@@ -116,6 +134,8 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
    * Package-private constructor with both seams: the producer's, and the consumer's — which fires
    * after a slot's sequence has been accepted and before its event is read, the window a lapping
    * producer can overwrite the slot in.
+   *
+   * @param afterClaim the producer seam, or {@code null} for none
    */
   BoundedEventBuffer(int capacity, Runnable afterClaim, Runnable afterSequenceCheck) {
     if (capacity < 1 || capacity > MAX_CAPACITY) {
@@ -144,20 +164,43 @@ final class BoundedEventBuffer extends BoundedEventBufferPad1 {
    * the new event out of the slot and deliver it under the wrong index — see {@link
    * #steppedOverLappedSlot}, which is the check the claim makes effective.
    *
-   * <p>The {@code storeStoreFence} is the writer's half of that. A release store orders what comes
-   * <em>before</em> it, so it does not stop the event write from being hoisted above the claim; the
-   * fence does, and the trailing release store keeps the event write from sinking below the
-   * publication. Both are compiler barriers rather than instructions on a strongly ordered CPU —
-   * which is precisely the point, because the reordering that breaks this is the compiler's.
+   * <p><b>Nothing between the claim and the publication is a call</b> (B-342). Once {@code
+   * getAndAdd} has returned, the index is taken; if anything after it throws, the slot is never
+   * published, every later drain stops in front of it, and every event published after it is
+   * invisible until producers lap the whole ring. The one thing that can throw there without being
+   * a bug in this class is {@link StackOverflowError}, raised where a frame is pushed — and a
+   * traced call at the bottom of a recursion that exhausts the stack publishes exactly there. So
+   * after the claim, production code pushes no frame: the three steps are plain stores to {@code
+   * volatile} fields, and the test seam is skipped by a null check of a final field. The claim
+   * itself is the last call, and it does not strand a slot: a {@code StackOverflowError} inside it
+   * is raised while its frames are being pushed, before the atomic add, and after the add the JDK's
+   * implementation only returns (compiled, it is a single atomic instruction). {@code
+   * AbandonedClaimTest} pins the bytecode of this method to that shape.
+   *
+   * <p>The ordering is the volatile stores' own. Volatile writes are synchronization actions, and
+   * synchronization order is total and consistent with program order, so neither the compiler nor
+   * the CPU may let the event store rise above the claim store or sink below the publication store
+   * — the two guarantees a {@code storeStoreFence} and a trailing release store gave the previous
+   * shape of this method, both of which were calls. The consumer side is unchanged: it reads the
+   * sequence with acquire, then the event (now a volatile read), then the sequence again behind
+   * {@code loadLoadFence}.
+   *
+   * <p><b>@llmNote</b> Keep this method call-free after the claim: no helper, no {@code VarHandle}
+   * access mode, no fence, no logging, no assertion that calls. The price is three volatile stores
+   * per event instead of two release stores and a fence — on a weakly ordered CPU (AArch64) these
+   * are store-release instructions as before; on x86 a volatile store carries a StoreLoad barrier
+   * the release store did not. The overhead benchmark ({@code PipelineOverheadBenchmark}) measures
+   * it.
    */
   void put(TraceEvent event) {
     long idx = (long) PRODUCER_INDEX.getAndAdd(this, 1L);
-    afterClaim.run();
+    if (afterClaim != null) {
+      afterClaim.run();
+    }
     Slot slot = slots[(int) (idx & mask)];
-    SLOT_SEQUENCE.setRelease(slot, idx);
-    VarHandle.storeStoreFence();
+    slot.sequence = idx;
     slot.event = event;
-    SLOT_SEQUENCE.setRelease(slot, idx + 1);
+    slot.sequence = idx + 1;
   }
 
   /**

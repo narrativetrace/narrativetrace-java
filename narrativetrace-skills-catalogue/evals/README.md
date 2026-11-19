@@ -299,7 +299,7 @@ agent command: an absent vendor tool or an unreachable registry is not a verdict
 path, and a red row claiming it was would be worse than no row at all.
 
 `grade_the_registry.sh` grades the three things only these cases can be asked — no vendor page was
-written through a link (keyed on `allowed-tools`, the one line the two flavours differ by), the
+written through a link (keyed on `when_to_use`, the one line the two flavours differ by), the
 installer refuses nothing so no `--force` is needed (read out of a real `init --dry-run --json`
 plan, not out of an exit code a dry run always leaves at zero), and the registry's own files are
 still the registry's — and then delegates the whole of what the prompt promises to

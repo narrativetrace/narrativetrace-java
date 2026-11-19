@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.core.output;
 
+import ai.narrativetrace.core.render.TestFailureText;
 import java.util.function.Function;
 
 /**
@@ -22,6 +23,11 @@ import java.util.function.Function;
  * so the canonical wire form, the structural {@code .nt} artifact and every renderer test are
  * untouched. The failing call is located in the finished text: the first line carrying the format's
  * thrown-exception marker, numbered in the file as written, header included.
+ *
+ * <p><b>@llmNote</b> A test that fails on its own assertion while no recorded call threw (test code
+ * is not a span) would otherwise leave "none" as the only answer to "where did it fail". When the
+ * integration hands over the test's failure message — the string its manifest row carries — the
+ * failing-call line says the test itself failed, and why; see {@link Facts#testFailure()}.
  *
  * <p><b>@edgeCase</b> Markdown keeps its YAML frontmatter on line 1 and the header follows it as an
  * HTML comment; text gets {@code #} comment lines. The Mermaid and PlantUML files are not headed (a
@@ -45,6 +51,9 @@ public final class TraceFileHeader {
 
   private static final String NONE = "none, no call threw in this run";
 
+  /** Opens the Markdown body line that states the test's own failure; never a call line. */
+  private static final String TEST_FAILURE_LINE = "**Test failure:** ";
+
   private TraceFileHeader() {}
 
   /**
@@ -57,6 +66,8 @@ public final class TraceFileHeader {
    * @param manifestPath the run manifest, relative to this file
    * @param deep whether the run was recorded at depth internal (private methods included)
    * @param deepSpansDropped how many deep spans the cap turned away; meaningful when {@code deep}
+   * @param testFailure the failed test's own message, the string its manifest row carries (already
+   *     through {@code ExceptionMessage}); {@code null} when the test passed or carried none
    */
   public record Facts(
       String test,
@@ -65,7 +76,20 @@ public final class TraceFileHeader {
       String indexPath,
       String manifestPath,
       boolean deep,
-      long deepSpansDropped) {
+      long deepSpansDropped,
+      String testFailure) {
+
+    /** The shape of a run that carries no test-failure message. */
+    public Facts(
+        String test,
+        String outcome,
+        String durationMillis,
+        String indexPath,
+        String manifestPath,
+        boolean deep,
+        long deepSpansDropped) {
+      this(test, outcome, durationMillis, indexPath, manifestPath, deep, deepSpansDropped, null);
+    }
 
     /** The shape of every run that is not a deep one. */
     public Facts(
@@ -94,11 +118,13 @@ public final class TraceFileHeader {
         content.substring(0, split),
         content.substring(split),
         MARKDOWN_THREW,
+        none(facts, true),
         where -> "<!--\n" + body(facts, where, "", true) + "-->\n");
   }
 
   private static String commented(String content, Facts facts, String prefix, String marker) {
-    return assemble("", content, marker, where -> body(facts, where, prefix, false));
+    return assemble(
+        "", content, marker, none(facts, false), where -> body(facts, where, prefix, false));
   }
 
   /**
@@ -166,6 +192,23 @@ public final class TraceFileHeader {
   }
 
   /**
+   * What the failing-call line says when no recorded call threw: the plain {@link #NONE}, or — when
+   * the test itself failed and its message is known — that the test failed and why.
+   *
+   * <p><b>@llmNote</b> The message is the manifest row's string, already through {@code
+   * ExceptionMessage}; it is shortened to one line by {@link TestFailureText#oneLine} and then
+   * neutralized for the comment like every other fact. The first line of the Markdown body that
+   * states the same message is skipped when the failing call is located, so a message that happens
+   * to carry the thrown-exception marker cannot be mistaken for a call that threw.
+   */
+  private static String none(Facts facts, boolean markdown) {
+    var failure = TestFailureText.oneLine(facts.testFailure());
+    return failure == null
+        ? NONE
+        : "none, no recorded call threw; the test itself failed: " + sanitize(failure, markdown);
+  }
+
+  /**
    * The header placed between {@code prefix} and {@code rest}, naming the first line of {@code
    * rest} that carries {@code marker} by its number in the whole file.
    *
@@ -173,9 +216,9 @@ public final class TraceFileHeader {
    * placeholder and the line number is computed from that.
    */
   private static String assemble(
-      String prefix, String rest, String marker, Function<String, String> header) {
+      String prefix, String rest, String marker, String none, Function<String, String> header) {
     var headerLines = newlines(header.apply("x"));
-    var where = NONE;
+    var where = none;
     var index = firstLineWith(rest, marker);
     if (index >= 0) {
       where =
@@ -189,7 +232,7 @@ public final class TraceFileHeader {
   private static int firstLineWith(String text, String marker) {
     var lines = text.split("\n", -1);
     for (var i = 0; i < lines.length; i++) {
-      if (lines[i].contains(marker)) {
+      if (lines[i].contains(marker) && !lines[i].startsWith(TEST_FAILURE_LINE)) {
         return i;
       }
     }

@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 731dc1288649 | translated: 2026-10-22 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob e99032ec75ff | translated: 2026-10-22 | reviewed: - -->
 # Habilidades de agente
 
 O NarrativeTrace traz **habilidades** (*skills*): procedimentos carregáveis por um agente que
@@ -109,7 +109,7 @@ como um envelope sobre o qual um script pode decidir:
 
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.5",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.6",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
@@ -283,8 +283,10 @@ da verdade; seus passos tipados geram sete páginas do Claude, sete do Codex, a 
 guarda de ambos os sabores mais o seu índice `catalogue.json` — o que o jar publicado entrega ao
 `narrativetraceInit` — a seção de `AGENTS.md` deste repositório, e o listing
 `.claude-plugin/marketplace.json` que torna este repositório um marketplace de plugins do Claude
-Code: um teste de deriva (`RenderDriftTest`, ligado ao `./gradlew check`) faz o build falhar quando
-qualquer uma dessas trinta e uma saídas diverge da fonte tipada, e um segundo o faz falhar se qualquer
+Code, e os próprios `.claude/.claude-plugin/plugin.json`, `icon.png` e `.claude/README.md` do plugin,
+que o diretório de plugins do Claude lê: um teste de deriva (`RenderDriftTest`, ligado ao
+`./gradlew check`) faz o build falhar quando
+qualquer uma dessas trinta e quatro saídas diverge da fonte tipada, e um segundo o faz falhar se qualquer
 outra coisa aparecer dentro do portador. O `name:` renderizado de uma
 habilidade é sempre seu nome canônico, nunca um "segmento claude" abreviado — um diretório
 `.claude/skills/` ou `.agents/skills/` mantido no próprio repositório é um espaço de nomes plano,
@@ -296,13 +298,16 @@ determinística, sem LLM — estar verde significa que as
 instruções são literalmente executáveis agora, não apenas prosa plausível. Um lint de Nível A
 mantém fora das páginas renderizadas citações a notas de planejamento privadas, ao irmão Pro deste
 repositório, a nomes de arquivos de CI e a hashes do git: as frases de justificativa são
-publicadas, a citação que nomeia a fonte não. Um segundo lint guarda o único campo do frontmatter
-cuja ausência é uma funcionalidade: uma habilidade cujos passos podem tornar algo público — hoje,
-`narrativetrace-feedback` — não deve declarar nenhum `allowed-tools`, porque esse campo
-pré-aprova as ferramentas que lista durante o turno que carrega a habilidade, e uma habilidade de
-relato que pré-aprovasse o seu próprio comando de relato deixaria o ambiente de perguntar
-justamente onde perguntar é o ponto. Um terceiro lint limita uma habilidade que promove uma baseline
-de aprovação — hoje, `narrativetrace-verify` e `narrativetrace-debug` — a nenhuma ferramenta permitida além de `find`, só de
+publicadas, a citação que nomeia a fonte não. As páginas do Claude renderizadas não trazem nenhuma
+linha `allowed-tools`, porque o diretório de plugins só aceita essa chave além das ferramentas
+somente de leitura de publicadores verificados: o usuário recebe o aviso de permissão normal do
+Claude Code na primeira vez que uma habilidade executa `./gradlew`, `git` ou `find`. Um segundo lint
+continua guardando o conjunto de comandos que cada habilidade declara: uma habilidade cujos passos
+podem tornar algo público — hoje, `narrativetrace-feedback` — não deve declarar nenhuma ferramenta
+que pré-aprove o seu próprio comando de relato, para que um sabor que um dia volte a emitir a chave
+não possa deixar o ambiente de perguntar justamente onde perguntar é o ponto. Um terceiro lint limita
+uma habilidade que promove uma baseline
+de aprovação — hoje, `narrativetrace-verify` e `narrativetrace-debug` — a nenhuma ferramenta declarada além de `find`, só de
 leitura, pela mesma razão: a promoção passa pelo `./gradlew`, e o sim que ela espera é o seu.
 
 ## Context7

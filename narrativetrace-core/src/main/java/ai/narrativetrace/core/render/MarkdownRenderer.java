@@ -194,8 +194,25 @@ public final class MarkdownRenderer implements NarrativeRenderer {
         .append(durationMs)
         .append("ms | **Result:** ")
         .append(metadata.result().displayName())
-        .append("\n\n");
-    sb.append("### Call Flow\n\n");
+        .append("\n");
+    appendTestFailure(metadata, sb);
+    sb.append("\n### Call Flow\n\n");
+  }
+
+  /**
+   * The failed test's own message under the result line, when the integration handed one over — the
+   * one place a trace says what was wrong when no recorded call threw. Same text, same cut as the
+   * file header's failing-call line ({@link TestFailureText}); escaped here like any other
+   * caller-supplied prose, so it cannot add structure.
+   */
+  private void appendTestFailure(TraceMetadata metadata, StringBuilder sb) {
+    var failure =
+        metadata.result() == ScenarioResult.ERROR
+            ? TestFailureText.oneLine(metadata.testFailure())
+            : null;
+    if (failure != null) {
+      sb.append("**Test failure:** ").append(MarkdownEscape.text(failure)).append("\n");
+    }
   }
 
   /**

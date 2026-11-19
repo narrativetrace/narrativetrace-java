@@ -137,6 +137,15 @@ class FrontmatterMetadataInjectionTest {
     assertThat(entry).isEqualTo("entry_point: \"A\\U0001f600B.m\"");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-11-09", "true", "no", "yes", "42", "0x1f", "1_000", "1.50"})
+  @DisplayName(
+      "ADV-2026-11-09-4: a scenario YAML implicitly types must be quoted \u2014 frontmatter is a"
+          + " machine-readable contract, so a value must read back as the string it was")
+  void yamlSafeQuotesAScalarAYamlParserWouldImplicitlyRetype(String scenario) {
+    assertThat(FrontmatterBuilder.yamlSafe(scenario)).isEqualTo("\"" + scenario + "\"");
+  }
+
   private static java.util.List<String> keysOf(String frontmatter) {
     return frontmatter
         .lines()

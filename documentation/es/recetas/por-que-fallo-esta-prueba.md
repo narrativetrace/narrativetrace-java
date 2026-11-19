@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/why-did-this-test-fail.md blob 7611edf325ab | translated: 2026-10-22 | reviewed: - -->
+<!-- source: documentation/recipes/why-did-this-test-fail.md blob 43d8cb08419e | translated: 2026-11-15 | reviewed: - -->
 # ¿Por qué falló esta prueba?
 
 [English](../../recipes/why-did-this-test-fail.md) | **Español** | [Português](../../pt-BR/receitas/por-que-este-teste-falhou.md) | [简体中文](../../zh-CN/实用方案/这个测试为什么失败了.md)
@@ -102,7 +102,7 @@ error_count: 0
 NarrativeTrace trace file
 What this is: the recorded call tree of one test run: StaleExpectationFixture.the_customer_gets_an_order_id_for_their_keyboards, failed, 2.03 ms.
 How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
-Failing call: none, no call threw in this run.
+Failing call: none, no recorded call threw; the test itself failed: \nexpected: "ORD-C-1234-SKU-KB-1"\n but was: "ORD-C-1234-SKU-KB-2".
 Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
 -->
 
@@ -110,6 +110,7 @@ Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written 
 
 **Scenario:** The customer gets an order id for their keyboards
 **Duration:** 2.435ms | **Result:** FAILED
+**Test failure:** \nexpected: "ORD-C-1234-SKU-KB-1"\n but was: "ORD-C-1234-SKU-KB-2"
 
 ### Call Flow
 

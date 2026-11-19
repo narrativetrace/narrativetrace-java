@@ -11,6 +11,7 @@ import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.api.tree.TraceTree;
 import ai.narrativetrace.core.tree.TreeWalk;
+import java.util.regex.Pattern;
 
 /**
  * Builds YAML frontmatter for Markdown trace documents.
@@ -137,6 +138,284 @@ public final class FrontmatterBuilder {
     }
   }
 
+  /** YAML 1.1 core-schema bool scalars, every letter case the spec allows. */
+  private static final Pattern BOOL_RESOLVER =
+      Pattern.compile(
+          "^(?:y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE"
+              + "|on|On|ON|off|Off|OFF)$");
+
+  /** YAML 1.1's null scalars; the empty and lone-space forms are already caught above. */
+  private static final Pattern NULL_RESOLVER = Pattern.compile("^(?:~|null|Null|NULL)$");
+
+  /** Decimal, hex, octal and binary integers, with sign and {@code _} digit separators. */
+  private static final Pattern INT_RESOLVER =
+      Pattern.compile(
+          "^(?:[-+]?0b_*[0-1][0-1_]*"
+              + "|[-+]?0_*[0-7][0-7_]*"
+              + "|[-+]?(?:0|[1-9][0-9_]*)"
+              + "|[-+]?0x_*[0-9a-fA-F][0-9a-fA-F_]*)$");
+
+  /**
+   * Whether a value's bare form resolves to something other than a string under YAML 1.1's core
+   * schema: a boolean, null, an integer, a float or a timestamp.
+   *
+   * <p><b>@llmNote</b> Deliberately the full core schema, not SnakeYAML 2.3's own narrower {@code
+   * Resolver} (which drops the bare {@code y}/{@code n} bool forms): the frontmatter is a contract
+   * with every YAML reader a document may be fed to, not only the one this repository happens to
+   * test with.
+   *
+   * <p><b>@llmNote</b> The float and timestamp checks are hand-written scans, not {@link Pattern}s
+   * like the three above: their regex equivalents would pair adjacent quantifiers over overlapping
+   * digit/underscore classes across alternatives, which can backtrack super-linearly; the input is
+   * an unvalidated test or scenario name, so that is a denial-of-service surface. See {@link
+   * #isFloatLiteral} and {@link #isTimestampLiteral}.
+   */
+  private static boolean resolvesToNonString(String value) {
+    return BOOL_RESOLVER.matcher(value).matches()
+        || NULL_RESOLVER.matcher(value).matches()
+        || INT_RESOLVER.matcher(value).matches()
+        || isFloatLiteral(value)
+        || isTimestampLiteral(value);
+  }
+
+  /**
+   * Fixed and exponent notation, {@code .inf}/{@code .nan}, with sign and {@code _} separators —
+   * the same accepted language as the regex this replaced.
+   *
+   * <p><b>@llmNote</b> Every branch advances a single index and never revisits a position, so the
+   * scan is linear in {@code value.length()} for any input — package-private so the boundary and
+   * near-miss forms can be asserted directly, not only through {@link #yamlSafe}'s outer character
+   * gate (which already quotes any value starting with {@code .} or a sign before this check ever
+   * runs).
+   */
+  static boolean isFloatLiteral(String value) {
+    var index = 0;
+    var hasSign = !value.isEmpty() && (value.charAt(0) == '-' || value.charAt(0) == '+');
+    if (hasSign) {
+      index++;
+    }
+    if (index >= value.length()) {
+      return false;
+    }
+    var c = value.charAt(index);
+    if (c == '.') {
+      return isDotLeadingFloat(value, index + 1, hasSign);
+    }
+    return Character.isDigit(c) && isDigitLeadingFloat(value, index);
+  }
+
+  /** {@code digit (digit|_)* '.' (digit|_)* exponent?}, or the same with a mandatory exponent. */
+  private static boolean isDigitLeadingFloat(String value, int from) {
+    var afterDigits = scanDigitsAndUnderscores(value, from);
+    if (afterDigits < value.length() && value.charAt(afterDigits) == '.') {
+      return isFractionalPart(value, afterDigits + 1);
+    }
+    return isMandatoryExponent(value, afterDigits);
+  }
+
+  /** {@code (digit|_)* exponent?}, reached just past the decimal point. */
+  private static boolean isFractionalPart(String value, int from) {
+    var afterFraction = scanDigitsAndUnderscores(value, from);
+    return scanOptionalExponent(value, afterFraction) == value.length();
+  }
+
+  /** {@code [eE] [-+]? digit+}, required rather than optional, to the end of the value. */
+  private static boolean isMandatoryExponent(String value, int from) {
+    if (from >= value.length() || (value.charAt(from) != 'e' && value.charAt(from) != 'E')) {
+      return false;
+    }
+    return scanOptionalExponent(value, from) == value.length();
+  }
+
+  /**
+   * {@code . (inf|Inf|INF)}, {@code . (nan|NaN|NAN)} (no sign — the caller checked), or {@code .
+   * (digit|_)+ exponent?}.
+   */
+  private static boolean isDotLeadingFloat(String value, int from, boolean hasSign) {
+    var rest = value.substring(from);
+    if (rest.equals("inf") || rest.equals("Inf") || rest.equals("INF")) {
+      return true;
+    }
+    if (!hasSign && (rest.equals("nan") || rest.equals("NaN") || rest.equals("NAN"))) {
+      return true;
+    }
+    var afterFraction = scanDigitsAndUnderscores(value, from);
+    return afterFraction > from && scanOptionalExponent(value, afterFraction) == value.length();
+  }
+
+  /** Advances past a run of digits and {@code _}; may consume nothing. */
+  private static int scanDigitsAndUnderscores(String value, int from) {
+    var i = from;
+    while (i < value.length() && (Character.isDigit(value.charAt(i)) || value.charAt(i) == '_')) {
+      i++;
+    }
+    return i;
+  }
+
+  /**
+   * Advances past an optional {@code [eE] [-+]? digit+}; returns {@code from} unchanged when no
+   * {@code e}/{@code E} is present, or -1 when one is present with no digit after it.
+   */
+  private static int scanOptionalExponent(String value, int from) {
+    if (from >= value.length() || (value.charAt(from) != 'e' && value.charAt(from) != 'E')) {
+      return from;
+    }
+    var i = from + 1;
+    if (i < value.length() && (value.charAt(i) == '-' || value.charAt(i) == '+')) {
+      i++;
+    }
+    var digitsStart = i;
+    while (i < value.length() && Character.isDigit(value.charAt(i))) {
+      i++;
+    }
+    return i == digitsStart ? -1 : i;
+  }
+
+  /**
+   * The {@code YYYY-MM-DD} date form and the full date-time timestamp form — the same accepted
+   * language as the regex this replaced.
+   *
+   * <p><b>@llmNote</b> Every field below is a bounded digit run immediately followed by a literal
+   * delimiter, so taking the maximum available digits (up to each field's width) is never ambiguous
+   * and never needs reconsidering — there is nothing to backtrack into. Package-private for the
+   * same direct-test reason as {@link #isFloatLiteral}.
+   */
+  static boolean isTimestampLiteral(String value) {
+    return isDateOnly(value) || isFullTimestamp(value);
+  }
+
+  /** {@code digit{4} '-' digit{2} '-' digit{2}}, exactly, with nothing else in the value. */
+  private static boolean isDateOnly(String value) {
+    return hasExactDigits(value, 0, 4)
+        && at(value, 4, '-')
+        && hasExactDigits(value, 5, 2)
+        && at(value, 7, '-')
+        && hasExactDigits(value, 8, 2)
+        && value.length() == 10;
+  }
+
+  /** {@code digit{4} '-' digit{1,2} '-' digit{1,2}} then a separator and a time of day. */
+  private static boolean isFullTimestamp(String value) {
+    if (!hasExactDigits(value, 0, 4) || !at(value, 4, '-')) {
+      return false;
+    }
+    var month = countLeadingDigits(value, 5, 2);
+    if (month == 0 || !at(value, 5 + month, '-')) {
+      return false;
+    }
+    var dayStart = 5 + month + 1;
+    var day = countLeadingDigits(value, dayStart, 2);
+    if (day == 0) {
+      return false;
+    }
+    var afterSeparator = skipDateTimeSeparator(value, dayStart + day);
+    return afterSeparator >= 0 && isTimeOfDay(value, afterSeparator);
+  }
+
+  /** A single {@code T}/{@code t}, or one or more spaces/tabs; -1 when neither is present. */
+  private static int skipDateTimeSeparator(String value, int from) {
+    if (from >= value.length()) {
+      return -1;
+    }
+    var c = value.charAt(from);
+    if (c == 'T' || c == 't') {
+      return from + 1;
+    }
+    var i = from;
+    while (i < value.length() && (value.charAt(i) == ' ' || value.charAt(i) == '\t')) {
+      i++;
+    }
+    return i > from ? i : -1;
+  }
+
+  /** {@code digit{1,2} ':' digit{2} ':' digit{2} fraction? zone?}, to the end of the value. */
+  private static boolean isTimeOfDay(String value, int from) {
+    var hour = countLeadingDigits(value, from, 2);
+    if (hour == 0 || !at(value, from + hour, ':') || !hasExactDigits(value, from + hour + 1, 2)) {
+      return false;
+    }
+    var afterMinute = from + hour + 3;
+    if (!at(value, afterMinute, ':') || !hasExactDigits(value, afterMinute + 1, 2)) {
+      return false;
+    }
+    var afterFraction = skipOptionalFraction(value, afterMinute + 3);
+    return isValidTimezoneSuffix(value, afterFraction);
+  }
+
+  /** An optional {@code '.' digit*}; returns {@code from} unchanged when no {@code .} is there. */
+  private static int skipOptionalFraction(String value, int from) {
+    if (from >= value.length() || value.charAt(from) != '.') {
+      return from;
+    }
+    var i = from + 1;
+    while (i < value.length() && Character.isDigit(value.charAt(i))) {
+      i++;
+    }
+    return i;
+  }
+
+  /** Nothing, {@code space* 'Z'}, or {@code space* offset}, each reaching the end of the value. */
+  private static boolean isValidTimezoneSuffix(String value, int from) {
+    if (from == value.length()) {
+      return true;
+    }
+    var i = from;
+    while (i < value.length() && (value.charAt(i) == ' ' || value.charAt(i) == '\t')) {
+      i++;
+    }
+    if (i < value.length() && value.charAt(i) == 'Z') {
+      return i + 1 == value.length();
+    }
+    return isOffset(value, i);
+  }
+
+  /** {@code [-+] digit{1,2} (':' digit{2})?}, reaching the end of the value. */
+  private static boolean isOffset(String value, int from) {
+    if (from >= value.length() || (value.charAt(from) != '-' && value.charAt(from) != '+')) {
+      return false;
+    }
+    var hourDigits = countLeadingDigits(value, from + 1, 2);
+    if (hourDigits == 0) {
+      return false;
+    }
+    var afterHour = from + 1 + hourDigits;
+    if (afterHour == value.length()) {
+      return true;
+    }
+    return at(value, afterHour, ':')
+        && hasExactDigits(value, afterHour + 1, 2)
+        && afterHour + 3 == value.length();
+  }
+
+  /** The count of leading digits at {@code from}, capped at {@code max}; 0 when there are none. */
+  private static int countLeadingDigits(String value, int from, int max) {
+    var count = 0;
+    while (from + count < value.length()
+        && count < max
+        && Character.isDigit(value.charAt(from + count))) {
+      count++;
+    }
+    return count;
+  }
+
+  /** Whether {@code count} consecutive digits sit at {@code from} without running past the end. */
+  private static boolean hasExactDigits(String value, int from, int count) {
+    if (from + count > value.length()) {
+      return false;
+    }
+    for (var i = from; i < from + count; i++) {
+      if (!Character.isDigit(value.charAt(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Whether {@code value} has {@code ch} at {@code index}, without running past the end. */
+  private static boolean at(String value, int index, char ch) {
+    return index < value.length() && value.charAt(index) == ch;
+  }
+
   /**
    * A value that may stand in the frontmatter without quotes.
    *
@@ -145,6 +424,11 @@ public final class FrontmatterBuilder {
    * other character YAML treats specially — a leading {@code `} or {@code [} is a parse error, a
    * leading {@code &} or {@code *} is an anchor or alias, and a raw C0 control is rejected outright
    * by the parser. Enumerating what is safe cannot have that shape of gap.
+   *
+   * <p><b>@llmNote</b> The character allow-list is necessary but not sufficient: it closes every
+   * way a bare value could become a parse error or a sibling key, but says nothing about a bare
+   * value a parser <em>resolves</em> to a different type — {@link #resolvesToNonString} is the
+   * second, independent clause that closes that gap.
    */
   private static boolean isPlainScalar(String value) {
     if (value.isEmpty() || value.charAt(0) == ' ' || value.endsWith(" ")) {
@@ -160,7 +444,7 @@ public final class FrontmatterBuilder {
         return false;
       }
     }
-    return true;
+    return !resolvesToNonString(value);
   }
 
   /**

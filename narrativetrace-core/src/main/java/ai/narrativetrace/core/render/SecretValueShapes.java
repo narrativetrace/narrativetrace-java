@@ -91,6 +91,18 @@ final class SecretValueShapes {
         || NationalIdShapes.isNationalId(trimmed);
   }
 
+  /**
+   * The shortest digits-only length any matcher on this axis can accept — the card-number range and
+   * every national id combined. A numeric holder's own pre-filter is gated on this value rather
+   * than a literal tuned for cards alone, so a number is never exempted from a shape a string
+   * holding the same digits would catch.
+   *
+   * @return the fewest digits a number's own text must carry before this axis is worth asking
+   */
+  static int minimumDigitsOnlyLength() {
+    return Math.min(PAN_MIN_DIGITS, NationalIdShapes.minimumDigitsOnlyLength());
+  }
+
   /** A card number: only digits and the separators cards are written with, and Luhn-valid. */
   private static boolean isPan(String value) {
     if (!PAN_CANDIDATE.matcher(value).matches()) {

@@ -30,7 +30,9 @@ Which licence applies to what
 
   the rendered agent-skill pages in this repository, and the marketplace file
   that lists them: .claude/skills/**, .agents/skills/** and
-  .claude-plugin/marketplace.json
+  .claude-plugin/marketplace.json, with the plugin's own manifest and icon
+  in .claude/.claude-plugin/plugin.json and .claude/.claude-plugin/icon.png,
+  and the plugin's README, .claude/README.md
       Apache License, Version 2.0.
       Build output of the same catalogue the skills artifact carries,
       published at the paths agent tools discover them at. Whoever installs

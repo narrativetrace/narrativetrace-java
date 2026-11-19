@@ -39,16 +39,10 @@ public final class CursorPluginJsonRenderer {
   /** {@code .cursor-plugin/plugin.json}. */
   public static String renderPlugin(MarketplaceListing listing) {
     StringBuilder out = new StringBuilder("{\n");
-    out.append("  \"name\": ").append(JsonText.quote(listing.name())).append(",\n");
-    out.append("  \"description\": ")
-        .append(JsonText.quote(listing.pluginDescription()))
-        .append(",\n");
-    out.append("  \"author\": {\n");
-    out.append("    \"name\": ").append(JsonText.quote(listing.owner().name())).append('\n');
-    out.append("  },\n");
+    JsonText.appendManifestIdentity(out, listing);
     out.append("  \"license\": ").append(JsonText.quote(listing.license())).append(",\n");
     out.append("  \"homepage\": ").append(JsonText.quote(listing.homepage())).append(",\n");
-    out.append("  \"keywords\": ").append(keywords(listing)).append(",\n");
+    out.append("  \"keywords\": ").append(JsonText.array(listing.keywords())).append(",\n");
     out.append("  \"skills\": ").append(JsonText.quote(SKILLS_PATH)).append(",\n");
     out.append("  \"rules\": ").append(JsonText.quote(RULE_PATH)).append('\n');
     return out.append("}\n").toString();
@@ -73,16 +67,8 @@ public final class CursorPluginJsonRenderer {
         .append(",\n");
     out.append("      \"license\": ").append(JsonText.quote(listing.license())).append(",\n");
     out.append("      \"homepage\": ").append(JsonText.quote(listing.homepage())).append(",\n");
-    out.append("      \"keywords\": ").append(keywords(listing)).append('\n');
+    out.append("      \"keywords\": ").append(JsonText.array(listing.keywords())).append('\n');
     out.append("    }\n");
     return out.append("  ]\n}\n").toString();
-  }
-
-  private static String keywords(MarketplaceListing listing) {
-    StringBuilder out = new StringBuilder("[");
-    for (int i = 0; i < listing.keywords().size(); i++) {
-      out.append(i == 0 ? "" : ", ").append(JsonText.quote(listing.keywords().get(i)));
-    }
-    return out.append(']').toString();
   }
 }

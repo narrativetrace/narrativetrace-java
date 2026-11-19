@@ -1,4 +1,4 @@
-<!-- source: documentation/installation-guide.md blob 5722abf953f4 | translated: 2026-10-24 | reviewed: - -->
+<!-- source: documentation/installation-guide.md blob de0891b7bb57 | translated: 2026-11-15 | reviewed: - -->
 # Guia de instalação do NarrativeTrace Java
 
 [English](../installation-guide.md) | [Español](../es/guia-de-instalacion.md) | **Português** | [简体中文](../zh-CN/安装指南.md)
@@ -99,7 +99,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -156,24 +156,24 @@ precisa.
 ```kotlin
 dependencies {
     // Mínimo
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.5")
+    implementation("ai.narrativetrace:narrativetrace-core:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.6")
 
     // Integrações opcionais
-    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.5")
-    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.5")  // para JUnit 4
-    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.5")  // para TestNG
-    implementation("ai.narrativetrace:narrativetrace-spring:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-agent:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.5")
+    testImplementation("ai.narrativetrace:narrativetrace-junit5:0.5.6")
+    testImplementation("ai.narrativetrace:narrativetrace-junit4:0.5.6")  // para JUnit 4
+    testImplementation("ai.narrativetrace:narrativetrace-testng:0.5.6")  // para TestNG
+    implementation("ai.narrativetrace:narrativetrace-spring:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-slf4j:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-diagrams:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-clarity:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-opentelemetry:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-micrometer:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-agent:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-servlet:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-spring-web:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-micronaut:0.5.6")
+    implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.6")
 }
 ```
 
@@ -478,6 +478,47 @@ nunca uma vez por classe:
 
 ```text
 narrativetrace-agent: cannot instrument org/mockito/internal/Foo (excluded package org/mockito/); classes under that package load uninstrumented
+```
+
+#### Código de teste: `tests=skip|trace`
+
+Um trace registra as chamadas que o código de produção faz, não as chamadas que
+um teste unitário em si faz. Os testes costumam ficar no mesmo pacote do código
+que testam, então por padrão o agente deixa o código de teste sem
+instrumentação: a chamada de produção é a raiz do trace, e os helpers e
+fixtures de teste não aparecem como chamadas. Uma classe é código de teste
+quando a primeira destas condições se aplica:
+
+1. **De onde foi carregada, quando esse local é reconhecido.** O local do
+   código-fonte deve SER ele mesmo um dos diretórios de saída reconhecidos; um
+   projeto que apenas fica sob um diretório com um desses nomes não
+   corresponde. A saída de teste é `test-classes` do Maven, um source set de
+   testes do Gradle (`classes/<language>/test`, `testFixtures`,
+   `integrationTest` e qualquer nome que comece com `test` seguido de uma letra
+   maiúscula ou termine em `Test` ou `Tests`), `out/test/<module>` do IntelliJ,
+   e um jar chamado `*-tests.jar` ou `*-test-fixtures.jar`. A saída de produção
+   é `target/classes` do Maven, `classes/<language>/main` do Gradle e
+   `out/production/<module>` do IntelliJ. Um local reconhecido resolve a
+   questão: uma classe de produção que por acaso carrega uma anotação de teste
+   continua sendo rastreada.
+2. **O que o arquivo de classe diz, quando o local não é reconhecido** (sem
+   código-fonte, um jar de biblioteca, qualquer outro diretório). Uma classe
+   com pelo menos um método anotado de `org.junit.jupiter.api`,
+   `org.junit.jupiter.params`, `org.testng.annotations`, ou com uma anotação do
+   JUnit 4 (`org.junit.Test`, `Before`, `After`, `BeforeClass`, `AfterClass`),
+   ou cuja superclasse direta é `junit.framework.TestCase` ou
+   `spock.lang.Specification`.
+3. **Uma classe aninhada segue a sua classe mais externa**, de modo que um
+   helper declarado dentro de uma classe de teste fica de fora mesmo quando não
+   carrega nenhuma anotação.
+
+`tests=trace` restaura a instrumentação do código de teste (o fallback por
+propriedades é `narrativetrace.tests`); o padrão é `tests=skip`, e um valor
+não reconhecido significa o padrão. A primeira classe deixada de fora é
+reportada uma vez em `stderr`, nunca uma vez por classe:
+
+```text
+narrativetrace-agent: not instrumenting com/example/ServiceTest (test code: loaded from test output file:/work/app/target/test-classes/); test code loads uninstrumented, set tests=trace to instrument it too
 ```
 
 #### Traces profundos (opt-in)

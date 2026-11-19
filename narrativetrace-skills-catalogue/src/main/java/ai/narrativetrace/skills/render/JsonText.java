@@ -7,6 +7,9 @@
  */
 package ai.narrativetrace.skills.render;
 
+import ai.narrativetrace.skills.MarketplaceListing;
+import java.util.List;
+
 /**
  * The one JSON string encoder this module's renderers share: an RFC 8259 quoted string with the two
  * mandatory escapes and every control character as {@code \\uXXXX}.
@@ -30,6 +33,29 @@ final class JsonText {
       appendEscaped(out, text.charAt(i));
     }
     return out.append('"').toString();
+  }
+
+  /** {@code values} as a one-line JSON array of quoted strings — short, flat lists read better. */
+  static String array(List<String> values) {
+    StringBuilder out = new StringBuilder("[");
+    for (int i = 0; i < values.size(); i++) {
+      out.append(i == 0 ? "" : ", ").append(quote(values.get(i)));
+    }
+    return out.append(']').toString();
+  }
+
+  /**
+   * The three leading members every plugin manifest of this module opens with, at the top level of
+   * an object indented two spaces: {@code name}, {@code description} and {@code author}, each
+   * ending in a comma. One writer, so the Claude and Cursor manifests cannot tell a listing
+   * differently.
+   */
+  static void appendManifestIdentity(StringBuilder out, MarketplaceListing listing) {
+    out.append("  \"name\": ").append(quote(listing.name())).append(",\n");
+    out.append("  \"description\": ").append(quote(listing.pluginDescription())).append(",\n");
+    out.append("  \"author\": {\n");
+    out.append("    \"name\": ").append(quote(listing.owner().name())).append('\n');
+    out.append("  },\n");
   }
 
   private static void appendEscaped(StringBuilder out, char c) {

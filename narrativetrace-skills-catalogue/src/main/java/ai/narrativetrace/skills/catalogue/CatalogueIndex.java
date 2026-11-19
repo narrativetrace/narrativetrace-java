@@ -48,6 +48,7 @@ public final class CatalogueIndex {
           "./.claude",
           "Apache-2.0",
           "https://narrativetrace.ai",
+          "https://github.com/narrativetrace/narrativetrace-java",
           List.of("narrativetrace", "java", "tracing", "observability", "agent-skills"));
 
   /**

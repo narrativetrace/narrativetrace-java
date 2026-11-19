@@ -22,7 +22,7 @@ The `ai.narrativetrace` Gradle plugin is the recommended way to use NarrativeTra
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -42,7 +42,7 @@ You do not need to add a JUnit dependency. With the default `testFramework = "ju
 | Registers `clarityScan` task | Standalone clarity analysis from compiled classes (no tests required) |
 | Registers `glossaryScan` task | Standalone glossary harvest from compiled classes, including annotation templates |
 | Registers `approveNarratives` task | Promotes reviewed `*.received.nt` narratives to `*.approved.nt` baselines |
-| Registers the `narrativetrace` task group | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — diagnosis and the agent-skills installer, none of which runs on its own |
+| Registers the `narrativetrace` task group | `narrativetraceDoctor`, `narrativetraceInit`, `narrativetraceUninstall` — diagnosis and the agent-skills installer (installing at the repository root), none of which runs on its own; registered whether or not the Java plugin is applied |
 | Registers `narrativetraceRefreshSkills` task | Runs before `classes`; rewrites installed agent skills older than the resolved carrier, and does nothing at all in a project that never ran `narrativetraceInit` |
 | Configures agent JVM arg | When `mode = "agent"`: resolves agent JAR, adds `-javaagent` to Test tasks |
 
@@ -337,7 +337,7 @@ prints the human report.
 
 ### `narrativetraceInit`
 
-Installs the [agent skills](agent-skills.md) into this project and writes the marked `AGENTS.md`
+Installs the [agent skills](agent-skills.md) into the repository root and writes the marked `AGENTS.md`
 section. Reads them from `ai.narrativetrace:narrativetrace-skills`, resolved at task time from the
 repositories the project already declares — the same version every other NarrativeTrace artifact
 resolves at.
@@ -434,7 +434,7 @@ When set, every managed NarrativeTrace dependency resolves at that version; when
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 ```
 
@@ -564,13 +564,26 @@ plugins {
 
 Each subproject gets its own `clarityCheck` and `clarityScan` tasks.
 
+The agent skills are different: they install **once, at the repository root**, wherever the plugin is applied, because that is where an agent session starts. `./gradlew narrativetraceInit` writes `AGENTS.md`, `.agents/skills/` and `.claude/skills/` into the root project's directory, never into a module. `narrativetraceInit`, `narrativetraceUninstall`, `narrativetraceDoctor` and `narrativetraceFeedback` are registered in every project that applies the plugin, Java plugin or not, so the plugin may also be applied to a root project that has no sources of its own:
+
+```kotlin
+// build.gradle.kts at the root: an aggregator with no sources
+plugins {
+    id("ai.narrativetrace")
+}
+```
+
+When several projects apply the plugin, `./gradlew narrativetraceInit` from the root runs every project's instance, but only the first does the work: each other instance logs one INFO line (visible with `--info`) naming the task path that did it. The same holds for `narrativetraceUninstall` and `narrativetraceRefreshSkills`. `narrativetraceDoctor` and `narrativetraceFeedback` still run per project, because they write per-project reports; each reads the installed skills from the root.
+
+The skills carrier resolves through the repositories the root project sees, including those declared in `dependencyResolutionManagement` in `settings.gradle.kts`. If none provides it, `narrativetraceInit` fails and names the coordinate.
+
 ## Groovy DSL
 
 All examples above use Kotlin DSL. The Groovy equivalent:
 
 ```groovy
 plugins {
-    id 'ai.narrativetrace' version '0.5.5'
+    id 'ai.narrativetrace' version '0.5.6'
 }
 
 narrativeTrace {

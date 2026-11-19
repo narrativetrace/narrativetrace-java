@@ -58,6 +58,18 @@ class ClarityReportCellEscapeTest {
     assertThat(markdown).doesNotContain("\n| LOW | forged");
   }
 
+  @Test
+  @DisplayName("ADV-2026-11-09-3: a backtick in an element name may not close its own code span")
+  void aBacktickInAnElementNameStaysInsideItsCodeSpan() {
+    var markdown = renderer.render("Service.process", resultWith("validate`](http://x.example)"));
+
+    var rows = markdown.lines().filter(line -> line.startsWith("| HIGH")).toList();
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).chars().filter(c -> c == '`').count())
+        .as("one code span, so two backticks \u2014 the value never reaches the cell as Markdown")
+        .isEqualTo(2);
+  }
+
   private static ClarityResult resultWith(String element) {
     var issue =
         new ClarityIssue(

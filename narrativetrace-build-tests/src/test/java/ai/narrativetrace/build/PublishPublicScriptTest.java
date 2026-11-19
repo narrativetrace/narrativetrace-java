@@ -231,6 +231,38 @@ class PublishPublicScriptTest {
           .isEqualTo("doctor content");
     }
 
+    /**
+     * The restore reads the repository's REAL {@code .publishignore} exceptions: the strip removes
+     * {@code .claude} whole, and what comes back must be exactly skills, manifest, icon and README
+     * — never the private {@code settings.local.json} beside them.
+     */
+    @Test
+    void theRealPublishignoreExceptionsRestoreSkillsManifestIconAndReadmeOnly(
+        @TempDir Path repoRoot, @TempDir Path stage, @TempDir Path pristine) throws Exception {
+      Files.createDirectories(pristine.resolve(".claude/skills/narrativetrace-doctor"));
+      Files.writeString(pristine.resolve(".claude/skills/narrativetrace-doctor/SKILL.md"), "page");
+      Files.createDirectories(pristine.resolve(".claude/.claude-plugin"));
+      Files.writeString(pristine.resolve(".claude/.claude-plugin/plugin.json"), "{}");
+      Files.writeString(pristine.resolve(".claude/.claude-plugin/icon.png"), "png");
+      Files.writeString(pristine.resolve(".claude/README.md"), "readme");
+      Files.writeString(pristine.resolve(".claude/settings.local.json"), "{}");
+      var exceptions =
+          Files.readAllLines(
+                  SCRIPT.getParentFile().getParentFile().toPath().resolve(".publishignore"))
+              .stream()
+              .filter(line -> line.startsWith("!"))
+              .collect(java.util.stream.Collectors.joining("\n", "", "\n"));
+
+      var result = runRestore(repoRoot, stage, pristine, exceptions);
+
+      assertThat(result.exitCode()).as("stderr: %s", result.stderr()).isZero();
+      assertThat(stage.resolve(".claude/skills/narrativetrace-doctor/SKILL.md")).exists();
+      assertThat(stage.resolve(".claude/.claude-plugin/plugin.json")).exists();
+      assertThat(stage.resolve(".claude/.claude-plugin/icon.png")).exists();
+      assertThat(stage.resolve(".claude/README.md")).exists();
+      assertThat(stage.resolve(".claude/settings.local.json")).doesNotExist();
+    }
+
     @Test
     void aTrailingDoubleStarIsStrippedAsSugarForARestoredWholeDirectory(
         @TempDir Path repoRoot, @TempDir Path stage, @TempDir Path pristine) throws Exception {
@@ -283,7 +315,7 @@ class PublishPublicScriptTest {
   }
 
   // -----------------------------------------------------------------------------------------
-  // 2b. The marketplace plugin root: staged .claude/ holds nothing but skills/
+  // 2b. The marketplace plugin root: staged .claude/ holds skills/, README.md and .claude-plugin/
   // -----------------------------------------------------------------------------------------
 
   /**
@@ -292,7 +324,9 @@ class PublishPublicScriptTest {
    * commands/}, {@code agents/} or {@code hooks/} directory there would silently become part of the
    * published plugin, and a private {@code settings.local.json} would ship inside it. The guard
    * fails the publish naming the offending path — and fails the other way too, on a plugin root the
-   * strip removed whole, which would publish a marketplace entry pointing at nothing.
+   * strip removed whole, which would publish a marketplace entry pointing at nothing, and on one
+   * missing its manifest, icon or README, which the vendor's plugin directory names after the
+   * folder (a reserved name), shows without an icon, or refuses.
    */
   @Nested
   class PluginRootGuard {
@@ -300,44 +334,95 @@ class PublishPublicScriptTest {
     private final String guardSnippet =
         extract(
             "plugin_root=\"\\$STAGE/\\.claude\".*?\n"
-                + "echo \">>   the plugin root holds only skills/\\.\"");
+                + "echo \">>   the plugin root holds exactly skills/, README\\.md and"
+                + " \\.claude-plugin/ \\(plugin\\.json, icon\\.png\\)\\.\"");
 
     private ScriptResult runGuard(Path stage) throws IOException, InterruptedException {
       var body = String.join("\n", "set -euo pipefail", "STAGE=\"" + stage + "\"", guardSnippet);
       return runBash(body, Map.of());
     }
 
-    @Test
-    void passesWhenTheStagedPluginRootHoldsOnlySkills(@TempDir Path stage) throws Exception {
+    /**
+     * A staged plugin root as the strip and the restore leave it: skills, manifest, icon, README.
+     */
+    private static void stagePluginRoot(Path stage) throws IOException {
       Files.createDirectories(stage.resolve(".claude/skills/narrativetrace-doctor"));
       Files.writeString(stage.resolve(".claude/skills/narrativetrace-doctor/SKILL.md"), "page");
+      Files.createDirectories(stage.resolve(".claude/.claude-plugin"));
+      Files.writeString(stage.resolve(".claude/.claude-plugin/plugin.json"), "{}");
+      Files.writeString(stage.resolve(".claude/.claude-plugin/icon.png"), "png");
+      Files.writeString(stage.resolve(".claude/README.md"), "readme");
+    }
+
+    @Test
+    void passesWhenTheStagedPluginRootHoldsSkillsManifestIconAndReadmeAndListsThem(
+        @TempDir Path stage) throws Exception {
+      stagePluginRoot(stage);
 
       var result = runGuard(stage);
 
       assertThat(result.exitCode()).as("stdout: %s", result.stdout()).isZero();
+      assertThat(result.stdout())
+          .contains(">>     .claude/.claude-plugin/plugin.json")
+          .contains(">>     .claude/.claude-plugin/icon.png")
+          .contains(">>     .claude/README.md")
+          .contains(">>     .claude/skills/narrativetrace-doctor/SKILL.md");
     }
 
     @Test
     void failsNamingASiblingDirectoryThatWouldShipAsPluginContent(@TempDir Path stage)
         throws Exception {
-      Files.createDirectories(stage.resolve(".claude/skills"));
+      stagePluginRoot(stage);
       Files.createDirectories(stage.resolve(".claude/commands"));
 
       var result = runGuard(stage);
 
       assertThat(result.exitCode()).isNotZero();
-      assertThat(result.stdout()).contains("holds more than skills/").contains(".claude/commands");
+      assertThat(result.stdout()).contains("holds more than").contains(".claude/commands");
     }
 
     @Test
     void failsNamingAStrayFileNextToSkills(@TempDir Path stage) throws Exception {
-      Files.createDirectories(stage.resolve(".claude/skills"));
+      stagePluginRoot(stage);
       Files.writeString(stage.resolve(".claude/settings.local.json"), "{}");
 
       var result = runGuard(stage);
 
       assertThat(result.exitCode()).isNotZero();
       assertThat(result.stdout()).contains(".claude/settings.local.json");
+    }
+
+    @Test
+    void failsNamingAStrayFileInsideTheManifestDirectory(@TempDir Path stage) throws Exception {
+      stagePluginRoot(stage);
+      Files.writeString(stage.resolve(".claude/.claude-plugin/marketplace.json"), "{}");
+
+      var result = runGuard(stage);
+
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.stdout()).contains(".claude/.claude-plugin/marketplace.json");
+    }
+
+    @Test
+    void failsNamingAMissingManifestIconOrReadme(@TempDir Path stage) throws Exception {
+      for (String required :
+          new String[] {".claude-plugin/plugin.json", ".claude-plugin/icon.png", "README.md"}) {
+        Files.createDirectories(stage);
+        stagePluginRoot(stage);
+        Files.delete(stage.resolve(".claude/" + required));
+
+        var result = runGuard(stage);
+
+        assertThat(result.exitCode()).as("without %s", required).isNotZero();
+        assertThat(result.stdout()).as("without %s", required).contains(".claude/" + required);
+        deleteTree(stage.resolve(".claude"));
+      }
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+      try (var walk = Files.walk(root)) {
+        walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+      }
     }
 
     @Test

@@ -60,6 +60,13 @@ public abstract class NarrativeTraceDoctorTask extends DefaultTask {
   @Internal
   public abstract DirectoryProperty getTargetDir();
 
+  /**
+   * Where the installed agent skills are read from — the repository root, because they install once
+   * there. Everything else the doctor reads comes from {@link #getTargetDir()}.
+   */
+  @Internal
+  public abstract DirectoryProperty getSkillsDir();
+
   /** Where the JSON report lands — {@code build/narrativetrace/doctor-report.json} by default. */
   @OutputFile
   public abstract RegularFileProperty getReportFile();
@@ -90,7 +97,10 @@ public abstract class NarrativeTraceDoctorTask extends DefaultTask {
     SkillsCarrier.Resolution resolution =
         SkillsCarrier.resolve(getCarrier()::getFiles, getCarrierCoordinate().get());
     var snapshot =
-        SnapshotBuilder.build(getTargetDir().getAsFile().get().toPath(), resolution.carrier());
+        SnapshotBuilder.build(
+            getTargetDir().getAsFile().get().toPath(),
+            getSkillsDir().getAsFile().get().toPath(),
+            resolution.carrier());
     DoctorReport report = DoctorChecks.run(snapshot);
     var reportFile = getReportFile().getAsFile().get();
     try {

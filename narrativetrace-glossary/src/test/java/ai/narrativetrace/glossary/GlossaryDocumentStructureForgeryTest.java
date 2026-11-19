@@ -9,6 +9,7 @@ package ai.narrativetrace.glossary;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -84,8 +85,51 @@ class GlossaryDocumentStructureForgeryTest {
         .isEqualTo(2);
   }
 
+  @Test
+  @DisplayName("B-249: a definition's backslash does not uncap the pipe that follows it")
+  void aDefinitionsBackslashDoesNotUncapTheFollowingPipe() {
+    var markdown = renderer.render(glossaryWithDefinition("a\\|b"));
+
+    var header =
+        markdown.lines().filter(line -> line.startsWith("| Term |")).findFirst().orElseThrow();
+    var row =
+        markdown.lines().filter(line -> line.startsWith("| widget ")).findFirst().orElseThrow();
+
+    assertThat(livePipeCount(row))
+        .as("one definition, so the row keeps the header's own column count")
+        .isEqualTo(livePipeCount(header));
+  }
+
+  @Test
+  @DisplayName("B-251: a thematic break in a description does not open an <hr>-shaped line")
+  void aDescriptionsThematicBreakDoesNotOpenAHorizontalRuleLine() {
+    var benign = renderer.render(glossaryDescribedAs("Billing domain."));
+    var hostile = renderer.render(glossaryDescribedAs("Billing domain.\n\n***\n"));
+
+    assertThat(headings(hostile))
+        .as("one context, so one '## ' heading — the benign document's own count")
+        .isEqualTo(headings(benign));
+    assertThat(hostile.lines())
+        .as("no line may be read back as a thematic break")
+        .noneMatch(line -> line.strip().equals("***"));
+  }
+
   private static long headings(String markdown) {
     return markdown.lines().filter(line -> line.startsWith("## ")).count();
+  }
+
+  /** The number of pipes a GFM reader treats as live column delimiters, not escaped text. */
+  private static long livePipeCount(String row) {
+    long count = 0;
+    var backslashRun = 0;
+    for (var i = 0; i < row.length(); i++) {
+      var c = row.charAt(i);
+      if (c == '|' && backslashRun % 2 == 0) {
+        count++;
+      }
+      backslashRun = c == '\\' ? backslashRun + 1 : 0;
+    }
+    return count;
   }
 
   private static Glossary glossaryDescribedAs(String description) {
@@ -93,5 +137,23 @@ class GlossaryDocumentStructureForgeryTest {
         1,
         Map.of("billing", new BoundedContext("billing", List.of("com.acme.billing"), description)),
         List.of());
+  }
+
+  private static Glossary glossaryWithDefinition(String definition) {
+    var term =
+        new GlossaryTerm(
+            "widget",
+            "billing",
+            TermKind.WORD,
+            TermStatus.HARVESTED,
+            definition,
+            Map.of(),
+            List.of(),
+            List.of(),
+            LocalDate.of(2026, 1, 1));
+    return new Glossary(
+        1,
+        Map.of("billing", new BoundedContext("billing", List.of("com.acme.billing"), null)),
+        List.of(term));
   }
 }

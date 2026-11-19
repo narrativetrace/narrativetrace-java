@@ -2520,11 +2520,13 @@ class NarrativeTracePluginFunctionalTest {
 
   /**
    * A frontmatter key only the VENDOR flavour carries, so "which flavour is this page" is one
-   * {@code contains}. If the carrier ever renders the two flavours identically this stops
-   * discriminating, and the registry-tree tests say nothing — which is why it is named here once
-   * rather than spelled inline at each assertion.
+   * {@code contains}. It is {@code when_to_use}, which the doctor's page carries (the page this is
+   * read from); it was {@code allowed-tools} until the plugin directory refused that key. If the
+   * carrier ever renders the two flavours identically this stops discriminating, and the
+   * registry-tree tests say nothing — which is why it is named here once rather than spelled inline
+   * at each assertion.
    */
-  private static final String VENDOR_ONLY_FRONTMATTER = "allowed-tools:";
+  private static final String VENDOR_ONLY_FRONTMATTER = "when_to_use:";
 
   /** Anchored at column 0 in a stamped page, and absent from every page the carrier renders. */
   private static final String PROVENANCE_PREFIX = "<!-- installed by narrativetrace init from ";

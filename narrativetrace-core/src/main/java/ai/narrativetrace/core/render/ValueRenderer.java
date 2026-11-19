@@ -116,13 +116,24 @@ public final class ValueRenderer {
   private static final String ABSENT = "<empty>";
 
   /**
+   * Shortest length, in characters, a number's own text must reach before it is worth asking the
+   * value-shape axis at all — the pre-filter {@link #numericTextIsSecret} applies before {@link
+   * RedactionPolicy#shouldRedactValue}, so an ordinary short number never pays for the scan.
+   *
+   * <p><b>@llmNote</b> Computed from the matchers themselves, {@link
+   * SecretValueShapes#minimumDigitsOnlyLength()}, rather than a literal tuned for one shape alone.
+   * Today that is Brazil's CPF, written bare at eleven digits — the shortest pure-digit form any
+   * shape on this axis recognises. A shape added later that accepts fewer digits lowers this floor
+   * the moment its own minimum joins that computation; nothing here needs to change by hand.
+   */
+  private static final int NUMERIC_SCAN_MIN_LENGTH = SecretValueShapes.minimumDigitsOnlyLength();
+
+  /**
    * Rendered form of a value the walk refused to follow because it had gone {@link
    * RenderWalk#MAX_DEPTH} levels down. Marker-shaped like {@code <empty>} and {@code <pending>}: a
    * reader who sees it has learned that the graph continued, which is exactly what a truncated
    * narrative should say.
    */
-  private static final int NUMERIC_SCAN_MIN_LENGTH = 12;
-
   private static final String TOO_DEEP = "<max-depth>";
 
   /**
@@ -494,13 +505,14 @@ public final class ValueRenderer {
   }
 
   /**
-   * Whether a number's own text is a secret by shape: twelve or more characters (no card number is
-   * shorter, so the common small number never pays for the scan) that the value-shape axis
-   * recognises, which for digits means a Luhn-valid card number.
+   * Whether a number's own text is a secret by shape: {@link #NUMERIC_SCAN_MIN_LENGTH} or more
+   * characters (today, eleven — no shape on the value-shape axis recognises fewer bare digits, so
+   * the common short number never pays for the scan) that the axis itself recognises: a Luhn-valid
+   * card number, or a national identity number that passes its own checksum.
    *
-   * <p><b>@llmNote</b> A 16-digit PAN held as a {@code long} is the same secret as the same digits
-   * in a {@code String}; the shape axis asks what the bytes say, not which Java type holds them.
-   * The flat and structured numeric branches both ask this one method.
+   * <p><b>@llmNote</b> A 16-digit PAN, or an 11-digit CPF, held as a {@code long} is the same
+   * secret as the same digits in a {@code String}; the shape axis asks what the bytes say, not
+   * which Java type holds them. The flat and structured numeric branches both ask this one method.
    */
   private boolean numericTextIsSecret(String text) {
     return text.length() >= NUMERIC_SCAN_MIN_LENGTH && redactionPolicy.shouldRedactValue(text);

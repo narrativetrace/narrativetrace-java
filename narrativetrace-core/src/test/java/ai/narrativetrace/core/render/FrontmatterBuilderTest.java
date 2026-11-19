@@ -13,6 +13,7 @@ import ai.narrativetrace.api.event.MethodSignature;
 import ai.narrativetrace.api.event.ParameterCapture;
 import ai.narrativetrace.api.event.SpanContext;
 import ai.narrativetrace.api.event.SpanIdGenerator;
+import ai.narrativetrace.api.event.TraceLoss;
 import ai.narrativetrace.api.event.TraceNode;
 import ai.narrativetrace.api.event.TraceOutcome;
 import ai.narrativetrace.core.tree.DefaultTraceTree;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class FrontmatterBuilderTest {
 
@@ -267,5 +270,60 @@ class FrontmatterBuilderTest {
     var frontmatter = new FrontmatterBuilder().runName("forged\n# heading").build(oneCallTree());
 
     assertThat(frontmatter).contains("run: \"forged\\n# heading\"\n");
+  }
+
+  @Test
+  void aCleanCaptureGainsNoLossKeys() {
+    var frontmatter = new FrontmatterBuilder().build(oneCallTree());
+
+    assertThat(frontmatter)
+        .as("absent entirely on a clean capture, so no existing document gained a key")
+        .doesNotContain("incomplete:")
+        .doesNotContain("dropped_events:")
+        .doesNotContain("refused_scopes:")
+        .doesNotContain("refused_spans:");
+  }
+
+  @Test
+  void aLossyCaptureReportsEachCounterUnderItsOwnKey() {
+    var frontmatter = new FrontmatterBuilder().build(lossyTree(new TraceLoss(2L, 3L, 4L)));
+
+    assertThat(frontmatter).contains("incomplete: true\n");
+    assertThat(frontmatter)
+        .as("three counters, three meanings — a swap between them must be visible")
+        .contains("dropped_events: 2\n")
+        .contains("refused_scopes: 3\n")
+        .contains("refused_spans: 4\n");
+  }
+
+  private static DefaultTraceTree lossyTree(TraceLoss loss) {
+    return new DefaultTraceTree(oneCallTree().roots(), null, loss);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "1., true",
+    ".5, true",
+    "1e5, true",
+    "1_000.5, true",
+    "-.inf, true",
+    ".NaN, true",
+    "1.2.3, false"
+  })
+  void isFloatLiteralMatchesTheSameBoundaryFormsAsTheRegexItReplaced(
+      String value, boolean expected) {
+    assertThat(FrontmatterBuilder.isFloatLiteral(value)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "2026-11-09, true",
+    "2026-1-9T1:02:03Z, true",
+    "2026-11-09 10:00:00 +01:00, true",
+    "2026-11-09x, false"
+  })
+  void isTimestampLiteralMatchesTheSameBoundaryFormsAsTheRegexItReplaced(
+      String value, boolean expected) {
+    assertThat(FrontmatterBuilder.isTimestampLiteral(value)).isEqualTo(expected);
   }
 }

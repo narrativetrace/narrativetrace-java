@@ -24,6 +24,7 @@ class MarketplaceJsonRendererTest {
         "./.claude",
         "Apache-2.0",
         "https://narrativetrace.ai",
+        "https://github.com/narrativetrace/narrativetrace-x",
         List.of("tracing", "agent-skills"));
   }
 
@@ -82,6 +83,7 @@ class MarketplaceJsonRendererTest {
             "./.claude",
             "Apache-2.0",
             "https://narrativetrace.ai",
+            "https://github.com/narrativetrace/narrativetrace-x",
             List.of("tracing"));
 
     assertThat(MarketplaceJsonRenderer.render(hostile))

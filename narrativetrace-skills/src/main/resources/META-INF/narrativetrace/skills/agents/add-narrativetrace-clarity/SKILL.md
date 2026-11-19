@@ -14,12 +14,24 @@ Choose the path that matches the request:
 - Missing test reports or an existing quality gate to repair: follow the matching JUnit path below. Validate the repair with clean clarityCheck and fresh test reports; a static scan cannot verify this repair.
 - Optional future CI advice: explain the matching JUnit path and gate without changing policy until requested.
 
-## 2. Apply the plugin only when the project needs it
+## 2. Resolve the newest NarrativeTrace release
+
+**when:** the plugin below is being added to the build; a project that already applies it keeps the version it declares
+
+```bash
+curl -s https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml | grep -o '<release>[^<]*' | cut -d'>' -f2
+```
+
+**verify:** the command printed one release number, digits and dots; write that exact number wherever a coordinate below says `<version>`, in every NarrativeTrace dependency and plugin line you add — the libraries and the Gradle plugin are published at the same version, so this one lookup serves them all; never write a number from memory, from a document, or from an older pin in the project. If curl is not available, open https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml and read its `<release>` element
+
+**failure:** the command prints nothing, or an error → no network, or a proxy that blocks repo1.maven.org → read the `<release>` element of https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml with any other fetch tool; if it cannot be reached at all, stop and tell the user instead of guessing a version
+
+## 3. Apply the plugin only when the project needs it
 
 ```kotlin
 plugins {
     java
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "<version>"
 }
 
 repositories {
@@ -29,7 +41,7 @@ repositories {
 
 **verify:** the project has one NarrativeTrace plugin configuration, and its existing settings and thresholds are preserved. When applying the plugin to a JUnit 4 project, also set narrativeTrace { testFramework.set("junit4") } before running tasks, including a static scan; do not silently switch its tests to the default JUnit 5 mode. For a TestNG project set narrativeTrace { testFramework.set("testng") } the same way
 
-## 3. Run a clean static scan for a first naming report
+## 4. Run a clean static scan for a first naming report
 
 ```bash
 ./gradlew clean clarityScan
@@ -39,7 +51,7 @@ repositories {
 
 **failure:** the task is not found → the ai.narrativetrace plugin is not applied in this consumer project → apply id("ai.narrativetrace") alongside java, then rerun the scan
 
-## 4. Check both report artifacts and read their contents
+## 5. Check both report artifacts and read their contents
 
 ```bash
 find build/narrativetrace -name "clarity-scan-results.json"
@@ -48,7 +60,7 @@ find build/narrativetrace -name "clarity-scan-report.md"
 
 **verify:** both build/narrativetrace/clarity-scan-results.json and build/narrativetrace/clarity-scan-report.md are fresh, nonempty, and were read; the scan JSON has nonempty scenarios with elements arrays and the Markdown explains ranked issues when any exist plus per-element notes. These scan artifacts remain distinct from the JUnit test artifacts build/narrativetrace/clarity-results.json and build/narrativetrace/clarity-report.md
 
-## 5. Explain scores, notes, and coverage
+## 6. Explain scores, notes, and coverage
 
 **verify:** Base the explanation on the report you read:
 
@@ -58,7 +70,7 @@ find build/narrativetrace -name "clarity-scan-report.md"
 - structuralScore reflects parameter count and call depth. Static scanning uses flat nodes: it assesses parameter count but cannot establish runtime call depth or test coverage.
 - Cohesion measures vocabulary consistency within classes. An empty issues array means no scoring rules flagged an issue; it does not prove every name is unambiguous.
 
-## 6. For JUnit 5, register the extension and capture calls
+## 7. For JUnit 5, register the extension and capture calls
 
 <!-- snippet: narrativetrace-skills-catalogue/evals/fixtures/clarity-consumer/src/test/java/com/example/orders/OrderServiceTest.java -->
 ```java
@@ -84,7 +96,7 @@ class OrderServiceTest {
 
 **verify:** adapt this example to an existing service interface and its implementation. Register the extension and execute a proxied call. The plugin supplies -parameters and JUnit runtime dependencies, but does not register the extension. Output defaults to true; remove an explicit narrativetrace.output=false when enabling reports. Alternative to @ExtendWith on every class: set junit.jupiter.extensions.autodetection.enabled=true in junit-platform.properties when the project prefers not to annotate each test class; this registers every ServiceLoader-published extension on the test classpath, not only NarrativeTrace's, and still requires a proxied call to actually capture a trace
 
-## 7. For JUnit 4, retain its framework configuration
+## 8. For JUnit 4, retain its framework configuration
 
 ```kotlin
 narrativeTrace {
@@ -94,7 +106,7 @@ narrativeTrace {
 
 **verify:** use this branch only for an existing JUnit 4 suite; skip the JUnit 5 example. The plugin adds narrativetrace-junit4 and leaves the JUnit 4 runner in use. A plain JUnit 4 suite does not need Jupiter or useJUnitPlatform(); preserve an intentional Vintage setup if the project already uses one
 
-## 8. For JUnit 4, link the class rule and per-test rule
+## 9. For JUnit 4, link the class rule and per-test rule
 
 <!-- snippet: narrativetrace-junit4-example/src/test/java/ai/narrativetrace/examples/junit4/GreetingServiceTest.java -->
 ```java
@@ -128,7 +140,7 @@ public class GreetingServiceTest {
 
 **verify:** adapt the compiled example to the project's service. Use org.junit.Test, a public test class and public test methods, a public static @ClassRule, and a public @Rule created by classRule.testRule(). Capture calls through narrativeTrace.context(). A standalone new NarrativeTraceRule() writes per-test traces but does not feed the class rule's aggregate Clarity report. NarrativeTestCase is an alternative only when the test can use that superclass. Output defaults to true; JUnit 4 reads narrativetrace.output and outputDir as test JVM system properties, not junit-platform.properties. The linked class rule writes clarity-results.json and clarity-report.md after each class, aggregating completed classes in that JVM
 
-## 9. For TestNG, keep its runner and let the listener attach itself
+## 10. For TestNG, keep its runner and let the listener attach itself
 
 ```kotlin
 narrativeTrace {
@@ -138,7 +150,7 @@ narrativeTrace {
 
 **verify:** use this branch only for an existing TestNG suite; skip the JUnit 5 and JUnit 4 examples. The plugin adds narrativetrace-testng and calls useTestNG(), so the runner stays TestNG. Without the plugin the line is testImplementation("ai.narrativetrace:narrativetrace-testng:<version>"). No code changes in the tests: TestNG's service loader registers the listener, so no @Listeners is needed; add @Listeners(NarrativeTraceListener.class) only for a runner that skips service-loader listeners. A test reaches the context through NarrativeTraceListener.context(). Configure output with the narrativetrace.* system properties (narrativetrace.output, outputDir), not junit-platform.properties; the run's files are written when the TestNG run ends, not per class
 
-## 10. Add enforcement only when requested
+## 11. Add enforcement only when requested
 
 ```kotlin
 narrativeTrace {
@@ -152,7 +164,7 @@ narrativeTrace {
 
 **verify:** ./gradlew clean clarityCheck
 
-## 11. Verify the test report before calling the gate successful
+## 12. Verify the test report before calling the gate successful
 
 **verify:** After clean clarityCheck, read fresh clarity-results.json and clarity-report.md in the configured outputDir; require nonempty scenarios with scores and elements.
 
@@ -162,7 +174,7 @@ narrativeTrace {
 - Missing JSON skips the gate; warnOnly=true is advisory. Neither proves enforcement.
 - When enforcement is requested, temporarily tighten a threshold above an observed test score, confirm the specific Clarity check failed diagnostic, restore the original policy, and rerun.
 
-## 12. Hand missing tracing or output setup to the doctor
+## 13. Hand missing tracing or output setup to the doctor
 
 **verify:** if trace reports remain missing, run narrativetrace-doctor for diagnosis. For a JUnit 4 suite its config.junit4-rule check reports a suite with no NarrativeTrace rule linked; it does not tell a standalone NarrativeTraceRule from one created by classRule.testRule(), so confirm that linkage for the aggregate report yourself. Its extension, Jupiter-version, and launcher checks target JUnit 5 and are not a reason to migrate a JUnit 4 suite. For a TestNG suite its config.testng-listener check reports narrativetrace-testng missing from testImplementation; the listener needs no other wiring. When the user requested setup or repair, apply the identified configuration fix and repeat verification; do not stop after merely naming the doctor
 

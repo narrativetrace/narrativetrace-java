@@ -7,39 +7,35 @@
  */
 package ai.narrativetrace.skills.render;
 
-import ai.narrativetrace.skills.CommandVocabulary;
 import ai.narrativetrace.skills.Skill;
 import java.nio.file.Path;
-import java.util.stream.Collectors;
 
 /**
  * Renders a typed {@link Skill} into the Claude plugin's {@code SKILL.md} shape: YAML frontmatter
- * ({@code name}, {@code description}, optional {@code when_to_use}, {@code allowed-tools} emitted
- * from the command vocabulary — harness principle 7, runtime-enforced, not just linted) followed by
- * the shared page body ({@link SkillBody}). This is BUILD OUTPUT — the typed {@link Skill} is the
- * only place any of this text is hand-written.
+ * ({@code name}, {@code description}, optional {@code when_to_use}) followed by the shared page
+ * body ({@link SkillBody}). This is BUILD OUTPUT — the typed {@link Skill} is the only place any of
+ * this text is hand-written.
  *
- * <p>{@code allowed-tools} carries TOOL PATTERNS, never command names ({@link
- * CommandVocabulary#claudeToolPattern}): the field lists tools, and a permission rule is spelled
- * {@code Tool} or {@code Tool(specifier)}, so a bare {@code git} there names a tool that does not
- * exist and pre-approves nothing at all. The rendering is pinned by {@code
- * Lints#allowedToolsViolations} — the catalogue declares commands, this renderer spells them, and
- * neither side may quietly become the other.
+ * <p><b>No {@code allowed-tools} line, ever.</b> Anthropic's plugin directory accepts {@code
+ * allowed-tools} beyond the read-only tools (Read, Grep, Glob, LS) only from Verified
+ * organizations, and this publisher is not one (the portal's validation blocked a submission on
+ * exactly this line, and held it again as "pre-approves broad shell access"). So the page never
+ * pre-approves a command: a user gets Claude Code's normal permission prompt the first time a skill
+ * runs {@code ./gradlew}, {@code git} or {@code find}.
  *
- * <p>A skill that declares NO allowed tool gets no {@code allowed-tools} line at all, not an empty
- * one. The field grants its listed tools for the turn that loads the skill WITHOUT prompting, so
- * for a skill whose commands can make something public, the absence of the field is the safety
- * property: every command then asks. An empty value would be a field whose meaning depends on how
- * the reader parses it, which is not a property anything can rely on. {@code
- * Lints#publishingNotPreApproved} is the other half of that guarantee.
+ * <p>A skill's declared {@link Skill#allowedTools()} stay in the model as the closed set of
+ * commands it runs, which {@code Lints#allowedToolsViolations} and the lints that keep a publishing
+ * or promoting skill from ever declaring its own command still read, and which the plugin README
+ * discloses. They are data about the skill, not a rendering: nothing here turns them into
+ * frontmatter, and {@code RenderDriftTest} fails if a committed page carries the key.
  *
  * <p>{@code name:} is always the skill's {@link Skill#canonicalName()} — never a shortened "claude
  * segment". RULED 2026-09-04 (reaffirmed 2026-09-13): the {@code narrativetrace} prefix is Claude's
- * PLUGIN namespace, not a skill's own name, and this repository ships no plugin — a repo-level
- * {@code .claude/skills/} directory is a flat namespace exactly like Codex's or Antigravity's, so a
- * shortened name (e.g. {@code doctor}) would collide with every other vendor's skill of the same
- * generic name. There is deliberately no shortening code path left to keep this true; see {@link
- * CodexSkillRenderer} for the sibling platform this same catalogue also renders.
+ * PLUGIN namespace, not a skill's own name, and a repo-level {@code .claude/skills/} directory is a
+ * flat namespace exactly like Codex's or Antigravity's, so a shortened name (e.g. {@code doctor})
+ * would collide with every other vendor's skill of the same generic name. There is deliberately no
+ * shortening code path left to keep this true; see {@link CodexSkillRenderer} for the sibling
+ * platform this same catalogue also renders.
  */
 public final class ClaudeSkillRenderer {
 
@@ -58,27 +54,10 @@ public final class ClaudeSkillRenderer {
     skill
         .whenToUseOptional()
         .ifPresent(w -> out.append("when_to_use: ").append(SkillBody.yamlQuote(w)).append('\n'));
-    if (!skill.allowedTools().isEmpty()) {
-      out.append("allowed-tools: ").append(allowedToolsValue(skill)).append('\n');
-    }
     out.append("---\n\n");
 
     SkillBody.append(out, skill, repoRoot);
 
     return out.toString();
-  }
-
-  /**
-   * The {@code allowed-tools} value: every declared command as a {@link
-   * CommandVocabulary#claudeToolPattern} tool pattern, comma-separated.
-   *
-   * <p>Comma-separated rather than the documentation's other accepted form (space-separated): a
-   * pattern carries spaces of its own ({@code Bash(git *)}), so only the comma reads back
-   * unambiguously.
-   */
-  private static String allowedToolsValue(Skill skill) {
-    return skill.allowedTools().stream()
-        .map(CommandVocabulary::claudeToolPattern)
-        .collect(Collectors.joining(", "));
   }
 }

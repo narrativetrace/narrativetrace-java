@@ -129,10 +129,25 @@ public final class SnapshotBuilder {
    *     failing a project for what nobody could look up
    */
   public static DoctorSnapshot build(Path projectRoot, Carrier carrier) {
-    return build(projectRoot, carrier, DEFAULT_MAX_FILES);
+    return build(projectRoot, projectRoot, carrier, DEFAULT_MAX_FILES);
+  }
+
+  /**
+   * A snapshot whose agent-skills half is read from {@code skillsRoot} while everything else — the
+   * build file, dependencies, sources, approvals — is read from {@code projectRoot}. A module of a
+   * multi-project build is diagnosed as itself, but its agent skills live once at the repository
+   * root.
+   */
+  public static DoctorSnapshot build(Path projectRoot, Path skillsRoot, Carrier carrier) {
+    return build(projectRoot, skillsRoot, carrier, DEFAULT_MAX_FILES);
   }
 
   static DoctorSnapshot build(Path projectRoot, Carrier carrier, int maxFiles) {
+    return build(projectRoot, projectRoot, carrier, maxFiles);
+  }
+
+  private static DoctorSnapshot build(
+      Path projectRoot, Path skillsRoot, Carrier carrier, int maxFiles) {
     DoctorSnapshot.Builder builder =
         DoctorSnapshot.builder().runningJavaVersion(System.getProperty("java.version", "unknown"));
 
@@ -164,7 +179,7 @@ public final class SnapshotBuilder {
             || autodetectionEnabledViaPropertiesFile
             || AUTODETECTION_SYSTEM_PROPERTY.matcher(buildFile).find());
 
-    readAgentSkills(projectRoot, carrier, builder);
+    readAgentSkills(skillsRoot, carrier, builder);
     return builder.build();
   }
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 4b450bedae95 | translated: 2026-10-27 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 5103978021b5 | translated: 2026-11-15 | reviewed: - -->
 # Guía de configuración de NarrativeTrace Java
 
 [English](../configuration-guide.md) | **Español** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ El plugin de Gradle (`ai.narrativetrace`) lo configura todo automáticamente. Ap
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 
 // La configuración cero funciona — valores predeterminados sensatos para todo:
@@ -459,8 +459,8 @@ luego nombra `INDEX.md` y después imprime el resumen. Gradle oculta la salida d
 las pruebas salvo con `testLogging { showStandardStreams = true }` (las líneas
 siguen en el `system-err` del informe de pruebas); Maven surefire las imprime.
 Cada archivo de traza escrito abre con un máximo de diez líneas que dicen qué es,
-cómo leerlo, en qué línea está la primera llamada que lanzó y dónde están el
-índice y el manifiesto: un comentario HTML en Markdown (tras el frontmatter) y
+cómo leerlo, en qué línea está la primera llamada que lanzó (si ninguna lo hizo, el
+mensaje de fallo de la propia prueba) y dónde están el índice y el manifiesto: un comentario HTML en Markdown (tras el frontmatter) y
 líneas `#` en texto. Los formatos de diagrama y el JSON complementario quedan
 exactamente como los producen los renderizadores.
 
@@ -850,7 +850,7 @@ Se proporciona automáticamente un bean `NarrativeContext` (marcado `@Secondary`
 Añade `narrativetrace-micronaut-http` para el ciclo de vida de traza por petición:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.5")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.6")
 ```
 
 El filtro HTTP reactivo (`HttpServerFilter`) se autorregistra al estar en el classpath. Ciclo de vida: reset → estampar metadatos HTTP → continuar → capturar → exportar → reset.

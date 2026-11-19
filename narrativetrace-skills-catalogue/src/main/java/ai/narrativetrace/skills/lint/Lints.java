@@ -93,13 +93,13 @@ public final class Lints {
 
   /**
    * Every declared allowed tool that is not a bare command of the closed vocabulary: an entry
-   * outside {@link CommandVocabulary#JAVA}, or one already written in a platform's own rendered
-   * spelling (a {@code Bash(...)} tool pattern).
+   * outside {@link CommandVocabulary#JAVA}, or one already written in a platform's own tool-pattern
+   * spelling (a {@code Bash(...)} pattern).
    *
-   * <p>This is what pins the rendering the Claude flavour emits: a catalogue entry is the COMMAND,
-   * and {@link CommandVocabulary#claudeToolPattern} is the single place it becomes a tool pattern.
-   * A hand-written {@code Bash(git *)} in the catalogue would render as {@code Bash(Bash(git *) *)}
-   * — a rule that matches nothing, in a field whose whole purpose is to match something.
+   * <p>A catalogue entry is the COMMAND, as data about what the skill runs. No renderer turns it
+   * into frontmatter any more (the directory accepts {@code allowed-tools} beyond read-only tools
+   * only from Verified organizations), so this keeps the declared set one vocabulary: a platform
+   * spelling in the catalogue would be a second, unreadable one.
    */
   public static List<String> allowedToolsViolations(List<Skill> skills) {
     List<String> violations = new ArrayList<>();
@@ -110,11 +110,49 @@ public final class Lints {
               skill.canonicalName()
                   + ": allowed tool \""
                   + tool
-                  + "\" is a rendered platform spelling — declare the bare command and let the"
-                  + " renderer spell it");
+                  + "\" is a platform tool-pattern spelling — declare the bare"
+                  + " command");
         } else if (!CommandVocabulary.JAVA.contains(tool)) {
           violations.add(
               skill.canonicalName() + ": allowed tool \"" + tool + "\" is outside the vocabulary");
+        }
+      }
+    }
+    return List.copyOf(violations);
+  }
+
+  /** {@code ai.narrativetrace:<module>:<digits>} — a NarrativeTrace library pinned to a number. */
+  private static final Pattern PINNED_COORDINATE =
+      Pattern.compile("(?<![\\w.-])ai\\.narrativetrace:[A-Za-z0-9._-]+:\\d+(?:\\.\\d+)+");
+
+  /** {@code id("ai.narrativetrace") version "<digits>"}, Kotlin and Groovy spellings. */
+  private static final Pattern PINNED_PLUGIN =
+      Pattern.compile(
+          "id\\s*\\(?\\s*([\"'])ai\\.narrativetrace\\1\\s*\\)?\\s+version\\s+[\"']\\d[^\"']*");
+
+  /**
+   * Every NarrativeTrace coordinate, in any skill's shipped text, that carries a literal version
+   * instead of the {@code <version>} placeholder.
+   *
+   * <p>INTENT: the Java skills pin no NarrativeTrace version by design. The agent reads the newest
+   * release from Maven Central and writes that exact number, so a release that leaves the skills
+   * alone leaves their pages byte-identical, and a page never names a number that is not yet
+   * published. Scoped to NarrativeTrace's own coordinates, like the documentation's version lint:
+   * another project's version in a snippet (a logger, a framework) is its own fact.
+   */
+  public static List<String> pinnedNarrativeTraceVersions(List<Skill> skills) {
+    List<String> violations = new ArrayList<>();
+    for (Skill skill : skills) {
+      for (String prose : proseOf(skill)) {
+        for (Pattern pattern : List.of(PINNED_COORDINATE, PINNED_PLUGIN)) {
+          var matcher = pattern.matcher(prose);
+          while (matcher.find()) {
+            violations.add(
+                skill.canonicalName()
+                    + ": pins a NarrativeTrace version in \""
+                    + matcher.group()
+                    + "\" — write the <version> placeholder");
+          }
         }
       }
     }
@@ -200,11 +238,11 @@ public final class Lints {
    * A skill whose steps can make something public must declare NO allowed tool that would
    * pre-approve the command doing it.
    *
-   * <p>INTENT: the Claude flavour's {@code allowed-tools} grants its listed tools for the turn that
-   * LOADS the skill, without prompting. A reporting skill that declared {@code ./gradlew} would
-   * therefore pre-approve its own reporting command — the harness would stop asking exactly where
-   * asking is the product. The absence of the field is the safety property, so it is linted rather
-   * than left to whoever edits the catalogue next.
+   * <p>INTENT: a Claude {@code allowed-tools} line grants its listed tools for the turn that LOADS
+   * the skill, without prompting, so a reporting skill that declared {@code ./gradlew} would
+   * pre-approve its own reporting command — the harness would stop asking exactly where asking is
+   * the product. No rendered page carries the line today, and this lint keeps the declared set
+   * honest so that the safety property survives if a flavour ever emits it again.
    *
    * <p><b>@llmNote</b> Named {@code sendNotPreApproved} in the design, before the private endpoint
    * was deferred and "send" became "file publicly". Same rule, honest name: nothing is sent

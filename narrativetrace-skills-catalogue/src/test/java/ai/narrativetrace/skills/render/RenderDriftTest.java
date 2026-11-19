@@ -52,6 +52,20 @@ class RenderDriftTest {
     assertThat(readText(onDisk)).isEqualTo(ClaudeSkillRenderer.render(skill));
   }
 
+  /**
+   * The directory rejects {@code allowed-tools} beyond Read/Grep/Glob/LS from an unverified
+   * publisher (owner ruling 2026-11-19): not one committed Claude page, in the repository or in the
+   * carrier, may carry the key.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("skills")
+  void noCommittedClaudePageCarriesAnAllowedToolsLine(Skill skill) {
+    assertThat(readText(RenderPaths.claudeSkillMd(REPO_ROOT, skill)))
+        .doesNotContain("allowed-tools");
+    assertThat(readText(RenderPaths.carrierClaudeSkillMd(REPO_ROOT, skill)))
+        .doesNotContain("allowed-tools");
+  }
+
   @ParameterizedTest(name = "{0}")
   @MethodSource("skills")
   void renderedCodexSkillMdMatchesTheTypedCatalogue(Skill skill) {
@@ -99,6 +113,43 @@ class RenderDriftTest {
         .exists();
     assertThat(readText(onDisk))
         .isEqualTo(MarketplaceJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+  }
+
+  @Test
+  void claudePluginJsonMatchesTheTypedCatalogue() {
+    Path onDisk = RenderPaths.claudePluginJson(REPO_ROOT);
+    assertThat(onDisk).as(onDisk + " must exist — run renderSkills and commit it").exists();
+    assertThat(readText(onDisk))
+        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+  }
+
+  @Test
+  void claudePluginReadmeMatchesTheTypedCatalogue() {
+    Path onDisk = RenderPaths.claudePluginReadme(REPO_ROOT);
+    assertThat(onDisk).as(onDisk + " must exist — run renderSkills and commit it").exists();
+    assertThat(readText(onDisk))
+        .isEqualTo(
+            ClaudePluginReadmeRenderer.render(CatalogueIndex.MARKETPLACE, CatalogueIndex.ALL));
+  }
+
+  /**
+   * The directory's listing icon is the OpenAI package's logo, byte for byte: one brand asset, two
+   * copies, and this is what keeps them one. The vendor wants a square PNG of 512 to 2048 pixels
+   * under 2 MB.
+   */
+  @Test
+  void claudePluginIconIsByteIdenticalToTheOpenAiLogo() throws IOException {
+    Path icon = RenderPaths.claudePluginIcon(REPO_ROOT);
+    assertThat(icon).as(icon + " must exist — run renderSkills and commit it").exists();
+    byte[] bytes = Files.readAllBytes(icon);
+
+    assertThat(bytes)
+        .isEqualTo(
+            Files.readAllBytes(RenderPaths.openAiPluginAssets(REPO_ROOT).resolve("logo.png")));
+    assertThat(PngDimensions.width(bytes))
+        .isEqualTo(PngDimensions.height(bytes))
+        .isBetween(512, 2048);
+    assertThat(bytes.length).isLessThan(2 * 1024 * 1024);
   }
 
   @Test

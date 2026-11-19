@@ -22,7 +22,9 @@ import java.security.ProtectionDomain;
  * its loader; {@link ExcludedPackages} runs next — list 2, configurable, {@code exclude=} always
  * winning over {@code packages=}; {@link GeneratedClassNames} runs after that — list 1's name-shape
  * rule, cheap and silent, so a generator-shaped class never triggers a loader-visibility report
- * either; {@link LoaderVisibility} runs last so a matched, non-excluded, non-generated class whose
+ * either; {@link TestCodeClasses} runs next — list 3, test code, skipped unless {@code
+ * tests=trace}, so test code never triggers a loader-visibility report either; {@link
+ * LoaderVisibility} runs last so a matched, non-excluded, non-generated, non-test class whose
  * loader cannot resolve {@link AgentRuntime} loads uninstrumented instead of becoming a {@link
  * NoClassDefFoundError} in the host's own call (B-125).
  */
@@ -30,6 +32,7 @@ public final class NarrativeClassFileTransformer implements ClassFileTransformer
 
   private final AgentConfig config;
   private final ExcludedPackages excludedPackages;
+  private final TestCodeClasses testCode = new TestCodeClasses();
   private final LoaderVisibility loaderVisibility = new LoaderVisibility();
 
   public NarrativeClassFileTransformer(AgentConfig config) {
@@ -55,6 +58,9 @@ public final class NarrativeClassFileTransformer implements ClassFileTransformer
     }
     if (GeneratedClassNames.isGenerated(className)) {
       return null; // list 1, structural, silent — see GeneratedClassNames
+    }
+    if (!config.traceTests() && testCode.isTestCode(className, protectionDomain, classfileBuffer)) {
+      return null; // list 3, structural by origin then content — TestCodeClasses reported, once
     }
     if (!loaderVisibility.canReachRuntime(loader, className)) {
       return null; // woven bytecode would not link from here — LoaderVisibility said so, once

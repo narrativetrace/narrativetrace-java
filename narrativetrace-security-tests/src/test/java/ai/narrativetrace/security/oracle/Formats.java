@@ -304,14 +304,25 @@ public final class Formats {
   }
 
   /**
-   * How many ATX heading lines a Markdown document carries.
+   * How many headings a Markdown document carries: the ATX form, plus a paragraph line a setext
+   * underline ({@code =} or {@code -}, alone on its own line) turns into a heading.
    *
    * <p>A heading is document structure the renderer alone may write; a value or a scenario that
    * adds one has forged the document's outline (The 2026-09-08 audit did exactly that through the
-   * body header's raw scenario).
+   * body header's raw scenario; ADV-2026-11-02-2 forged one through the setext spelling instead).
    */
   public static long headingCount(String markdown) {
-    return markdown.lines().filter(line -> line.matches("#{1,6} .*")).count();
+    var lines = markdown.lines().toList();
+    var count = 0L;
+    for (var i = 0; i < lines.size(); i++) {
+      var line = lines.get(i);
+      var underlinesAParagraph =
+          line.matches("(?:=+|-+)\\s*") && i > 0 && !lines.get(i - 1).isBlank();
+      if (line.matches("#{1,6} .*") || underlinesAParagraph) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /** How many frontmatter fences a Markdown document carries: exactly two, or it is broken. */

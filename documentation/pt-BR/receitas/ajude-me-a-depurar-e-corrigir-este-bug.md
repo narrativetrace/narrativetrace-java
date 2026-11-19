@@ -1,4 +1,4 @@
-<!-- source: documentation/recipes/help-me-debug-and-fix-this-bug.md blob f2a6f2f6e0b7 | translated: 2026-10-22 | reviewed: - -->
+<!-- source: documentation/recipes/help-me-debug-and-fix-this-bug.md blob 01d516d50ffe | translated: 2026-11-15 | reviewed: - -->
 # Ajude-me a depurar e corrigir este bug
 
 [English](../../recipes/help-me-debug-and-fix-this-bug.md) | [Español](../../es/recetas/ayudame-a-depurar-y-arreglar-este-error.md) | **Português** | [简体中文](../../zh-CN/实用方案/帮我调试并修复这个缺陷.md)
@@ -184,7 +184,7 @@ error_count: 2
 NarrativeTrace trace file
 What this is: the recorded call tree of one test run: DeclinedPaymentFixture.the_stock_is_released_when_the_card_is_declined_before_the_fix, failed, 1.462 ms.
 How to read it: indentation is call nesting; each line is one call with its parameters and its return value or thrown exception, as rendered values. [REDACTED] marks a redacted value.
-Failing call: line 31 of this file (the first call that threw).
+Failing call: line 32 of this file (the first call that threw).
 Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written when the run ends).
 -->
 
@@ -192,6 +192,7 @@ Run index: ../../INDEX.md. Artifact list: ../../manifest.json (both are written 
 
 **Scenario:** The stock is released when the card is declined before the fix
 **Duration:** 2.003ms | **Result:** FAILED
+**Test failure:** \nexpected: 5\n but was: 3
 
 ### Call Flow
 

@@ -50,6 +50,9 @@ Choose the path that matches the request:
                     .strip(),
                 List.of(),
                 null),
+            ReleaseLookup.step(
+                "the plugin below is being added to the build; a project that already applies it"
+                    + " keeps the version it declares"),
             new SkillStep(
                 "Apply the plugin only when the project needs it",
                 new StepBody.CodeStep(
@@ -57,7 +60,7 @@ Choose the path that matches the request:
                     """
                     plugins {
                         java
-                        id("ai.narrativetrace") version "0.5.5"
+                        id("ai.narrativetrace") version "<version>"
                     }
 
                     repositories {

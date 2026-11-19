@@ -51,7 +51,7 @@ import org.gradle.api.tasks.UntrackedTask;
             + " output for Gradle to compare")
 public abstract class NarrativeTraceRefreshSkillsTask extends DefaultTask {
 
-  /** The project to refresh — this project's own directory in real use. */
+  /** Where to refresh — the repository root's directory in real use, whichever project ran. */
   @Internal
   public abstract DirectoryProperty getTargetDir();
 
@@ -63,9 +63,16 @@ public abstract class NarrativeTraceRefreshSkillsTask extends DefaultTask {
   @Input
   public abstract Property<String> getCarrierCoordinate();
 
+  /** The build-wide claim that makes this task run once per build; see {@link InstallerClaims}. */
+  @Internal
+  public abstract Property<InstallerClaims> getClaims();
+
   @TaskAction
   public void refresh() {
     Path project = getTargetDir().get().getAsFile().toPath();
+    if (!getClaims().get().claimOrSkip(this, project)) {
+      return;
+    }
     ProjectState state = ProjectStateReader.read(project);
     if (!RefreshPlanner.isInstalled(state)) {
       return;

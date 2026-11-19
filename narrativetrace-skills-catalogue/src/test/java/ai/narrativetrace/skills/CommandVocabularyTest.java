@@ -19,11 +19,6 @@ class CommandVocabularyTest {
   }
 
   @Test
-  void aVocabularyCommandRendersAsABashToolPatternMatchingItAndItsArguments() {
-    assertThat(CommandVocabulary.claudeToolPattern("git")).isEqualTo("Bash(git *)");
-  }
-
-  @Test
   void firstTokenReadsUpToTheFirstSpace() {
     assertThat(CommandVocabulary.firstToken("./gradlew :sixty-seconds:build"))
         .isEqualTo("./gradlew");

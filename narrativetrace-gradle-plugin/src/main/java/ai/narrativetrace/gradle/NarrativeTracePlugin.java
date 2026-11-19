@@ -13,6 +13,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -59,6 +60,20 @@ public class NarrativeTracePlugin implements Plugin<Project> {
         .getApprovedDir()
         .convention(project.getLayout().getProjectDirectory().dir("src/test/narratives"));
 
+    // The doctor, the feedback command and the installer tasks work on any project that applies
+    // the plugin, Java plugin or not: an aggregator root has no sources and is where the skills
+    // install. Only what hangs off the Java plugin's own tasks waits for it.
+    var coordinate = carrierCoordinate(extension);
+    var carrier = carrierFiles(project, coordinate);
+    var claims =
+        project
+            .getGradle()
+            .getSharedServices()
+            .registerIfAbsent(InstallerClaims.SERVICE_NAME, InstallerClaims.class, spec -> {});
+    registerNarrativeTraceDoctorTask(project, extension, carrier, coordinate);
+    registerNarrativeTraceFeedbackTask(project, extension, carrier, coordinate);
+    registerInstallerTasks(project, carrier, coordinate, claims);
+
     project
         .getPlugins()
         .withId(
@@ -69,11 +84,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
               registerClarityScanTask(project, extension);
               registerGlossaryScanTask(project, extension);
               registerApproveNarrativesTask(project, extension);
-              var coordinate = carrierCoordinate(extension);
-              var carrier = carrierFiles(project, coordinate);
-              registerNarrativeTraceDoctorTask(project, extension, carrier, coordinate);
-              registerNarrativeTraceFeedbackTask(project, extension, carrier, coordinate);
-              registerInstallerTasks(project, carrier, coordinate);
+              registerRefreshSkillsTask(project, carrier, coordinate, claims);
             });
 
     project.afterEvaluate(
@@ -378,6 +389,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                       + " -Pnarrativetrace.doctor.failOnFindings=false.");
               task.setGroup("verification");
               task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getSkillsDir().set(rootDirectory(project));
               task.getReportFile().set(extension.getOutputDir().file("doctor-report.json"));
               task.getFailOnFindings()
                   .convention(
@@ -418,6 +430,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                       + " pre-filled issue-form URL. Sends nothing.");
               task.setGroup("help");
               task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getSkillsDir().set(rootDirectory(project));
               task.getOutputDir().set(extension.getOutputDir());
               task.getCarrier().from(carrier);
               task.getCarrierCoordinate().set(coordinate);
@@ -442,10 +455,21 @@ public class NarrativeTracePlugin implements Plugin<Project> {
    * tracing switched off may still want.
    */
   private void registerInstallerTasks(
-      Project project, FileCollection carrier, Provider<String> coordinate) {
-    registerInitTask(project, carrier, coordinate);
-    registerUninstallTask(project);
-    registerRefreshSkillsTask(project, carrier, coordinate);
+      Project project,
+      FileCollection carrier,
+      Provider<String> coordinate,
+      Provider<InstallerClaims> claims) {
+    registerInitTask(project, carrier, coordinate, claims);
+    registerUninstallTask(project, claims);
+  }
+
+  /**
+   * The repository root's directory, as a value — not the root {@code Project}, which the
+   * configuration cache cannot hold. The agent skills install once there, where an agent session
+   * starts, whichever project's task ran. For a single-project build it is the project directory.
+   */
+  private static Directory rootDirectory(Project project) {
+    return project.getRootProject().getLayout().getProjectDirectory();
   }
 
   /**
@@ -488,7 +512,10 @@ public class NarrativeTracePlugin implements Plugin<Project> {
   }
 
   private void registerInitTask(
-      Project project, FileCollection carrier, Provider<String> coordinate) {
+      Project project,
+      FileCollection carrier,
+      Provider<String> coordinate,
+      Provider<InstallerClaims> claims) {
     project
         .getTasks()
         .register(
@@ -499,7 +526,9 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                   "Installs the NarrativeTrace agent skills into this project and writes the"
                       + " AGENTS.md section. Use --diff to see the plan first.");
               task.setGroup(TASK_GROUP);
-              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getTargetDir().set(rootDirectory(project));
+              task.getClaims().set(claims);
+              task.usesService(claims);
               task.getCarrier().from(carrier);
               task.getCarrierCoordinate().set(coordinate);
               task.getDiff().convention(false);
@@ -512,7 +541,7 @@ public class NarrativeTracePlugin implements Plugin<Project> {
             });
   }
 
-  private void registerUninstallTask(Project project) {
+  private void registerUninstallTask(Project project, Provider<InstallerClaims> claims) {
     project
         .getTasks()
         .register(
@@ -522,7 +551,9 @@ public class NarrativeTracePlugin implements Plugin<Project> {
               task.setDescription(
                   "Removes exactly what narrativetraceInit wrote, and nothing beside it.");
               task.setGroup(TASK_GROUP);
-              task.getTargetDir().set(project.getLayout().getProjectDirectory());
+              task.getTargetDir().set(rootDirectory(project));
+              task.getClaims().set(claims);
+              task.usesService(claims);
               task.getDiff().convention(false);
               task.getOnly().convention("");
               task.getJson().convention(false);
@@ -536,7 +567,10 @@ public class NarrativeTracePlugin implements Plugin<Project> {
    * all in a project that never ran {@code narrativetraceInit}.
    */
   private void registerRefreshSkillsTask(
-      Project project, FileCollection carrier, Provider<String> coordinate) {
+      Project project,
+      FileCollection carrier,
+      Provider<String> coordinate,
+      Provider<InstallerClaims> claims) {
     var refresh =
         project
             .getTasks()
@@ -547,7 +581,9 @@ public class NarrativeTracePlugin implements Plugin<Project> {
                   task.setDescription(
                       "Rewrites installed NarrativeTrace agent skills that are older than the"
                           + " resolved carrier. Never installs anything.");
-                  task.getTargetDir().set(project.getLayout().getProjectDirectory());
+                  task.getTargetDir().set(rootDirectory(project));
+                  task.getClaims().set(claims);
+                  task.usesService(claims);
                   task.getCarrier().from(carrier);
                   task.getCarrierCoordinate().set(coordinate);
                 });

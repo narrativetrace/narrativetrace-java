@@ -100,7 +100,9 @@ class FailurePointerAndIndexTest {
         .contains("MixedOutcomeFailingTestFixture.ePassesThird | passed |");
     var row =
         index.lines().filter(line -> line.contains("bFailsOnStock")).findFirst().orElseThrow();
-    assertThat(row).endsWith("| stock check \\| failed\\nsecond line |");
+    // The message reaching RunIndex is already control-sanitised to the two characters \n;
+    // cell() escapes that backslash before the pipe, so the row carries \\n, not \n.
+    assertThat(row).endsWith("| stock check \\| failed\\\\nsecond line |");
   }
 
   @Test

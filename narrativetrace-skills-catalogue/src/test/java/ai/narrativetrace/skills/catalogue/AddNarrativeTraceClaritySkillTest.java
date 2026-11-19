@@ -63,6 +63,18 @@ class AddNarrativeTraceClaritySkillTest {
     assertThat(((StepBody.SnippetStep) linking.body()).path()).isEqualTo(row.fixture());
   }
 
+  /** The plugin line carries the placeholder, and the lookup step sits right before it. */
+  @Test
+  void resolvesTheNewestReleaseRightBeforeApplyingThePluginAndPinsNoVersion() {
+    var steps = AddNarrativeTraceClaritySkill.build().steps();
+    int apply = steps.indexOf(stepTitled("Apply the plugin only when the project needs it"));
+
+    assertThat(steps.get(apply - 1).title()).isEqualTo(ReleaseLookup.step().title());
+    assertThat(((StepBody.CodeStep) steps.get(apply).body()).code())
+        .contains("id(\"ai.narrativetrace\") version \"<version>\"")
+        .doesNotContainPattern("version \"\\d");
+  }
+
   private static SkillStep stepTitled(String title) {
     return AddNarrativeTraceClaritySkill.build().steps().stream()
         .filter(step -> step.title().equals(title))

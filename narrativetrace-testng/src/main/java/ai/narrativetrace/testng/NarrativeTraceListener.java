@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.testng.IExecutionListener;
 import org.testng.IInvokedMethod;
 import org.testng.IInvokedMethodListener;
+import org.testng.ITestNGMethod;
 import org.testng.ITestResult;
 import org.testng.internal.TestResult;
 
@@ -266,13 +267,17 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       return;
     }
     var context = SharedPipeline.shared().context();
-    var trace = context.captureTrace();
+    var captured = context.captureTrace();
     var depth = Optional.ofNullable(OPEN_DEPTH.get()).orElse(TraceDepth.PUBLIC);
     var deepSpansDropped =
         depth == TraceDepth.INTERNAL ? SharedPipeline.shared().agentBridge().endDeepScope() : 0;
     var run = TestNgRun.current();
     var loss = context.traceLoss().since(scopeBaseline());
     run.recordLoss(loss);
+    // Every artifact is written from the tree, so the tree carries this test's share too — the
+    // capture's own reading is the shared pipeline's running total (B-342). See
+    // TraceTestSupport#withTestLoss for which test a ring overwrite is charged to.
+    var trace = TraceTestSupport.withTestLoss(captured, loss);
     var identity = artifactIdentity(testResult, run);
     // An invocation is titled by its method and its number, never by its arguments.
     var displayName =
@@ -311,10 +316,11 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
    *
    * <p>A method TestNG runs more than once — a data provider's rows, {@code invocationCount}, the
    * instances a {@code @Factory} made — owns one artifact per invocation, numbered from 1: a
-   * data-provider row by its row index (deterministic even under {@code parallel = true}), any
-   * other repetition by the order it started in this run. The invocation label stays empty, so the
-   * file is {@code <method>-00n}: TestNG's text for a row is its arguments' {@code toString}, and
-   * rendering never runs a value's own code.
+   * data-provider row that runs once by its row index (deterministic even under {@code parallel =
+   * true}), a data-provider row that also repeats by row then repeat (see {@link
+   * #dataDrivenIndex}), any other repetition by the order it started in this run. The invocation
+   * label stays empty, so the file is {@code <method>-00n}: TestNG's text for a row is its
+   * arguments' {@code toString}, and rendering never runs a value's own code.
    *
    * <p><b>@edgeCase</b> The row index is read from TestNG's own result class, {@code
    * org.testng.internal.TestResult}; a result of any other class falls back to start order.
@@ -327,11 +333,35 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
     if (!method.isDataDriven() && method.getInvocationCount() <= 1 && !factoryMade) {
       return ArtifactIdentity.ofMethod(testClassName, methodName);
     }
+    var methodKey = testClassName + "#" + methodName;
     var index =
         method.isDataDriven() && !factoryMade && testResult instanceof TestResult row
-            ? row.getParameterIndex() + 1
-            : run.nextInvocation(testClassName + "#" + methodName);
+            ? dataDrivenIndex(row, method, run, methodKey)
+            : run.nextInvocation(methodKey);
     return ArtifactIdentity.ofInvocation(testClassName, methodName, index, "");
+  }
+
+  /**
+   * The index of one data-driven invocation: the bare row index ({@code rowIndex + 1}) when the
+   * method runs each row once — unchanged, so every existing numbering and file name stays exactly
+   * as it was — or, when {@code invocationCount > 1} repeats every row, {@code rowIndex *
+   * invocationCount + repeatIndex}, numbering row-major so the same suite always produces the same
+   * set of file names. {@code repeatIndex} is the row's own 1-based start-order counter, keyed
+   * separately per row.
+   *
+   * <p><b>@edgeCase</b> Two invocations of the same row may start in either order under {@code
+   * parallel = true}, so which one gets the lower {@code repeatIndex} is not pinned — harmless,
+   * because both invocations share the row's input and are otherwise indistinguishable.
+   */
+  private static int dataDrivenIndex(
+      TestResult row, ITestNGMethod method, TestNgRun run, String methodKey) {
+    var rowIndex = row.getParameterIndex();
+    var invocationCount = method.getInvocationCount();
+    if (invocationCount <= 1) {
+      return rowIndex + 1;
+    }
+    var repeatIndex = run.nextInvocation(methodKey + "#row" + rowIndex);
+    return rowIndex * invocationCount + repeatIndex;
   }
 
   /**
@@ -394,7 +424,9 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       TraceDepth depth,
       long deepSpansDropped) {
     var outputDir = outputDirectory();
-    var delta = write(identity, displayName, trace, failed, outputDir, depth, deepSpansDropped);
+    var message = failed ? failureMessage(failure) : null;
+    var delta =
+        write(identity, displayName, trace, failed, outputDir, depth, deepSpansDropped, message);
     delta.ifPresent(run::recordDelta);
     var scenario = ScenarioFramer.humanize(displayName);
     var row =
@@ -403,7 +435,7 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
             identity,
             scenario,
             failed ? ScenarioManifest.Entry.FAILED : ScenarioManifest.Entry.PASSED,
-            failed ? failureMessage(failure) : null);
+            message);
     run.recordScenario(scenario, trace, row, outputDir);
     return new Written(delta, Optional.of(row));
   }
@@ -441,7 +473,8 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
       boolean failed,
       Path outputDir,
       TraceDepth depth,
-      long deepSpansDropped) {
+      long deepSpansDropped,
+      String testFailure) {
     try {
       var delta =
           TraceTestSupport.writeTraceFile(
@@ -457,7 +490,8 @@ public class NarrativeTraceListener implements IInvokedMethodListener, IExecutio
               !flag("narrativetrace.unfolded"),
               TestNgRun.current().runIdentity().name(),
               depth,
-              deepSpansDropped);
+              deepSpansDropped,
+              testFailure);
       if (flag("narrativetrace.canonicalJson")) {
         TraceTestSupport.writeCanonicalTraceFile(identity, trace, outputDir);
       }

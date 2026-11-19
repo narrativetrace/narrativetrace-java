@@ -27,6 +27,10 @@ import java.util.List;
  * framework — the installed doctor's own framework table is the oracle, so a release that adds a
  * row reaches existing projects through the doctor, never through a stale skill page.
  *
+ * <p>The FIRST step resolves the newest release ({@link ReleaseLookup}); every coordinate below it
+ * carries the {@code <version>} placeholder, so the page pins no number and a release that leaves
+ * the skills alone leaves this page byte-identical.
+ *
  * <p>Every step is written for what an ADOPTER runs in their own project — the install block is the
  * same Maven Central coordinates the onboarding doc's own "Install and first trace" block states,
  * and every command stays in the closed vocabulary ({@link CommandVocabulary#JAVA}); {@code
@@ -146,6 +150,7 @@ public final class AddNarrativeTracingSkill {
         null,
         "sixty-seconds",
         List.of(
+            ReleaseLookup.step(),
             new SkillStep(
                 "Install with the real toolchain",
                 new StepBody.CodeStep(
@@ -162,8 +167,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.5")
+    implementation("ai.narrativetrace:narrativetrace-core:<version>")
+    implementation("ai.narrativetrace:narrativetrace-proxy:<version>")
 }
 
 tasks.withType<JavaCompile> {
@@ -178,9 +183,11 @@ application {   // only when the project has no application entry point of its o
                 List.of(
                     new FailureNote(
                         "dependency resolution fails offline",
-                        "a version pin drifted from what is actually published to Maven Central",
-                        "check the exact coordinate against"
-                            + " documentation/installation-guide.md's dependency block")),
+                        "the version written is not a release that is published to Maven Central",
+                        "rerun the lookup in the first step and write exactly the number it"
+                            + " printed in every <version> placeholder; check the rest of the"
+                            + " coordinate against documentation/installation-guide.md's dependency"
+                            + " block")),
                 null,
                 ENTRY_POINT_ADDS_NO_APPLICATION_PLUGIN),
             new SkillStep(
@@ -206,7 +213,7 @@ application {   // only when the project has no application entry point of its o
                     "kotlin",
                     """
                     dependencies {
-                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.5")
+                        runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:<version>")
                         runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
                     }
                     """),

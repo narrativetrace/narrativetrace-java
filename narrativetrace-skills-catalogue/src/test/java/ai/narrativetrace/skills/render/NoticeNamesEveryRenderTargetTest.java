@@ -41,6 +41,12 @@ class NoticeNamesEveryRenderTargetTest {
         .contains(relative(RenderPaths.codexSkillMd(REPO_ROOT, firstSkill).getParent().getParent()))
         .as("NOTICE must name the marketplace file")
         .contains(relative(RenderPaths.marketplaceJson(REPO_ROOT)))
+        .as("NOTICE must name the Claude plugin manifest")
+        .contains(relative(RenderPaths.claudePluginJson(REPO_ROOT)))
+        .as("NOTICE must name the Claude plugin icon")
+        .contains(relative(RenderPaths.claudePluginIcon(REPO_ROOT)))
+        .as("NOTICE must name the Claude plugin README")
+        .contains(relative(RenderPaths.claudePluginReadme(REPO_ROOT)))
         .as("NOTICE must name the OpenAI plugin directory's package root")
         .contains(relative(RenderPaths.openAiPluginJson(REPO_ROOT).getParent()));
   }

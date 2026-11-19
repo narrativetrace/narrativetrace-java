@@ -26,7 +26,7 @@ The Gradle plugin (`ai.narrativetrace`) configures everything automatically. App
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 
 // Zero-config works — sensible defaults for everything:
@@ -440,8 +440,8 @@ and one per line, then names `INDEX.md`, then prints the summary. Gradle hides
 test output unless `testLogging { showStandardStreams = true }` is set (the
 lines are still in the test report's `system-err`); Maven surefire prints them.
 Every written trace file opens with at most ten lines saying what it is, how to
-read it, which line holds the first call that threw, and where the index and
-manifest are — an HTML comment in Markdown (after the frontmatter) and `#` lines
+read it, which line holds the first call that threw (when none did, the
+test's own failure message), and where the index and manifest are — an HTML comment in Markdown (after the frontmatter) and `#` lines
 in text. The diagram formats and the JSON companion are left exactly as the
 renderers produce them.
 
@@ -811,7 +811,7 @@ A `NarrativeContext` bean is provided automatically (marked `@Secondary`). When 
 Add `narrativetrace-micronaut-http` for per-request trace lifecycle:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.5")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.6")
 ```
 
 The reactive HTTP filter (`HttpServerFilter`) is auto-registered on the classpath. Lifecycle: reset → stamp HTTP metadata → proceed → capture → export → reset.

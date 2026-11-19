@@ -43,12 +43,23 @@ final class NationalIdShapes {
   private static final Pattern RUT =
       Pattern.compile("(?:\\d{1,2}\\.\\d{3}\\.\\d{3}|\\d{7,8})-[0-9kK]");
 
+  /**
+   * Brazil's CPF, bare: the shortest pure-digit form any matcher in this class recognises, and the
+   * value that sets {@link SecretValueShapes#minimumDigitsOnlyLength()}'s floor today.
+   */
+  static final int CPF_DIGITS_ONLY_LENGTH = 11;
+
   /** Brazil: 11 digits, written bare or as {@code NNN.NNN.NNN-NN}. */
-  private static final Pattern CPF = Pattern.compile("\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}|\\d{11}");
+  private static final Pattern CPF =
+      Pattern.compile("\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}|\\d{" + CPF_DIGITS_ONLY_LENGTH + "}");
+
+  /** Brazil's CNPJ, bare. */
+  private static final int CNPJ_DIGITS_ONLY_LENGTH = 14;
 
   /** Brazil: 14 digits, written bare or as {@code NN.NNN.NNN/NNNN-NN}. */
   private static final Pattern CNPJ =
-      Pattern.compile("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}|\\d{14}");
+      Pattern.compile(
+          "\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}|\\d{" + CNPJ_DIGITS_ONLY_LENGTH + "}");
 
   /**
    * United States: {@code AAA-GG-SSSS}, dashes required.
@@ -91,10 +102,41 @@ final class NationalIdShapes {
   /** The Chinese check character, indexed by the weighted sum modulo 11. */
   private static final String CHINESE_CHECK_CHARACTERS = "10X98765432";
 
+  /**
+   * France's NIR, bare: thirteen body digits (sex, year, month, department, commune and order) plus
+   * its own two-digit key, with no separator — the pattern's own groups already sum to this: 1
+   * (sex) + 4 (year and month) + 2 (department) + 8 (commune, order and key).
+   */
+  private static final int NIR_DIGITS_ONLY_LENGTH = 15;
+
+  /**
+   * China's resident id, bare, when its own check character lands on a digit rather than {@code X}:
+   * one check character past every weighted position.
+   */
+  private static final int CHINESE_ID_DIGITS_ONLY_LENGTH = CHINESE_WEIGHTS.length + 1;
+
   private static final int EARLIEST_BIRTH_YEAR = 1900;
   private static final int LATEST_BIRTH_YEAR = 2100;
 
   private NationalIdShapes() {}
+
+  /**
+   * The shortest digits-only length any matcher in this class can accept, combined with the
+   * card-number axis by {@link SecretValueShapes#minimumDigitsOnlyLength()}.
+   *
+   * <p><b>@llmNote</b> The Chilean RUT, the US SSN and the Spanish DNI/NIE are absent from this
+   * computation on purpose: each one's own pattern requires a separator or a trailing letter, so
+   * none of them ever matches a bare run of digits, whatever its length. A matcher added later that
+   * accepts fewer bare digits lowers this floor the moment its own length constant joins this
+   * computation — never widen what an existing matcher accepts to dodge the comparison instead.
+   *
+   * @return the fewest pure digits any matcher in this class can redact
+   */
+  static int minimumDigitsOnlyLength() {
+    return Math.min(
+        Math.min(CPF_DIGITS_ONLY_LENGTH, CNPJ_DIGITS_ONLY_LENGTH),
+        Math.min(NIR_DIGITS_ONLY_LENGTH, CHINESE_ID_DIGITS_ONLY_LENGTH));
+  }
 
   /**
    * Whether the value is a national identity number that passes its own checksum.

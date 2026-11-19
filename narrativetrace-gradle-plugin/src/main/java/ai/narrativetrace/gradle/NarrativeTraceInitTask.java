@@ -54,7 +54,7 @@ import org.gradle.api.tasks.options.Option;
             + " task's outputs")
 public abstract class NarrativeTraceInitTask extends DefaultTask {
 
-  /** The project to install into — this project's own directory in real use. */
+  /** Where to install — the repository root's directory in real use, whichever project ran. */
   @Internal
   public abstract DirectoryProperty getTargetDir();
 
@@ -106,6 +106,10 @@ public abstract class NarrativeTraceInitTask extends DefaultTask {
   @Option(option = "json", description = "Machine-readable output instead of human text.")
   public abstract Property<Boolean> getJson();
 
+  /** The build-wide claim that makes this task run once per build; see {@link InstallerClaims}. */
+  @Internal
+  public abstract Property<InstallerClaims> getClaims();
+
   @TaskAction
   public void install() {
     InitOptions options =
@@ -116,6 +120,9 @@ public abstract class NarrativeTraceInitTask extends DefaultTask {
             getOnly().get(),
             getVendor().get());
     Path project = getTargetDir().get().getAsFile().toPath();
+    if (!getClaims().get().claimOrSkip(this, project)) {
+      return;
+    }
     SkillsCarrier.Resolution resolution =
         SkillsCarrier.resolve(getCarrier()::getFiles, getCarrierCoordinate().get());
     if (resolution.failure() != null) {

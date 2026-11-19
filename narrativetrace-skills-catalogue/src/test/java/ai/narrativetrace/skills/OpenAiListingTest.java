@@ -29,6 +29,7 @@ class OpenAiListingTest {
         "./.claude",
         "Apache-2.0",
         "https://narrativetrace.ai",
+        "https://github.com/narrativetrace/narrativetrace-x",
         List.of("tracing", "agent-skills"));
   }
 

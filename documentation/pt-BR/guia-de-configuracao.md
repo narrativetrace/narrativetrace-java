@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 4b450bedae95 | translated: 2026-10-27 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 5103978021b5 | translated: 2026-11-15 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.5"
+    id("ai.narrativetrace") version "0.5.6"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -452,8 +452,8 @@ linha, depois cita o `INDEX.md` e então imprime o resumo. O Gradle oculta a sa�
 dos testes a menos que `testLogging { showStandardStreams = true }` esteja
 definido (as linhas continuam no `system-err` do relatório de testes); o Maven
 surefire as imprime. Cada arquivo de trace escrito abre com no máximo dez linhas
-dizendo o que ele é, como lê-lo, em que linha está a primeira chamada que lançou
-e onde estão o índice e o manifesto: um comentário HTML no Markdown (depois do
+dizendo o que ele é, como lê-lo, em que linha está a primeira chamada que lançou (se nenhuma lançou, a
+mensagem de falha do próprio teste) e onde estão o índice e o manifesto: um comentário HTML no Markdown (depois do
 frontmatter) e linhas `#` no texto. Os formatos de diagrama e o JSON
 complementar ficam exatamente como os renderizadores os produzem.
 
@@ -834,7 +834,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.5")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.6")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.

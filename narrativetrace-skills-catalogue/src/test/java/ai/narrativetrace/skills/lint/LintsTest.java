@@ -97,8 +97,8 @@ class LintsTest {
   void allowedToolsViolationsRejectsAPreSpelledClaudeToolPattern() {
     assertThat(Lints.allowedToolsViolations(List.of(skillAllowing(List.of("Bash(git *)")))))
         .containsExactly(
-            "narrativetrace-x: allowed tool \"Bash(git *)\" is a rendered platform spelling — "
-                + "declare the bare command and let the renderer spell it");
+            "narrativetrace-x: allowed tool \"Bash(git *)\" is a platform tool-pattern spelling — "
+                + "declare the bare command");
   }
 
   @Test
@@ -234,6 +234,46 @@ class LintsTest {
 
   private static List<String> citationHits(String prose) {
     return Lints.citationViolations(List.of(skillWithDescription(prose)));
+  }
+
+  // --- pinnedNarrativeTraceVersions --------------------------------------------------------------
+
+  private static List<String> pinHits(String code) {
+    Skill skill =
+        new Skill(
+            "narrativetrace-x",
+            SkillClass.MECHANICAL,
+            "d",
+            null,
+            "sixty-seconds",
+            List.of(new SkillStep("s", new StepBody.CodeStep("kotlin", code), "v")),
+            List.of(),
+            List.of(),
+            List.of());
+    return Lints.pinnedNarrativeTraceVersions(List.of(skill));
+  }
+
+  @Test
+  void pinnedNarrativeTraceVersionsFlagsALibraryCoordinateWithALiteralVersion() {
+    assertThat(pinHits("implementation(\"ai.narrativetrace:narrativetrace-core:1.2.3\")"))
+        .containsExactly(
+            "narrativetrace-x: pins a NarrativeTrace version in"
+                + " \"ai.narrativetrace:narrativetrace-core:1.2.3\" — write the <version>"
+                + " placeholder");
+  }
+
+  @Test
+  void pinnedNarrativeTraceVersionsFlagsThePluginIdWithALiteralVersion() {
+    assertThat(pinHits("id(\"ai.narrativetrace\") version \"1.2.3\"")).hasSize(1);
+    assertThat(pinHits("id 'ai.narrativetrace' version '1.2.3'")).hasSize(1);
+  }
+
+  @Test
+  void pinnedNarrativeTraceVersionsAcceptsThePlaceholderAndLeavesOtherProjectsAlone() {
+    assertThat(pinHits("implementation(\"ai.narrativetrace:narrativetrace-core:<version>\")"))
+        .isEmpty();
+    assertThat(pinHits("id(\"ai.narrativetrace\") version \"<version>\"")).isEmpty();
+    assertThat(pinHits("runtimeOnly(\"ch.qos.logback:logback-classic:1.5.38\")")).isEmpty();
   }
 
   // --- publishingNotPreApproved ------------------------------------------------------------------

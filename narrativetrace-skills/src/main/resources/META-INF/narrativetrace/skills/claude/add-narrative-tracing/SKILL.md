@@ -1,12 +1,21 @@
 ---
 name: add-narrative-tracing
 description: "Installs NarrativeTrace into a Java project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of standard output. Adds narrativetrace-core and narrativetrace-proxy with Gradle, wraps a class with NarrativeTraceProxy.trace, renders and runs the first trace, then wires an SLF4J/Logback consumer so traces reach your logger. Applies the doctor's framework-wiring fixes for the frameworks the project already uses, and runs narrativetrace-doctor to confirm the install is correctly wired — narrativetrace-doctor owns diagnosis from there — and ends by previewing the agent-skills install so the next session finds them. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in sixty seconds', 'wrap this class so I can see a trace', or 'send my traces to my logger' to invoke it."
-allowed-tools: Bash(./gradlew *), Bash(git *), Bash(find *)
 ---
 
 # add-narrative-tracing
 
-## 1. Install with the real toolchain
+## 1. Resolve the newest NarrativeTrace release
+
+```bash
+curl -s https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml | grep -o '<release>[^<]*' | cut -d'>' -f2
+```
+
+**verify:** the command printed one release number, digits and dots; write that exact number wherever a coordinate below says `<version>`, in every NarrativeTrace dependency and plugin line you add — the libraries and the Gradle plugin are published at the same version, so this one lookup serves them all; never write a number from memory, from a document, or from an older pin in the project. If curl is not available, open https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml and read its `<release>` element
+
+**failure:** the command prints nothing, or an error → no network, or a proxy that blocks repo1.maven.org → read the `<release>` element of https://repo1.maven.org/maven2/ai/narrativetrace/narrativetrace-core/maven-metadata.xml with any other fetch tool; if it cannot be reached at all, stop and tell the user instead of guessing a version
+
+## 2. Install with the real toolchain
 
 **when:** if the project already has an application entry point — a main class, a web or application framework the doctor reports — add only the dependencies and the -parameters flag below and leave out the application plugin and the application { mainClass } block; otherwise use the block as written
 
@@ -22,8 +31,8 @@ repositories {
 }
 
 dependencies {
-    implementation("ai.narrativetrace:narrativetrace-core:0.5.5")
-    implementation("ai.narrativetrace:narrativetrace-proxy:0.5.5")
+    implementation("ai.narrativetrace:narrativetrace-core:<version>")
+    implementation("ai.narrativetrace:narrativetrace-proxy:<version>")
 }
 
 tasks.withType<JavaCompile> {
@@ -37,9 +46,9 @@ application {   // only when the project has no application entry point of its o
 
 **verify:** ./gradlew build
 
-**failure:** dependency resolution fails offline → a version pin drifted from what is actually published to Maven Central → check the exact coordinate against documentation/installation-guide.md's dependency block
+**failure:** dependency resolution fails offline → the version written is not a release that is published to Maven Central → rerun the lookup in the first step and write exactly the number it printed in every <version> placeholder; check the rest of the coordinate against documentation/installation-guide.md's dependency block
 
-## 2. Wire the frameworks this project already uses
+## 3. Wire the frameworks this project already uses
 
 ```bash
 ./gradlew narrativetraceDoctor
@@ -49,7 +58,7 @@ application {   // only when the project has no application entry point of its o
 
 **failure:** the task fails with "Task 'narrativetraceDoctor' not found" → the ai.narrativetrace Gradle plugin isn't applied to this project → add id("ai.narrativetrace") to the plugins block, or run the standalone narrativetrace-cli launcher instead
 
-## 3. First trace: wrap, call, render, run
+## 4. First trace: wrap, call, render, run
 
 **when:** if the project already has tests and the doctor reports a test integration for that runner, the first trace is one existing test run through the test integration (narrativetrace-junit5, narrativetrace-junit4 for a project whose tests already run on that other major version, or narrativetrace-testng for a project whose tests already run on the runner that module is named for) with output on, which writes that test's narrative files, .md and .nt, under build/narrativetrace/ — the files narrativetrace-doctor, narrativetrace-verify, narrativetrace-debug and narrativetrace-explain read; print the rendered file so the trace is also on the console; the step is done when that test's files exist; a project whose tests run on a runner the doctor reports no integration for keeps that runner and takes the console path below; otherwise, if the project already has an application entry point — a main class, a web or application framework the doctor reports — do not add a demo main: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the console app, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest console app as follows; nothing is written to disk by this script — the application's log is the record once the SLF4J consumer in the later step is wired; this page never adds a test runner or a test to a project that has none
 
@@ -90,11 +99,11 @@ public class Main {
 
 **verify:** ./gradlew run
 
-## 4. Send it to your logger
+## 5. Send it to your logger
 
 ```kotlin
 dependencies {
-    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:0.5.5")
+    runtimeOnly("ai.narrativetrace:narrativetrace-slf4j:<version>")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.38")
 }
 ```
@@ -103,7 +112,7 @@ dependencies {
 
 **failure:** traces still print to standard output, not the logger → narrativetrace-slf4j attaches to the pipeline reflectively once it is on the runtime classpath — a compile-only or test-only dependency scope that never reaches the running classpath leaves it unattached → add narrativetrace-slf4j on runtimeOnly (or testRuntimeOnly for a test-only logger), not compileOnly
 
-## 5. Run narrativetrace-doctor and resolve every finding
+## 6. Run narrativetrace-doctor and resolve every finding
 
 ```bash
 ./gradlew narrativetraceDoctor
@@ -113,7 +122,7 @@ dependencies {
 
 **failure:** the task fails with "Task 'narrativetraceDoctor' not found" → the ai.narrativetrace Gradle plugin isn't applied to this project → add id("ai.narrativetrace") to the plugins block, or run the standalone narrativetrace-cli launcher instead
 
-## 6. Install the skills for next time
+## 7. Install the skills for next time
 
 ```bash
 ./gradlew narrativetraceInit --diff

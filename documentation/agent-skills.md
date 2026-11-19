@@ -103,7 +103,7 @@ an envelope a script can gate on:
 <!-- snippet: narrativetrace-cli/build/narrativetrace/init-plan.json -->
 ```json
 {
-  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.5",
+  "carrier": "ai.narrativetrace:narrativetrace-cli:0.5.6",
   "actions": [
     {"kind": "create", "path": ".agents/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
     {"kind": "create", "path": ".claude/skills/narrativetrace-doctor/SKILL.md", "status": "planned"},
@@ -278,8 +278,10 @@ contains the seven sources of truth; their typed steps render seven Claude pages
 the carrier's own copy of both flavours plus its `catalogue.json` index — what the published jar
 hands `narrativetraceInit` — this repository's own `AGENTS.md` section, and the
 `.claude-plugin/marketplace.json` listing that makes this repository a Claude Code plugin
-marketplace: a drift test (`RenderDriftTest`, wired into `./gradlew check`) fails the build the
-moment any of these thirty-one outputs drifts from the typed source, and a second one fails it if
+marketplace, and the plugin's own `.claude/.claude-plugin/plugin.json`, `icon.png` and
+`.claude/README.md`, which the Claude plugin directory reads: a drift test (`RenderDriftTest`,
+wired into `./gradlew check`) fails the build the
+moment any of these thirty-four outputs drifts from the typed source, and a second one fails it if
 anything else appears in the carrier at all. A skill's rendered `name:` is always its canonical
 name, never a
 shortened "claude segment" — a repo-checked-in `.claude/skills/` or `.agents/skills/` directory is a
@@ -290,12 +292,14 @@ standalone Clarity consumer, today, deterministic,
 no LLM — green means the instructions are literally executable right now, not merely plausible
 prose. A Tier A lint keeps private planning-note citations, this repository's own Pro sibling, CI
 config filenames, and git SHAs out of the rendered pages: rationale sentences ship, the citation naming the
-source does not. A second lint guards the one piece of frontmatter whose absence is a feature: a
-skill whose steps can make something public — today, `narrativetrace-feedback` — must declare no
-`allowed-tools`, because that field pre-approves its listed tools for the turn that loads the
-skill, and a reporting skill that pre-approved its own reporting command would stop the harness
+source does not. The rendered Claude pages carry no `allowed-tools` line at all, because the
+plugin directory accepts that key beyond read-only tools only from verified publishers: a user gets
+Claude Code's normal permission prompt the first time a skill runs `./gradlew`, `git` or `find`.
+A second lint still guards the command set each skill declares: a skill whose steps can make
+something public — today, `narrativetrace-feedback` — must declare no tool that would pre-approve
+its own reporting command, so a flavour that ever emits the key again cannot stop the harness
 asking exactly where asking is the point. A third lint holds a skill that promotes an approval
-baseline — today, `narrativetrace-verify` and `narrativetrace-debug` — to no allowed tool beyond read-only `find`, for the same
+baseline — today, `narrativetrace-verify` and `narrativetrace-debug` — to no declared tool beyond read-only `find`, for the same
 reason: the promotion runs through `./gradlew`, and the yes it waits for is yours.
 
 ## Context7

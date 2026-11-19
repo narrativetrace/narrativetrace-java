@@ -95,10 +95,12 @@ class FailurePointerAndIndexTest {
     var failing = index.indexOf("## Failing");
     var passing = index.indexOf("## Passing");
     assertThat(failing).isPositive().isLessThan(passing);
+    // The message reaching RunIndex is already control-sanitised to the two characters \n;
+    // cell() escapes that backslash before the pipe, so the cell carries \\n, not \n.
     assertThat(index.substring(failing, passing))
         .contains("Junit4MixedOutcomeFailingTestFixture.bFailsOnStock | failed |")
         .contains("Junit4MixedOutcomeFailingTestFixture.dFailsOnPayment | failed |")
-        .contains("stock check \\| failed\\nsecond line");
+        .contains("stock check \\| failed\\\\nsecond line");
     assertThat(index.substring(passing)).contains("aPassesFirst | passed |");
     assertThat(Files.readString(outputDir.resolve("manifest.json")))
         .contains("\"outcome\": \"failed\"");

@@ -17,7 +17,9 @@ import ai.narrativetrace.core.render.IndentedTextRenderer;
 import ai.narrativetrace.core.render.MarkdownRenderer;
 import ai.narrativetrace.core.render.ScenarioResult;
 import ai.narrativetrace.core.render.StructuralTraceRenderer;
+import ai.narrativetrace.core.render.TestFailureText;
 import ai.narrativetrace.core.render.TraceMetadata;
+import ai.narrativetrace.core.tree.DefaultTraceTree;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -82,6 +84,35 @@ public final class TraceTestSupport {
     return buildFailureReport(scenario, trace);
   }
 
+  /**
+   * The captured tree, stamped with the loss of the one test it belongs to.
+   *
+   * <p>INTENT: A test integration shares one context across the suite, and the loss a capture
+   * carries ({@link TraceTree#loss()}) is that context's running reading — so once one test shed
+   * events, every later test's file said {@code incomplete: true} with that test's count (B-342).
+   * The integration already brackets the reading per test ({@link TraceLoss#since(TraceLoss)}) for
+   * its suite footer and approval verdict; this puts the same number on the tree every artifact is
+   * written from, so the file, the console and the verdict agree. The capture itself is unchanged:
+   * {@code captureTrace()} still reports the context's reading for every other caller.
+   *
+   * <p><b>@llmNote</b> The per-test share is exact for refusals and for events the drain shed, but
+   * a ring overwrite is counted when a drain runs, not when the event is lost: events one test's
+   * publishes overwrote are charged to the test whose capture drained them. In a sequential suite
+   * that is the test that published them, because every test's capture drains the ring before the
+   * next test starts.
+   *
+   * @param trace the tree the context captured for this test
+   * @param testLoss this test's share of the context's loss, bracketed against the reading taken
+   *     when the test started
+   * @return a tree with the same roots and trace id, carrying {@code testLoss}
+   */
+  public static TraceTree withTestLoss(TraceTree trace, TraceLoss testLoss) {
+    if (trace == null || testLoss == null) {
+      throw new IllegalArgumentException("trace and testLoss are required");
+    }
+    return new DefaultTraceTree(trace.roots(), trace.traceId(), testLoss);
+  }
+
   public static String renderForFormat(
       String format,
       TraceTree trace,
@@ -127,6 +158,34 @@ public final class TraceTestSupport {
       NarrativeRenderer plantumlRenderer,
       boolean foldLoops,
       String runName) {
+    return renderForFormat(
+        format,
+        trace,
+        displayName,
+        failed,
+        mermaidRenderer,
+        plantumlRenderer,
+        foldLoops,
+        runName,
+        null);
+  }
+
+  /**
+   * The same render, additionally stating a failed test's own failure under the Markdown result
+   * line ({@code **Test failure:**}) — see {@link TestFailureText}.
+   *
+   * @param testFailure the failed test's message as its manifest row carries it, or {@code null}
+   */
+  public static String renderForFormat(
+      String format,
+      TraceTree trace,
+      String displayName,
+      boolean failed,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName,
+      String testFailure) {
     var scenario = ScenarioFramer.humanize(displayName);
     return switch (format.toLowerCase()) {
       case "text" ->
@@ -134,7 +193,7 @@ public final class TraceTestSupport {
       case "mermaid" -> mermaidRenderer.render(trace);
       case "plantuml" -> plantumlRenderer.render(trace);
       default -> {
-        var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed), runName);
+        var metadata = new TraceMetadata(scenario, ScenarioResult.of(failed), runName, testFailure);
         var renderer = foldLoops ? new MarkdownRenderer() : MarkdownRenderer.unfolded();
         yield renderer.renderDocument(trace, metadata);
       }
@@ -272,7 +331,47 @@ public final class TraceTestSupport {
         foldLoops,
         runName,
         depth,
-        deepSpansDropped);
+        deepSpansDropped,
+        null);
+  }
+
+  /**
+   * The same write, additionally stating the failed test's own failure in the file.
+   *
+   * @param testFailure the failed test's message, the string its manifest row carries (already
+   *     through {@code ExceptionMessage}); {@code null} for a passing test or one with no message
+   */
+  public static Optional<ScenarioDelta> writeTraceFile(
+      ArtifactIdentity identity,
+      String displayName,
+      TraceTree trace,
+      boolean failed,
+      Path outputDir,
+      PrintStream out,
+      String format,
+      NarrativeRenderer mermaidRenderer,
+      NarrativeRenderer plantumlRenderer,
+      boolean foldLoops,
+      String runName,
+      TraceDepth depth,
+      long deepSpansDropped,
+      String testFailure)
+      throws IOException {
+    return writeTraceFileAtDepth(
+        identity,
+        displayName,
+        trace,
+        failed,
+        outputDir,
+        out,
+        format,
+        mermaidRenderer,
+        plantumlRenderer,
+        foldLoops,
+        runName,
+        depth,
+        deepSpansDropped,
+        testFailure);
   }
 
   /**
@@ -331,7 +430,8 @@ public final class TraceTestSupport {
       boolean foldLoops,
       String runName,
       TraceDepth depth,
-      long deepSpansDropped)
+      long deepSpansDropped,
+      String testFailure)
       throws IOException {
     if (trace.isEmpty()) {
       return Optional.empty();
@@ -348,9 +448,11 @@ public final class TraceTestSupport {
             mermaidRenderer,
             plantumlRenderer,
             foldLoops,
-            runName);
+            runName,
+            testFailure);
     var writer = new TraceFileWriter();
-    var facts = headerFacts(identity, trace, failed, outputDir, file, depth, deepSpansDropped);
+    var facts =
+        headerFacts(identity, trace, failed, outputDir, file, depth, deepSpansDropped, testFailure);
     writer.write(TraceFileHeader.apply(format, content, facts), file);
     out.println(
         "\n"
@@ -402,7 +504,8 @@ public final class TraceTestSupport {
         foldLoops,
         runName,
         TraceDepth.PUBLIC,
-        0);
+        0,
+        null);
   }
 
   /** What a written trace file's header says about it, with paths relative to that file. */
@@ -413,7 +516,8 @@ public final class TraceTestSupport {
       Path outputDir,
       Path file,
       TraceDepth depth,
-      long deepSpansDropped) {
+      long deepSpansDropped,
+      String testFailure) {
     var directory = file.toAbsolutePath().normalize().getParent();
     var base = outputDir.toAbsolutePath().normalize();
     return new TraceFileHeader.Facts(
@@ -426,7 +530,8 @@ public final class TraceTestSupport {
             .toString()
             .replace('\\', '/'),
         depth == TraceDepth.INTERNAL,
-        deepSpansDropped);
+        deepSpansDropped,
+        failed ? TestFailureText.oneLine(testFailure) : null);
   }
 
   /**
