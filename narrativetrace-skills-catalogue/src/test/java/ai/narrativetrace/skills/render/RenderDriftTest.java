@@ -120,7 +120,7 @@ class RenderDriftTest {
     Path onDisk = RenderPaths.claudePluginJson(REPO_ROOT);
     assertThat(onDisk).as(onDisk + " must exist — run renderSkills and commit it").exists();
     assertThat(readText(onDisk))
-        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.CLAUDE_DIRECTORY));
   }
 
   @Test

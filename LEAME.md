@@ -1,4 +1,4 @@
-<!-- source: README.md blob e828397fcc94 | translated: 2026-10-23 | reviewed: - -->
+<!-- source: README.md blob da8c2e7e9b20 | translated: 2026-11-19 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -277,7 +277,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.5.6"
+    id("ai.narrativetrace") version "0.5.7"
 }
 ```
 
@@ -350,7 +350,7 @@ las renderiza todas en Markdown.
 ### ¿Gradle o Maven?
 
 Los jars del runtime son artefactos Maven corrientes.
-`ai.narrativetrace:narrativetrace-core:0.5.6` y todos los módulos que lo
+`ai.narrativetrace:narrativetrace-core:0.5.7` y todos los módulos que lo
 acompañan se resuelven y funcionan exactamente igual desde un build de Maven;
 nada de la librería en sí es específico de Gradle. Lo que *sí* es específico de
 Gradle es el plugin de arriba — una comodidad que cablea por ti el flag del
@@ -715,3 +715,31 @@ después de publicarse; la fecha exacta se imprime en el LICENSE de esa versión
 *Este resumen es una cortesía, no una licencia. El archivo LICENSE es el único
 texto vinculante; donde ambos difieran, prevalece el LICENSE.*
 <!-- legal:plain-words:end -->
+
+NarrativeTrace se ofrece tal cual: sin garantía de ningún tipo, ni de que sirva para tu propósito. Úsalo bajo tu propia responsabilidad.
+
+Las licencias lo establecen de manera formal, y su texto, en inglés, es el que vale.
+
+El runtime y sus integraciones, bajo la Business Source License 1.1 ([LICENSE](LICENSE)):
+
+> TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
+> AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
+> EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
+> MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
+> TITLE.
+
+La API, las skills, la CLI y las herramientas, bajo Apache 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), sección 7:
+
+> 7. Disclaimer of Warranty. Unless required by applicable law or
+> agreed to in writing, Licensor provides the Work (and each
+> Contributor provides its Contributions) on an "AS IS" BASIS,
+> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+> implied, including, without limitation, any warranties or conditions
+> of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+> PARTICULAR PURPOSE. You are solely responsible for determining the
+> appropriateness of using or redistributing the Work and assume any
+> risks associated with Your exercise of permissions under this License.
+
+La sección 8, "Limitation of Liability", del mismo archivo (solo en las partes con licencia Apache) limita aún más la responsabilidad.
+
+La documentación está bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), cuyo propio texto también excluye garantías.

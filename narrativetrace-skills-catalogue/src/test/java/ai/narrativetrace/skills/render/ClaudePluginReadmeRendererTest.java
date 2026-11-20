@@ -13,6 +13,9 @@ import ai.narrativetrace.skills.MarketplaceListing;
 import ai.narrativetrace.skills.Skill;
 import ai.narrativetrace.skills.catalogue.CatalogueIndex;
 import ai.narrativetrace.skills.catalogue.ReleaseLookup;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -149,5 +152,58 @@ class ClaudePluginReadmeRendererTest {
   @Test
   void rendersByteIdenticallyEveryTime() {
     assertThat(ClaudePluginReadmeRenderer.render(LISTING, CatalogueIndex.ALL)).isEqualTo(README);
+  }
+
+  @Test
+  void statesThePlainNoWarrantyLineInTheLicenseSection() {
+    String license = README.substring(README.indexOf("## License and links"));
+
+    assertThat(license)
+        .contains(
+            "NarrativeTrace is provided as is: no warranty, and no guarantee that it fits your"
+                + " purpose. Use it at your own risk.");
+  }
+
+  /**
+   * The quoted disclaimer is the repository's own LICENSE-APACHE section 7, character for
+   * character.
+   */
+  @Test
+  void quotesTheApacheDisclaimerOfWarrantyExactlyAsLicenseApacheHasIt() throws IOException {
+    String licenseFile =
+        Files.readString(Path.of(System.getProperty("projectDir"), "LICENSE-APACHE"));
+    int start = licenseFile.indexOf("7. Disclaimer of Warranty.");
+    String section7 = licenseFile.substring(start, licenseFile.indexOf("\n\n", start));
+    String quoted =
+        section7
+            .lines()
+            .map(line -> "> " + line.strip())
+            .reduce((a, b) -> a + "\n" + b)
+            .orElseThrow();
+
+    assertThat(README).contains(quoted);
+  }
+
+  @Test
+  void linksTheApacheLicenseFileAndNamesTheLimitationOfLiabilitySection() {
+    assertThat(README)
+        .contains(LISTING.repository() + "/blob/main/LICENSE-APACHE")
+        .contains("Section 8")
+        .contains("Limitation of Liability");
+  }
+
+  @Test
+  void saysTheRuntimeTheSkillsInstallIsUnderTheBusinessSourceLicenseAndLinksLicense() {
+    assertThat(README)
+        .contains(
+            "The NarrativeTrace runtime that these skills install is licensed under the Business"
+                + " Source License 1.1; see [LICENSE]("
+                + LISTING.repository()
+                + "/blob/main/LICENSE).");
+  }
+
+  @Test
+  void limitsTheSectionEightPointerToTheApacheLicensedParts() {
+    assertThat(README).contains("limits liability further (Apache-licensed parts only).");
   }
 }

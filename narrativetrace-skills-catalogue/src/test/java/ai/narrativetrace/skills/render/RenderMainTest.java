@@ -63,7 +63,7 @@ class RenderMainTest {
     RenderMain.render(repoRoot);
 
     assertThat(Files.readString(RenderPaths.claudePluginJson(repoRoot)))
-        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+        .isEqualTo(ClaudePluginJsonRenderer.render(CatalogueIndex.CLAUDE_DIRECTORY));
     assertThat(Files.readString(RenderPaths.claudePluginReadme(repoRoot)))
         .isEqualTo(
             ClaudePluginReadmeRenderer.render(CatalogueIndex.MARKETPLACE, CatalogueIndex.ALL));

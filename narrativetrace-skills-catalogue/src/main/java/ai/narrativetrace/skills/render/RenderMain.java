@@ -62,7 +62,7 @@ public final class RenderMain {
         MarketplaceJsonRenderer.render(CatalogueIndex.MARKETPLACE));
     writePage(
         RenderPaths.claudePluginJson(repoRoot),
-        ClaudePluginJsonRenderer.render(CatalogueIndex.MARKETPLACE));
+        ClaudePluginJsonRenderer.render(CatalogueIndex.CLAUDE_DIRECTORY));
     writePage(
         RenderPaths.claudePluginReadme(repoRoot),
         ClaudePluginReadmeRenderer.render(CatalogueIndex.MARKETPLACE, CatalogueIndex.ALL));

@@ -9,13 +9,27 @@ package ai.narrativetrace.skills.render;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.narrativetrace.skills.ClaudeListing;
 import ai.narrativetrace.skills.MarketplaceListing;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ClaudePluginJsonRendererTest {
 
-  private static MarketplaceListing listing() {
+  private static ClaudeListing listing() {
+    return directory(base());
+  }
+
+  private static ClaudeListing directory(MarketplaceListing base) {
+    return new ClaudeListing(
+        base,
+        "NarrativeTrace for X",
+        "https://github.com/narrativetrace/narrativetrace-x/issues",
+        "https://narrativetrace.ai/privacy",
+        "https://github.com/narrativetrace/narrativetrace-x/tree/main/documentation");
+  }
+
+  private static MarketplaceListing base() {
     return new MarketplaceListing(
         "narrativetrace-x",
         new MarketplaceListing.Owner("NarrativeTrace", "https://narrativetrace.ai"),
@@ -42,6 +56,12 @@ class ClaudePluginJsonRendererTest {
                 + "  \"repository\": \"https://github.com/narrativetrace/narrativetrace-x\",\n"
                 + "  \"license\": \"Apache-2.0\",\n"
                 + "  \"keywords\": [\"tracing\", \"agent-skills\"],\n"
+                + "  \"displayName\": \"NarrativeTrace for X\",\n"
+                + "  \"supportUrl\":"
+                + " \"https://github.com/narrativetrace/narrativetrace-x/issues\",\n"
+                + "  \"privacyPolicyUrl\": \"https://narrativetrace.ai/privacy\",\n"
+                + "  \"documentationUrl\":"
+                + " \"https://github.com/narrativetrace/narrativetrace-x/tree/main/documentation\",\n"
                 + "  \"icon\": \"./.claude-plugin/icon.png\"\n"
                 + "}\n");
   }
@@ -77,7 +97,7 @@ class ClaudePluginJsonRendererTest {
             "https://example.com/r",
             List.of("k"));
 
-    assertThat(ClaudePluginJsonRenderer.render(hostile))
+    assertThat(ClaudePluginJsonRenderer.render(directory(hostile)))
         .contains("\"description\": \"A \\\"quoted\\\" \\\\ line\\nwith a newline.\"")
         .contains("\"name\": \"Narrative \\\"Trace\\\"\"");
   }

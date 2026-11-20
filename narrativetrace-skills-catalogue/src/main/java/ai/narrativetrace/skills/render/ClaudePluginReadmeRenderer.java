@@ -40,6 +40,23 @@ public final class ClaudePluginReadmeRenderer {
 
   private static final String GRADLE = "./gradlew";
 
+  private static final String NO_WARRANTY =
+      "NarrativeTrace is provided as is: no warranty, and no guarantee that it fits your purpose."
+          + " Use it at your own risk.";
+
+  /** Section 7 of {@code LICENSE-APACHE}, line for line; a test pins it against that file. */
+  private static final List<String> APACHE_DISCLAIMER =
+      List.of(
+          "7. Disclaimer of Warranty. Unless required by applicable law or",
+          "agreed to in writing, Licensor provides the Work (and each",
+          "Contributor provides its Contributions) on an \"AS IS\" BASIS,",
+          "WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or",
+          "implied, including, without limitation, any warranties or conditions",
+          "of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A",
+          "PARTICULAR PURPOSE. You are solely responsible for determining the",
+          "appropriateness of using or redistributing the Work and assume any",
+          "risks associated with Your exercise of permissions under this License.");
+
   private ClaudePluginReadmeRenderer() {}
 
   public static String render(MarketplaceListing listing, List<Skill> skills) {
@@ -161,7 +178,21 @@ public final class ClaudePluginReadmeRenderer {
     out.append("The skills in this plugin are licensed under ").append(listing.license());
     out.append(".\n\n");
     out.append("- Homepage: ").append(listing.homepage()).append('\n');
-    out.append("- Repository: ").append(listing.repository()).append('\n');
+    out.append("- Repository: ").append(listing.repository()).append("\n\n");
+    out.append(NO_WARRANTY).append("\n\n");
+    out.append("The Apache-2.0 text, ")
+        .append("[LICENSE-APACHE](")
+        .append(listing.repository())
+        .append("/blob/main/LICENSE-APACHE), section 7:\n\n");
+    for (String line : APACHE_DISCLAIMER) {
+      out.append("> ").append(line).append('\n');
+    }
+    out.append("\nSection 8, \"Limitation of Liability\", of the same file limits liability");
+    out.append(" further (Apache-licensed parts only).\n\n");
+    out.append("The NarrativeTrace runtime that these skills install is licensed under the");
+    out.append(" Business Source License 1.1; see [LICENSE](")
+        .append(listing.repository())
+        .append("/blob/main/LICENSE).\n");
   }
 
   /** The first sentence of the description; a "Use when" lead-in is cut at its first colon. */

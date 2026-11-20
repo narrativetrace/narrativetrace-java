@@ -31,6 +31,8 @@
 #       `{{CHANGE_DATE}}` placeholder — the two values a release fills in —
 #       or is cleanly filled already
 #   (d) LICENSE-APACHE is present
+#   (e) the BSL disclaimer quoted in README.md and its translations equals
+#       the passage in LICENSE (whitespace-normalised)
 #
 # Usage:
 #   scripts/legal-check.sh                                 # run all checks
@@ -198,6 +200,24 @@ if [ -f LICENSE-APACHE ]; then
 else
     echo "ERROR: LICENSE-APACHE is missing"
     STATUS=1
+fi
+
+# --- (e) the BSL warranty disclaimer quoted in the READMEs equals LICENSE -----
+# The no-warranty notice quotes the disclaimer paragraph of LICENSE in README.md
+# and its translations. Whitespace is normalised; nothing else may differ.
+norm() { tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'; }
+if [ -f LICENSE ]; then
+    bsl_ref="$(awk '/^TO THE EXTENT PERMITTED BY APPLICABLE LAW/{on=1} on&&/^$/{exit} on{print}' LICENSE | norm)"
+    [ -n "$bsl_ref" ] || { echo "ERROR: LICENSE carries no 'TO THE EXTENT PERMITTED' disclaimer paragraph"; STATUS=1; }
+    for f in "$FILE_en" "$FILE_es" "$FILE_pt" "$FILE_zh"; do
+        [ -f "$f" ] || continue
+        bsl_quote="$(awk '/^> TO THE EXTENT PERMITTED BY APPLICABLE LAW/{on=1} on&&!/^>/{exit} on{sub(/^> ?/,""); print}' "$f" | norm)"
+        if [ "$bsl_quote" != "$bsl_ref" ]; then
+            echo "ERROR: $f quotes a BSL disclaimer that differs from LICENSE (or quotes none)"
+            STATUS=1
+        fi
+    done
+    echo ">> BSL disclaimer quote compared with LICENSE in all 4 files."
 fi
 
 if [ "$STATUS" -eq 0 ]; then

@@ -62,3 +62,21 @@ The skills in this plugin are licensed under Apache-2.0.
 
 - Homepage: https://narrativetrace.ai
 - Repository: https://github.com/narrativetrace/narrativetrace-java
+
+NarrativeTrace is provided as is: no warranty, and no guarantee that it fits your purpose. Use it at your own risk.
+
+The Apache-2.0 text, [LICENSE-APACHE](https://github.com/narrativetrace/narrativetrace-java/blob/main/LICENSE-APACHE), section 7:
+
+> 7. Disclaimer of Warranty. Unless required by applicable law or
+> agreed to in writing, Licensor provides the Work (and each
+> Contributor provides its Contributions) on an "AS IS" BASIS,
+> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+> implied, including, without limitation, any warranties or conditions
+> of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+> PARTICULAR PURPOSE. You are solely responsible for determining the
+> appropriateness of using or redistributing the Work and assume any
+> risks associated with Your exercise of permissions under this License.
+
+Section 8, "Limitation of Liability", of the same file limits liability further (Apache-licensed parts only).
+
+The NarrativeTrace runtime that these skills install is licensed under the Business Source License 1.1; see [LICENSE](https://github.com/narrativetrace/narrativetrace-java/blob/main/LICENSE).

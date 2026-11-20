@@ -8,5 +8,9 @@
   "repository": "https://github.com/narrativetrace/narrativetrace-java",
   "license": "Apache-2.0",
   "keywords": ["narrativetrace", "java", "tracing", "observability", "agent-skills"],
+  "displayName": "NarrativeTrace for Java",
+  "supportUrl": "https://github.com/narrativetrace/narrativetrace-java/issues",
+  "privacyPolicyUrl": "https://narrativetrace.ai/privacy",
+  "documentationUrl": "https://github.com/narrativetrace/narrativetrace-java/tree/main/documentation",
   "icon": "./.claude-plugin/icon.png"
 }

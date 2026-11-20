@@ -7,6 +7,7 @@
  */
 package ai.narrativetrace.skills.catalogue;
 
+import ai.narrativetrace.skills.ClaudeListing;
 import ai.narrativetrace.skills.MarketplaceListing;
 import ai.narrativetrace.skills.OpenAiListing;
 import ai.narrativetrace.skills.Skill;
@@ -72,6 +73,19 @@ public final class CatalogueIndex {
               "debug this with the trace"),
           "#00845a",
           MARKETPLACE.homepage());
+
+  /**
+   * How this repository presents {@link #MARKETPLACE} to Anthropic's plugin directory: the same
+   * listing, titled with the display name the OpenAI listing uses, plus the support, privacy and
+   * documentation links the directory shows.
+   */
+  public static final ClaudeListing CLAUDE_DIRECTORY =
+      new ClaudeListing(
+          MARKETPLACE,
+          OPENAI_DIRECTORY.displayName(),
+          MARKETPLACE.repository() + "/issues",
+          "https://narrativetrace.ai/privacy",
+          MARKETPLACE.repository() + "/tree/main/documentation");
 
   private CatalogueIndex() {}
 }

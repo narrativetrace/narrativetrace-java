@@ -269,7 +269,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.5.6"
+    id("ai.narrativetrace") version "0.5.7"
 }
 ```
 
@@ -337,7 +337,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.5.6`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.5.7`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
@@ -680,3 +680,31 @@ is published; the exact date is printed in that release's LICENSE.
 *This summary is a courtesy, not a licence. The LICENSE file is the only binding
 text; where the two differ, the LICENSE governs.*
 <!-- legal:plain-words:end -->
+
+NarrativeTrace is provided as is: no warranty, and no guarantee that it fits your purpose. Use it at your own risk.
+
+The licences state this formally, and their text is the operative one.
+
+The runtime and its integrations, under the Business Source License 1.1 ([LICENSE](LICENSE)):
+
+> TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
+> AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
+> EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
+> MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
+> TITLE.
+
+The API, the skills, the CLI and the tooling, under Apache 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), section 7:
+
+> 7. Disclaimer of Warranty. Unless required by applicable law or
+> agreed to in writing, Licensor provides the Work (and each
+> Contributor provides its Contributions) on an "AS IS" BASIS,
+> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+> implied, including, without limitation, any warranties or conditions
+> of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+> PARTICULAR PURPOSE. You are solely responsible for determining the
+> appropriateness of using or redistributing the Work and assume any
+> risks associated with Your exercise of permissions under this License.
+
+Section 8, "Limitation of Liability", of the same file limits liability further (Apache-licensed parts only).
+
+The documentation is under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), whose own text also disclaims warranties.
