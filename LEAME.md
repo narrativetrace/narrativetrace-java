@@ -1,4 +1,4 @@
-<!-- source: README.md blob da8c2e7e9b20 | translated: 2026-11-19 | reviewed: - -->
+<!-- source: README.md blob 9a349ff6cb77 | translated: 2026-11-20 | reviewed: - -->
 # NarrativeTrace
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
@@ -277,7 +277,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.5.7"
+    id("ai.narrativetrace") version "0.5.8"
 }
 ```
 
@@ -350,7 +350,7 @@ las renderiza todas en Markdown.
 ### ¿Gradle o Maven?
 
 Los jars del runtime son artefactos Maven corrientes.
-`ai.narrativetrace:narrativetrace-core:0.5.7` y todos los módulos que lo
+`ai.narrativetrace:narrativetrace-core:0.5.8` y todos los módulos que lo
 acompañan se resuelven y funcionan exactamente igual desde un build de Maven;
 nada de la librería en sí es específico de Gradle. Lo que *sí* es específico de
 Gradle es el plugin de arriba — una comodidad que cablea por ti el flag del
@@ -677,6 +677,7 @@ comercial.
 | Artefacto | Licencia | Qué significa |
 |---|---|---|
 | `narrativetrace-api` | [Apache 2.0](LICENSE-APACHE) | Las anotaciones, el modelo de eventos y las SPI: todo aquello contra lo que compila tu código. Un estándar abierto, para que cualquier implementación pueda adoptarlo. |
+| `narrativetrace-skills`, `narrativetrace-cli`, `narrativetrace-tooling` | [Apache 2.0](LICENSE-APACHE) | El portador de las skills de agente y sus herramientas: las páginas de skills, el lanzador `narrativetrace` y la biblioteca de instalador y doctor. Abiertos por la misma razón que la API: lo que leen tus agentes y tu build tiene que poder leerse sin aceptar nada. |
 | el resto de artefactos `ai.narrativetrace` | [BSL 1.1](LICENSE) | El runtime. Gratuito en producción, incluidos los productos y servicios que ofreces a tus propios clientes. La única exclusión es ofrecer NarrativeTrace en sí —o un producto o servicio cuyo valor derive sustancialmente de él— a terceros como producto o servicio de logging, tracing o narrativa de código. Cada versión publicada pasa a Apache 2.0 cuatro años después de publicarse. |
 | la documentación (guías en prosa) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Las guías y la documentación de referencia. La especificación del formato de salida y los esquemas JSON son Apache 2.0: son el estándar abierto. |
 

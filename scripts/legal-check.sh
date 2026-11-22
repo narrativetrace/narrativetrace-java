@@ -33,6 +33,9 @@
 #   (d) LICENSE-APACHE is present
 #   (e) the BSL disclaimer quoted in README.md and its translations equals
 #       the passage in LICENSE (whitespace-normalised)
+#   (f) every published module `licensing.properties` marks `open` is named in
+#       a Licensing-table row that links LICENSE-APACHE, in README.md and each
+#       translation
 #
 # Usage:
 #   scripts/legal-check.sh                                 # run all checks
@@ -218,6 +221,33 @@ if [ -f LICENSE ]; then
         fi
     done
     echo ">> BSL disclaimer quote compared with LICENSE in all 4 files."
+fi
+
+# --- (f) every published `open` module is listed as Apache 2.0 in the READMEs --
+# The Licensing table in README.md and its translations must name each `open`
+# module in a row that links LICENSE-APACHE; a module the table leaves to the
+# BSL catch-all contradicts licensing.properties and NOTICE (B-347). Every
+# `open` module is published, so the set is read straight from
+# licensing.properties; modules that are open but never published would be
+# listed in OPEN_UNPUBLISHED (none today).
+OPEN_UNPUBLISHED=""
+if [ -f licensing.properties ]; then
+    open_mods="$(sed -n 's/^module\.\([^=]*\)=open[[:space:]]*$/\1/p' licensing.properties)"
+    [ -n "$open_mods" ] || { echo "ERROR: licensing.properties marks no module open"; STATUS=1; }
+    for f in "$FILE_en" "$FILE_es" "$FILE_pt" "$FILE_zh"; do
+        [ -f "$f" ] || continue
+        for m in $open_mods; do
+            case " $OPEN_UNPUBLISHED " in *" $m "*) continue ;; esac
+            if ! grep -F "\`$m\`" "$f" | grep -F '|' | grep -qF 'LICENSE-APACHE'; then
+                echo "ERROR: $f: open module '$m' has no Licensing-table row linking LICENSE-APACHE"
+                STATUS=1
+            fi
+        done
+    done
+    echo ">> Open modules checked against the Licensing table in all 4 files."
+else
+    echo "ERROR: licensing.properties is missing"
+    STATUS=1
 fi
 
 if [ "$STATUS" -eq 0 ]; then

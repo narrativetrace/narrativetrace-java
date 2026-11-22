@@ -72,6 +72,9 @@ tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJ
     archiveClassifier.set("")
     configurations = listOf(shade)
     relocate("org.objectweb.asm", "ai.narrativetrace.agent.internal.asm")
+    // ASM (BSD-3-Clause) is bundled relocated: a binary redistribution must reproduce its
+    // copyright notice, conditions and disclaimer (B-354). The text is the canonical ASM LICENSE.txt.
+    metaInf { from("third-party/THIRD-PARTY-NOTICES.agent") { rename { "THIRD-PARTY-NOTICES" } } }
     manifest {
         attributes(agentManifestAttributes)
     }
@@ -84,6 +87,9 @@ tasks.register<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("stan
     relocate("org.objectweb.asm", "ai.narrativetrace.agent.internal.asm")
     // Bundled dependencies' module descriptors would misdeclare the fat jar as their module.
     exclude("module-info.class", "META-INF/versions/*/module-info.class")
+    // ASM (BSD-3-Clause) and slf4j-api (MIT) are bundled; each licence requires its text to travel
+    // with a binary redistribution (B-354). slf4j's own META-INF/LICENSE.txt arrives by accident.
+    metaInf { from("third-party/THIRD-PARTY-NOTICES.standalone") { rename { "THIRD-PARTY-NOTICES" } } }
     // This jar bundles core and the slf4j listener, and every NarrativeTrace jar now carries its
     // own META-INF/LICENSE and META-INF/NOTICE (narrativetrace-license-packaging). The texts are
     // byte-identical to this module's, so the archive would otherwise hold three copies of each.

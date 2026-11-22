@@ -1,4 +1,4 @@
-<!-- source: documentation/configuration-guide.md blob 22e988a51b53 | translated: 2026-11-15 | reviewed: - -->
+<!-- source: documentation/configuration-guide.md blob 5d97b630e5b0 | translated: 2026-11-15 | reviewed: - -->
 # Guia de configuração de NarrativeTrace Java
 
 [English](../configuration-guide.md) | [Español](../es/guia-de-configuracion.md) | **Português** | [简体中文](../zh-CN/配置指南.md)
@@ -29,7 +29,7 @@ O plugin do Gradle (`ai.narrativetrace`) configura tudo automaticamente. Aplique
 
 ```kotlin
 plugins {
-    id("ai.narrativetrace") version "0.5.7"
+    id("ai.narrativetrace") version "0.5.8"
 }
 
 // A configuração zero funciona — padrões sensatos para tudo:
@@ -834,7 +834,7 @@ Um bean `NarrativeContext` é fornecido automaticamente (marcado `@Secondary`). 
 Adicione `narrativetrace-micronaut-http` para o ciclo de vida do trace por requisição:
 
 ```kotlin
-implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.7")
+implementation("ai.narrativetrace:narrativetrace-micronaut-http:0.5.8")
 ```
 
 O filtro HTTP reativo (`HttpServerFilter`) é autorregistrado ao estar no classpath. Ciclo de vida: reset → estampar metadados HTTP → prosseguir → capturar → exportar → reset.

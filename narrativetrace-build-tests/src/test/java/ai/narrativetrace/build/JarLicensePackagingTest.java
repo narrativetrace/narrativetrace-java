@@ -166,4 +166,69 @@ class JarLicensePackagingTest {
         .contains("Apache License, Version 2.0 — see LICENSE-APACHE.")
         .contains("Business Source License 1.1 — see LICENSE.");
   }
+
+  // --- third-party code bundled into a jar (B-354) --------------------------
+
+  /**
+   * The agent's slim jar bundles ASM relocated; the standalone jar additionally bundles slf4j-api.
+   * BSD-3-Clause (ASM) §2 and MIT (slf4j) both require the notice and the licence text to travel
+   * with a binary redistribution, so each jar carries META-INF/THIRD-PARTY-NOTICES naming each
+   * bundled library, with the canonical text. The committed copies live under
+   * narrativetrace-agent/third-party/; the licence texts there are fetched from each project's own
+   * repository, never typed.
+   */
+  private File agentJar(String classifier) {
+    var jar =
+        new File(
+            PROJECT_DIR,
+            "narrativetrace-agent/build/libs/narrativetrace-agent-"
+                + BUILD_VERSION
+                + classifier
+                + ".jar");
+    assertThat(jar).as("agent jar %s", classifier).isFile();
+    return jar;
+  }
+
+  private String thirdParty(String name) throws IOException {
+    return rootFile("narrativetrace-agent/third-party/" + name);
+  }
+
+  @Test
+  void slimAgentJarCarriesTheAsmNoticeAndLicence() throws IOException {
+    var notices = entry(agentJar(""), "META-INF/THIRD-PARTY-NOTICES");
+
+    assertThat(notices).contains("ASM").contains("9.7.1").contains("BSD-3-Clause");
+    assertThat(notices)
+        .as("the canonical ASM licence, verbatim")
+        .contains(thirdParty("licenses/ASM-LICENSE.txt").strip());
+    assertThat(notices).as("slf4j is not in the slim jar").doesNotContain("slf4j");
+    assertThat(notices)
+        .as("what the jar packs is exactly the committed file")
+        .isEqualTo(thirdParty("THIRD-PARTY-NOTICES.agent"));
+  }
+
+  @Test
+  void standaloneAgentJarCarriesAsmAndSlf4jNoticesAndLicences() throws IOException {
+    var notices = entry(agentJar("-standalone"), "META-INF/THIRD-PARTY-NOTICES");
+
+    assertThat(notices).contains("ASM").contains("9.7.1").contains("BSD-3-Clause");
+    assertThat(notices).contains("slf4j-api").contains("2.0.16").contains("MIT");
+    assertThat(notices).contains(thirdParty("licenses/ASM-LICENSE.txt").strip());
+    assertThat(notices).contains(thirdParty("licenses/SLF4J-LICENSE.txt").strip());
+    assertThat(notices).isEqualTo(thirdParty("THIRD-PARTY-NOTICES.standalone"));
+  }
+
+  @Test
+  void jarsWithoutBundledThirdPartyCodeBundleNone() throws IOException {
+    // The inventory is a claim: the CLI and the Gradle plugin embed only NarrativeTrace's own
+    // classes. If a third-party class ever lands in them, this fails and the notice gap with it.
+    for (var jar :
+        new File[] {jarOf("narrativetrace-cli"), jarOf("narrativetrace-gradle-plugin")}) {
+      try (var zip = new ZipFile(jar)) {
+        assertThat(zip.stream().map(ZipEntry::getName).filter(n -> n.endsWith(".class")))
+            .as("%s bundles only ai.narrativetrace classes", jar.getName())
+            .allMatch(n -> n.startsWith("ai/narrativetrace/"));
+      }
+    }
+  }
 }

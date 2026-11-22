@@ -269,7 +269,7 @@ pluginManagement {
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("ai.narrativetrace") version "0.5.7"
+    id("ai.narrativetrace") version "0.5.8"
 }
 ```
 
@@ -337,7 +337,7 @@ shown. The JSON keeps every iteration whatever happens, and
 
 ### Gradle or Maven?
 
-The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.5.7`
+The runtime jars are ordinary Maven artifacts. `ai.narrativetrace:narrativetrace-core:0.5.8`
 and every module beside it resolve and work exactly the same from a Maven build;
 nothing in the library itself is Gradle-specific. What *is* Gradle-specific is
 the plugin above — it is a convenience that wires the compiler flag, the
@@ -643,6 +643,7 @@ years after each release). Pro is commercial.
 | Artifact | Licence | What that means |
 |---|---|---|
 | `narrativetrace-api` | [Apache 2.0](LICENSE-APACHE) | The annotations, the event model and the SPIs — everything your code compiles against. An open standard, so any implementation can target it. |
+| `narrativetrace-skills`, `narrativetrace-cli`, `narrativetrace-tooling` | [Apache 2.0](LICENSE-APACHE) | The agent-skill carrier and its tooling: the skill pages, the `narrativetrace` launcher, and the installer and doctor library. Open for the same reason the API is — what your agents and build read has to be readable without agreeing to anything. |
 | every other `ai.narrativetrace` artifact | [BSL 1.1](LICENSE) | The runtime. Free to use in production, including in products and services you provide to your own customers. The one exclusion is offering NarrativeTrace itself — or a product or service whose value derives substantially from it — to third parties as a logging, tracing or code-narrative product or service. Each released version becomes Apache 2.0 four years after it is published. |
 | the documentation (prose guides) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | The guides and reference documentation. The output-format specification and the JSON schemas are Apache 2.0 — they are the open standard. |
 

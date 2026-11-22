@@ -28,8 +28,17 @@ tasks.withType<Test> {
         ":narrativetrace-api:jar",
         ":narrativetrace-core:jar",
         ":narrativetrace-skills:jar",
-        ":narrativetrace-cli:jar"
+        ":narrativetrace-cli:jar",
+        ":narrativetrace-gradle-plugin:jar",
+        ":narrativetrace-agent:shadowJar",
+        ":narrativetrace-agent:standaloneJar"
     )
+    // The notice texts the agent jars must carry are read from the repo (B-354); declared so an
+    // edit to them re-runs the test.
+    inputs
+        .files(rootProject.fileTree("narrativetrace-agent/third-party"))
+        .withPropertyName("agentThirdParty")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("narrativetrace.buildVersion", project.version.toString())
     // `projectDir` is a system PROPERTY, not a task input, so a test that reads a file through it
     // stays UP-TO-DATE when only that file changes. That hole is exactly how SkillsCarrierJarTest's

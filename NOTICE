@@ -71,5 +71,21 @@ Which licence applies to what
 
 The category each module ships under is declared in licensing.properties at
 the repository root, and the build refuses a dependency graph the licences
-cannot support: an Apache-licensed module may depend on nothing, so the open
-contract can never hand a consumer a BSL jar they did not agree to.
+cannot support: an Apache-licensed module may depend only on Apache-licensed
+modules, so the open contract can never hand a consumer a BSL jar they did not
+agree to.
+
+Third-party components
+----------------------
+
+Most NarrativeTrace jars bundle no third-party code. These do, and each
+carries the full licence text of what it bundles in META-INF/THIRD-PARTY-NOTICES:
+
+  ai.narrativetrace:narrativetrace-agent (the main jar and the -standalone jar)
+      ASM 9.7.1 (org.ow2.asm:asm, asm-commons, asm-tree), BSD-3-Clause,
+      Copyright (c) 2000-2011 INRIA, France Telecom. Bundled with its packages
+      relocated to ai.narrativetrace.agent.internal.asm.
+
+  ai.narrativetrace:narrativetrace-agent, the -standalone jar only
+      SLF4J API 2.0.16 (org.slf4j:slf4j-api), MIT,
+      Copyright (c) 2004-2022 QOS.ch Sarl (Switzerland). Bundled unrelocated.
